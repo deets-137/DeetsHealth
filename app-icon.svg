@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- A placeholder icon for the shell: a plain card shape. The real icon is the owner's call. -->
+  <rect x="96" y="96" width="832" height="832" rx="192" fill="#6b5b95"/>
+  <rect x="256" y="256" width="512" height="512" rx="72" fill="none" stroke="#f4f1fa" stroke-width="56"/>
+</svg>

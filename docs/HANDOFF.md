@@ -10,12 +10,30 @@ updated: 2026-09-21
 > sitting is [WORKLOG.md](WORKLOG.md).
 
 ## State of play (2026-09-21)
-- The docs exist, and one dev script: `scripts/fhir-probe.mjs`. **No app code.**
+- **The empty shell is built** (scaffold steps 1–2): the Tauri app, the title bar (title menu,
+  cog and quick panel, window buttons), all themes and skins, Midi and Max, the card slots,
+  swap, grow, memory, the Settings card, and six empty record cards. No record data, no
+  sign-in. Desk test passed 2026-09-21 ([SURFACES-AND-CARDS.md §4](architecture/SURFACES-AND-CARDS.md)).
 - Git is local only. There is no remote. Do not add one.
-- **Next session starts here:** write the first build step as a plan on paper for the
-  owner to check before any code — the empty Tauri app; the first imports, each with its
-  wall check; the core crate's outline (web-ready); the Compass shell; the release path up
-  to, not including, the worker. Every scaffold fork is closed (Decided below).
+- **Next session starts here** (the owner's order, 2026-09-21): scaffold step 3, the web-ready
+  core crate, then step 4, the Compass shell. Design each on paper first and bring the forks.
+  - The core crate (Decided › Web-ready core) holds the normalizer, the health model and the
+    sealing, with no Tauri dependency. It turns FHIR JSON into the model; it is not all of
+    "getting the data". Sign-in, the key store, the cache and opening a browser sit behind
+    small platform interfaces. **Open fork for step 3:** where the HTTP fetch lives — in the
+    core (one fetch for desktop and web) or behind a platform interface.
+  - Step 5, the release path up to (not including) the worker, comes after these two.
+
+## Run
+```
+npm install
+npm run dev:app       # a free port from 1420 up; the dev identifier com.deetshealth.dev
+npm run dev:fresh     # the same, as a first-time user (run it from your own terminal)
+npx tsc --noEmit      # front-end type check
+npm run docs:check    # links, mentions, § pointers, front matter
+npm run tokens        # regenerate docs/architecture/TOKENS.md after a token change
+```
+The dev app is up when its output has `start: DeetsHealth` (read it with `grep -a`).
 
 ## Decided (the owner, 2026-09-21)
 1. **Scaffold:** copy DeetsMusic's Tauri skeleton, then strip what does not apply.
@@ -78,6 +96,10 @@ updated: 2026-09-21
   (ideas/README.md).
 - **Dose text** (same day, 8.3a): built from the structured parts. The owner has ideas for
   it; bring them in at build time.
+- **The shell** (same day): DeetsMusic's Midi and Max shapes, with the Patient card where Now
+  Playing is and the Timeline card where the Queue is (pickable in Midi, anchored in Max).
+  Max's fourth default card is a new Conditions card. The title bar has the cog and quick
+  panel. First look: Lilac × Press (light), Moonlight × Glass (dark). SURFACES-AND-CARDS.md.
 
 ## Open now
 5. **Epic — ON HOLD.** The owner cannot register on fhir.epic.com yet. All Epic work waits:
@@ -85,9 +107,11 @@ updated: 2026-09-21
    live site until then, so the first slice (item 3) uses SMART's synthetic patients. When
    Epic comes back: a debug build may answer its own scheme (DeetsMusic:
    `deetsmusic-dev://`), so the registration may need two redirect URIs (fork 6).
-6. **Scaffold** — all decided (see Decided). Next: the first build step as a plan on paper.
+6. **Scaffold** — steps 1–2 built and desk-tested. Steps 3–5 to come (State of play).
+9. **App icon** — `app-icon.svg` is a placeholder (a plain card shape). `npx tauri icon
+   app-icon.svg` makes the set; the real icon is the owner's call.
 8. **Computed sex** — parked until the build. Direction set: display `gender`; calculations
-   use a sex computed from several factors at runtime (FHIR-SHAPES.md §5.4).
+   use a sex computed from several factors at runtime (FHIR-SHAPES.md §5, fork 4).
 
 ## Gotchas
 - Epic's sandbox data is small and tidy. Real site data is not.
@@ -104,8 +128,20 @@ updated: 2026-09-21
   DeetsMusic's does. Do not try to move it into an in-app popup.
 - **A `cmd /c start` of the callback link only tests Windows → app.** It cannot prove what a
   browser sees. Quote the link: `cmd` splits an unquoted `&`.
+- **No inline script.** The CSP (`tauri.conf.json`) allows none, so the theme pre-paint is a
+  file, `public/prepaint.js`. Keep its defaults in step with `theme.ts` and `skin.ts`.
+- **The wall in the engine** (SECURITY.md §4). Hover hints are written hints only (no row
+  hints); the context menu logs a row's place, never its label; diag logs an error's kind,
+  never its message; the Rust panic hook withholds the message; the log cuts every URL's
+  query string. Keep all five when a card fills.
 
 ## File map
-- `scripts/fhir-probe.mjs` — reads a FHIR server and prints each resource's shape, never a
-  value. `--write` makes `docs/architecture/probes/<site>.md`.
-- The rest of the planned layout is in [README.md](../README.md).
+- `src/main.ts` — boot and the title bar. `src/layout.ts` — the slots per surface.
+  `src/surface.ts` — Midi / Max and the resize bands. `src/cards.ts` — the registry.
+  `src/record-cards.ts` — the empty record cards. `src/settings-card.ts` — Settings.
+  `src/quick-panel.ts` — the cog. The rest of `src/` is DeetsMusic's engine, cut to fit.
+- `src-tauri/src/` — `lib.rs` (setup, the scheme, commands), `log.rs` (the rolling log and its
+  wall), `window.rs` (the launch show, the window position), `settings.rs`, `watchdog.rs`.
+- `scripts/` — `dev-app.mjs`, `docs-check.mjs`, `docs-move.mjs`, `tokens.mjs`, and
+  `fhir-probe.mjs` (prints each resource's shape, never a value; `--write` makes
+  `docs/architecture/probes/<site>.md`).

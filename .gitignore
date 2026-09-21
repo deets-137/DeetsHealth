@@ -15,6 +15,12 @@ epic-client.json
 tokens/
 dev-dumps/
 *.fhir.json
+# The sealed cache and the key files (SECURITY.md §4.8), by pattern
+*.db
+*.db-wal
+*.db-shm
+*.sealed
+*.key
 
 # Local Claude Code settings
 .claude/settings.local.json

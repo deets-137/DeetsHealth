@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "identifier": "com.deetshealth.dev",
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["deetshealth-dev"]
+      }
+    }
+  }
+}

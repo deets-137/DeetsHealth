@@ -1,0 +1,36 @@
+[package]
+name = "deetshealth"
+version = "0.1.0"
+description = "A lightweight patient health-record viewer for Windows 11."
+authors = ["Aditya Sundaram"]
+edition = "2021"
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "deetshealth_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# One instance only: a second launch (the pinned taskbar button, or the browser handing
+# back a `deetshealth://` sign-in link) must reach the running app, not start another.
+tauri-plugin-single-instance = "2"
+# Registers the `deetshealth://` scheme (DATA-ARCHITECTURE.md §2). Link delivery is the
+# single-instance callback; nothing reads a link yet — sign-in comes after the shell.
+tauri-plugin-deep-link = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Local time on log lines (log.rs).
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+# The WebView2 settings interface that turns off browser keys (lib.rs, release only). The
+# version Tauri's wry already uses, so no new crate download.
+webview2-com = "0.38"
+
+[dependencies.windows]
+version = "0.61"
+features = ["Win32_Foundation"]

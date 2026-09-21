@@ -8,6 +8,22 @@ updated: 2026-09-21
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-09-21 — the empty shell
+- Fixed two old doc lines: README (SMART first, Epic on hold) and SURFACES-AND-CARDS.md §2
+  (the first slice is decided). Fixed three § pointers that named list items, not headings.
+- The owner closed the shell forks: DeetsMusic's Midi and Max shapes, the Patient card for
+  Now Playing, the Timeline card for the Queue, a new Conditions card for Max's fourth slot,
+  the cog and quick panel in the title bar, and the first look Lilac × Press / Moonlight × Glass.
+- Built scaffold steps 1–2 (SURFACES-AND-CARDS.md §3): the Tauri app and the engine brought
+  across from DeetsMusic, each file checked against SECURITY.md §4 on the way in. Wall changes:
+  hints lost row hints, the menu log lost labels, diag logs error kinds only, the panic hook
+  withholds the message, the log cuts URL query strings, the CSP allows no inline script.
+- Ported the scripts: `dev-app.mjs`, `docs-check.mjs` (checks 1–4, 11), `docs-move.mjs`,
+  `tokens.mjs` (made `docs/architecture/TOKENS.md`).
+- Checks: `tsc`, `vite build`, `cargo check` (dev and release), 3 log tests pass,
+  `docs:check` clean. One dev launch: the page reported ready, no front-end error.
+- The owner desk-tested the shell: passed. Next: the core crate, then Compass.
+
 ## 2026-09-21 — security rules and the probe plan
 - The owner set the priority: patient experience, then privacy and security, then the rest.
 - New `architecture/SECURITY.md`: protected data = PHI + PII (any identifier), the threats,

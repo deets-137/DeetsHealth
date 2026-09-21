@@ -1,0 +1,1299 @@
+/* ============================================================
+   App styles. Tokens first (palette → themes → skin), then the
+   app's own rules. Rules reference ONLY semantic tokens —
+   never a raw hex or hardcoded px / font name.
+   Brought across from DeetsMusic's styles.css section by section;
+   the music sections were left behind. A comment that names a
+   DeetsMusic doc points at that repo's docs/.
+   ============================================================ */
+@import "./styles/fonts.css";
+@import "./styles/palette.css";
+@import "./styles/themes.css";
+@import "./styles/skin.css";
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--canvas);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--fs-text);
+  line-height: var(--lh-text);
+  overflow: hidden;
+  user-select: none;            /* app chrome shouldn't feel like a document */
+  display: flex;
+  flex-direction: column;
+
+  /* crisp text: no faux weights, smoothed edges */
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Titlebar (our own chrome; OS frame is disabled) ─────────── */
+.titlebar {
+  position: relative; /* the Compass bar hangs from it (styles/compass.css) */
+  flex: 0 0 var(--titlebar-h);
+  height: var(--titlebar-h);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+}
+
+/* The only draggable zone: the gap between the title and the lights.
+   Interactive children deliberately do NOT carry data-tauri-drag-region. */
+.drag-region { flex: 1 1 auto; align-self: stretch; }
+
+/* ── Settings trigger (the app title) ───────────────────────── */
+.settings { position: relative; display: inline-flex; align-items: center; height: 100%; }
+
+.app-title {
+  font-family: var(--font-title);
+  font-size: var(--fs-title);
+  font-weight: var(--fw-title);
+  color: var(--title);
+  background: none;
+  border: none;
+  margin: 0;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-control);
+  line-height: 1.1;
+  cursor: pointer;
+  /* editorial title rule — a skin opt-in (no-op under most; Vanilla flips it
+     on). Ink is currentColor = --title, so the theme still owns the color. */
+  text-decoration-line: var(--title-underline);
+  text-decoration-thickness: var(--title-underline-w);
+  text-underline-offset: var(--title-underline-offset);
+}
+.app-title:hover { background: var(--surface-hover); }
+.app-title:focus-visible { outline: var(--focus-ring-w) solid var(--title); outline-offset: var(--focus-ring-off); }
+
+/* ── The cog (SETTINGS.md) ───────────────────────────────────
+   The title bar's own way into the Settings card, right of the Compass. Same
+   control family as the Compass button and the right cluster's icon squares:
+   the row's height, no fill, no border, --subtext until hover.
+   The turn (src/main.ts): every click adds --cog-step to --cog-angle and the
+   count never resets, so the cog keeps turning the same way for as long as the
+   app runs. Six teeth means 120 degrees looks identical, so it never rests
+   crooked and there is nothing to unwind. */
+.quick { position: relative; display: flex; align-items: center; margin-left: var(--space-2); }
+.cog__btn {
+  width: var(--cog-btn-size); height: var(--cog-btn-size);
+  padding: 0; border: none; background: none;
+  color: var(--subtext); cursor: pointer;
+  display: grid; place-items: center;
+  transition: color var(--dur-fast) var(--ease-ui);
+}
+.cog__btn:hover { color: var(--title); }
+.cog__btn svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cog__btn:focus-visible { outline: var(--focus-ring-w) solid var(--title); outline-offset: var(--focus-ring-off); }
+.cog__btn svg { transform: rotate(var(--cog-angle, 0deg)); transition: transform var(--cog-spin); }
+@media (prefers-reduced-motion: reduce) { .cog__btn svg { transition: none; } }
+
+/* ── The quick panel (QUICK-SETTINGS.md) ──────────────────────
+   The cog's panel: the Sound / Sleep / Rooms panel family (menu surface, panel radius,
+   panel shadow), hung from the cog's LEFT edge because the cog sits on the left of the
+   title bar. Shut, it is one row: the logos and All settings. A logo press grows it down. */
+.quick__panel {
+  position: absolute; top: 100%; left: 0;
+  --pop-origin: top left;
+  margin-top: var(--space-1);
+  width: var(--quick-panel-w);
+  max-height: var(--quick-panel-max-h);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  display: flex; flex-direction: column; align-items: stretch;
+  gap: var(--space-2);
+  padding: var(--quick-panel-pad);
+  background: var(--menu-surface);
+  -webkit-backdrop-filter: var(--menu-backdrop);
+  backdrop-filter: var(--menu-backdrop);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--fs-subtext);
+  z-index: 20;
+}
+.quick__panel[hidden], .quick__panel [hidden] { display: none; }
+.quick__panel.is-growing { overflow: hidden; } /* quick-panel.ts animates the height */
+.quick__bar { display: flex; align-items: center; gap: var(--space-2); }
+/* The logos and All settings: the panel chip family (the Sound panel's pills). A pressed
+   logo takes the picked fill; the glyph keeps its brand black or white. */
+.quick__logo, .quick__all {
+  box-sizing: border-box; height: var(--quick-logo-size);
+  font-family: var(--font-body); font-size: var(--fs-subtext); line-height: 1;
+  color: var(--text); background: var(--surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--sound-chip-radius);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+}
+.quick__logo { width: var(--quick-logo-size); padding: 0; display: grid; place-items: center; }
+.quick__right { margin-left: auto; }   /* the right cluster (Updates and bugs, Reset, the cog) sits apart */
+.quick__logo:hover { background: var(--surface-hover); }
+.quick__logo[aria-pressed="true"] { background: var(--picked); border-color: var(--title); color: var(--title); }
+.quick__logo:focus-visible { outline: var(--focus-ring-w) solid var(--title); outline-offset: var(--focus-ring-off); }
+.quick__mark { display: block; width: var(--quick-mark-size); height: var(--quick-mark-size); }
+/* The app's own icons (Window, the brush, the cog): stroked in the ink, --text, and --title
+   when pressed. The Window icon's back pane stays --subtext so it reads as behind. */
+.quick__glyph, .quick__all svg {
+  display: block; width: var(--quick-mark-size); height: var(--quick-mark-size);
+  fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+}
+.quick__glyph-back { stroke: var(--subtext); }
+.quick__glyph-fill { fill: currentColor; stroke: none; }   /* the Reset ring's two arrowheads */
+.quick__mark--apple { fill: var(--apple-music-mark); }   /* official asset: black or white only */
+.quick__mark--discord { fill: var(--discord-mark); }     /* official asset: black or white here */
+.quick__body { display: flex; flex-direction: column; gap: var(--space-2); }
+/* The Tips pointer over the row: the account row's text link (.account__link), a line of
+   --subtext that underlines and goes --title on hover. */
+.quick__tips {
+  align-self: flex-start;
+  padding: 0; border: 0; background: none;
+  font-family: var(--font-body); font-size: var(--fs-subtext);
+  color: var(--subtext); text-decoration: underline; cursor: pointer;
+}
+.quick__tips:hover { color: var(--title); }
+.quick__tips:focus-visible { outline: var(--focus-ring-w) solid var(--title); outline-offset: var(--focus-ring-off); }
+
+/* ── Settings menu + flyout ─────────────────────────────────── */
+.menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0;
+  min-width: var(--menu-min-w);
+  background: var(--menu-surface);          /* opaque under most skins; Glass frosts */
+  -webkit-backdrop-filter: var(--menu-backdrop);
+  backdrop-filter: var(--menu-backdrop);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  padding: var(--space-1);
+  z-index: 20;
+}
+.menu[hidden] { display: none; }
+.menu { --pop-origin: top left; } /* it hangs from the title's left edge (main.ts adds .pop) */
+
+.menu__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--fs-text);
+  white-space: nowrap;
+  cursor: default;
+}
+.menu__row:hover { background: var(--surface-hover); }
+.menu__chev { color: var(--subtext); }
+
+/* Toggle row (e.g. Always on Top): a clickable row whose right gutter shows the
+   active dot, mirroring the theme flyout's selection indicator. */
+.menu__row--toggle { width: 100%; background: none; border: none; cursor: pointer; }
+.menu__dot {        /* reserved right gutter; dot appears when checked */
+  width: 0.9em;
+  text-align: center;
+  line-height: 1;
+  color: var(--title);
+}
+.menu__row--toggle[aria-checked="true"] .menu__dot::after { content: "•"; }
+
+.flyout {
+  position: absolute;
+  top: calc(-1 * var(--space-1));
+  left: 100%;                   /* touches the menu edge — no hover gap */
+  min-width: var(--menu-min-w);
+  background: var(--menu-surface);
+  -webkit-backdrop-filter: var(--menu-backdrop);
+  backdrop-filter: var(--menu-backdrop);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  padding: var(--space-1);
+  display: none;
+  flex-direction: column;
+  gap: var(--space-1);
+  /* The pop motion, driven by the row's :hover (no hidden attribute here): it slides out
+     from the menu edge, and fades away when the pointer moves to another row. */
+  opacity: 0;
+  transform: translateX(calc(-1 * var(--pop-shift))) scale(var(--pop-scale));
+  transform-origin: top left;
+  pointer-events: none; /* a fading flyout must not catch the pointer and reopen */
+  transition:
+    opacity var(--pop-out) var(--pop-ease),
+    transform var(--pop-out) var(--pop-ease),
+    display var(--pop-out) allow-discrete;
+}
+.menu__row:hover .flyout {
+  display: flex;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  transition-duration: var(--pop-in);
+}
+@starting-style {
+  .menu__row:hover .flyout { opacity: 0; transform: translateX(calc(-1 * var(--pop-shift))) scale(var(--pop-scale)); }
+}
+
+/* Each item carries its own data-theme, so --canvas / --title / --border
+   resolve to THAT theme — the chip is a live taste of the theme it selects. */
+.flyout__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;   /* name left, active dot right */
+  gap: var(--space-2);
+  width: 100%;
+  text-align: left;
+  background: var(--canvas);
+  color: var(--title);
+  border: 1px solid var(--border);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  font-family: var(--font-title);
+  font-weight: var(--fw-title);
+  font-size: var(--fs-text);
+  cursor: pointer;
+  transition: box-shadow var(--dur-fast) var(--ease-ui);
+}
+.flyout__item::after {             /* reserved right gutter; dot shows when active */
+  content: "";
+  width: 0.9em;
+  text-align: center;
+  line-height: 1;
+}
+/* Hover gets a muted ring for affordance; selection is shown by the dot alone. */
+.flyout__item:hover {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text);
+}
+.flyout__item[aria-checked="true"]::after { content: "•"; }
+
+/* Surface flyout: the label's size IS the preview (Mini < Midi < Max). Sizes come
+   from the skin's own type scale, so the preview re-scales with the active skin.
+   Every row reserves the tallest label's line box, so the three boxes match. */
+.flyout__item[data-surface-choice], .flyout__split { line-height: var(--fs-title); }
+.flyout__split                            { font-size: var(--fs-subtext); }
+.flyout__item[data-surface-choice="max"]  { font-size: var(--fs-title); }
+/* Mini | Player: one item cut in two (the search pin idiom). The halves are EQUAL: "Player"
+   does not fit a third (owner, desk, 2026-09-18 — it was 3/1 while the half read "NP", then
+   2/1 for a beat). The label is CENTRED, and the radio dot is taken out of the flow for it:
+   the dot is an indicator, not a column, so it is absolutely placed in the half's own right
+   padding. That keeps the row narrow (an in-flow dot slot cost each half a slot AND a gap,
+   and balancing it for a true centre cost a second of each) and it keeps the label still —
+   the word does not shift when the pick moves between the halves. Both halves wear the same
+   type, and a hover rings only the half under the pointer. */
+.flyout__split { padding: 0; gap: 0; overflow: hidden; cursor: default; }
+.flyout__split::after { content: none; }
+.flyout__split:hover { box-shadow: none; }
+.flyout__half {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  flex: 1 1 0; min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  background: none; border: none;
+  font: inherit; line-height: inherit; color: inherit; text-align: center;
+  cursor: pointer;
+  transition: box-shadow var(--dur-fast) var(--ease-ui);
+}
+.flyout__half + .flyout__half { border-left: 1px solid var(--border); }
+.flyout__half[aria-checked="true"]::after {
+  content: "•";
+  position: absolute; right: var(--space-1); top: 50%; transform: translateY(-50%);
+  line-height: 1; pointer-events: none;
+}
+.flyout__half:hover { background: var(--surface-hover); box-shadow: inset 0 0 0 2px var(--text); }
+
+/* ── Right chrome cluster (the window buttons) ───────────────── */
+.chrome-right { display: flex; align-items: center; gap: var(--space-2); }
+
+/* ── Pop: a dropdown panel that arrives and leaves (the title menu, the quick panel) ──
+   The panel's `hidden` attribute drives it (the dropdown primitive): @starting-style
+   animates the arrival, and display allow-discrete keeps it painted through the fade
+   out. It grows from the corner it hangs from: --pop-origin (default top right).
+   A panel flipped above its trigger (data-above) grows from its bottom edge. */
+.pop {
+  transform-origin: var(--pop-origin, top right);
+  --pop-from: translateY(calc(-1 * var(--pop-shift))) scale(var(--pop-scale));
+  transition:
+    opacity var(--pop-in) var(--pop-ease),
+    transform var(--pop-in) var(--pop-ease),
+    display var(--pop-in) allow-discrete;
+}
+.pop[data-above] { --pop-origin: bottom right; --pop-from: translateY(var(--pop-shift)) scale(var(--pop-scale)); }
+.pop[hidden] {
+  display: none;
+  opacity: 0;
+  transform: var(--pop-from);
+  pointer-events: none;
+  transition-duration: var(--pop-out);
+}
+@starting-style { .pop:not([hidden]) { opacity: 0; transform: var(--pop-from); } }
+/* A row sliding in (src/pop.ts): a panel's rows on open, the rows a section fold opened. */
+.pop-enter { animation: pop-row-in var(--pop-in) var(--pop-ease) calc(var(--pop-i, 0) * var(--pop-stagger)) both; }
+@keyframes pop-row-in { from { opacity: 0; transform: translateY(calc(-1 * var(--pop-shift))); } }
+@media (prefers-reduced-motion: reduce) {
+  .pop, .flyout { transition: none; }
+  .pop-enter { animation: none; }
+}
+/* Card swap (src/card-swap.ts; skin.css §card swap). JS sets --swap-dx / --swap-dy, the
+   offset from the slot the card left. The travel rides `translate` and the skin's shape
+   rides `transform`, so a midpoint shape never splits the travel's ease. A replace rises in. */
+.bento .panel.swap-in {
+  animation:
+    card-swap-travel var(--swap-dur) var(--swap-ease) calc(var(--swap-i, 0) * var(--swap-stagger)) both,
+    card-swap-shape  var(--swap-dur) var(--swap-ease) calc(var(--swap-i, 0) * var(--swap-stagger)) both;
+}
+.bento .panel.swap-top { z-index: 1; } /* the card the user picked passes over the other */
+/* The out step (a skin with --swap-out-dur > 0): the leaving card plays out, then the remount. */
+.bento .panel.swap-out { animation: card-swap-out var(--swap-out-dur) var(--swap-ease) both; pointer-events: none; }
+@keyframes card-swap-out {
+  to { transform: var(--swap-out-to); opacity: var(--swap-out-fade); }
+}
+.bento .panel.swap-rise { animation: card-swap-rise var(--swap-dur) var(--pop-ease) both; }
+@keyframes card-swap-travel {
+  from { translate: calc(var(--swap-dx, 0px) * var(--swap-travel)) calc(var(--swap-dy, 0px) * var(--swap-travel)); }
+}
+@keyframes card-swap-shape {
+  from { transform: var(--swap-from); opacity: var(--swap-fade); }
+  50%  { transform: var(--swap-mid); }
+  to   { transform: none; opacity: 1; }
+}
+@keyframes card-swap-rise {
+  from { opacity: 0; transform: translateY(var(--pop-shift)) scale(var(--pop-scale)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bento .panel.swap-out, .bento .panel.swap-in, .bento .panel.swap-rise { animation: none; }
+}
+/* ── Traffic lights ─────────────────────────────────────────── */
+.lights { display: flex; gap: var(--traffic-gap); }
+
+.light {
+  width: var(--traffic-size);
+  height: var(--traffic-size);
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: filter var(--dur-fast) var(--ease-ui);
+}
+.light:hover  { filter: brightness(1.08); }
+.light:active { filter: brightness(0.92); }
+.light:focus-visible { outline: var(--focus-ring-w) solid var(--title); outline-offset: var(--focus-ring-off); }
+
+.light--max   { background: var(--go); }
+.light--min   { background: var(--pause); }
+.light--close { background: var(--stop); }
+
+/* Stroked SVG sigils — pixel-centered, crisp at any size. */
+.sigil {
+  width: 58%;
+  height: 58%;
+  fill: none;
+  stroke: var(--traffic-glyph);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ── Body / content region ──────────────────────────────────── */
+.app-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--panel-gap);
+  overflow: hidden;             /* the columns scroll, not the whole body */
+  position: relative;           /* anchors the ocean + storm layers */
+
+  /* Canvas pattern behind the cards (Press halftone / Cyber grid). A skin
+     whose canvas MOVES paints it on an ambient layer instead and sets
+     --app-canvas-bg: none (Glass → .aurora). Vanilla paints nothing. */
+  background-image:  var(--app-canvas-bg);
+  background-size:   var(--canvas-bg-size);
+  background-repeat: var(--canvas-bg-repeat);
+}
+
+/* Canvas dim (skin.css --canvas-dim; Glass › Dim canvas). The last child of .app-body at
+   z-index 0, so it paints over the ambient layers (also z 0, earlier) and under the bento
+   (z 1). Static: it never repaints on its own. */
+.app-body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgb(0 0 0 / var(--canvas-dim));
+}
+
+/* ── Ocean layer (rolling swell behind the cards) ───────────── */
+/* Inert unless a skin opts in (--ocean-display; Ocean). The fill is the theme's
+   --canvas and the crest inks are skin tokens that fade with distance. The roll and
+   bob keyframes (skin.css) read per-layer distances from the --roll-dist / --bob-amp
+   custom properties set here. Only transform animates: the compositor moves the
+   rasterized trains, so an idle sea costs no main-thread paint. */
+.ocean {
+  display: var(--ocean-display, none);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.ocean__bob {
+  position: absolute;
+  inset: 0;
+  /* stepped at --ambient-fps; 5 keyframe segments of 1.8s each (the ease lives in
+     the sine-sampled keyframes, since steps() replaces the easing) */
+  animation: ocean-bob 9s steps(round(9 * var(--ambient-fps) / 5)) infinite alternate;
+  will-change: transform;
+}
+/* Oversized and left-shifted so a full roll cycle (≤144px) never drags the
+   box's own edge into view; the tiles just repeat across the slack. */
+.ocean__roll {
+  position: absolute;
+  left: -160px;
+  top: -8px;
+  width: calc(100% + 320px);
+  height: calc(100% + 16px);
+  animation: ocean-roll 16s steps(round(16 * var(--ambient-fps))) infinite;
+  will-change: transform;
+}
+/* Fill and crest are two masked pseudo-boxes (a mask on the roll itself would
+   also clip the crest to the fill shape). The mask origin offsets the roll's
+   own shift, so the tile grid starts at the body corner. */
+.ocean__roll::before,
+.ocean__roll::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  mask-size: var(--swell-tile);
+  mask-repeat: repeat;
+  mask-position: 160px 8px;
+}
+.ocean__roll::before { background: var(--canvas);    mask-image: var(--swell-fill); }
+.ocean__roll::after  { background: var(--swell-ink); mask-image: var(--swell-crest); }
+/* Tiles: each is ONE full sine period (Q + T reflection), so the curve's value AND
+   tangent match at the tile edge. Crest = the same curve, 1px stroke.
+   Roll: each train drifts an INTEGER number of its own tile width per 16s
+   loop (144=3×48, 128=2×64, 80=1×80) so the wrap is invisible, the nearest
+   moving fastest. Bob: amplitudes shrink with distance; the middle train is
+   counter-phase (negative) so the sea breathes rather than pumps. */
+.ocean__roll--1 {
+  --roll-dist: 144px;
+  --swell-tile: 48px 30px;
+  --swell-ink: var(--ocean-ink-1);
+  --swell-fill:  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='30'%3E%3Cpath d='M0 17 Q12 11 24 17 T48 17 L48 30 L0 30 Z'/%3E%3C/svg%3E");
+  --swell-crest: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='30'%3E%3Cpath d='M0 17 Q12 11 24 17 T48 17' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
+}
+.ocean__roll--2 {
+  --roll-dist: 128px;
+  --swell-tile: 64px 38px;
+  --swell-ink: var(--ocean-ink-2);
+  --swell-fill:  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='38'%3E%3Cpath d='M0 22 Q16 17 32 22 T64 22 L64 38 L0 38 Z'/%3E%3C/svg%3E");
+  --swell-crest: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='38'%3E%3Cpath d='M0 22 Q16 17 32 22 T64 22' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
+}
+.ocean__roll--3 {
+  --roll-dist: 80px;
+  --swell-tile: 80px 46px;
+  --swell-ink: var(--ocean-ink-3);
+  --swell-fill:  url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='46'%3E%3Cpath d='M0 26 Q20 22 40 26 T80 26 L80 46 L0 46 Z'/%3E%3C/svg%3E");
+  --swell-crest: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='46'%3E%3Cpath d='M0 26 Q20 22 40 26 T80 26' fill='none' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E");
+}
+.ocean__bob--1  { --bob-amp:  3px; }
+.ocean__bob--2  { --bob-amp: -2px; }
+.ocean__bob--3  { --bob-amp:  1px; }
+
+/* ── Aurora layer (drifting blobs behind the cards) ─────────── */
+/* Inert unless a skin opts in (--aurora-display; Glass). The blob gradients and
+   drift vectors are skin tokens. Each blob is oversized by --aurora-slack on every
+   side so the drift never drags a gradient's cut edge into view. transform only —
+   the compositor moves it (the old background-position drift repainted the whole
+   body, and every frost above it, on every frame). */
+.aurora {
+  display: var(--aurora-display, none);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.aurora__blob {
+  position: absolute;
+  inset: calc(-1 * var(--aurora-slack));
+  background-repeat: no-repeat;
+  /* stepped at --ambient-fps; 10 sine-sampled keyframe segments per loop */
+  animation: var(--aurora-drift) var(--aurora-dur) steps(round(var(--aurora-dur) * var(--ambient-fps) / 10 / 1s)) infinite;
+  will-change: transform;
+}
+.aurora__blob--1 { background-image: var(--aurora-1); --drift-x: var(--aurora-drift-1-x); --drift-y: var(--aurora-drift-1-y); }
+.aurora__blob--2 { background-image: var(--aurora-2); --drift-x: var(--aurora-drift-2-x); --drift-y: var(--aurora-drift-2-y); }
+.aurora__blob--3 { background-image: var(--aurora-3); --drift-x: var(--aurora-drift-3-x); --drift-y: var(--aurora-drift-3-y); }
+
+/* ── Storm layer (decorative strokes behind the cards) ──────── */
+/* Inert unless a skin opts in (--storm-display; Cyber). Everything
+   here reads tokens: geometry via CSS `d:` (--storm-path-*), ink/glow
+   from theme roles, per-bolt timing from --storm-cycle-*. The viewBox is
+   0..100 both axes with preserveAspectRatio="none" — bolts are authored
+   around x=0 and positioned by --storm-x (user units ≈ % of width; CSS px
+   on an SVG transform are user units), which src/storm.ts re-rolls per
+   strike along with a --storm-flip mirror. non-scaling-stroke keeps the
+   stroke width in real px despite the stretched viewBox.
+   Motion is a WIPE, not a stroke draw: the bolt (glow included) is painted once;
+   the strike box slides down from above and clips it, the hold box counter-slides
+   by the same amount so the bolt stays still. Both run the same cycle, so they stay
+   locked. transform + opacity only → no per-frame paint (a dashoffset draw under a
+   drop-shadow re-rendered the glow every frame). */
+.storm {
+  display: var(--storm-display);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.bento { position: relative; z-index: 1; }  /* cards ride above the ambient layers */
+.storm__strike,
+.storm__hold {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.storm__strike {
+  overflow: hidden;
+  opacity: 0;                   /* dark unless the animation says otherwise */
+  animation: storm-strike var(--strike-cycle) var(--strike-steps) infinite;
+}
+.storm__hold { animation: storm-hold var(--strike-cycle) var(--strike-steps) infinite; }
+/* Stepped at --ambient-fps across the wipe (the 0→60% keyframe segment). Strike and
+   hold share the count, so the clip and the counter-slide stay locked. */
+.storm__strike { --strike-steps: steps(round(var(--strike-cycle) * 0.6 * var(--ambient-fps) / 1s)); }
+.storm__strike--1 { --strike-cycle: var(--storm-cycle-1); --strike-path: var(--storm-path-1); --storm-x: 30px; }
+.storm__strike--2 { --strike-cycle: var(--storm-cycle-2); --strike-path: var(--storm-path-2); --storm-x: 70px; }
+.storm__svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.storm__bolt {
+  d: var(--strike-path);
+  fill: none;
+  stroke: var(--storm-ink);
+  stroke-width: var(--storm-w);
+  stroke-linejoin: miter;       /* sharp elbows — it's lightning */
+  vector-effect: non-scaling-stroke;
+  filter: var(--storm-glow);
+  transform: translateX(var(--storm-x, 50px)) scaleX(var(--storm-flip, 1));
+}
+
+/* ── Bento grid (a "screen" is a composition of panels) ─────── */
+/* Surface gate (SURFACES-AND-CARDS.md §1): `data-surface` on <html> selects the
+   composition. This base block IS the midi map: the Patient card across the top, two
+   content cards side by side under it. Max overrides it below. */
+.bento {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  gap: var(--panel-gap);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto minmax(0, 1fr);   /* row 1 sizes to the Patient card, row 2 fills */
+}
+/* The max-only hosts (anchored Timeline + slots c/d) don't exist outside max. */
+.panel[data-slot="timeline"], .panel[data-slot="c"], .panel[data-slot="d"] { display: none; }
+/* The stage wrapper is NOT a box outside max: its panels are direct grid items of .bento,
+   in document order. */
+.stage { display: contents; }
+
+/* The Patient card (record-cards.ts), empty for now: it holds its row open at the skin's
+   --patient-card-h (midi) and --patient-stage-h (the max stage) until its design lands. */
+.patient { min-height: var(--patient-card-h); }
+[data-surface="max"] .patient { min-height: var(--patient-stage-h); }
+
+/* max (DeetsMusic's option A "stage + bento"): a stage column on the left — the Patient card
+   over the anchored Timeline — and a 2×2 bento of content slots on the right. Two equal
+   rows so the bento stays a bento. */
+[data-surface="max"] .bento {
+  grid-template-columns: minmax(0, var(--max-stage-w)) repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-template-areas:
+    "stage left  right"
+    "stage c     d";
+}
+/* The stage column (DeetsMusic's docs/cards/STAGE-COLUMN.md): one grid item over both rows,
+   with its OWN two rows — the Patient card at its natural height, and the Timeline takes every
+   other pixel. It is a size container so its children can read its height; that is safe
+   because the stage's own height comes from the bento row, never from its contents. */
+[data-surface="max"] .stage {
+  grid-area: stage;
+  display: grid;
+  gap: var(--panel-gap);
+  min-height: 0;
+  container-type: size;
+  grid-template-rows: auto minmax(0, 1fr);
+  /* ONE explicit column. Without it the column grid is implicit, and the Patient card's
+     `[data-span="wide"] { grid-column: 1 / -1 }` (midi's rule, still on the element) resolves
+     against an explicit grid with no columns — which pushed the Timeline into a second,
+     narrow implicit column. Both panels take column 1 by hand. */
+  grid-template-columns: minmax(0, 1fr);
+}
+[data-surface="max"] .stage > .panel { grid-column: 1; }
+/* Both panels are placed BY HAND. Auto-placement would send the Patient card to a third row
+   the moment the Timeline takes rows 1–2 (a grow up over it). */
+[data-surface="max"] .stage > .panel[data-slot="patient"] { grid-row: 1; }
+[data-surface="max"] .stage > .panel[data-slot="timeline"] { grid-row: 2; }
+[data-surface="max"] .panel[data-slot="timeline"] { display: flex; }
+[data-surface="max"] .panel[data-slot="left"]  { grid-area: left; }
+[data-surface="max"] .panel[data-slot="right"] { grid-area: right; }
+[data-surface="max"] .panel[data-slot="c"]     { grid-area: c; display: flex; }
+[data-surface="max"] .panel[data-slot="d"]     { grid-area: d; display: flex; }
+
+/* ── Panel primitive ────────────────────────────────────────── */
+.panel {
+  position: relative;               /* anchors the ::before / ::after sand layers (Ocean) */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--panel-paint);   /* --panel, unless a skin moves the fill to the rim layer */
+  -webkit-backdrop-filter: var(--panel-backdrop);  /* none under most skins; Glass frosts */
+  backdrop-filter: var(--panel-backdrop);
+  isolation: var(--panel-isolation);
+  border: var(--panel-border-width) solid var(--panel-border);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--shadow-card);   /* none under Vanilla; Press prints a plate, Ocean/Glass lift */
+  padding: var(--panel-pad);
+}
+.panel[data-span="wide"] { grid-column: 1 / -1; }
+
+/* ── Sand edges (Ocean "Draw card edges: Sand"; skin.css --sand-*) ── */
+/* Inert unless --sand-display opts in (the box then paints --panel-paint: transparent).
+   Two static layers under the card's content (z-index −1, inside the bento's stacking
+   context). Nothing animates: the swell moves beneath, the compositor only blends.
+   The grain tiles are SVG noise thresholded to hard 0/1 alpha (feFuncA discrete), so
+   each grain is a crisp ~1px dot. Mask layers are listed top first; each composites
+   onto the result of the layers below it.
+   ::before — the card fill. Bottom up: the x and y edge ramps intersect into a rim
+     fade (G); the dense grain tile (~90% dots) intersects it, so the grains thin and
+     fade toward the edge; the solid core rect (inset --sand-reach) is added on top.
+   ::after — light sand specks. Bottom up: the core rect; a full box subtracts it into
+     the rim band; the sparse speck tile (~12% dots, own seed) intersects the band. */
+.panel::before,
+.panel::after {
+  content: "";
+  display: var(--sand-display, none);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  --sand-core: calc(100% - 2 * var(--sand-reach)) calc(100% - 2 * var(--sand-reach));
+  --sand-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='g' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 1 1 1 1 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23g)'/%3E%3C/svg%3E");
+  --sand-speck: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='s' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23s)'/%3E%3C/svg%3E");
+}
+.panel::before {
+  background: var(--panel);
+  mask-image:
+    linear-gradient(#000 0 0),
+    var(--sand-grain),
+    linear-gradient(to right, transparent, #000 var(--sand-reach), #000 calc(100% - var(--sand-reach)), transparent),
+    linear-gradient(to bottom, transparent, #000 var(--sand-reach), #000 calc(100% - var(--sand-reach)), transparent);
+  mask-size: var(--sand-core), 128px 128px, 100% 100%, 100% 100%;
+  mask-position: center, 0 0, 0 0, 0 0;
+  mask-repeat: no-repeat, repeat, no-repeat, no-repeat;
+  mask-composite: add, intersect, intersect, add;
+}
+.panel::after {
+  background: var(--sand-ink);
+  mask-image: var(--sand-speck), linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-size: 128px 128px, 100% 100%, var(--sand-core);
+  mask-position: 0 0, 0 0, center;
+  mask-repeat: repeat, no-repeat, no-repeat;
+  mask-composite: intersect, subtract, add;
+}
+/* During the launch-cover lift the sand draws its rim fade only: the grain tile goes solid
+   and the specks go empty. The grain masks redraw on every frame of the rise (30% of its
+   frames dropped on Max); they return in the frame the lift ends. */
+html[data-boot="lift"] .panel::before { --sand-grain: linear-gradient(#000 0 0); }
+html[data-boot="lift"] .panel::after  { --sand-speck: linear-gradient(transparent 0 0); }
+
+.panel__head {
+  position: relative;            /* anchor for the slot picker menu */
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+/* ── Slot card picker ────────────────────────────────────────── */
+/* A content slot's title opens this to choose which card the slot hosts. Reuses the
+   .flyout__item chrome; drops below the panel header. No caret — the title behaves like
+   the DeetsMusic settings title (plain text trigger). Live only at the card's root. */
+.panel__title.is-pickable { cursor: pointer; }
+.slot-picker__menu {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 30;
+  min-width: var(--menu-min-w);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--menu-surface);
+  -webkit-backdrop-filter: var(--menu-backdrop);
+  backdrop-filter: var(--menu-backdrop);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+}
+.slot-picker__menu[hidden] { display: none; }
+/* A window too short for one column (layout.ts `fit`): two columns; it scrolls only if even
+   that doesn't fit (JS sets max-height then). */
+.slot-picker__menu { overflow-y: auto; }
+.slot-picker__menu--cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(var(--menu-min-w), 1fr));
+}
+.slot-picker__menu::-webkit-scrollbar { width: var(--scrollbar-w); }
+.slot-picker__menu::-webkit-scrollbar-track { background: transparent; }
+.slot-picker__menu::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: var(--scrollbar-radius); }
+
+/* A folding section header's chevron and count (the Settings card's sections; DeetsMusic's
+   shelf voice). The chevron turns closed; the count sits right. */
+.lib-shelf__chev {
+  flex: 0 0 auto;
+  width: 8px; height: 8px;
+  fill: none; stroke: currentColor; stroke-width: 1.6;
+  stroke-linecap: round; stroke-linejoin: round;
+  opacity: 0.7;
+  transition: transform var(--nav-dur) var(--nav-ease);
+}
+.lib-shelf__count { margin-left: auto; opacity: 0.7; }
+.panel__title {
+  margin: 0;
+  margin-right: auto;              /* hugs the Back button: the free space goes to its RIGHT, so a
+                                      title with a max width (the Grow buttons' room) stays put */
+  min-width: 0;                    /* shrinks before the action squares do */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;         /* a narrow header cuts the word cleanly, not mid-letter */
+  font-family: var(--font-title);
+  font-weight: var(--fw-title);
+  font-size: var(--fs-title);
+  color: var(--title);
+  /* editorial title rule — same skin opt-in as .app-title */
+  text-decoration-line: var(--title-underline);
+  text-decoration-thickness: var(--title-underline-w);
+  text-underline-offset: var(--title-underline-offset);
+}
+.panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;             /* each column scrolls on its own */
+  scrollbar-gutter: stable;     /* the content does not shift when the bar appears */
+}
+
+/* Composited scrollers (2026-09-16, DEBUGGING.md §Fancy Glass and the Ocean swell). Each card
+   list scrolls on its own compositor layer, so a scroll step MOVES the rows instead of
+   repainting the card under them. Without it Ocean's sand mask repainted on every step
+   (157 fps, 52% dropped); with it every skin holds the display rate and the GPU process does
+   about a fifth of the work. Skin token --scroller-layer: only the see-through skins opt in,
+   because on an opaque card (Press) the layer would switch the list text from colour to grey
+   smoothing. On those skins: no visible change (screenshots 0.03 / 255). Not a stacking
+   context, unlike will-change: transform, so z-index inside the list is unchanged. Menus
+   (.set__menu, .ctx-menu__fly, .slot-picker__menu) are left out: short-lived, and already
+   their own layers under their backdrop-filter. */
+.panel__body { will-change: var(--scroller-layer); }
+
+/* Panel header action — small square button (e.g. the Settings search). */
+.panel__action {
+  flex: 0 0 auto;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--title);
+  cursor: pointer;
+}
+/* A header action that says a word instead of drawing a glyph. The square becomes a
+   rectangle: the family's own fill, border, height, radius and hover stay, and only the
+   width opens up for the letters (the owner, in DeetsMusic, 2026-09-18). */
+.panel__action--text {
+  width: auto;
+  padding: 0 var(--action-text-pad);
+  font-family: var(--font-body);
+  font-size: var(--action-text-fs);
+  font-weight: var(--action-text-weight);
+  line-height: 1;
+}
+/* Pressed = the board it opens is the one showing. Scoped to the worded action, so a glyph
+   square that carries aria-pressed keeps its own rule. The pressed look is the app's own:
+   --picked, with the title's ink on the border and the word. */
+.panel__action--text[aria-pressed="true"] { background: var(--picked); border-color: var(--title); color: var(--title); }
+.panel__action:hover { filter: brightness(0.97); }
+.panel__action[disabled] { opacity: 0.6; cursor: default; }
+.panel__action[hidden] { display: none; } /* class sets display:grid, which would beat [hidden] */
+/* Space between clustered header actions so the bordered boxes don't touch.
+   Adjacent-sibling + head scope → only fires when two co-exist. */
+.panel__head .panel__action + .panel__action { margin-left: var(--space-1); }
+.panel__action svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.panel__action.is-busy svg { animation: acct-spin var(--dur-spin) linear infinite; }
+@keyframes acct-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora__blob { animation: none; }  /* freeze the Glass aurora drift */
+  /* Ocean stays VISIBLE, just still: a motionless sea is still a sea (unlike
+     a half-drawn bolt), so the skin keeps its surface instead of going blank. */
+  .ocean__roll, .ocean__bob { animation: none; }
+  .storm { display: none; }        /* a frozen half-drawn bolt reads as a bug — hide the layer */
+}
+
+/* Ambient pause (src/ambient.ts): while the window cannot be seen — or when the user
+   turns "Animate backgrounds" off — the endless decorative loops hold still.
+   play-state keeps each loop's position, so they resume in place with no jump and no
+   restart cost. */
+:root[data-ambient="paused"] :is(.ocean__bob, .ocean__roll, .aurora__blob, .storm__strike, .storm__hold),
+:root[data-bg-motion="off"] :is(.ocean__bob, .ocean__roll, .aurora__blob) {
+  animation-play-state: paused;
+}
+/* Off hides the storm, as reduced motion does: a frozen half-drawn bolt reads as a bug. */
+:root[data-bg-motion="off"] .storm { display: none; }
+
+/* The app's scrollbar as a class: any element that scrolls gets `app-scroll` (CLAUDE.md
+   build checklist), or it shows the grey OS bar. Color is a theme role, width and radius
+   are skin tokens. */
+.app-scroll::-webkit-scrollbar { width: var(--scrollbar-w); height: var(--scrollbar-w); }
+.app-scroll::-webkit-scrollbar-track { background: transparent; }
+.app-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: var(--scrollbar-radius); }
+.app-scroll::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
+
+/* Back chevron in the card header — shown only in a drilled-in context. */
+.panel__back {
+  flex: 0 0 auto;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  padding: 0;
+  margin-right: var(--space-1);
+  display: grid;
+  place-items: center;
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--title);
+  cursor: pointer;
+}
+.panel__back[hidden] { display: none; }
+.panel__back:hover { filter: brightness(0.97); }
+.panel__back svg { width: var(--icon-md); height: var(--icon-md); fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.panel__head .panel__title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Inline search bar: clicking the search pill slides it open below the pills,
+   pushing the list/grid down (grid 0fr→1fr animates an auto height cleanly). */
+.lib-searchbar {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-med) var(--ease-ui);
+}
+.lib-searchbar.is-open { grid-template-rows: 1fr; }
+.lib-searchbar__inner { min-height: 0; overflow: hidden; }
+.lib-searchbar .lib-search { margin-top: var(--space-2); }   /* gap shows only when open */
+
+/* Search field */
+.lib-search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+.lib-search__icon {
+  flex: 0 0 auto;
+  width: var(--icon-sm); height: var(--icon-sm);
+  fill: none; stroke: var(--subtext); stroke-width: 1.6;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.lib-search__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--fs-text);
+}
+.lib-search__input::placeholder { color: var(--subtext); }
+.lib-search__input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+/* ── Context menu (right-click) ──────────────────────────────
+   A cursor-anchored popover (src/context-menu.ts). Mirrors the settings flyout —
+   themed via roles, sized via skin tokens — so every theme/skin styles it for free. */
+.ctx-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: var(--menu-min-w);
+  padding: var(--space-1);
+  background: var(--menu-surface);
+  -webkit-backdrop-filter: var(--menu-backdrop);
+  backdrop-filter: var(--menu-backdrop);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  font-family: var(--font-body);
+}
+.ctx-menu__item {
+  display: block;
+  width: 100%;
+  padding: var(--space-1) var(--space-3);
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-control);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-text);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-ui);
+}
+.ctx-menu__item:hover { background: var(--surface-hover); }
+.ctx-menu__item:focus-visible { outline: var(--focus-ring-w) solid var(--title); outline-offset: calc(-1 * var(--focus-ring-off)); }
+.ctx-menu__item:disabled { opacity: 0.5; cursor: default; }
+/* Text-input menu item (New Playlist name; later Add-to-Playlist ▸ "New Playlist…") —
+   the same canvas well as .lib-search / .search__field, sitting inside the menu shell.
+   No focus ring: the hairline well IS the box (matches the search inputs). */
+.ctx-menu__field {
+  display: flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+.ctx-menu__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: var(--fs-text);
+}
+.ctx-menu__input::placeholder { color: var(--subtext); }
+/* Optional title above a field (InputItem.label) — the shelf-header voice, menu-scaled. */
+.ctx-menu__label {
+  font-family: var(--font-title); font-weight: var(--fw-title); font-size: var(--fs-subtext);
+  color: var(--subtext); text-transform: uppercase; letter-spacing: 0.06em;
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  cursor: default;
+}
+.ctx-menu__label:first-child { padding-top: var(--space-1); }
+/* Submenu (Add to Playlist ▸): a settings-flyout twin scoped to the ctx-menu — same
+   surface recipe as .flyout, but rows keep ctx-menu chrome (not the theme-chip look).
+   Reveal is JS-latched in context-menu.ts (not :hover) so a flyout text field
+   survives typing; side-flip (.is-left) + vertical clamp are measured there too. */
+.ctx-menu__sub { position: relative; }
+.ctx-menu__chev { color: var(--subtext); }
+/* What a row is currently set to (SubmenuItem.badge), and the tick on the chosen row
+   inside its flyout. `margin-left: auto` keeps it beside the chevron rather than adrift
+   in the middle of a space-between row. */
+.ctx-menu__state { color: var(--subtext); margin-left: auto; }
+.ctx-menu__item--sub,
+.ctx-menu__item--badged { /* a trailing accessory: the flyout chevron, or the Apple Music sigil */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.ctx-menu__sub.is-open > .ctx-menu__item { background: var(--surface-hover); } /* row reads active while its flyout is open */
+.ctx-menu__fly {
+  position: absolute;
+  top: calc(-1 * var(--space-1));
+  left: 100%; /* touches the menu edge — no hover gap */
+  z-index: 1;
+  min-width: var(--menu-min-w);
+  max-height: calc(100vh - 12px); /* 2× the 6px viewport clamp pad (context-menu.ts PAD) */
+  overflow-y: auto;
+  padding: var(--space-1);
+  background: var(--menu-surface);
+  -webkit-backdrop-filter: var(--menu-backdrop);
+  backdrop-filter: var(--menu-backdrop);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+}
+.ctx-menu__fly.is-left { left: auto; right: 100%; }
+.ctx-menu__fly[hidden] { display: none; }
+/* A flyout that itself holds a submenu row (Refresh ▸ Weekly ▸ Fri). `overflow-y: auto`
+   computes overflow-x to auto as well, which would clip the child flyout at left: 100%.
+   Set by context-menu.ts when the resolved items contain a submenu; the trade is that
+   this one flyout does not scroll. */
+.ctx-menu__fly--deep { overflow: visible; }
+.ctx-menu__fly::-webkit-scrollbar { width: var(--scrollbar-w); }
+.ctx-menu__fly::-webkit-scrollbar-track { background: transparent; }
+.ctx-menu__fly::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: var(--scrollbar-radius); }
+/* ── Scrubber primitive (seek bar + volume slider share this) ───────────────
+   A track + a fill + a --title box masked by the skin's --scrubber-handle SVG.
+   Horizontal by default (seek); .scrub--v flips it vertical (volume). The fill
+   percentage is the --slider-fill custom prop set by makeSlider (slider.ts). */
+.scrub { position: relative; display: flex; cursor: pointer; touch-action: none; }
+
+/* Horizontal: full width, fill grows left→right, handle rides the fill edge. */
+.scrub { height: var(--scrubber-handle-size); align-items: center; }
+.scrub .scrub__track {
+  position: relative; width: 100%; height: var(--scrubber-track-h);
+  border-radius: 999px; background: var(--panel-border);
+}
+.scrub .scrub__fill {
+  position: absolute; left: 0; top: 0; height: 100%;
+  width: var(--slider-fill, 0%); background: var(--title); border-radius: 999px;
+}
+.scrub .scrub__handle {
+  position: absolute; top: 50%; left: var(--slider-fill, 0%);
+  transform: translate(-50%, -50%) scale(var(--handle-scale, 1));
+}
+
+/* The vertical variant (.scrub--v) left with the volume flyout on 2026-09-16; slider.ts still
+   takes axis "y" if a vertical slider ever comes back. */
+
+/* Shared handle look — masked --title box, themes via --title, sizes via token. This is the
+   PLAIN handle: what every skin shows with Settings › Look and feel › Fancy scrubber off. */
+.scrub__handle {
+  width: var(--scrubber-handle-size); height: var(--scrubber-handle-size);
+  background: var(--title);
+  -webkit-mask: var(--scrubber-handle) center / contain no-repeat;
+  mask: var(--scrubber-handle) center / contain no-repeat;
+  pointer-events: none;
+  transition: transform var(--dur-fast) var(--ease-ui);
+}
+/* ── Launch cover (boot-cover.ts, UX-COVERUPS.md §6) ─────────────
+   <html data-boot> is in the markup, so the first frame is covered:
+     hold = opaque, takes clicks (what the launch restores is not back yet)
+     wait = opaque, clicks pass (restored; the rest is still loading)
+     lift = the cover fades and the cards rise; boot-cover.ts removes the attribute after.
+   A theme or skin change (appearance.ts, §6a) adds one stage before wait:
+     veil = the cover fades in over the old look; the cards stay in place.
+   The safety animation ends the cover by CSS alone at --boot-safety (a page error).
+   Every time here is × --motion-scale: 1, or the skin's --agent-motion under an agent's
+   change (data-boot-by="agent", §6b). tokenMs() in boot-cover.ts applies the same scale. */
+html[data-boot-by="agent"] { --motion-scale: var(--agent-motion); }
+.boot-cover {
+  position: fixed;
+  inset: 0;
+  z-index: 300;                     /* above everything, the drag ghost (200) included */
+  background: var(--canvas);
+  opacity: 0;
+  pointer-events: none;
+}
+html[data-boot] .boot-cover {
+  opacity: 1;
+  animation: boot-safety-cover 0s calc(var(--boot-safety) * var(--motion-scale, 1)) forwards;
+}
+html[data-boot="hold"] .boot-cover { pointer-events: auto; }
+html[data-boot] .bento .panel {
+  opacity: 0;
+  transform: var(--boot-rise);
+  animation: boot-safety-panel 0s calc(var(--boot-safety) * var(--motion-scale, 1)) forwards;
+  /* Do NOT add `will-change: opacity, transform` here. Tried 2026-09-16: Chromium's
+     main-thread trace improves a lot (style recalc 766 ms → 260 ms over the Ocean rise,
+     worst pass 11.5 ms → 3.2 ms) because each panel gets its own layer — but the frames
+     the user actually receives COLLAPSE, 229 fps → 50 fps on that same rise, because six
+     full-size layers carrying Ocean's gradients and Glass's frost must be re-rastered
+     instead. The cost moves off the main thread onto raster, where the main-thread trace
+     cannot see it. Judge this rise by frames ÷ ms, never by the trace alone. */
+}
+html[data-boot="veil"] .boot-cover {
+  transition: opacity calc(var(--cover-in-dur) * var(--motion-scale, 1)) var(--cover-in-ease);
+}
+html[data-boot="veil"] .bento .panel { opacity: 1; transform: none; animation: none; }
+/* A look change swaps --canvas under the opaque cover: its color glides, never jumps. */
+html[data-boot="wait"] .boot-cover {
+  transition: background-color calc(var(--cover-in-dur) * var(--motion-scale, 1)) var(--boot-ease);
+}
+html[data-boot="lift"] .boot-cover {
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity calc(var(--boot-cover-out) * var(--motion-scale, 1)) var(--boot-ease),
+    background-color calc(var(--cover-in-dur) * var(--motion-scale, 1)) var(--boot-ease);
+}
+/* No safety animation in the lift: the end state here is already the rest state, and any
+   animation on a panel keeps its transitions off the compositor (Chromium "incompatible
+   animations"), so each frame re-rastered Glass's frost and repainted Ocean's cards. */
+html[data-boot="lift"] .bento .panel {
+  opacity: 1;
+  transform: none;
+  animation: none;
+  transition:
+    opacity calc(var(--boot-dur) * var(--motion-scale, 1)) var(--boot-ease),
+    transform calc(var(--boot-dur) * var(--motion-scale, 1)) var(--boot-ease);
+}
+/* The stagger is per SLOT, not per nth-child: the stage wrapper means patient and timeline
+   count inside it, so nth-child would give two panels the same delay. The order: patient,
+   left, right, timeline, c, d. */
+html[data-boot="lift"] .bento .panel[data-slot="left"]  { transition-delay: calc(var(--boot-stagger) * var(--motion-scale, 1)); }
+html[data-boot="lift"] .bento .panel[data-slot="right"] { transition-delay: calc(var(--boot-stagger) * 2 * var(--motion-scale, 1)); }
+html[data-boot="lift"] .bento .panel[data-slot="timeline"] { transition-delay: calc(var(--boot-stagger) * 3 * var(--motion-scale, 1)); }
+html[data-boot="lift"] .bento .panel[data-slot="c"]     { transition-delay: calc(var(--boot-stagger) * 4 * var(--motion-scale, 1)); }
+html[data-boot="lift"] .bento .panel[data-slot="d"]     { transition-delay: calc(var(--boot-stagger) * 5 * var(--motion-scale, 1)); }
+@keyframes boot-safety-cover { to { opacity: 0; visibility: hidden; } } /* hidden takes no clicks; pointer-events can't animate */
+@keyframes boot-safety-panel { to { opacity: 1; transform: none; } }
+
+/* ── Card grow (src/card-grow.ts, docs/cards/CARD-GROW.md) ─────────────────────────
+   Nothing here applies at rest (§0): every rule is scoped under data-grow, is-grown,
+   is-covered, the zone layer (it paints nothing until a zone is hovered) or the Grow
+   button, which is not in the DOM until the header is hovered. */
+
+/* The grown panel's span. Max: "stage left right / stage c d" → rows 1–2, columns 2–3. The
+   grid areas stay as they are; the panel overlaps its neighbors and sits above them. */
+[data-surface="max"] .panel[data-slot="left"][data-grow="wide"],
+[data-surface="max"] .panel[data-slot="right"][data-grow="wide"] { grid-area: 1 / 2 / 2 / 4; }
+[data-surface="max"] .panel[data-slot="c"][data-grow="wide"],
+[data-surface="max"] .panel[data-slot="d"][data-grow="wide"]     { grid-area: 2 / 2 / 3 / 4; }
+[data-surface="max"] .panel[data-slot="left"][data-grow="tall"],
+[data-surface="max"] .panel[data-slot="c"][data-grow="tall"]     { grid-area: 1 / 2 / 3 / 3; }
+[data-surface="max"] .panel[data-slot="right"][data-grow="tall"],
+[data-surface="max"] .panel[data-slot="d"][data-grow="tall"]     { grid-area: 1 / 3 / 3 / 4; }
+[data-surface="max"] .panel[data-grow="full"]                    { grid-area: 1 / 2 / 3 / 4; }
+/* The stage column: the Timeline grows UP over the Patient card, and nowhere else. The span
+   is inside the stage's own two-row grid, so it can never reach the bento. */
+[data-surface="max"] .stage > .panel[data-slot="timeline"][data-grow="tall"] { grid-row: 1 / 3; }
+/* Midi: the content row is row 2. The covered card is placed by hand too, or auto-placement
+   would open a third row for it under the grown one. */
+[data-surface="midi"] .panel[data-grow="wide"]             { grid-area: 2 / 1 / 3 / 3; }
+[data-surface="midi"] .panel[data-slot="left"].is-covered  { grid-area: 2 / 1 / 3 / 2; }
+[data-surface="midi"] .panel[data-slot="right"].is-covered { grid-area: 2 / 2 / 3 / 3; }
+.bento .panel.is-grown { z-index: 2; }                    /* over the covered cards (swap-top is 1) */
+/* Covered cards: they fade under the opening edge, then they are hidden and inert — no
+   paint (Ocean sand, Glass frost) and no input. Collapse fades them back as the clip closes. */
+.bento .panel.is-covering   { opacity: 0; transition: opacity var(--grow-dur) var(--grow-ease); }
+.bento .panel.is-uncovering { opacity: 1; transition: opacity var(--grow-dur) var(--grow-ease); }
+.bento .panel.is-covered    { visibility: hidden; }
+/* While the clip opens or closes, the body's content is gone AT ONCE (the rows are already
+   rebuilt at the new size when the clip starts, so a fade out would show them in the old
+   box); the header stays still. When the clip is open the body fades in and every row on
+   screen enters, at the grow's own stagger. */
+.panel.is-grow-rebuild > :not(.panel__head) { opacity: 0; }
+.panel.is-grow-rows > :not(.panel__head) { animation: grow-body-in var(--grow-body-fade) var(--ease-ui) both; }
+.panel.is-grow-rows { --pop-stagger: var(--grow-rows-stagger); }
+@keyframes grow-body-in { from { opacity: 0; } }
+
+/* The edge zones: four strips per card, CHILDREN of the card's host, placed from the card's
+   own box into the gap beside it — so they ride the launch lift, a swap and a grow with the
+   card, and nothing is measured. --zone-reach: the half gap toward a neighbor (data-reach
+   half), the full gap toward the stage or the top padding (full), the padding inside Tauri's
+   resize band on a window edge (edge). No fill, no border: only the bar paints, on hover.
+   card-grow.ts sets data-side (which edge of the card), data-reach and hides idle strips. */
+.grow-zone {
+  position: absolute;
+  z-index: 4;
+  cursor: pointer;
+  --zone-reach: calc(var(--panel-gap) / 2);
+}
+.grow-zone[hidden] { display: none; }
+.grow-zone[data-reach="full"] { --zone-reach: var(--panel-gap); }
+.grow-zone[data-reach="edge"] { --zone-reach: calc(var(--panel-gap) - var(--grow-zone-resize-inset)); }
+/* 100% of the padding box, then the border as a margin (the base border token is a unitless
+   0, which calc() cannot add — a margin takes it as it is). */
+.grow-zone[data-side="right"] { left:   100%; margin-left:   var(--panel-border-width); top: 0;  bottom: 0; width:  var(--zone-reach); }
+.grow-zone[data-side="left"]  { right:  100%; margin-right:  var(--panel-border-width); top: 0;  bottom: 0; width:  var(--zone-reach); }
+.grow-zone[data-side="down"]  { top:    100%; margin-top:    var(--panel-border-width); left: 0; right: 0;  height: var(--zone-reach); }
+.grow-zone[data-side="up"]    { bottom: 100%; margin-bottom: var(--panel-border-width); left: 0; right: 0;  height: var(--zone-reach); }
+/* The bar hugs the card's edge (skin.css --grow-zone-bar-*): --gap off the edge, --trim from
+   each end so it runs between the card's corners, its own radius and glow. */
+.grow-zone__bar {
+  position: absolute;
+  background: var(--grow-zone-bar);
+  border-radius: var(--grow-zone-bar-radius);
+  box-shadow: var(--grow-zone-bar-glow);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-ui);
+}
+.grow-zone--left   .grow-zone__bar { left: var(--grow-zone-bar-gap);   top: var(--grow-zone-bar-trim);  bottom: var(--grow-zone-bar-trim); width:  var(--grow-zone-bar-w); }
+.grow-zone--right  .grow-zone__bar { right: var(--grow-zone-bar-gap);  top: var(--grow-zone-bar-trim);  bottom: var(--grow-zone-bar-trim); width:  var(--grow-zone-bar-w); }
+.grow-zone--top    .grow-zone__bar { top: var(--grow-zone-bar-gap);    left: var(--grow-zone-bar-trim); right: var(--grow-zone-bar-trim);  height: var(--grow-zone-bar-w); }
+.grow-zone--bottom .grow-zone__bar { bottom: var(--grow-zone-bar-gap); left: var(--grow-zone-bar-trim); right: var(--grow-zone-bar-trim);  height: var(--grow-zone-bar-w); }
+.grow-zone:hover .grow-zone__bar { opacity: 1; }
+.grow-zone[data-act="collapse"] .grow-zone__bar { background: var(--subtext); }
+.grow-zone[data-act="collapse"]:hover .grow-zone__bar { opacity: 0.7; }
+
+/* The Grow button (and Pin beside it): enters the header on hover, absolutely placed just
+   right of the title's text (card-grow.ts measures the text; --grow-btn-left), so nothing
+   in the header moves. It stays while the card is grown. Same box as a .panel__action, but
+   never in the flow. */
+.grow-btns {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--grow-btn-left, 0px) + var(--grow-btn-gap));
+  transform: translateY(-50%);
+  display: flex;
+  gap: var(--space-1);
+  z-index: 3;
+}
+.grow-btn {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--title);
+  cursor: pointer;
+}
+.grow-btn:hover { filter: brightness(0.97); }
+.grow-btn[hidden] { display: none; }
+.grow-btn[disabled] { opacity: 0.6; cursor: default; }
+.grow-btn svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.grow-btn--pin.is-on { background: var(--title); color: var(--surface); border-color: var(--title); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bento .panel.is-covering, .bento .panel.is-uncovering { transition: none; }
+  .panel.is-grow-rows > :not(.panel__head) { animation: none; }
+}
+
+/* ── The drill swap's slide (layout.ts, docs/cards/CARD-GROW.md §14.6) ──────────────
+   A drill from a grown card swaps the target card into its place. The leaving card's
+   body stays on as a still copy while the new one slides in over the same box, on the
+   card's own --nav-* tokens. Reduced motion: layout.ts plays no slide at all. */
+.panel.is-drill-swap { overflow: hidden; }
+.panel.is-drill-swap > .panel__body { will-change: transform; }
+.drill-swap__ghost {
+  position: absolute;               /* layout.ts sets top/left/width/height from the body it copies */
+  pointer-events: none;
+  margin: 0;
+}

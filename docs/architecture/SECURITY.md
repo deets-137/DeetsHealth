@@ -14,7 +14,7 @@ updated: 2026-09-21
 3. Everything else (speed of build, convenience for us, features).
 
 Privacy and security come directly after the patient's experience, and before everything
-else. The PHI wall is also a stop rule (LESSONS.md §2.4): a design that trades it away for
+else. The PHI wall is also a stop rule (LESSONS.md §2, rule 4): a design that trades it away for
 experience comes to the owner first. Look for a design that gives both (LESSONS.md §3.12).
 
 ## 2. Terms
@@ -130,4 +130,4 @@ there first.
    row). Table names and row counts stay visible; sealed columns sort in Rust.
 2. **The wrapper type's name** — decided at build time.
 3. ~~What we keep from `Patient`~~ — decided 2026-09-21: name, birth date, sex only;
-   derived values computed at runtime, never stored (FHIR-SHAPES.md §5.1).
+   derived values computed at runtime, never stored (FHIR-SHAPES.md §5, fork 1).

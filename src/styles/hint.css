@@ -1,0 +1,54 @@
+/* ── Hover hints (src/hint.ts; DeetsMusic's docs/features/ONBOARDING.md §1) ──────────────
+   One box, positioned in fixed coordinates by hint.ts. It wears the FLOATING
+   material (--menu-surface / --menu-backdrop / --shadow-panel), the same as a
+   menu and a toast, so it is in-family under every theme and skin; its own
+   geometry is the --hint-* skin tokens. One line: a written hint names a control,
+   never a value from the record (SECURITY.md §4.3).
+   z 95: above a toast (90), below a menu, picker or flyout (100) — a menu is
+   the user's live intent, a hint is only an answer to resting the pointer.
+   .hint--over (hint.ts): the anchor is INSIDE that floating tier, so the hint rises to
+   z 105 — above its own panel. */
+.hint {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 95;
+  pointer-events: none; /* it must never take the click the pointer is aiming at */
+  box-sizing: border-box;
+  max-width: var(--hint-max-w);
+  padding: var(--hint-pad-y) var(--hint-pad-x);
+  border-radius: var(--hint-radius);
+  border: var(--panel-border-width) solid var(--panel-border);
+  background: var(--menu-surface);
+  -webkit-backdrop-filter: var(--menu-backdrop);
+  backdrop-filter: var(--menu-backdrop);
+  box-shadow: var(--shadow-panel);
+  font-size: var(--hint-fs);
+  line-height: var(--lh-text);
+  opacity: 0;
+  transform: translateY(var(--hint-shift));
+  transition:
+    opacity var(--dur-fast) var(--ease-ui),
+    transform var(--dur-fast) var(--ease-ui);
+}
+.hint[hidden] {
+  display: none;
+}
+.hint.is-on {
+  opacity: 1;
+  transform: none;
+}
+.hint.hint--over { z-index: 105; }
+/* A word with nowhere to wrap is allowed to break anywhere rather than push the box off screen. */
+.hint__title {
+  display: block;
+  color: var(--title);
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hint {
+    transition: none;
+    transform: none;
+  }
+}

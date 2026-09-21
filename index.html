@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en" data-theme="lilac" data-skin="press" data-surface="midi" data-boot="hold">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Appearance pre-paint: resolves the saved theme and skin (or the OS light/dark
+         default) before the stylesheet applies, so a dark-mode launch never flashes the
+         light look. A file, not inline: the CSP allows no inline script (SECURITY.md §4.3). -->
+    <script src="/prepaint.js"></script>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <!-- The window title is fixed app text: never a patient's name or a site (SECURITY.md §4.3). -->
+    <title>DeetsHealth</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <!-- Launch cover (src/boot-cover.ts): opaque --canvas over the page while
+         <html data-boot> is set, so the window shows a finished ground, then fades. -->
+    <div class="boot-cover" aria-hidden="true"></div>
+    <!-- Custom frameless chrome. The middle .drag-region is the OS drag handle; the title
+         (the menu trigger), the cog and the window buttons opt out by not carrying it. -->
+    <header class="titlebar">
+      <div class="settings">
+        <button
+          class="app-title"
+          id="settings-trigger"
+          type="button"
+          aria-haspopup="true"
+          aria-expanded="false"
+          title="Opens the menu: theme, skin, window size, and Settings"
+        >DeetsHealth</button>
+
+        <div class="menu" id="settings-menu" role="menu" hidden>
+          <div class="menu__row" data-row="theme">
+            <span class="menu__label">Theme</span>
+            <span class="menu__chev" aria-hidden="true">›</span>
+            <div class="flyout" role="menu" aria-label="Theme">
+              <button class="flyout__item" type="button" role="menuitemradio" data-theme="lilac"        data-theme-choice="lilac"        title="Light. Purple and mint">Lilac</button>
+              <button class="flyout__item" type="button" role="menuitemradio" data-theme="green"        data-theme-choice="green"        title="Light. Green and fern">Green</button>
+              <button class="flyout__item" type="button" role="menuitemradio" data-theme="sepia"        data-theme-choice="sepia"        title="Light. Parchment and terracotta">Sepia</button>
+              <button class="flyout__item" type="button" role="menuitemradio" data-theme="moonlight"    data-theme-choice="moonlight"    title="Dark. Slate and moon white">Moonlight</button>
+              <button class="flyout__item" type="button" role="menuitemradio" data-theme="black-yellow" data-theme-choice="black-yellow" title="Dark. Yellow on black">Black &amp; Yellow</button>
+              <button class="flyout__item" type="button" role="menuitemradio" data-theme="black-red"    data-theme-choice="black-red"    title="Dark. Red on black">Black &amp; Red</button>
+            </div>
+          </div>
+
+          <div class="menu__row" data-row="skin">
+            <span class="menu__label">Skin</span>
+            <span class="menu__chev" aria-hidden="true">›</span>
+            <div class="flyout" role="menu" aria-label="Skin">
+              <!-- Vanilla is hidden from the picker, as in DeetsMusic: its block is still the
+                   [data-skin] base in skin.css and a saved "vanilla" still applies. -->
+              <button class="flyout__item" type="button" role="menuitemradio" data-skin="press" data-skin-choice="press" title="A print shop: ink on paper, square corners">Press</button>
+              <button class="flyout__item" type="button" role="menuitemradio" data-skin="ocean" data-skin-choice="ocean" title="Cards on rolling waves, with a serif">Ocean</button>
+              <button class="flyout__item" type="button" role="menuitemradio" data-skin="glass" data-skin-choice="glass" title="Frosted panels over a soft glow">Glass</button>
+              <button class="flyout__item" type="button" role="menuitemradio" data-skin="cyber" data-skin-choice="cyber" title="Lightning behind the cards, machined type">Cyber</button>
+            </div>
+          </div>
+
+          <div class="menu__row" data-row="surface">
+            <span class="menu__label">Surface</span>
+            <span class="menu__chev" aria-hidden="true">›</span>
+            <div class="flyout" role="menu" aria-label="Surface">
+              <button class="flyout__item" type="button" role="menuitemradio" data-surface-choice="midi" title="The tall window: the Patient card and two cards">Midi</button>
+              <button class="flyout__item" type="button" role="menuitemradio" data-surface-choice="max" title="The wide window: the Patient card, the Timeline, and four cards">Max</button>
+            </div>
+          </div>
+
+          <!-- Everything else lives in the Settings card; this row summons it into a slot. -->
+          <button class="menu__row menu__row--toggle" id="settings-open" type="button" role="menuitem" data-row="settings" title="Shows the Settings card">
+            <span class="menu__label">Settings…</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- The cog: the title bar's own way into settings. It opens the quick panel: the app's
+           groups, Reset, and "All settings", which opens the Settings card as wide as the
+           window allows. Six teeth, so the 120-degree turn each press adds lands on an
+           identical tooth. src/quick-panel.ts wires it. -->
+      <div class="quick" id="quick">
+        <button class="cog__btn" id="cog-open" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Quick settings" title="Quick settings, grouped by what they are for, and the way to all of Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.41 2.96A9.4 9.4 0 0 1 14.59 2.96L14.75 6.11A6.5 6.5 0 0 1 15.73 6.68L18.53 5.24A9.4 9.4 0 0 1 21.12 9.73L18.48 11.43A6.5 6.5 0 0 1 18.48 12.57L21.12 14.27A9.4 9.4 0 0 1 18.53 18.76L15.73 17.32A6.5 6.5 0 0 1 14.75 17.89L14.59 21.04A9.4 9.4 0 0 1 9.41 21.04L9.25 17.89A6.5 6.5 0 0 1 8.27 17.32L5.47 18.76A9.4 9.4 0 0 1 2.88 14.27L5.52 12.57A6.5 6.5 0 0 1 5.52 11.43L2.88 9.73A9.4 9.4 0 0 1 5.47 5.24L8.27 6.68A6.5 6.5 0 0 1 9.25 6.11L9.41 2.96Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        <div class="quick__panel pop app-scroll" id="quick-panel" role="group" aria-label="Quick settings" data-frames="quick" hidden>
+          <div class="quick__bar">
+            <!-- The glyphs are filled in by quick-panel.ts. -->
+            <button class="quick__logo" type="button" data-quick="look" aria-pressed="false" aria-label="Look" title="Look: this skin's own settings, and motion"></button>
+            <button class="quick__logo" type="button" data-quick="help" aria-pressed="false" aria-label="Menus, hints and notices" title="Menus, hints and notices"></button>
+            <button class="quick__logo" type="button" data-quick="window" aria-pressed="false" aria-label="Window" title="Window: the sizes, keep on top, and growing cards"></button>
+            <!-- The right cluster: Reset, then the cog. -->
+            <button class="quick__logo quick__right" type="button" data-quick="reset" aria-pressed="false" aria-label="Reset" title="Reset: put a group of settings, or all of them, back as they came"></button>
+            <button class="quick__logo quick__all" type="button" id="quick-all" aria-pressed="false" aria-label="All settings" title="All settings: opens Settings at full size"></button>
+          </div>
+          <div class="quick__body" id="quick-body" hidden>
+            <div id="quick-rows"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="drag-region" data-tauri-drag-region></div>
+
+      <div class="chrome-right">
+        <div class="lights">
+          <!-- Windows' order: minimize, maximize, close. -->
+          <button class="light light--min" id="tl-min" type="button" aria-label="Minimize" title="Puts the window on the taskbar">
+            <svg class="sigil" viewBox="0 0 10 10" aria-hidden="true"><path d="M1.6 5H8.4" /></svg>
+          </button>
+          <button class="light light--max" id="tl-max" type="button" aria-label="Maximize" title="Fills the screen. Press again to go back">
+            <svg class="sigil" viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1.6V8.4M1.6 5H8.4" /></svg>
+          </button>
+          <button class="light light--close" id="tl-close" type="button" aria-label="Close" title="Closes DeetsHealth">
+            <svg class="sigil" viewBox="0 0 10 10" aria-hidden="true"><path d="M2.3 2.3L7.7 7.7M7.7 2.3L2.3 7.7" /></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-body">
+      <!-- Ambient layers (Ocean swell / Glass aurora / Cyber storm) sit BEHIND the cards and
+           are inert (display:none) unless a skin opts in via its display token. All three
+           animate ONLY transform and opacity, so the compositor moves finished layers and the
+           main thread paints nothing per frame. src/ambient.ts pauses them while the window
+           is minimized. -->
+      <div class="ocean" aria-hidden="true">
+        <div class="ocean__bob ocean__bob--3"><div class="ocean__roll ocean__roll--3"></div></div>
+        <div class="ocean__bob ocean__bob--2"><div class="ocean__roll ocean__roll--2"></div></div>
+        <div class="ocean__bob ocean__bob--1"><div class="ocean__roll ocean__roll--1"></div></div>
+      </div>
+
+      <div class="aurora" aria-hidden="true">
+        <div class="aurora__blob aurora__blob--1"></div>
+        <div class="aurora__blob aurora__blob--2"></div>
+        <div class="aurora__blob aurora__blob--3"></div>
+      </div>
+
+      <div class="storm" aria-hidden="true">
+        <div class="storm__strike storm__strike--1"><div class="storm__hold">
+          <svg class="storm__svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="storm__bolt"></path></svg>
+        </div></div>
+        <div class="storm__strike storm__strike--2"><div class="storm__hold">
+          <svg class="storm__svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path class="storm__bolt"></path></svg>
+        </div></div>
+      </div>
+
+      <!-- Each .panel is a mount HOST. The layout manager (src/layout.ts) mounts a card into
+           each slot from the persisted assignment; the content slots are swappable via their
+           title picker. The Patient card is anchored to the top slot. -->
+      <div class="bento">
+        <!-- The stage column: the Patient card over the anchored Timeline. OUTSIDE max this
+             wrapper is `display: contents` — its panels are direct grid items of .bento. -->
+        <div class="stage">
+          <section class="panel" data-slot="patient" data-span="wide"></section>
+          <!-- max-only host (hidden elsewhere): the anchored Timeline under the Patient card. -->
+          <section class="panel" data-slot="timeline"></section>
+        </div>
+        <section class="panel" data-slot="left"></section>
+        <section class="panel" data-slot="right"></section>
+        <!-- max-only hosts (hidden elsewhere): two more content slots for the 2×2 bento. -->
+        <section class="panel" data-slot="c"></section>
+        <section class="panel" data-slot="d"></section>
+      </div>
+    </main>
+  </body>
+</html>

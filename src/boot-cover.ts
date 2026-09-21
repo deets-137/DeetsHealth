@@ -1,0 +1,97 @@
+// Launch cover (DeetsMusic's UX-COVERUPS.md §6). The main window starts hidden
+// (tauri.conf.json `visible: false`). The page paints behind an opaque --canvas cover
+// (`<html data-boot>` in index.html), then asks Rust to show the window (`main_ready`,
+// which also gives the window the canvas color, so its first frame is never white).
+// Once the window shows, the cover fades and the cards rise into place (skin tokens
+// --boot-*). The stages, on <html data-boot>:
+//   hold — clicks are blocked until `restored` settles (the shell has nothing to restore
+//          yet, so it settles at once; the record cache will use it).
+//   wait — clicks pass while the rest finishes (the window size).
+//   lift — the fade runs; the attribute is removed when it ends.
+// Ready = restored + window at its surface size, or CAP_MS.
+// Rust shows the window after 3 s whatever happens (window.rs `reveal_fallback`), and CSS
+// lifts the cover at --boot-safety, so a page error cannot leave a hidden or blank window.
+// Snaps (no fade) under reduced motion or with Animate look changes off.
+
+import { invoke } from "@tauri-apps/api/core";
+import { setting } from "./settings-store";
+import * as frames from "./frames";
+import * as diag from "./diag";
+
+const CAP_MS = 2500;
+
+const reducedMotion = (): boolean => {
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+};
+
+/** A time token ("0.8s" / "70ms") in ms, times --motion-scale (set only under an agent's
+ *  slower cover, UX-COVERUPS §6b; 1 elsewhere), so the JS timers match the CSS.
+ *  appearance.ts and card-swap.ts read the same tokens. */
+export function tokenMs(name: string): number {
+  const cs = getComputedStyle(document.documentElement);
+  const v = cs.getPropertyValue(name).trim();
+  const n = parseFloat(v);
+  if (!Number.isFinite(n)) return 0;
+  const scale = parseFloat(cs.getPropertyValue("--motion-scale")) || 1;
+  return (v.endsWith("ms") ? n : n * 1000) * scale;
+}
+
+/** The page ground as [r, g, b], for the window's own background. */
+function canvasRgb(): [number, number, number] | null {
+  const m = /rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(getComputedStyle(document.body).backgroundColor);
+  return m ? [+m[1], +m[2], +m[3]] : null;
+}
+
+export const nextFrame = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => r()));
+
+/** Boot (main.ts), after the cards mount. `restored` ends the click block. */
+export function runBootCover(restored: Promise<unknown>, ready: Promise<unknown>[]): void {
+  const root = document.documentElement;
+  const t0 = performance.now();
+  void restored.finally(() => {
+    if (root.dataset.boot === "hold") root.dataset.boot = "wait";
+  });
+  let capped = false;
+  const cap = new Promise<void>((r) =>
+    window.setTimeout(() => {
+      capped = true;
+      r();
+    }, CAP_MS),
+  );
+  void Promise.race([Promise.allSettled([restored, ...ready]), cap]).then(async () => {
+    try {
+      await invoke("main_ready", { color: canvasRgb() });
+    } catch (e) {
+      console.warn("[boot] main_ready", e);
+    }
+    diag.log("boot:ready", { ms: Math.round(performance.now() - t0), capped });
+    if (!setting("appearanceMotion") || reducedMotion()) {
+      delete root.dataset.boot;
+      done();
+      return;
+    }
+    // The window's first shown frames carry the full cover, not a fade already half run.
+    await nextFrame();
+    await nextFrame();
+    const end = frames.begin("boot");
+    root.dataset.boot = "lift";
+    const slots = document.querySelectorAll(".bento .panel").length;
+    const total = tokenMs("--boot-dur") + tokenMs("--boot-stagger") * Math.max(0, slots - 1);
+    window.setTimeout(() => {
+      end();
+      if (root.dataset.boot === "lift") delete root.dataset.boot;
+      done();
+    }, total + 50);
+  });
+}
+
+/** The cover is gone and the cards are in place. The first-run walk waits for this
+ *  (walk.ts): a sprite under a control the cover still hides points at nothing. Fired
+ *  once, on both paths — the fade and the reduced-motion snap. */
+function done(): void {
+  window.dispatchEvent(new Event("deets:boot-done"));
+}
