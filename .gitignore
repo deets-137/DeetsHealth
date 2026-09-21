@@ -1,0 +1,26 @@
+node_modules
+dist
+dist-ssr
+*.local
+logs
+*.log
+
+# Rust
+src-tauri/target/
+src-tauri/.tauri.dev.gen.json
+
+# Secrets and PHI — never commit
+.env*
+epic-client.json
+tokens/
+dev-dumps/
+*.fhir.json
+
+# Local Claude Code settings
+.claude/settings.local.json
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
