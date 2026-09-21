@@ -20,8 +20,11 @@ updated: 2026-09-21
   - The core crate (Decided › Web-ready core) holds the normalizer, the health model and the
     sealing, with no Tauri dependency. It turns FHIR JSON into the model; it is not all of
     "getting the data". Sign-in, the key store, the cache and opening a browser sit behind
-    small platform interfaces. **Open fork for step 3:** where the HTTP fetch lives — in the
-    core (one fetch for desktop and web) or behind a platform interface.
+    small platform interfaces. **The HTTP fetch lives in the core** (the owner, 2026-09-21):
+    one fetch for desktop and web.
+  - The paper design for step 3 starts with the data structure: the health model types the
+    cards read (`LabResult`, `Medication`, `Allergy`, `Condition`, `Encounter`, the patient),
+    the wrapper type, and the sealed cache's tables. FHIR-SHAPES.md is the input.
   - Step 5, the release path up to (not including) the worker, comes after these two.
 
 ## Run
