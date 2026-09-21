@@ -1,5 +1,16 @@
+// The system browser, for sign-in only.
+mod browser;
+// The Windows crypto provider and the per-site key store (SECURITY.md §4.6).
+mod cng;
+mod keystore;
 mod log;
 mod settings;
+// Sign-in: the waiting sign-in, the returning link, the new sealed site (CORE-CRATE.md §6).
+mod signin;
+// One sealed SQLite file and one key per site. Open, list and erase arrive with the fetch and
+// the sign-out (CORE-CRATE.md §2, stages 5 and 8).
+#[allow(dead_code)]
+mod sites;
 mod watchdog;
 mod window;
 
@@ -21,11 +32,11 @@ pub fn run() {
     // FIRST plugin on purpose: a second process must be turned away BEFORE any setup runs,
     // or it opens the same data dir. The callback brings the running window forward.
     // The same second process is how a sign-in link will reach the app: the browser starts
-    // the exe with the link as its argument, and it lands here as argv. No sign-in exists
-    // yet, so a link is dropped and logged as ignored, with no values (SECURITY.md §4.4).
+    // the exe with the link as its argument, and it lands here as argv. signin.rs shields it
+    // at once and matches it to the waiting sign-in (SECURITY.md §4.4).
     let single_instance = tauri_plugin_single_instance::init(|app: &tauri::AppHandle, argv, _cwd| {
-        if link_in_args(argv.iter()).is_some() {
-            log::warn("sign-in: a link arrived, but no sign-in was waiting; ignored");
+        if let Some(link) = link_in_args(argv.iter()) {
+            signin::on_link(app, link.clone());
         }
         window::show_main(app);
     });
@@ -45,6 +56,12 @@ pub fn run() {
 
             app.manage(settings::Settings::load(dir.clone()));
             window::restore_pos(app.handle());
+            match signin::SignIn::new(sites::SiteFiles::new(&dir), LINK_SCHEME) {
+                Ok(s) => {
+                    app.manage(s);
+                }
+                Err(e) => log::error(&format!("sign-in: unavailable: {e}")),
+            }
 
             // The deep-link scheme. A debug build owns `deetshealth-dev://` and points it at
             // this exe on every launch — one HKCU key, never the installed app's scheme.
@@ -61,8 +78,9 @@ pub fn run() {
                 }
             }
             let args: Vec<String> = std::env::args().collect();
-            if link_in_args(args.iter()).is_some() {
-                log::warn("sign-in: a link started the app, but no sign-in was waiting; ignored");
+            if let Some(link) = link_in_args(args.iter()) {
+                // A fresh process has no waiting sign-in, so on_link logs it as ignored.
+                signin::on_link(app.handle(), link.clone());
             }
 
             // Show the window when the page is ready (`main_ready`), or after 3 s.
@@ -106,6 +124,8 @@ pub fn run() {
         .on_window_event(window::on_window_event)
         .invoke_handler(invoke_with_watchdog(tauri::generate_handler![
             window::main_ready,
+            signin::sign_in_start,
+            signin::sign_in_cancel,
             log::diag_flush,
             log::log_event,
         ]))

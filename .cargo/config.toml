@@ -1,0 +1,4 @@
+# One build folder for the whole workspace, kept where the Tauri app always had it, so the
+# existing build cache and the .gitignore line still apply.
+[build]
+target-dir = "src-tauri/target"

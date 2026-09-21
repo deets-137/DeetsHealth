@@ -8,6 +8,56 @@ updated: 2026-09-21
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-09-21 — the data model
+- Laid out every FHIR R4 type by category, marked against Epic's 60 and US Core. US Core
+  9.0.0 has 27 types (it added `FamilyMemberHistory`). Checked each US Core profile's
+  Must Support flag for the encounter link.
+- The owner described Epic's links: a lab result links to its ordering and its collecting
+  encounter; medicines ordered outside a visit get a telephone encounter; problems and
+  allergies carry an encounter only sometimes.
+- The owner set the model: the encounter at the center, core pieces and encounter pieces, a
+  unified results table with a kind column, joined at runtime. Weaving the record together
+  is the app's differentiating feature.
+- New `architecture/DATA-MODEL.md`. The owner closed forks 1–6 (1a 2a 3a 4a 5a 6a) and chose
+  to grab the non-patient data that sits next to the record. It is sorted into `other`,
+  `definition`, `site`, `site_warning`, `document`, `directory` and `vocab`. Open: fork 7
+  (the `vocab` files) and fork 8 (which columns stay plain, at build).
+- New `architecture/CORE-CRATE.md`, the paper design for step 3. The owner closed forks 1a
+  2a 3a 4a 5a 6a 7a 9a 10a and named the wrapper `Shielded<T>`. He set the strictest standard
+  for PHI (HHS's bar for covered entities), which brought Windows CNG and SChannel (10a) and
+  the rule that no protected value is plain in SQLite. SECURITY.md §4.6 now has one key per
+  site. Then 8a (`ts-rs`, new to the Deets apps) and 11a (one payload struct per card view).
+  New SECURITY.md §8: every security measure in one place, to speak from.
+- The owner accepted the Sites section (S1–S6 a) and the build order (CORE-CRATE.md §2).
+- Epic has no central sign-in: each health system runs its own FHIR server and MyChart. Its
+  Brands bundle lists 1,278 R4 endpoints; Epic asks apps to download it weekly and re-host
+  it, never to query it at runtime.
+- New `integrations/ENDPOINT-DIRECTORY.md`: the Brands bundle's shape (94.9 MB; 1,278 brands,
+  95,645 locations, 820 endpoints; no logos). The owner chose a worker to re-host it weekly.
+  Trimmed for the picker it is 1.06 MB compressed.
+- Built stage 1 (CORE-CRATE.md §12): the workspace, `deetshealth-core`, `Shielded<T>` with a
+  sealed two-pass design, the platform traits, `CoreError`. Added the wasm32 target to the
+  toolchain. Checks: 3 tests, 3 compile-fail proofs, the wasm check, `cargo check`, clippy.
+- Built stage 2: `seal.rs` (format byte; table, row and column in the associated data),
+  `cng.rs` (CNG AES-256-GCM, RNG, SHA-256), `keystore.rs` (DPAPI-wrapped key per site).
+  19 tests pass, including the GCM specification's vectors and a flipped-bit test per byte.
+- DESIGN.md §6.1–6.3: the owner's rule that every fork weighs every platform (also in
+  CLAUDE.md), and notes for macOS and iPhone. The one real limit found: a Mac app has no
+  uninstaller, so uninstall cannot erase there.
+- Built stage 3: the store (`core/src/store/`, rusqlite 0.32 bundled behind a `sqlite`
+  feature) and `src-tauri/src/sites.rs`. Every column but row keys and table names is sealed,
+  a missing value included. 27 tests pass; a byte scan of the real files finds no plaintext.
+- Stage 4 fork: sign-in and the fetch must send the token, the `Patient` id and the site's
+  URL back to the site. The owner chose a third pass (`SitePass`, the network module only)
+  over a separate credential type. SECURITY.md §4.2, §8.2, §8.5 and SECURITY-BRIEF.md updated.
+- Found that SMART's launcher refuses a standalone launch on a plain base URL; it reads its
+  setup from a base64url JSON array in the URL. With the patient set and login skipped, the
+  authorize step returns the code at once, which makes a browser-free live test possible.
+- Built stage 4: `core/src/net.rs`, `core/src/auth.rs`, `src-tauri/src/signin.rs`,
+  `browser.rs`, the link wiring in `lib.rs`; `SiteRow` gained `client_id`. New crates:
+  reqwest 0.12 (`native-tls`, `gzip`), `serde_json`. 33 offline tests pass; the live sign-in
+  test (PKCE, state, token trade, refresh, refused refresh) passes against the sandbox.
+
 ## 2026-09-21 — the empty shell
 - Fixed two old doc lines: README (SMART first, Epic on hold) and SURFACES-AND-CARDS.md §2
   (the first slice is decided). Fixed three § pointers that named list items, not headings.

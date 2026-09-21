@@ -1,0 +1,26 @@
+[package]
+name = "deetshealth-core"
+version = "0.1.0"
+description = "DeetsHealth's web-ready core: sign-in, fetch, sealing, the store and the normalizer."
+authors = ["Aditya Sundaram"]
+edition = "2021"
+
+# No Tauri here, ever: this crate must also build for wasm32-unknown-unknown (CORE-CRATE.md §3).
+[dependencies]
+# Wipes a protected value from memory when it drops (SECURITY.md §8.2).
+zeroize = "1"
+# The desktop store (store/sqlite.rs): SQLite compiled in, the version DeetsMusic uses. Holds
+# sealed values only. Behind a feature, so the wasm build never pulls it in.
+rusqlite = { version = "0.32", features = ["bundled"], optional = true }
+# HTTP to the site (net.rs). TLS through the OS: SChannel on Windows (native-tls), the
+# browser's fetch on the web. gzip keeps replies small. No rustls, no bundled crypto.
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "gzip"] }
+# Reading FHIR and SMART replies (net::parse_reply).
+serde_json = "1"
+
+[features]
+sqlite = ["dep:rusqlite"]
+
+[dev-dependencies]
+# Only so the doc test in shielded.rs proves Shielded<T> cannot be serialized.
+serde = "1"

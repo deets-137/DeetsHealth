@@ -25,6 +25,19 @@ updated: 2026-09-21
   - The paper design for step 3 starts with the data structure: the health model types the
     cards read (`LabResult`, `Medication`, `Allergy`, `Condition`, `Encounter`, the patient),
     the wrapper type, and the sealed cache's tables. FHIR-SHAPES.md is the input.
+  - **The cache's tables are on paper** in [DATA-MODEL.md](architecture/DATA-MODEL.md):
+    the encounter at the center, one link table for every reference, raw resources kept
+    sealed and normalized at read time. Forks 1–6 decided 2026-09-21. Open: fork 7 (the
+    bundled code-name files) and fork 8 (which columns stay plain, decided at build).
+  - **Step 3 is on paper** in [CORE-CRATE.md](architecture/CORE-CRATE.md): forks 1–7, 9, 10
+    decided 2026-09-21 (the end state is sign-in + fetch + sealed cache on SMART, shown in
+    a Settings › Sites row; `Shielded<T>`; one key and file per site; Windows CNG and
+    SChannel). Forks 8a and 11a, the Sites section (S1–S6) and the build order closed the
+    same day. **Stages 1–4 built** (CORE-CRATE.md §12; sign-in passes a live test against
+    the SMART sandbox). **Next: stage 5**, the fetch: `/metadata`, the plan, paging, the pace
+    of 3, retries, `site_warning`, progress. Before the desk test the owner starts
+    `npm run dev:app` from his own terminal once, so the `deetshealth-dev://` scheme lands in
+    the real registry.
   - Step 5, the release path up to (not including) the worker, comes after these two.
 
 ## Run
@@ -35,6 +48,10 @@ npm run dev:fresh     # the same, as a first-time user (run it from your own ter
 npx tsc --noEmit      # front-end type check
 npm run docs:check    # links, mentions, § pointers, front matter
 npm run tokens        # regenerate docs/architecture/TOKENS.md after a token change
+cargo test -p deetshealth-core --features sqlite                  # core tests + compile-fail proofs
+cargo test -p deetshealth --lib                                   # host tests: CNG, DPAPI, the plaintext scan
+cargo test -p deetshealth --lib -- --ignored                      # live sign-in against the SMART sandbox (~5 calls)
+cargo check -p deetshealth-core --target wasm32-unknown-unknown   # core stays web-ready
 ```
 The dev app is up when its output has `start: DeetsHealth` (read it with `grep -a`).
 
@@ -139,6 +156,15 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
   query string. Keep all five when a card fills.
 
 ## File map
+- `core/` — the web-ready core crate (CORE-CRATE.md): `shielded.rs` (the wrapper and the two
+  passes), `platform.rs` (Cipher, KeyStore, OpenBrowser, SiteKey), `seal.rs` (the sealed
+  format), `store/` (row types; `sqlite.rs`, the sealed SQLite store, feature `sqlite`),
+  `net.rs` (the third pass and the HTTP client), `auth.rs` (SMART sign-in and refresh),
+  `error.rs`, and the stub `payload.rs`. The workspace `Cargo.toml` is at the repo root.
+- `src-tauri/src/cng.rs` (AES-256-GCM, random, SHA-256 from Windows CNG) and `keystore.rs`
+  (per-site keys wrapped by DPAPI): every `unsafe` crypto call in the app. `sites.rs`: one
+  store file and one key per site; create, open, list, erase. `signin.rs`: the waiting
+  sign-in, the returning link, the commands; `browser.rs`: opens https:// in the system browser.
 - `src/main.ts` — boot and the title bar. `src/layout.ts` — the slots per surface.
   `src/surface.ts` — Midi / Max and the resize bands. `src/cards.ts` — the registry.
   `src/record-cards.ts` — the empty record cards. `src/settings-card.ts` — Settings.

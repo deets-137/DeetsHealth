@@ -57,9 +57,14 @@ Protected data is encrypted at every step except the moment it is shown:
 ### 4.2 The wrapper type (decided, the owner, 2026-09-21)
 Every protected value in Rust is sealed in a wrapper type the moment it is parsed, before
 it goes anywhere. The type has no `Debug`, no `Display`, no `Serialize` to a log, no
-`ToString`. The only ways out are (a) the card payload to the front end and (b) the sealed
-cache writer. A leak into a log is then a compile error, not a review note. It covers PII as
-well as PHI: a patient name is wrapped exactly as a lab value is.
+`ToString`. The only ways out are (a) the card payload to the front end, (b) the sealed
+cache writer, and (c) a request to the site the value came from: the site's URL, the
+access token, the `Patient` id, a form field (the owner, 2026-09-21: a third pass, held by
+the core's network module only). A leak into a log is then a compile error, not a review
+note. It covers PII as well as PHI: a patient name is wrapped exactly as a lab value is.
+- **The moment of parsing:** a site's reply is read only inside the network module's parse
+  call, and the code there wraps every value it keeps. That call is the one place a reply's
+  plaintext exists outside the wrapper (CORE-CRATE.md §12, stage 4).
 
 ### 4.3 The front end
 - Record text goes into the page **only through `textContent`**. Never `innerHTML`, never a
@@ -86,11 +91,22 @@ well as PHI: a patient name is wrapped exactly as a lab value is.
   notes do not ask users to send them.
 
 ### 4.6 Keys
-- One data key per install, made from the OS random source, sealed with DPAPI
-  (`CurrentUser`). Nothing is derived from a password we make up.
-- Crypto comes from audited primitives only (AES-GCM or ChaCha20-Poly1305 from RustCrypto,
-  or Windows CNG). Our own crate may wrap them; it never contains our own cipher, mode or
-  key derivation. Every nonce is random or a counter that never repeats under one key.
+- **The strictest standard** (the owner, 2026-09-21): we hold ourselves to the bar HHS sets
+  for covered entities, although HIPAA does not bind the app (§6). At rest: NIST SP 800-111
+  with FIPS 140-validated crypto. Erasure: NIST SP 800-88. In transit: TLS 1.2 or later.
+- **One data key per site** (fork 4a, 2026-09-21; it replaces "one per install"), with one
+  SQLite file per site. The key is made from the OS random source and sealed with DPAPI
+  (`CurrentUser`). Sign-out deletes the file, the tokens and the key: cryptographic erase.
+  Nothing is derived from a password we make up.
+- **Provider** (fork 10a, 2026-09-21): Windows CNG for AES-256-GCM, random numbers and
+  SHA-256; SChannel for TLS. Both are FIPS 140-validated. No third-party crypto crate. Our
+  own crate may wrap them; it never contains our own cipher, mode or key derivation. Every
+  nonce is random or a counter that never repeats under one key. The web version plugs
+  WebCrypto into the same trait (CORE-CRATE.md §5).
+- **No protected value is plain in SQLite**, the index columns included. Only opaque row
+  keys and table names are plain.
+- **Known remainder:** a deleted key file may linger on an SSD; a copy still needs the same
+  Windows user to unwrap it. Windows Device Encryption covers freed blocks.
 - Sealing is per value (fork 7a): each protected value is sealed just before its SQLite
   write and unsealed just after its read, straight into the wrapper type. The row's key is
   the associated data, so a sealed value moved to another row fails to open.
@@ -128,6 +144,96 @@ there first.
    before the SQLite write, unseal just after the read, straight into the wrapper type.
    AES-GCM per value, the row's key as associated data (a value cannot be moved to another
    row). Table names and row counts stay visible; sealed columns sort in Rust.
-2. **The wrapper type's name** — decided at build time.
+2. ~~The wrapper type's name~~ — decided 2026-09-21: `Shielded<T>` (CORE-CRATE.md §4).
 3. ~~What we keep from `Patient`~~ — decided 2026-09-21: name, birth date, sex only;
    derived values computed at runtime, never stored (FHIR-SHAPES.md §5, fork 1).
+
+## 8. The security measures, in one place
+> **Part:** designed · 2026-09-21
+
+A summary to speak from, for a user, a reviewer or a health system. Each line points to its
+rule. Where this section and §4 disagree, §4 is the rule. Nothing here is built yet; when it
+is, this section gets an "as built" note. For a security engineer who helps us, the tour and
+the open questions are [SECURITY-BRIEF.md](SECURITY-BRIEF.md).
+
+### 8.1 The standard we hold
+- HIPAA does not bind an app that a patient chooses (§6). We hold the bar HHS sets for
+  covered entities anyway: NIST SP 800-111 at rest with FIPS 140-validated crypto, NIST
+  SP 800-88 for erasure, TLS 1.2 or later in transit (§4.6).
+- Protected data is PHI and PII together: every value from the record and every identifier,
+  the real site's name included (§2).
+- There is no server. The record goes from the health system to the user's PC and nowhere
+  else: no sync, no telemetry, no backup of ours, no AI route (§4.1).
+
+### 8.2 The path of one value
+```
+site ──TLS (SChannel)──► core parses it ──► Shielded<T> in memory
+     ◄──TLS── pass (site): URL, token, Patient id  │
+              go back to that same site only      │ pass (cache writer)
+                                                  ▼
+                        sealed: AES-256-GCM (CNG), per value, row key as associated data
+                                                  │ SQLite file for this site only
+                                                  ▼
+                        read back ──► unsealed straight into Shielded<T>
+                                                  │ pass (card payload)
+                                                  ▼
+                        payload struct, plain values, one per card view
+                                                  │ Tauri IPC (in process)
+                                                  ▼
+                        card DOM, through textContent only
+```
+1. **In transit:** HTTPS only, through Windows' SChannel (FIPS 140-validated). No `http://`
+   site, no certificate override (§4.1).
+2. **In memory:** every protected value lives in `Shielded<T>` from the moment it is parsed.
+   The type has no `Debug`, `Display`, `Serialize` or `ToString`, so a log line that tries to
+   print one does not compile. It is wiped from memory when it drops (`zeroize`) (§4.2).
+3. **The only three ways out** of `Shielded<T>` need a pass, and only three modules can make
+   one: the cache writer, the card payload, and the network module, which may put a value
+   only into a request to the site it came from (CORE-CRATE.md §4). `shielded.rs` names all
+   three; a fourth is a visible change to that file.
+4. **At rest:** each value is sealed on its own, with AES-256-GCM from Windows CNG
+   (FIPS 140-validated), a random 96-bit nonce, and the table plus row key as associated
+   data, so a value copied to another row fails to open. No protected value is plain in the
+   file, the index columns (dates, codes) included. Only opaque row keys and table names
+   show (§4.6).
+5. **To the screen:** a card receives a payload struct built for that view, with plain values.
+   Its TypeScript type is generated from Rust (`ts-rs`), so the two cannot drift. Record text
+   enters the page only through `textContent` (§4.3).
+
+### 8.3 Keys and erasure
+- One data key per site, made by CNG's random source and wrapped by DPAPI for this Windows
+  user only. One SQLite file per site (§4.6).
+- **Sign-out** deletes that site's file, tokens and key. Without the key a leftover copy
+  cannot be opened: cryptographic erase under NIST SP 800-88. **Uninstall** deletes all of
+  them (§4.7).
+- Crypto comes only from the OS's validated modules. Our code wraps them; it holds no cipher,
+  mode or key derivation of its own.
+
+### 8.4 What never carries protected data
+The log, a diag ring, a `[perf]` line, a panic message (the hook replaces it), a crash dump
+of ours, a toast, a hover hint, the window title, a notification, `localStorage`, the
+clipboard (unless the user copies on purpose), a bug report, an agent or MCP route, an
+export (§4.3, §4.5). Logs carry counts, resource types, durations and error kinds only.
+
+### 8.5 Sign-in
+- In the system browser, never in WebView2. PKCE (S256) and a `state` check on every sign-in;
+  one sign-in may wait at a time; a stray or mismatched link is dropped (§4.4).
+- Tokens are sealed with the site's key. Another app that claims our link scheme gets a
+  code it cannot use without the verifier, which never leaves our process (§3).
+- The returning link holds the code, so it is shielded the moment it arrives and never
+  logged. A waiting sign-in lasts 10 minutes. A link with the wrong `state` leaves the
+  waiting sign-in in place, so a stray link cannot cancel the user's sign-in.
+- The HTTP client follows no redirects, so a token never goes to another host; it requires
+  HTTPS and TLS 1.2 or later. The browser is opened by Rust for `https://` only.
+
+### 8.6 The front end
+A strict Content-Security-Policy (no remote or inline script, no remote images); named
+commands only, with no file, shell, HTTP or opener plugin exposed; no DevTools in a release
+build (§4.3).
+
+### 8.7 What we say plainly
+- Malware running as the same Windows user while the app is open can read the screen and
+  the process memory. No app can stop that, and we do not claim to (§3).
+- A deleted key file may linger on an SSD. A copy still needs the same Windows user to
+  unwrap it; Windows Device Encryption covers freed blocks (§4.6).
+- Development uses sandbox patients only. A real record is a later, owner-approved step (§4.8).

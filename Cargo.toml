@@ -1,0 +1,4 @@
+# The Cargo workspace (CORE-CRATE.md §3): the web-ready core crate and the Tauri host.
+[workspace]
+members = ["core", "src-tauri"]
+resolver = "2"

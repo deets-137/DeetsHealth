@@ -65,3 +65,34 @@ so every design assumes the app may become a web app later.
   agreement, breach duties), so it is a fork of its own at that time.
 - A web version adds one risk the desktop app does not have: the code is served fresh on
   each visit, so a changed host could serve changed code. That is a later design question.
+
+### 6.1 Every platform, from here on (the owner, 2026-09-21)
+Windows is the only build today. A web version, a macOS app and an iPhone app may follow.
+**Every fork from now on weighs every platform:** an option names what it costs, or rules
+out, on each. Platform facts go behind the core's platform traits (CORE-CRATE.md §3); a
+rule that holds on one platform only says so.
+
+### 6.2 macOS (notes, 2026-09-21)
+| Area | Windows today | macOS |
+|---|---|---|
+| Crypto (`Cipher`) | CNG, FIPS 140-validated | Apple's validated module (corecrypto). Its AES-GCM is in CryptoKit, Swift only: a small Swift bridge, or a validated library such as `aws-lc-rs` in FIPS mode |
+| Keys (`KeyStore`) | DPAPI blob in a file | The Keychain. Stronger: the key never sits in our folder |
+| TLS | SChannel | Apple's Security framework, through the same `native-tls` |
+| Sign-in return | The link arrives as a launch argument (single-instance) | The link arrives as an "open URL" event from the deep-link plugin; `lib.rs` needs a second path |
+| **Uninstall erase** | The uninstaller deletes data and keys (SECURITY.md §4.7) | **A Mac app has no uninstaller.** The Trash leaves the data folder and Keychain items. It needs an in-app "Delete all data", and the rule becomes: sign-out erases; uninstall cannot |
+| Web view | WebView2 (Chromium) | WKWebView (Safari engine): small CSS and script differences; every skin, and Glass's blur cost, need a look |
+| Window and keys | Our title bar; Ctrl shortcuts | Traffic-light buttons; Cmd shortcuts. Design forks |
+| Windows-only code | the `windows` crate, WebView2 key blocking, `cng.rs`, `keystore.rs` | Needs `cfg(windows)` gates; today these are unconditional |
+| Release | Signed installer, updater | An Apple Developer account, code signing and notarization; built on a Mac |
+
+### 6.3 iPhone (notes, 2026-09-21)
+- Tauri v2 builds for iOS, and the core crate compiles for it. The Keychain (with the Secure
+  Enclave) is the key store; crypto as on macOS.
+- Sign-in uses `ASWebAuthenticationSession`, iOS's system browser sheet, which keeps the
+  rule "never an in-app web view" (SECURITY.md §4.4).
+- Midi and Max are desktop shapes. A phone needs its own surface: a design of its own.
+- iOS limits background work, so the fetch runs while the app is open.
+- **An option unique to iOS:** Apple Health's Health Records already pulls FHIR records
+  from many health systems. With the user's permission, HealthKit gives an app those records
+  as FHIR JSON (`HKClinicalRecord`), with no sign-in of our own. A fork for that time.
+- App Store review has rules for apps that hold health data.
