@@ -8,9 +8,70 @@ updated: 2026-09-21
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-09-21 — security rules and the probe plan
+- The owner set the priority: patient experience, then privacy and security, then the rest.
+- New `architecture/SECURITY.md`: protected data = PHI + PII (any identifier), the threats,
+  end-to-end encryption, the fixed rules (`textContent` only, CSP, no plugins to the front
+  end, PKCE + `state`, log and panic rules, keys, dev rules), and a law summary.
+- The owner closed forks: cache encryption by our own crate (wrapping audited primitives
+  only — noted as a rule), the wrapper type, dynamic client registration first for Epic,
+  delete on sign-out and uninstall.
+- Epic is on hold: the owner cannot register on fhir.epic.com yet. SMART Health IT is the only
+  live site.
+- Probe plan decided: a kept `scripts/fhir-probe.mjs` and `architecture/FHIR-SHAPES.md`.
+- New open fork: HANDOFF.md › Open now 7, the shape of the encryption crate.
+- Built `scripts/fhir-probe.mjs` and ran it on SMART's open server: 9 resource types, 300
+  each, shapes only. Output: `architecture/probes/smart-open.md` (generated).
+- Epic's specification page renders with JavaScript and could not be read; its sandbox
+  CapabilityStatement could, and gives 60 resource types (Epic August 2026).
+- New `architecture/FHIR-SHAPES.md`: findings per resource, five normalizer rules, three
+  forks (HANDOFF.md › Open now 8). Biggest surprises: lab ranges missing in about half,
+  no high / low flags, no allergy reactions, no dose text, and Synthea patients carry
+  social security, licence and passport numbers.
+- The owner closed 7a (per-value sealing, to and from SQLite), 8.2a (the site's own range;
+  filling missing ranges goes to ideas), 8.3a (build dose text; his ideas at build time).
+  8.1 is re-asked with "keep" defined and a new recommendation (name, birth date, sex).
+- DESIGN.md §1 now says handling messy data well is the app's point of difference.
+- The owner closed 8.1b: keep name, birth date, sex; compute the rest at runtime. Listed
+  SMART's Patient extension URLs and identifier types (no values) to name what is dropped.
+  New open fork: which field is "sex" (FHIR-SHAPES.md §5.4).
+- Sex parked with a direction: display `gender`, compute a clinical sex from several
+  factors at runtime.
+- Fork 6 read against DeetsMusic's imports and closed in part: 6A empty app + one-by-one
+  import, 6B no tray + web-ready design (DESIGN.md §6), 6C release path scaffolded up to
+  the worker. 6D (Compass) re-opened by the owner. `frames.ts` must come with the engine.
+- Cactus Needle 3 read and noted in ideas/README.md.
+- The owner closed the web-ready split (a; a secure cloud provider is acceptable if a web
+  version needs a server) and 6D (a: Compass shell with the scaffold). Needle planned as a
+  Compass layer for ambiguity. Looked up Quest and Labcorp patient APIs; noted in ideas.
+
+## 2026-09-21 — a second sandbox site
+- The owner added SMART Health IT's public sandbox as a second site in the same app.
+  Recorded in HANDOFF.md › Decided and DATA-ARCHITECTURE.md §2.
+- Probed the discovery endpoints (no sign-in, no patient data): Epic's and SMART's
+  `smart-configuration` and `r4.smarthealthit.org/metadata` all return 200. Epic lists
+  `client-public` and `permission-offline`; its `scopes_supported` has no `patient/*`
+  scopes, so Epic's resource scopes come from the app registration.
+
+## 2026-09-21 — habits brought over from DeetsMusic
+- Read DeetsMusic's CLAUDE.md, LESSONS.md, TASTE.md, DOCS-ORG.md, HANDOFF.md and the
+  sign-in part of DEBUGGING.md.
+- CLAUDE.md: added the full working style (forks, hand-off list, one feature in flight, the
+  pre-build list with a PHI rule for hints, toasts and logs), the verify notes (no harnesses,
+  the MSIX registry trap, the dev-app ready line), the explain rules, Conventions, and the
+  front-matter / part-marker rules.
+- New `docs/LESSONS.md`: DeetsMusic's lessons cut to this project, with a fourth stop rule
+  (PHI) and a PHI tie-breaker. TASTE.md is pointed to, not copied (it is local only).
+- DOCS-ORG.md: the status table, part markers, the HANDOFF / WORKLOG rule.
+- HANDOFF.md: three sign-in gotchas; a note on dev vs release redirect URIs under fork 5.
+- Not brought over: playback, graphics measurement, release and publishing, workers, the
+  agent / MCP routes (DESIGN.md §3 rules them out until the PHI wall is designed).
+
 ## 2026-09-21 — the project folder
 - Made `Documents/DeetsHealth` with README, CLAUDE.md and the first docs, and a local git repo
   (no remote).
 - Decided by the owner: a patient-facing app on Epic's FHIR API, sandbox patients first,
   structured as a 1-to-1 copy of DeetsMusic, with Midi and Max as the only surfaces.
 - Open forks: HANDOFF.md › Open now.
+- Later the same day, the owner closed forks 1–4: copy the skeleton, deep-link scheme,
+  labs/meds/allergies for 1–2 sandbox patients, SQLite cache.
