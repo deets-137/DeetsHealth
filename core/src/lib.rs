@@ -14,12 +14,14 @@
 
 pub mod auth;
 pub mod error;
+pub mod fhir;
 pub mod net;
 pub mod payload;
 pub mod platform;
 pub mod seal;
 pub mod shielded;
 pub mod store;
+pub mod sync;
 
 pub use error::CoreError;
 pub use shielded::{Pass, Shielded};

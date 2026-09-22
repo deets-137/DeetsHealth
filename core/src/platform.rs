@@ -42,6 +42,14 @@ pub trait KeyStore {
     fn destroy(&self, site: &SiteKey) -> Result<(), CoreError>;
 }
 
+/// Time, from the platform: the core has no clock of its own (none exists on the web).
+pub trait Timer {
+    /// Seconds since 1970.
+    fn now(&self) -> u64;
+    /// Wait. The fetch uses it for `Retry-After` and back-off only.
+    fn sleep(&self, seconds: u64) -> impl std::future::Future<Output = ()>;
+}
+
 /// Opens the system browser for sign-in. Never a WebView2 popup (SECURITY.md §4.4).
 pub trait OpenBrowser {
     fn open_url(&self, url: &str) -> Result<(), CoreError>;

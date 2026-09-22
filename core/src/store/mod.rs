@@ -21,6 +21,24 @@ use crate::{CoreError, Shielded};
 /// A protected text value, as the cache holds it.
 pub type Text = Shielded<String>;
 
+/// What the fetch needs from a site's store. The SQLite store fills it on the desktop; a web
+/// version fills it over IndexedDB. Every value in and out is shielded.
+pub trait Store {
+    /// A fresh opaque row key.
+    fn new_row_id(&self) -> Result<RowId, CoreError>;
+    fn site(&self) -> Result<Option<SiteRow>, CoreError>;
+    fn put_site(&self, s: &SiteRow) -> Result<(), CoreError>;
+    fn put_patient(&self, p: &PatientRow) -> Result<(), CoreError>;
+    /// Every row's key, FHIR type and FHIR id: how the fetch finds the row to replace. The
+    /// type is FHIR's own word, not record data, so it comes back plain.
+    fn keys(&self, table: Table) -> Result<Vec<(RowId, String, Text)>, CoreError>;
+    fn put_resource(&self, table: Table, r: &ResourceRow) -> Result<(), CoreError>;
+    fn add_warning(&self, w: &WarningRow) -> Result<(), CoreError>;
+    fn clear_warnings(&self) -> Result<(), CoreError>;
+    /// Run `f` as one transaction: all of its writes land, or none do.
+    fn in_transaction<R>(&self, f: impl FnOnce(&Self) -> Result<R, CoreError>) -> Result<R, CoreError>;
+}
+
 /// The cache writer's pass. Its field is private, so only this module can make one.
 pub struct CachePass {
     _only_here: (),

@@ -183,7 +183,7 @@ Ours: `Shielded<T>`, the seal module, PKCE and `state`, the FHIR reader, index, 
 sync, the store schema, the CNG and DPAPI glue.
 
 ## 12. As built
-> **Part:** built · 2026-09-21 · stages 1–4 of 8
+> **Part:** built · 2026-09-21 · stages 1–5 of 8
 
 Where this part and the design above disagree, this part is the code.
 - **Workspace:** `Cargo.toml` at the repo root (members `core`, `src-tauri`). `Cargo.lock`
@@ -286,3 +286,47 @@ Where this part and the design above disagree, this part is the code.
   pick a patient and skip its login, it runs `begin`, reads the authorize redirect, refuses a
   wrong `state`, trades the code (PKCE checked by the launcher), refreshes, and gets
   `SignInAgain` for a bad refresh token. Passed. Wasm, clippy, release check clean.
+- The whole flow, its constants, log lines and troubleshooting: [SIGN-IN.md](SIGN-IN.md).
+
+**Stage 5** (built 2026-09-21): the fetch.
+- **`core/src/fhir.rs`:** `table_for` (every FHIR type → its table, DATA-MODEL.md §5 and §7);
+  `read_capability` (the types the site can search by patient: it picks `patient`, then
+  `subject`, `beneficiary`, `member`; notes `category` support); `scope_allows` (SMART v1
+  and v2 scopes); `read_page` (a searchset: matches, `_include`s, `OperationOutcome` issues,
+  the `next` link, `total`); `read_error`; `read_patient` (keeps name, birth date, sex; drops
+  the rest at the parse).
+- **`core/src/sync.rs`:** `full_fetch`: refresh the token if needed → `/metadata` (no token)
+  → the patient (`Patient?_id=…&_elements=name,birthDate,gender`) → one job per type served
+  and allowed (`Observation` once per each of FHIR's 9 categories when the site supports
+  `category`) → 3 workers (`futures_util::join_all`, one task, no threads) → each page in one
+  transaction. `_include`s only from `WANTED_INCLUDES` and only when the site lists them in
+  `searchInclude`. Retries: network error, 429, 500, 502, 503, 504, up to 4 tries, waiting
+  `Retry-After` (at most 60 s) or 1, 2, 4 s. A 401 renews the token once and retries. Any
+  other 4xx: the job stops, a warning `http-<status>` is stored, the type is in `skipped`.
+  A `next` link that leaves the site stops the job (`next-link-off-site`): the token never
+  goes to another host. Progress after every page (counts only).
+- **Stage 5 stores** each resource's type, id, a first `kind` (the Observation category, or
+  the type in lower case) and the raw resource; the other index columns wait for stage 6.
+  A resource replaces its earlier row (same FHIR type and id). An included resource goes to
+  its own type's table. `Provenance` waits in `other` until stage 6 makes links from it.
+- **`Store` trait** (`core/src/store/mod.rs`): what the fetch needs from a store; `SiteStore`
+  fills it. `keys(table)` reads two sealed columns per row, not the raw resource.
+- **`Timer` platform trait**: `now` and `sleep`; the core still reads no clock.
+- **Host:** `src-tauri/src/fetch.rs`: `start(site)` runs the fetch on a blocking thread (one
+  per site at a time) right after sign-in; `site_refresh(site)` command; events
+  `fetch-progress` and `fetch-done` (§ header of the file). Log: `fetch: started`, `fetch:
+  done: N resources, T types, C calls, S s, W warnings, key reads K ms`, `fetch: the site
+  refused: <types>`.
+- **Measured on the SMART sandbox** (2026-09-21): 76 jobs; 78 calls at 100 a page; 5–7 s
+  for 94–397 resources; key reads under 1 ms. The site serves 74 patient-searchable types;
+  66 of them have a table.
+- **Known limits:** on a site that needs `category` (Epic), an Observation in none of the 9
+  categories is not fetched. The raw JSON keeps the site's key order (serde_json
+  `preserve_order`, which adds `indexmap`). A full fetch does not yet remove rows the site deleted
+  (stage 8).
+- **Checks:** core 24 tests + 3 proofs (table map, capability, scopes, a page with matches,
+  includes and an outcome, the trimmed patient). Host 14 tests, plus **a live full fetch**
+  (`cargo test -p deetshealth --lib fetch -- --ignored --nocapture`): sign in, fetch at 20 a
+  page (so `next` links are followed; none left the site), check the patient row, the
+  capability and the fetch times, then fetch again at 100 a page: every table's row count
+  unchanged. About 165 calls in all. Wasm, clippy, release check clean.

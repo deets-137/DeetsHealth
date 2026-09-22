@@ -2,6 +2,8 @@
 mod browser;
 // The Windows crypto provider and the per-site key store (SECURITY.md §4.6).
 mod cng;
+// The fetch: runs the core's full fetch off the UI thread; counts to the front end.
+mod fetch;
 mod keystore;
 mod log;
 mod settings;
@@ -55,6 +57,7 @@ pub fn run() {
             log::init(&dir);
 
             app.manage(settings::Settings::load(dir.clone()));
+            app.manage(fetch::Running::default());
             window::restore_pos(app.handle());
             match signin::SignIn::new(sites::SiteFiles::new(&dir), LINK_SCHEME) {
                 Ok(s) => {
@@ -126,6 +129,7 @@ pub fn run() {
             window::main_ready,
             signin::sign_in_start,
             signin::sign_in_cancel,
+            fetch::site_refresh,
             log::diag_flush,
             log::log_event,
         ]))

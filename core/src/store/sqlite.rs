@@ -7,7 +7,7 @@
 //!
 //! `secure_delete` is on, so SQLite zeroes the pages it frees.
 
-use super::{CachePass, LinkRow, PatientRow, ResourceRow, RowId, SiteRow, Table, Text, WarningRow};
+use super::{CachePass, LinkRow, PatientRow, ResourceRow, RowId, SiteRow, Store, Table, Text, WarningRow};
 use crate::platform::Cipher;
 use crate::seal::{self, Place};
 use crate::{CoreError, Shielded};
@@ -366,6 +366,46 @@ impl<C: Cipher> SiteStore<C> {
                 })
             })
             .collect()
+    }
+}
+
+impl<C: Cipher> Store for SiteStore<C> {
+    fn new_row_id(&self) -> Result<RowId, CoreError> {
+        RowId::generate(&self.cipher)
+    }
+    fn site(&self) -> Result<Option<SiteRow>, CoreError> {
+        SiteStore::site(self)
+    }
+    fn put_site(&self, s: &SiteRow) -> Result<(), CoreError> {
+        SiteStore::put_site(self, s)
+    }
+    fn put_patient(&self, p: &PatientRow) -> Result<(), CoreError> {
+        SiteStore::put_patient(self, p)
+    }
+    /// Reads two sealed columns per row, not the raw resource.
+    fn keys(&self, table: Table) -> Result<Vec<(RowId, String, Text)>, CoreError> {
+        let pass = CachePass::issue();
+        self.read(table.name(), &[], &["fhir_type", "fhir_id"], "", &[])?
+            .into_iter()
+            .map(|(id, _, v)| {
+                let mut v = v.into_iter();
+                let t = v.next().flatten().ok_or(CoreError::Io)?;
+                let fhir_id = v.next().flatten().ok_or(CoreError::Io)?;
+                Ok((RowId::from_stored(id)?, t.reveal(&pass).clone(), fhir_id))
+            })
+            .collect()
+    }
+    fn put_resource(&self, table: Table, r: &ResourceRow) -> Result<(), CoreError> {
+        SiteStore::put_resource(self, table, r)
+    }
+    fn add_warning(&self, w: &WarningRow) -> Result<(), CoreError> {
+        SiteStore::add_warning(self, w)
+    }
+    fn clear_warnings(&self) -> Result<(), CoreError> {
+        SiteStore::clear_warnings(self)
+    }
+    fn in_transaction<R>(&self, f: impl FnOnce(&Self) -> Result<R, CoreError>) -> Result<R, CoreError> {
+        self.transaction(f)
     }
 }
 

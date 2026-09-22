@@ -57,6 +57,14 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   `browser.rs`, the link wiring in `lib.rs`; `SiteRow` gained `client_id`. New crates:
   reqwest 0.12 (`native-tls`, `gzip`), `serde_json`. 33 offline tests pass; the live sign-in
   test (PKCE, state, token trade, refresh, refused refresh) passes against the sandbox.
+- New `architecture/SIGN-IN.md` (the owner asked): the flow, every constant and where to
+  change it, the SMART launcher's setup array, the link on Windows, log lines, fixes.
+- Committed stages 1–4 (`10f8cfb`).
+- Built stage 5, the fetch: `core/src/fhir.rs`, `core/src/sync.rs`, the `Store` and `Timer`
+  traits, `src-tauri/src/fetch.rs`; the fetch starts after sign-in. New crate: futures-util
+  (already in the build), and serde_json's `preserve_order` (adds indexmap) so raw JSON keeps the
+  site's key order. Live on the SMART sandbox: 76 jobs, 78 calls, 5–7 s; paging at 20
+  a page followed every `next` link on the site; a second fetch left row counts unchanged.
 
 ## 2026-09-21 — the empty shell
 - Fixed two old doc lines: README (SMART first, Epic on hold) and SURFACES-AND-CARDS.md §2

@@ -118,6 +118,19 @@ pub(crate) fn parse_link<R>(link: &Text, f: impl FnOnce(&reqwest::Url) -> Result
     f(&url)
 }
 
+/// The granted scope string, to decide which types to fetch. OAuth scopes are the site's
+/// words for what we may read, not record data.
+pub(crate) fn read_scopes(t: &Text) -> String {
+    t.reveal(&SitePass::issue()).clone()
+}
+
+/// Whether `url` is on the site at `base`: a `next` link must be, or the token would go
+/// elsewhere.
+pub(crate) fn starts_with(url: &Text, base: &Text) -> bool {
+    let p = SitePass::issue();
+    url.reveal(&p).starts_with(base.reveal(&p).as_str())
+}
+
 /// A number kept from a site's reply (the token expiry, as decimal text).
 pub(crate) fn read_u64(t: &Text) -> Option<u64> {
     t.reveal(&SitePass::issue()).parse().ok()

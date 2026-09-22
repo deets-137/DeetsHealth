@@ -20,6 +20,8 @@ tauri-build = { version = "2", features = [] }
 deetshealth-core = { path = "../core", features = ["sqlite"] }
 # Wipes key bytes and unsealed values from memory (cng.rs, keystore.rs).
 zeroize = "1"
+# The fetch's waits (Retry-After, back-off) on the runtime Tauri already runs (fetch.rs).
+tokio = { version = "1", features = ["time"] }
 tauri = { version = "2", features = [] }
 # One instance only: a second launch (the pinned taskbar button, or the browser handing
 # back a `deetshealth://` sign-in link) must reach the running app, not start another.

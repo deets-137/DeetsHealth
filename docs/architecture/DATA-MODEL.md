@@ -106,7 +106,7 @@ design work.
 | `party` | `Practitioner`, `PractitionerRole`, `RelatedPerson`, `Organization`, `Location`, `CareTeam` (a group of parties) | `HealthcareService`, `OrganizationAffiliation`, `Endpoint`, `Person` |
 | `billing` | `Coverage` | `ExplanationOfBenefit`, `Claim`, `ClaimResponse`, `Account`, `ChargeItem`, `Invoice`, `Contract`, `InsurancePlan`, `CoverageEligibility*`, `Enrollment*`, `Payment*` |
 | `drug` | `Medication` | `Substance`, `MedicationKnowledge` |
-| link data | `Provenance` (the source of a row) | — |
+| link data | `Provenance` (the source of a row; its raw resource waits in `other` until stage 6 makes links) | — |
 | `other` | — | §7.1 |
 | `definition`, `site`, `site_warning` | `smart-configuration`, `CapabilityStatement`, `OperationOutcome` | §7.2, §7.3 |
 | `document` (summaries) | — | `$summary`, `$docref` (§7.4) |
