@@ -73,7 +73,8 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   fetch). Live on the SMART sandbox: 101 resources, 122 links, 4 waiting (targets the site
   never sent). 30 core tests pass.
 - Committed stage 6. Listed the architecture docs to write or refresh in HANDOFF.md › Open
-  now 10 (FETCH.md, INDEX-AND-LINKS.md, STORE.md, and five stale passages). The session
+  now 10 (three new docs: the fetch, the index and links, the store; and five stale
+  passages). The session
   ends here; stage 7 is next.
 
 ## 2026-09-21 — the empty shell
