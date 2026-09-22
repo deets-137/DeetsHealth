@@ -15,6 +15,7 @@
 pub mod auth;
 pub mod error;
 pub mod fhir;
+pub mod index;
 pub mod net;
 pub mod payload;
 pub mod platform;

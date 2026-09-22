@@ -65,6 +65,16 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   (already in the build), and serde_json's `preserve_order` (adds indexmap) so raw JSON keeps the
   site's key order. Live on the SMART sandbox: 76 jobs, 78 calls, 5–7 s; paging at 20
   a page followed every `next` link on the site; a second fetch left row counts unchanged.
+- Committed stage 5 (`a8f125d`).
+- Stage 6 scope: the owner chose the index and links now, and the card models later, with
+  each card's design (this narrows fork 9a; CORE-CRATE.md §8).
+- Built stage 6: `core/src/index.rs` (index columns, every reference with its field and
+  role), link writing and resolution in the fetch, `sync::reindex` (rebuild from raw, no
+  fetch). Live on the SMART sandbox: 101 resources, 122 links, 4 waiting (targets the site
+  never sent). 30 core tests pass.
+- Committed stage 6. Listed the architecture docs to write or refresh in HANDOFF.md › Open
+  now 10 (FETCH.md, INDEX-AND-LINKS.md, STORE.md, and five stale passages). The session
+  ends here; stage 7 is next.
 
 ## 2026-09-21 — the empty shell
 - Fixed two old doc lines: README (SMART first, Epic on hold) and SURFACES-AND-CARDS.md §2

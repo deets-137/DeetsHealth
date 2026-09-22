@@ -76,8 +76,10 @@ async fn run(app: &AppHandle, site: &SiteKey, key: &str) -> &'static str {
         Ok(FetchEnd::Done(sum)) => {
             let n: u64 = sum.progress.counts.values().sum();
             log::info(&format!(
-                "fetch: done: {n} resources, {} types, {} calls, {} s, {} warnings, key reads {} ms",
+                "fetch: done: {n} resources, {} types, {} links ({} waiting), {} calls, {} s, {} warnings, key reads {} ms",
                 sum.progress.counts.len(),
+                sum.links,
+                sum.links_waiting,
                 sum.progress.calls,
                 sum.seconds,
                 sum.warnings,
@@ -139,8 +141,10 @@ mod tests {
             assert_eq!(sum.warnings, 0, "every next link stayed on the site");
             let total: u64 = sum.progress.counts.values().sum();
             eprintln!(
-                "fetch: {total} resources in {} types; {} jobs; {} calls; {} s; {} warnings; key reads {} ms; refused: {:?}",
+                "fetch: {total} resources in {} types; {} links, {} waiting; {} jobs; {} calls; {} s; {} warnings; key reads {} ms; refused: {:?}",
                 sum.progress.counts.len(),
+                sum.links,
+                sum.links_waiting,
                 sum.progress.jobs_total,
                 sum.progress.calls,
                 sum.seconds,
@@ -152,6 +156,7 @@ mod tests {
                 eprintln!("  {t}: {n}");
             }
             assert!(total > 0, "the sandbox patient has a record");
+            assert!(sum.links > 0, "the record is woven: references became links");
             assert!(store.patient().unwrap().is_some(), "the patient row is kept");
             let site = Store::site(&store).unwrap().unwrap();
             assert!(site.capability.is_some() && site.last_full_fetch.is_some());

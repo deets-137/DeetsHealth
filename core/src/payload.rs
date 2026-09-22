@@ -2,7 +2,7 @@
 //! plain values, built from the model here and nowhere else. Payloads derive `TS` so their
 //! TypeScript types are generated into `src/model/`.
 //!
-//! This module is one of the two places that may read a [`crate::Shielded`] value.
+//! This module is one of the three places that may read a [`crate::Shielded`] value.
 
 /// The card payload's pass. Its field is private, so only this module can make one.
 pub struct CardPass {

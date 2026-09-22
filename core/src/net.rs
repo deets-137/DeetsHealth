@@ -131,6 +131,13 @@ pub(crate) fn starts_with(url: &Text, base: &Text) -> bool {
     url.reveal(&p).starts_with(base.reveal(&p).as_str())
 }
 
+/// A stored reference (`Type/id`, as the site sent it) split into its plain FHIR type and its
+/// shielded id, to find the row it points to.
+pub(crate) fn split_ref(t: &Text) -> Option<(String, Text)> {
+    let s = t.reveal(&SitePass::issue());
+    crate::index::split_reference(s).map(|(ty, id)| (ty.to_owned(), Shielded::new(id.to_owned())))
+}
+
 /// A number kept from a site's reply (the token expiry, as decimal text).
 pub(crate) fn read_u64(t: &Text) -> Option<u64> {
     t.reveal(&SitePass::issue()).parse().ok()

@@ -62,7 +62,7 @@ deetshealth-core (core/)
 ├── fhir        HTTP: search, paging, _include, Retry-After, OperationOutcome capture
 ├── sync        the fetch plan per site, the pace, progress as counts only (§7)
 ├── index       raw resource → index columns + links
-├── normalize   raw resource → model, at read time (DATA-MODEL.md §6.2)
+├── normalize   raw resource → model, at read time (DATA-MODEL.md §6, decision 2)
 ├── model       the types the cards read
 ├── store       the Store trait, the schema, the queries; SQLite behind a feature flag
 └── platform    traits the host fills: Cipher, KeyStore, SignInReturn, OpenBrowser
@@ -145,8 +145,9 @@ From a Claude session the write lands in the MSIX private hive, so the owner sta
 ## 8. Reading FHIR and the normalizer (forks 3a, 9a)
 - **Our own lenient reader** over plain JSON. It reads only the fields we use; a malformed
   field loses one value, not the resource. Custom tooling is built as needed (the owner).
-- **Step 3 builds:** index columns and links for every type; the full model for `Patient`,
-  `Encounter`, results, medicines, allergies and conditions. Every other type is stored raw.
+- **Step 3 builds:** index columns and links for every type. **The model types wait for the
+  card-by-card design** (the owner, 2026-09-21, at stage 6: this narrows 9a). Stages 7–8 need
+  counts only, so no card-facing model is built before its card is designed.
 - **Later, card by card** (the owner, 2026-09-21): when the owner designs each card, we go
   through how its raw data looks and decide what to normalize on top.
 - Fixed by earlier decisions: a partial date keeps its precision; every field below 100% in
@@ -183,7 +184,7 @@ Ours: `Shielded<T>`, the seal module, PKCE and `state`, the FHIR reader, index, 
 sync, the store schema, the CNG and DPAPI glue.
 
 ## 12. As built
-> **Part:** built · 2026-09-21 · stages 1–5 of 8
+> **Part:** built · 2026-09-21 · stages 1–6 of 8
 
 Where this part and the design above disagree, this part is the code.
 - **Workspace:** `Cargo.toml` at the repo root (members `core`, `src-tauri`). `Cargo.lock`
@@ -330,3 +331,32 @@ Where this part and the design above disagree, this part is the code.
   page (so `next` links are followed; none left the site), check the patient row, the
   capability and the fetch times, then fetch again at 100 a page: every table's row count
   unchanged. About 165 calls in all. Wasm, clippy, release check clean.
+
+**Stage 6** (built 2026-09-21): the index and the links. No card model (the owner, at stage
+6: the models wait for each card's design; §8).
+- **`core/src/index.rs`:** `extract(type, resource)` gives the index columns:
+  - `kind` (our word per type: the Observation or Condition category code; `panel` or
+    `report`; `vaccine`, `ordered`, `filled`, `given`, `reported`, `visit`, `planned`,
+    `note`, `form`, `message`, `allergy`; otherwise the type in lower case);
+  - the code (one field per type: `code`, `medicationCodeableConcept`, `vaccineCode`,
+    `type`, …): its first coding's system (one spelling per system: LOINC, SNOMED, RxNorm,
+    CVX, ICD-10-CM, the Observation category), its code, and `text` before `display`;
+  - `status` (or `clinicalStatus`); `start`, `end`, `recorded` from one ordered list of
+    FHIR date fields for all types (the first present wins; dates kept as written);
+    `last_updated`; `canonical` and `version` for definitions.
+- **`references(type, resource)`:** every reference to a type with a table, with its field
+  (`Observation.basedOn`) and its role. References to the patient, `#contained`,
+  `urn:` and those inside `contained`, `extension`, `meta` and `text` are left out.
+  Absolute URLs and `_history` are read down to `Type/id`. Roles: DATA-MODEL.md §4.
+- **At the fetch:** each resource is indexed in the same parse as its page. Its row and its
+  links are written together; a row's old links are removed first. A link whose target is
+  stored already points at it; the rest are resolved once every job is done
+  (`resolve_links`). A link to a resource never fetched stays waiting, with the reference
+  kept.
+- **`sync::reindex(store)`:** re-index every row from its raw resource, with no fetch: run
+  it when the index rules change (DATA-MODEL.md §6, decision 2).
+- **Measured on the SMART sandbox:** 101 resources, 122 links, 4 waiting.
+- **Checks:** core 30 tests + 3 proofs (a lab result's columns, per-type fields, references
+  and roles, the encounter roles of DATA-MODEL.md §4, reference forms; a re-index of raw
+  rows builds columns and links, resolves them, and a second re-index replaces them).
+  The live fetch asserts links. Wasm, clippy, release check clean.

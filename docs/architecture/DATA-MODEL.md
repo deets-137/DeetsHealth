@@ -74,6 +74,13 @@ not in the cache yet, the link keeps the FHIR reference so a later fetch can res
 | billed | `Claim.item.encounter`, `ExplanationOfBenefit.item.encounter`, `ChargeItem.context` |
 | between encounters | `Encounter.partOf` (parent), `Encounter.episodeOfCare` (episode), `Encounter.appointment` (the booking) |
 
+**Other roles, as built** (stage 6, `core/src/index.rs`): `fulfils` (`basedOn`), `contains`
+(`result`, `hasMember`), `part-of`, `derived-from`, `reason` (`reasonReference`: a medicine to
+the condition it treats), `drug` (`medicationReference`), `specimen`, `provenance-of`
+(`Provenance.target`); on an encounter `participant`, `location`, `service-provider`; by field
+name `requester`, `performer`, `author`, `organization`, `location`; any other reference
+`reference`. Every link also keeps its exact FHIR field, e.g. `Observation.basedOn`.
+
 **The lab case.** In Epic a result links to the encounter where it was ordered, and to the
 encounter where it was collected when that is different (an orders-only encounter cannot
 collect). In FHIR:

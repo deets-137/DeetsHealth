@@ -4,7 +4,7 @@
 //! and column (`crate::seal`). Only opaque row keys, table names and the schema version are
 //! plain. A missing value is sealed too, so even "this result has no end date" is not visible.
 //!
-//! This module is one of the two places that may read a [`crate::Shielded`] value: the
+//! This module is one of the three places that may read a [`crate::Shielded`] value: the
 //! cache writer seals each value just before its write and unseals it just after its read.
 //!
 //! The row types here are platform-free. The SQLite store (desktop) is behind the `sqlite`
@@ -33,6 +33,15 @@ pub trait Store {
     /// type is FHIR's own word, not record data, so it comes back plain.
     fn keys(&self, table: Table) -> Result<Vec<(RowId, String, Text)>, CoreError>;
     fn put_resource(&self, table: Table, r: &ResourceRow) -> Result<(), CoreError>;
+    /// Every row of a table, raw resource included (the re-index reads them).
+    fn resources(&self, table: Table) -> Result<Vec<ResourceRow>, CoreError>;
+    fn put_link(&self, l: &LinkRow) -> Result<(), CoreError>;
+    /// Remove a row's own links before its new ones are written.
+    fn delete_links_from(&self, from: &RowId) -> Result<(), CoreError>;
+    /// Links whose target is not in the store yet.
+    fn unresolved_links(&self) -> Result<Vec<LinkRow>, CoreError>;
+    /// Point a link at its target row, once the target is stored.
+    fn set_link_target(&self, link: &RowId, to: &RowId) -> Result<(), CoreError>;
     fn add_warning(&self, w: &WarningRow) -> Result<(), CoreError>;
     fn clear_warnings(&self) -> Result<(), CoreError>;
     /// Run `f` as one transaction: all of its writes land, or none do.
@@ -130,7 +139,7 @@ impl Table {
     }
 }
 
-/// One FHIR resource: the index columns and the raw resource (DATA-MODEL.md §6.2). Every
+/// One FHIR resource: the index columns and the raw resource (DATA-MODEL.md §6, decision 2). Every
 /// field is sealed. Dates are the FHIR text as sent, so a partial date keeps its precision.
 pub struct ResourceRow {
     pub id: RowId,

@@ -9,16 +9,16 @@
 //!    the `_include`s the site lists from [`WANTED_INCLUDES`], then every `next` page.
 //! 5. Three jobs run at once ([`PACE`]). Pages inside one job run in order.
 //! 6. Each page is written in one transaction: a resource replaces its earlier row (same FHIR
-//!    type and id) or gets a new one. Warnings go to `site_warning`.
-//!
-//! Stage 5 stores each resource's type, id, a first `kind` and the raw resource. The index
-//! columns and links come in stage 6, from the raw resource, with no new fetch.
+//!    type and id) or gets a new one, with its index columns and its links (index.rs).
+//!    Warnings go to `site_warning`.
+//! 7. Links whose target came later are resolved once every job is done.
 
 use crate::auth::{self, Refresh};
 use crate::fhir::{self, Issue, Searchable, OBSERVATION_CATEGORIES};
 use crate::net::{self, Field, Net, Reply, Text};
 use crate::platform::Timer;
-use crate::store::{ResourceRow, RowId, SiteRow, Store, Table, WarningRow};
+use crate::index::{Index, Ref};
+use crate::store::{LinkRow, ResourceRow, RowId, SiteRow, Store, Table, WarningRow};
 use crate::{CoreError, Shielded};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashSet, VecDeque};
@@ -73,12 +73,15 @@ pub struct Summary {
     pub seconds: u64,
     /// Time spent reading row keys to match resources to rows (CORE-CRATE.md §12, stage 3).
     pub key_read_ms: u128,
+    /// Links written (DATA-MODEL.md §4).
+    pub links: u32,
+    /// Links whose target the site never sent: a reference to a resource not fetched.
+    pub links_waiting: u32,
 }
 
 struct Job {
     fhir_type: String,
     table: Table,
-    kind: String,
     url: Text,
 }
 
@@ -92,10 +95,9 @@ struct Shared {
     sign_in_again: bool,
     warnings: u32,
     skipped: Vec<String>,
-    /// (FHIR type, FHIR id) → row, per table once read.
-    keys: BTreeMap<(String, Text), RowId>,
-    keys_read: HashSet<Table>,
-    key_read_ms: u128,
+    keys: Keys,
+    /// Links written.
+    links: u32,
 }
 
 /// A full fetch for the site in `store`. `on_progress` gets counts after every page.
@@ -159,10 +161,10 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
     for s in cap.searchable.iter().filter(|s| fhir::scope_allows(scopes.as_deref(), &s.fhir_type)) {
         if s.fhir_type == "Observation" && s.has_category {
             for c in OBSERVATION_CATEGORIES {
-                jobs.push_back(job(&base, &patient, s, c, &[("category", c)], &includes, page_size)?);
+                jobs.push_back(job(&base, &patient, s, &[("category", c)], &includes, page_size)?);
             }
         } else {
-            jobs.push_back(job(&base, &patient, s, &s.fhir_type.to_lowercase(), &[], &includes, page_size)?);
+            jobs.push_back(job(&base, &patient, s, &[], &includes, page_size)?);
         }
     }
 
@@ -176,20 +178,21 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
         sign_in_again: false,
         warnings: 0,
         skipped: Vec::new(),
-        keys: BTreeMap::new(),
-        keys_read: HashSet::new(),
-        key_read_ms: 0,
+        keys: Keys::default(),
+        links: 0,
     });
     let site_cell = RefCell::new(site);
     let progress_cb = RefCell::new(&mut on_progress);
     let workers = (0..PACE).map(|_| worker(net, store, timer, &base, &shared, &site_cell, &progress_cb));
     futures_util::future::join_all(workers).await;
 
-    let shared = shared.into_inner();
+    let mut shared = shared.into_inner();
     let mut site = site_cell.into_inner();
     if shared.sign_in_again {
         return Ok(FetchEnd::SignInAgain);
     }
+    // Links whose target arrived on a later page, or in another job.
+    let (_, links_waiting) = store.in_transaction(|st| resolve_links(st, &mut shared.keys))?;
     let now = Shielded::new(timer.now().to_string());
     site.last_fetch = Some(now.clone());
     site.last_full_fetch = Some(now);
@@ -199,7 +202,9 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
         warnings: shared.warnings,
         skipped: shared.skipped,
         seconds: timer.now().saturating_sub(started),
-        key_read_ms: shared.key_read_ms,
+        key_read_ms: shared.keys.ms,
+        links: shared.links,
+        links_waiting,
     }))
 }
 
@@ -208,7 +213,6 @@ fn job(
     base: &Text,
     patient: &Text,
     s: &Searchable,
-    kind: &str,
     extra: &[(&str, &str)],
     includes: &[String],
     page_size: &str,
@@ -217,7 +221,7 @@ fn job(
     q.extend(extra.iter().map(|(k, v)| (*k, Field::Plain(v))));
     let prefix = format!("{}:", s.fhir_type);
     q.extend(includes.iter().filter(|i| i.starts_with(&prefix)).map(|i| ("_include", Field::Plain(i.as_str()))));
-    Ok(Job { fhir_type: s.fhir_type.clone(), table: s.table, kind: kind.to_owned(), url: net::url_with(&net::join(base, &s.fhir_type), &q)? })
+    Ok(Job { fhir_type: s.fhir_type.clone(), table: s.table, url: net::url_with(&net::join(base, &s.fhir_type), &q)? })
 }
 
 /// The wanted includes the site lists in its `searchInclude`.
@@ -376,63 +380,165 @@ async fn renew<S: Store, T: Timer>(
     ok
 }
 
-/// Write one page's resources in one transaction.
+/// Write one page's resources, with their index columns and links, in one transaction.
 fn write_page<S: Store>(store: &S, shared: &RefCell<Shared>, job: &Job, found: &[fhir::Found]) -> Result<(), CoreError> {
     store.in_transaction(|st| {
         for f in found {
-            let (table, kind) = if f.included || f.fhir_type != job.fhir_type {
+            let table = if f.included || f.fhir_type != job.fhir_type {
                 match fhir::table_for(&f.fhir_type) {
-                    Some(t) => (t, f.fhir_type.to_lowercase()),
+                    Some(t) => t,
                     None => continue,
                 }
             } else {
-                (job.table, job.kind.clone())
+                job.table
             };
-            let id = row_for(st, shared, table, &f.fhir_type, &f.fhir_id)?;
-            st.put_resource(
-                table,
-                &ResourceRow {
-                    id,
-                    fhir_type: Shielded::new(f.fhir_type.clone()),
-                    fhir_id: f.fhir_id.clone(),
-                    kind: Shielded::new(kind),
-                    code_system: None,
-                    code: None,
-                    code_display: None,
-                    status: None,
-                    start: None,
-                    end: None,
-                    recorded: None,
-                    last_updated: None,
-                    canonical: None,
-                    version: None,
-                    raw: f.raw.clone(),
-                },
-            )?;
-            *shared.borrow_mut().progress.counts.entry(f.fhir_type.clone()).or_default() += 1;
+            let mut s = shared.borrow_mut();
+            let id = s.keys.row_for(st, table, &f.fhir_type, &f.fhir_id)?;
+            let n = write_resource(st, &mut s.keys, table, id, &f.fhir_type, &f.fhir_id, &f.index, &f.raw, &f.refs)?;
+            s.links += n;
+            *s.progress.counts.entry(f.fhir_type.clone()).or_default() += 1;
         }
         Ok(())
     })
 }
 
-/// The row for a resource: the one it had, or a new one.
-fn row_for<S: Store>(store: &S, shared: &RefCell<Shared>, table: Table, fhir_type: &str, fhir_id: &Text) -> Result<RowId, CoreError> {
-    let mut s = shared.borrow_mut();
-    if !s.keys_read.contains(&table) {
-        let t0 = Stopwatch::start();
-        for (row, t, id) in store.keys(table)? {
-            s.keys.insert((t, id), row);
+/// Row keys by (FHIR type, FHIR id), read per table the first time a table is needed.
+#[derive(Default)]
+pub(crate) struct Keys {
+    map: BTreeMap<(String, Text), RowId>,
+    read: HashSet<Table>,
+    /// Time spent reading them (CORE-CRATE.md §12, stage 3 left this to measure).
+    ms: u128,
+}
+
+impl Keys {
+    fn load<S: Store>(&mut self, store: &S, table: Table) -> Result<(), CoreError> {
+        if self.read.insert(table) {
+            let t0 = Stopwatch::start();
+            for (row, t, id) in store.keys(table)? {
+                self.map.insert((t, id), row);
+            }
+            self.ms += t0.ms();
         }
-        s.key_read_ms += t0.ms();
-        s.keys_read.insert(table);
+        Ok(())
     }
-    let key = (fhir_type.to_owned(), fhir_id.clone());
-    if let Some(row) = s.keys.get(&key) {
-        return Ok(row.clone());
+
+    /// The row a resource has, if it is stored.
+    fn find<S: Store>(&mut self, store: &S, table: Table, fhir_type: &str, fhir_id: &Text) -> Result<Option<RowId>, CoreError> {
+        self.load(store, table)?;
+        Ok(self.map.get(&(fhir_type.to_owned(), fhir_id.clone())).cloned())
     }
-    let row = store.new_row_id()?;
-    s.keys.insert(key, row.clone());
-    Ok(row)
+
+    /// The row for a resource: the one it had, or a new one.
+    fn row_for<S: Store>(&mut self, store: &S, table: Table, fhir_type: &str, fhir_id: &Text) -> Result<RowId, CoreError> {
+        if let Some(row) = self.find(store, table, fhir_type, fhir_id)? {
+            return Ok(row);
+        }
+        let row = store.new_row_id()?;
+        self.map.insert((fhir_type.to_owned(), fhir_id.clone()), row.clone());
+        Ok(row)
+    }
+}
+
+/// One resource and its links: the row replaces the old one, and its old links go. A link
+/// whose target is stored already points at it; the rest wait for [`resolve_links`].
+/// Returns the number of links written.
+#[allow(clippy::too_many_arguments)]
+fn write_resource<S: Store>(
+    st: &S,
+    keys: &mut Keys,
+    table: Table,
+    id: RowId,
+    fhir_type: &str,
+    fhir_id: &Text,
+    index: &Index,
+    raw: &Text,
+    refs: &[Ref],
+) -> Result<u32, CoreError> {
+    st.put_resource(
+        table,
+        &ResourceRow {
+            id: id.clone(),
+            fhir_type: Shielded::new(fhir_type.to_owned()),
+            fhir_id: fhir_id.clone(),
+            kind: index.kind.clone().unwrap_or_else(|| Shielded::new(fhir_type.to_lowercase())),
+            code_system: index.code_system.clone(),
+            code: index.code.clone(),
+            code_display: index.code_display.clone(),
+            status: index.status.clone(),
+            start: index.start.clone(),
+            end: index.end.clone(),
+            recorded: index.recorded.clone(),
+            last_updated: index.last_updated.clone(),
+            canonical: index.canonical.clone(),
+            version: index.version.clone(),
+            raw: raw.clone(),
+        },
+    )?;
+    st.delete_links_from(&id)?;
+    for r in refs {
+        let to_id = keys.find(st, r.target_table, &r.target_type, &r.target_id)?;
+        st.put_link(&LinkRow {
+            id: st.new_row_id()?,
+            from_table: table,
+            from_id: id.clone(),
+            to_table: r.target_table,
+            to_id,
+            role: Shielded::new(r.role.to_owned()),
+            source_field: Shielded::new(r.source_field.clone()),
+            target_ref: r.target_ref.clone(),
+        })?;
+    }
+    Ok(refs.len() as u32)
+}
+
+/// Point every waiting link at its target, now that more rows are stored. Returns the links
+/// resolved and the links still waiting (their target was never fetched). Call inside a
+/// transaction.
+pub(crate) fn resolve_links<S: Store>(store: &S, keys: &mut Keys) -> Result<(u32, u32), CoreError> {
+    let (mut resolved, mut waiting) = (0, 0);
+    for l in store.unresolved_links()? {
+        let target = match net::split_ref(&l.target_ref) {
+            Some((t, id)) => keys.find(store, l.to_table, &t, &id)?,
+            None => None,
+        };
+        match target {
+            Some(row) => {
+                store.set_link_target(&l.id, &row)?;
+                resolved += 1;
+            }
+            None => waiting += 1,
+        }
+    }
+    Ok((resolved, waiting))
+}
+
+/// Counts only.
+pub struct Reindexed {
+    pub rows: u32,
+    pub links: u32,
+    pub waiting: u32,
+}
+
+/// Re-index every stored row from its raw resource: new index columns and new links, with no
+/// fetch (DATA-MODEL.md §6, decision 2). Run it when the index rules change.
+pub fn reindex<S: Store>(store: &S) -> Result<Reindexed, CoreError> {
+    let mut keys = Keys::default();
+    store.in_transaction(|st| {
+        let (mut rows, mut links) = (0, 0);
+        for table in Table::ALL {
+            for row in st.resources(table)? {
+                let (t, index, refs) = net::parse_reply(&row.raw, |v| {
+                    let t = v.get("resourceType").and_then(|x| x.as_str()).ok_or(CoreError::Parse)?;
+                    Ok((t.to_owned(), crate::index::extract(t, v), crate::index::references(t, v)))
+                })?;
+                links += write_resource(st, &mut keys, table, row.id.clone(), &t, &row.fhir_id, &index, &row.raw, &refs)?;
+                rows += 1;
+            }
+        }
+        let (_, waiting) = resolve_links(st, &mut keys)?;
+        Ok(Reindexed { rows, links, waiting })
+    })
 }
 
 /// Milliseconds for the key-read measurement. The web has no `Instant`; it reports 0 there.

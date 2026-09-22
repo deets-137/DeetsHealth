@@ -33,9 +33,10 @@ updated: 2026-09-21
     decided 2026-09-21 (the end state is sign-in + fetch + sealed cache on SMART, shown in
     a Settings › Sites row; `Shielded<T>`; one key and file per site; Windows CNG and
     SChannel). Forks 8a and 11a, the Sites section (S1–S6) and the build order closed the
-    same day. **Stages 1–5 built** (CORE-CRATE.md §12; sign-in and a full fetch pass live
-    tests against the SMART sandbox). **Next: stage 6**, index columns and links for every
-    type, and the normalizer for the first-slice types. Before the desk test the owner starts
+    same day. **Stages 1–6 built** (CORE-CRATE.md §12; sign-in, a full fetch, the index and
+    the links pass live tests against the SMART sandbox). The card models wait for each
+    card's design (the owner, at stage 6). **Next: stage 7**, `ts-rs` and the Settings ›
+    Sites section (S1–S6). Before the desk test the owner starts
     `npm run dev:app` from his own terminal once, so the `deetshealth-dev://` scheme lands in
     the real registry.
   - Step 5, the release path up to (not including) the worker, comes after these two.
@@ -132,6 +133,26 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
    app-icon.svg` makes the set; the real icon is the owner's call.
 8. **Computed sex** — parked until the build. Direction set: display `gender`; calculations
    use a sex computed from several factors at runtime (FHIR-SHAPES.md §5, fork 4).
+10. **Docs to write or refresh** (noted 2026-09-21, at the end of stage 6; the owner asked for
+    thorough architecture docs). Do these before or with stage 7:
+    - **New `architecture/FETCH.md`**, the fetch's twin of SIGN-IN.md: the plan, every
+      constant (`PACE`, `PAGE_SIZE`, `TRIES`, `MAX_WAIT_S`, `WANTED_INCLUDES`, the Observation
+      categories), the retry and skip rules, the warning codes (`http-<status>`, `network`,
+      `unreadable-page`, `next-link-off-site`, `seal`, `store`), the events, the log lines,
+      the measured cost, troubleshooting, the live tests.
+    - **New `architecture/INDEX-AND-LINKS.md`**, the reference for card design: the `kind`
+      words, the code field per type, the date-field order, the canonical code systems, every
+      link role and its source fields, what is skipped, how `reindex` rebuilds. Today it is
+      spread over CORE-CRATE.md §12 and DATA-MODEL.md §4.
+    - **New `architecture/STORE.md`** (or a DATA-MODEL.md "as built" part): the files on disk
+      (`%APPDATA%\com.deetshealth.*\sites\*.db`, `keys\*.key`), the schema, what is plain, the
+      sealed "missing" value, the `Store` trait, erase.
+    - **Refresh, stale since the build:** DATA-ARCHITECTURE.md (its banner says nothing is
+      built; §2–§4 now live in SIGN-IN.md, CORE-CRATE.md and DATA-MODEL.md: cut it to a map,
+      or fold it in); CORE-CRATE.md's header ("nothing here is built") and the §3 layout
+      diagram (no `normalize` / `model` yet; the sign-in return is not a trait; add `net`,
+      `index`); SECURITY.md §8's "nothing here is built yet" (add an as-built note);
+      SECURITY-BRIEF.md §7 status (stages 5–6); CLAUDE.md's doc list for the new docs.
 
 ## Gotchas
 - Epic's sandbox data is small and tidy. Real site data is not.
@@ -160,7 +181,8 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
   passes), `platform.rs` (Cipher, KeyStore, OpenBrowser, SiteKey), `seal.rs` (the sealed
   format), `store/` (row types; `sqlite.rs`, the sealed SQLite store, feature `sqlite`),
   `net.rs` (the third pass and the HTTP client), `auth.rs` (SMART sign-in and refresh),
-  `fhir.rs` (type → table, capability, scopes, reading a page), `sync.rs` (the fetch),
+  `fhir.rs` (type → table, capability, scopes, reading a page), `index.rs` (index columns and
+  references from a raw resource), `sync.rs` (the fetch, link resolution, `reindex`),
   `error.rs`, and the stub `payload.rs`. The workspace `Cargo.toml` is at the repo root.
 - `src-tauri/src/cng.rs` (AES-256-GCM, random, SHA-256 from Windows CNG) and `keystore.rs`
   (per-site keys wrapped by DPAPI): every `unsafe` crypto call in the app. `sites.rs`: one

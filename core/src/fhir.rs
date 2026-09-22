@@ -119,6 +119,9 @@ pub struct Found {
     pub raw: Text,
     /// Came in through `_include`, not as a match.
     pub included: bool,
+    /// The index columns and the references, read in the same parse (index.rs).
+    pub index: crate::index::Index,
+    pub refs: Vec<crate::index::Ref>,
 }
 
 /// One issue from an `OperationOutcome` (in a search page, or as an error reply).
@@ -176,6 +179,8 @@ pub fn read_page(body: &Text) -> Result<Page, CoreError> {
                 fhir_id: Shielded::new(id.to_owned()),
                 raw: Shielded::new(serde_json::to_string(r).map_err(|_| CoreError::Parse)?),
                 included: mode == Some("include"),
+                index: crate::index::extract(t, r),
+                refs: crate::index::references(t, r),
             });
         }
         let next = v

@@ -331,12 +331,12 @@ impl<C: Cipher> SiteStore<C> {
 
     /// Links that start at a row.
     pub fn links_from(&self, from: &RowId) -> Result<Vec<LinkRow>, CoreError> {
-        self.links("WHERE from_id = ?", from)
+        self.links("WHERE from_id = ?", &[Value::Text(from.as_str().to_owned())])
     }
 
     /// Links that end at a row.
     pub fn links_to(&self, to: &RowId) -> Result<Vec<LinkRow>, CoreError> {
-        self.links("WHERE to_id = ?", to)
+        self.links("WHERE to_id = ?", &[Value::Text(to.as_str().to_owned())])
     }
 
     pub fn delete_links_from(&self, from: &RowId) -> Result<(), CoreError> {
@@ -344,9 +344,9 @@ impl<C: Cipher> SiteStore<C> {
         Ok(())
     }
 
-    fn links(&self, filter: &str, key: &RowId) -> Result<Vec<LinkRow>, CoreError> {
+    fn links(&self, filter: &str, args: &[Value]) -> Result<Vec<LinkRow>, CoreError> {
         let plain = ["from_table", "from_id", "to_table", "to_id"];
-        self.read("link", &plain, &LINK_COLS, filter, &[Value::Text(key.as_str().to_owned())])?
+        self.read("link", &plain, &LINK_COLS, filter, args)?
             .into_iter()
             .map(|(id, p, v)| {
                 let mut v = v.into_iter();
@@ -397,6 +397,23 @@ impl<C: Cipher> Store for SiteStore<C> {
     }
     fn put_resource(&self, table: Table, r: &ResourceRow) -> Result<(), CoreError> {
         SiteStore::put_resource(self, table, r)
+    }
+    fn resources(&self, table: Table) -> Result<Vec<ResourceRow>, CoreError> {
+        SiteStore::resources(self, table)
+    }
+    fn put_link(&self, l: &LinkRow) -> Result<(), CoreError> {
+        SiteStore::put_link(self, l)
+    }
+    fn delete_links_from(&self, from: &RowId) -> Result<(), CoreError> {
+        SiteStore::delete_links_from(self, from)
+    }
+    fn unresolved_links(&self) -> Result<Vec<LinkRow>, CoreError> {
+        self.links("WHERE to_id IS NULL", &[])
+    }
+    fn set_link_target(&self, link: &RowId, to: &RowId) -> Result<(), CoreError> {
+        // `to_id` is a plain row key (it lets SQL join), so no seal is involved.
+        self.conn.execute("UPDATE link SET to_id = ?1 WHERE id = ?2", [to.as_str(), link.as_str()]).map_err(io)?;
+        Ok(())
     }
     fn add_warning(&self, w: &WarningRow) -> Result<(), CoreError> {
         SiteStore::add_warning(self, w)
@@ -597,5 +614,66 @@ mod tests {
         }
         assert_eq!(SiteStore::open(&path, Stand, ()).err(), Some(CoreError::Io));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Stage 6: rows written with only a raw resource (as stage 5 left them) get their index
+    /// columns and links from a re-index, with no fetch; a link to a row that exists points
+    /// at it, and a link to a resource never fetched waits.
+    #[test]
+    fn reindex_builds_index_and_links_from_raw() {
+        let s = store();
+        let raw_row = |fhir_type: &str, fhir_id: &str, raw: &str| ResourceRow {
+            id: RowId::generate(&Stand).unwrap(),
+            fhir_type: t(fhir_type),
+            fhir_id: t(fhir_id),
+            kind: t("unindexed"),
+            code_system: None,
+            code: None,
+            code_display: None,
+            status: None,
+            start: None,
+            end: None,
+            recorded: None,
+            last_updated: None,
+            canonical: None,
+            version: None,
+            raw: t(raw),
+        };
+        let enc = raw_row("Encounter", "e1", r#"{"resourceType":"Encounter","id":"e1","period":{"start":"2020-01-02"}}"#);
+        let obs = raw_row(
+            "Observation",
+            "o1",
+            r#"{"resourceType":"Observation","id":"o1","status":"final","category":[{"coding":[{"code":"laboratory"}]}],
+               "code":{"coding":[{"system":"https://loinc.org","code":"2345-7"}]},"effectiveDateTime":"2020-01-02",
+               "encounter":{"reference":"Encounter/e1"},"basedOn":[{"reference":"ServiceRequest/never-fetched"}]}"#,
+        );
+        let report = raw_row(
+            "DiagnosticReport",
+            "r1",
+            r#"{"resourceType":"DiagnosticReport","id":"r1","result":[{"reference":"Observation/o1"}]}"#,
+        );
+        s.put_resource(Table::Encounter, &enc).unwrap();
+        s.put_resource(Table::Result, &obs).unwrap();
+        s.put_resource(Table::Result, &report).unwrap();
+
+        let done = crate::sync::reindex(&s).unwrap();
+        assert_eq!((done.rows, done.links, done.waiting), (3, 3, 1));
+
+        let o = s.resource(Table::Result, &obs.id).unwrap().unwrap();
+        assert_eq!(show(&o.kind), "laboratory");
+        assert_eq!(show(o.code_system.as_ref().unwrap()), "http://loinc.org");
+        assert_eq!(show(o.start.as_ref().unwrap()), "2020-01-02");
+
+        let from_obs = s.links_from(&obs.id).unwrap();
+        let collected = from_obs.iter().find(|l| show(&l.role) == "collected").unwrap();
+        assert!(collected.to_id.as_ref() == Some(&enc.id), "the result points at its encounter row");
+        let fulfils = from_obs.iter().find(|l| show(&l.role) == "fulfils").unwrap();
+        assert!(fulfils.to_id.is_none() && fulfils.to_table == Table::Order, "the order was never fetched: it waits");
+        let contains = s.links_to(&obs.id).unwrap();
+        assert!(contains.len() == 1 && contains[0].from_id == report.id && show(&contains[0].role) == "contains");
+
+        // A second re-index replaces the links; it does not add them.
+        crate::sync::reindex(&s).unwrap();
+        assert_eq!(s.links_from(&obs.id).unwrap().len(), 2);
     }
 }
