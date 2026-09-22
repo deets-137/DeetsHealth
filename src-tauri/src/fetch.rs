@@ -5,19 +5,89 @@
 // (SECURITY.md §4.3):
 //   fetch-progress { site, counts: { <FHIR type>: n }, jobsDone, jobsTotal, calls }
 //   fetch-done     { site, end: "done" | "sign-in-again" | "failed" }
+//   app-error      every failure, with a fixed code (errors.rs, ERRORS.md)
+//
+// Before any work on a site file, the file is brought up to date: opening it migrates an
+// older schema, and `reindex_if_stale` rebuilds an index made by older rules (the owner,
+// 2026-09-21). At app start, `check_sites` does this for every site.
 
+use crate::errors::{self, AppError};
 use crate::log;
 use crate::signin::SignIn;
 use deetshealth_core::platform::{SiteKey, Timer};
+use deetshealth_core::store::SiteStore;
 use deetshealth_core::sync::{self, FetchEnd, Progress};
+use deetshealth_core::CoreError;
 use serde_json::json;
 use std::collections::HashSet;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
-/// Sites with a fetch running now.
+/// Sites with work running now (a fetch, or the start-up check): one piece of work per site.
 #[derive(Default)]
 pub struct Running(Mutex<HashSet<String>>);
+
+impl Running {
+    /// Claim a site for one piece of work. `false`: something else holds it.
+    fn claim(app: &AppHandle, key: &str) -> bool {
+        app.state::<Running>().0.lock().is_ok_and(|mut r| r.insert(key.to_owned()))
+    }
+    fn release(app: &AppHandle, key: &str) {
+        if let Ok(mut r) = app.state::<Running>().0.lock() {
+            r.remove(key);
+        }
+    }
+}
+
+/// Open a site's store and bring it up to date. Every failure is reported; `None` then.
+fn open_current(app: &AppHandle, site: &SiteKey, key: &str) -> Option<SiteStore<crate::cng::Cng>> {
+    let Some(s) = app.try_state::<SignIn>() else {
+        errors::report(app, AppError::new("fetch-unavailable"));
+        return None;
+    };
+    let store = match s.files().open(site) {
+        Ok(Some(store)) => store,
+        Ok(None) => {
+            log::error("site: the key is gone; the store cannot open");
+            errors::report(app, AppError::new("site-key-missing").site(key));
+            return None;
+        }
+        Err(e) => {
+            log::error(&format!("site: the store would not open: {e}"));
+            let code = if e == CoreError::Version { "site-newer" } else { "site-unreadable" };
+            errors::report(app, AppError::new(code).kind(e).site(key));
+            return None;
+        }
+    };
+    match sync::reindex_if_stale(&store) {
+        Ok(None) => {}
+        Ok(Some(r)) => log::info(&format!("reindex: {} rows, {} links ({} waiting)", r.rows, r.links, r.waiting)),
+        // The rows keep their old index; the next open tries again. The store still works.
+        Err(e) => {
+            log::warn(&format!("reindex: failed: {e}"));
+            errors::report(app, AppError::new("reindex-failed").kind(e).site(key));
+        }
+    }
+    Some(store)
+}
+
+/// At app start: open every site once, off the UI thread, so an old file is migrated and a
+/// stale index rebuilt before anything reads it.
+pub fn check_sites(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(s) = app.try_state::<SignIn>() else { return };
+        let sites = s.files().list();
+        for site in &sites {
+            let key = site.as_str().to_owned();
+            if Running::claim(&app, &key) {
+                drop(open_current(&app, site, &key));
+                Running::release(&app, &key);
+            }
+        }
+        log::info(&format!("sites: {} checked at start", sites.len()));
+    });
+}
 
 /// The platform's time for the core: the wall clock and tokio's timer.
 pub struct HostTimer;
@@ -38,35 +108,24 @@ fn progress_event(site: &str, p: &Progress) -> serde_json::Value {
 /// Start a full fetch for one site, unless one is running. Returns at once.
 pub fn start(app: &AppHandle, site: SiteKey) {
     let key = site.as_str().to_owned();
-    {
-        let running = app.state::<Running>();
-        let Ok(mut r) = running.0.lock() else { return };
-        if !r.insert(key.clone()) {
-            log::info("fetch: already running for this site; not started again");
-            return;
-        }
+    if !Running::claim(app, &key) {
+        log::info("fetch: already running for this site; not started again");
+        errors::report(app, AppError::new("fetch-busy").site(&key));
+        return;
     }
     let app = app.clone();
     // SQLite and the sealing are blocking work, so the whole fetch runs on a blocking thread,
     // driving the async HTTP from there (CLAUDE.md › Conventions).
     tauri::async_runtime::spawn_blocking(move || {
         let end = tauri::async_runtime::block_on(run(&app, &site, &key));
-        if let Ok(mut r) = app.state::<Running>().0.lock() {
-            r.remove(&key);
-        }
+        Running::release(&app, &key);
         let _ = app.emit("fetch-done", json!({ "site": key, "end": end }));
     });
 }
 
 async fn run(app: &AppHandle, site: &SiteKey, key: &str) -> &'static str {
-    let Some(s) = app.try_state::<SignIn>() else { return "failed" };
-    let store = match s.files().open(site) {
-        Ok(Some(store)) => store,
-        _ => {
-            log::error("fetch: the site's store would not open");
-            return "failed";
-        }
-    };
+    let Some(store) = open_current(app, site, key) else { return "failed" };
+    let s = app.state::<SignIn>();
     log::info("fetch: started");
     let result = sync::full_fetch(s.net(), &store, &HostTimer, |p| {
         let _ = app.emit("fetch-progress", progress_event(key, p));
@@ -88,23 +147,42 @@ async fn run(app: &AppHandle, site: &SiteKey, key: &str) -> &'static str {
             if !sum.skipped.is_empty() {
                 log::info(&format!("fetch: the site refused: {}", sum.skipped.join(", ")));
             }
+            if !sum.stopped.is_empty() {
+                log::info(&format!("fetch: incomplete: {}", sum.stopped.join(", ")));
+                errors::report(app, AppError::new("fetch-partial").site(key).count(sum.stopped.len()));
+            }
             "done"
         }
         Ok(FetchEnd::SignInAgain) => {
             log::info("fetch: the site refused the refresh token; sign in again");
+            errors::report(app, AppError::new("fetch-sign-in-again").site(key));
             "sign-in-again"
         }
         Err(e) => {
             log::warn(&format!("fetch: failed: {e}"));
+            let code = match e {
+                CoreError::Network => "fetch-site-unreachable",
+                CoreError::Parse => "fetch-site-unreadable",
+                CoreError::Crypto | CoreError::Io | CoreError::KeyStore => "fetch-store-failed",
+                CoreError::Version => "site-newer",
+                _ => "fetch-failed",
+            };
+            errors::report(app, AppError::new(code).kind(e).site(key));
             "failed"
         }
     }
 }
 
-/// The Sites row's Refresh half (stage 7). `site` is the app's own random site key.
+/// The Sites row's Refresh half (stage 7). `site` is the app's own random site key. On
+/// failure it returns the `app-error` code.
 #[tauri::command]
 pub fn site_refresh(app: AppHandle, site: String) -> Result<(), String> {
-    let site = SiteKey::from_stored(site).map_err(|e| e.to_string())?;
+    // A key in the right form with no site behind it fails later, at the open
+    // (`site-key-missing`); no file I/O here, on the UI thread.
+    let Ok(site) = SiteKey::from_stored(site) else {
+        errors::report(&app, AppError::new("site-unknown"));
+        return Err("site-unknown".into());
+    };
     start(&app, site);
     Ok(())
 }

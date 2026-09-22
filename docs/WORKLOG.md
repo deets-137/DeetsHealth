@@ -8,6 +8,35 @@ updated: 2026-09-21
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-09-21 — the fixes after stage 6
+- The owner said values can be padded, asked to fix the five findings, and asked that every
+  failure and error route have an error the app can toast. He chose: Padmé with a 64-byte
+  floor; a plain Observation search with the 9 categories as the fallback; automatic
+  re-index by version; one `app-error` event with toasts now.
+- Built: `seal.rs` format 2 (padding), schema 2 with an in-place migration, `CoreError::Version`,
+  IMMEDIATE transactions and a 5 s busy wait; `net::on_site`; the Observation fallback; the
+  `token-refresh` warning and `Summary.stopped`; `INDEX_VERSION` and `reindex_if_stale`;
+  `src-tauri/src/errors.rs`, `fetch::check_sites`, a code on every sign-in, fetch and store
+  failure; `src/app-errors.ts`. New `architecture/ERRORS.md`.
+- Live on the SMART sandbox: the plain Observation search is accepted; 68 jobs and 70 calls
+  (was 76 and 78); 163 resources, 223 links, 0 warnings. Core 37 tests, host 14, clean.
+- Open: the toast wording (ERRORS.md §3) is a draft for the owner.
+
+## 2026-09-21 — the architecture docs
+- The owner chose a separate `STORE.md` (not a DATA-MODEL.md part) and a map for
+  DATA-ARCHITECTURE.md (not a fold-in).
+- New `architecture/FETCH.md`, `architecture/INDEX-AND-LINKS.md`, `architecture/STORE.md`,
+  each written from the code.
+- DATA-ARCHITECTURE.md cut to a map of the data's path, with its section numbers kept for
+  old links. Refreshed CORE-CRATE.md (header, §3 layout redrawn from the code),
+  DATA-MODEL.md (header, `Provenance`, fork 8), SECURITY.md (header, new §8.8 as built),
+  SECURITY-BRIEF.md (§6 q3, §7, §8), CLAUDE.md's doc list.
+- Found in the code, none fixed (HANDOFF.md › Open now 10): sealed lengths show which
+  values are missing; the `next`-link check is a text prefix; Observations with no FHIR
+  category are missed on the SMART sandbox too; a failed refresh after a 401 stops a job
+  with no warning; `reindex` has no caller. Corrected the "missing" claim in CORE-CRATE.md
+  §12 and in two comments in `core/src/store/`; the stage list in `core/src/lib.rs`.
+
 ## 2026-09-21 — the data model
 - Laid out every FHIR R4 type by category, marked against Epic's 60 and US Core. US Core
   9.0.0 has 27 types (it added `FamilyMemberHistory`). Checked each US Core profile's

@@ -10,7 +10,8 @@
 //! change to `shielded.rs`, on purpose.
 //!
 //! Build stages (CORE-CRATE.md §2): 1 skeleton ✓ · 2 seal ✓ · 3 store ✓ · 4 auth ✓ ·
-//! 5 fhir + sync · 6 index + normalize · 7 payloads + the Sites section · 8 refresh and erase.
+//! 5 fhir + sync ✓ · 6 index and links ✓ · 7 payloads + the Sites section · 8 refresh and
+//! erase. The normalizer comes card by card.
 
 pub mod auth;
 pub mod error;

@@ -2,6 +2,8 @@
 mod browser;
 // The Windows crypto provider and the per-site key store (SECURITY.md §4.6).
 mod cng;
+// Every failure the user should hear about, as one `app-error` event (ERRORS.md).
+mod errors;
 // The fetch: runs the core's full fetch off the UI thread; counts to the front end.
 mod fetch;
 mod keystore;
@@ -56,14 +58,21 @@ pub fn run() {
             // The rolling log first: everything below may need to write.
             log::init(&dir);
 
+            // Errors queue here until the page listens (errors.rs).
+            app.manage(errors::AppErrors::default());
             app.manage(settings::Settings::load(dir.clone()));
             app.manage(fetch::Running::default());
             window::restore_pos(app.handle());
             match signin::SignIn::new(sites::SiteFiles::new(&dir), LINK_SCHEME) {
                 Ok(s) => {
                     app.manage(s);
+                    // Migrate old site files and rebuild stale indexes, off the UI thread.
+                    fetch::check_sites(app.handle());
                 }
-                Err(e) => log::error(&format!("sign-in: unavailable: {e}")),
+                Err(e) => {
+                    log::error(&format!("sign-in: unavailable: {e}"));
+                    errors::report(app.handle(), errors::AppError::new("sign-in-unavailable").kind(e));
+                }
             }
 
             // The deep-link scheme. A debug build owns `deetshealth-dev://` and points it at
@@ -78,6 +87,7 @@ pub fn run() {
                 let registered = app.deep_link().register_all();
                 if let Err(e) = registered {
                     log::warn(&format!("sign-in: could not register {LINK_SCHEME}://: {e}"));
+                    errors::report(app.handle(), errors::AppError::new("link-register-failed"));
                 }
             }
             let args: Vec<String> = std::env::args().collect();
@@ -130,6 +140,7 @@ pub fn run() {
             signin::sign_in_start,
             signin::sign_in_cancel,
             fetch::site_refresh,
+            errors::app_errors_ready,
             log::diag_flush,
             log::log_event,
         ]))

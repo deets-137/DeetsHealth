@@ -14,6 +14,11 @@ use crate::store::Table;
 use crate::Shielded;
 use serde_json::Value;
 
+/// The version of the rules in this file and in `fhir::table_for`. Raise it after any change
+/// to them: a site file with an older number is re-indexed from its raw rows when it is next
+/// opened, with no fetch (the owner, 2026-09-21; INDEX-AND-LINKS.md §10).
+pub const INDEX_VERSION: i64 = 1;
+
 /// The index columns of one resource. Every value is shielded.
 #[derive(Default)]
 pub struct Index {

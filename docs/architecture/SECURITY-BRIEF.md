@@ -59,7 +59,7 @@ open. It can read the screen and the process memory. I plan to say that plainly 
 | **In transit** | HTTPS only, through Windows SChannel (`reqwest` + `native-tls`). No `http://` base URL, no certificate override. |
 | **Sign-in** | SMART standalone launch in the **system browser**, never inside WebView2. PKCE (S256) and a `state` check. One sign-in may wait at a time; a deep link with no sign-in waiting, or the wrong `state`, is dropped. |
 | **In memory** | Every protected value lives in a wrapper type, `Shielded<T>` (§5). |
-| **At rest** | SQLite, but every protected value is sealed on its own: AES-256-GCM from Windows CNG, a random 96-bit nonce, and the table + row key + column as associated data, so a value copied to another cell fails to open. A format byte leads each value. Index columns (dates, codes) are sealed too; only opaque row keys and table names are plain. Filtering and sorting happen in Rust. |
+| **At rest** | SQLite, but every protected value is sealed on its own: AES-256-GCM from Windows CNG, a random 96-bit nonce, and the table + row key + column as associated data, so a value copied to another cell fails to open. Each value is padded first (Padmé, 64-byte floor). A format byte leads each value. Index columns (dates, codes) are sealed too; only opaque row keys and table names are plain. Filtering and sorting happen in Rust. |
 | **Keys** | One data key and one SQLite file per health system. The key is 32 bytes from `BCryptGenRandom`, wrapped with DPAPI (`CurrentUser`) plus app-specific entropy. The raw key goes into a CNG key handle and the bytes are wiped. |
 | **Erasure** | Sign-out deletes that site's file, tokens and key: a cryptographic erase. Uninstall deletes all of them. |
 | **Front end** | Record text enters the page only through `textContent`, never `innerHTML`. A strict Content-Security-Policy. The front end can call named Tauri commands only: no file, shell, HTTP or opener plugin. No DevTools in a release build. |
@@ -98,9 +98,13 @@ is it a real risk, is it worth fixing, and how would you do it?
    temporaries. Is that worth chasing, or is it noise next to the process being open at all?
 2. **Plaintext after the wrapper.** The payload structs, Tauri's IPC JSON and the WebView DOM
    hold plain values. I do not control those copies. Is there anything sensible to do here?
-3. **SQLite metadata.** Table names, row counts and ciphertext lengths stay visible. Could
-   someone learn something real from them, such as the number of visits or the length of a
-   note? Should I pad values?
+3. **SQLite metadata.** Table names and row counts stay visible. The link table's row keys
+   are plain too, so SQLite can join: the file shows which row points to which, with no
+   values. Every value is padded before it is sealed (Padmé, 64-byte floor): every short
+   value, a missing one included, has one sealed length, and a long one shows only a size
+   class within about 12%. Is that padding enough? Could someone still learn something real,
+   such as the number of visits from the row counts or the link graph?
+   ([STORE.md §4–§5](STORE.md))
 4. **DPAPI's limit.** Any process that runs as the same user can call `CryptUnprotectData`.
    My app entropy stops accidents, not an attacker. Is there a better Windows option for a
    desktop app (a TPM-backed CNG key, Windows Hello, something else)? Is it worth the
@@ -121,18 +125,24 @@ And the open-ended one: **what did I miss entirely?**
 
 ## 7. What exists today
 Honest status, so you know what is real and what is paper:
-- **Built and tested:** the workspace, `Shielded<T>` and its three passes, the platform
-  traits, the error type; the CNG cipher (with the GCM specification's test vectors), the
-  DPAPI key store, the seal format; the sealed SQLite store (a byte scan of the real files
-  finds no plaintext); SMART sign-in with PKCE (tested live against the SMART sandbox).
-- **Designed only:** the fetch, the normalizer, the card payloads, the panic hook.
-- The build plan has 8 stages; the list is in [CORE-CRATE.md §2](CORE-CRATE.md).
+- **Built and tested (stages 1–6 of 8):** the workspace, `Shielded<T>` and its three
+  passes, the platform traits, the error type; the CNG cipher (with the GCM specification's
+  test vectors), the DPAPI key store, the seal format; the sealed SQLite store (a byte scan
+  of the real files finds no plaintext); SMART sign-in with PKCE; the full fetch (HTTPS
+  only, no redirects, a `next` link must stay on the site); the index and the links between
+  rows. Sign-in and the fetch are tested live against the SMART sandbox. The log's
+  redaction and the panic hook (it withholds the message) are built.
+- **Designed only:** the normalizer and the card payloads (no record text reaches the page
+  yet), the sign-out button that calls the erase, the uninstaller's delete.
+- The build plan has 8 stages; the list is in [CORE-CRATE.md §2](CORE-CRATE.md). What the
+  build found is [SECURITY.md §8.8](SECURITY.md).
 
 ## 8. Where to read next
 1. [SECURITY.md §8](SECURITY.md) — the one-page summary of the rules. §4 has every rule in
    full.
 2. [CORE-CRATE.md](CORE-CRATE.md) §4, §5 and §12 — the wrapper, sealing and keys, and what is
-   built.
+   built. [STORE.md](STORE.md) — the files on disk and what they show;
+   [SIGN-IN.md](SIGN-IN.md) §10 and [FETCH.md](FETCH.md) §13 — the network side.
 3. The code, in this order: [shielded.rs](../../core/src/shielded.rs),
    [seal.rs](../../core/src/seal.rs), [platform.rs](../../core/src/platform.rs),
    [cng.rs](../../src-tauri/src/cng.rs), [keystore.rs](../../src-tauri/src/keystore.rs).

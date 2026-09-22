@@ -4,9 +4,11 @@
 //! 1. Refresh the access token if it runs out soon (`auth::needs_refresh`).
 //! 2. Read `/metadata` (no token): which types the site serves and how to search each one.
 //! 3. Read the patient: name, birth date and sex only (`_elements` asks for no more).
-//! 4. One job per type the site serves and the scopes allow; `Observation` once per category
-//!    when the site supports `category`. Each job: `?<patient param>=<id>&_count=100`, plus
-//!    the `_include`s the site lists from [`WANTED_INCLUDES`], then every `next` page.
+//! 4. One job per type the site serves and the scopes allow. Each job:
+//!    `?<patient param>=<id>&_count=100`, plus the `_include`s the site lists from
+//!    [`WANTED_INCLUDES`], then every `next` page. `Observation` is searched plain first; when
+//!    the site supports `category` and refuses the plain search (Epic does), it is searched
+//!    once per category instead (the owner, 2026-09-21).
 //! 5. Three jobs run at once ([`PACE`]). Pages inside one job run in order.
 //! 6. Each page is written in one transaction: a resource replaces its earlier row (same FHIR
 //!    type and id) or gets a new one, with its index columns and its links (index.rs).
@@ -70,6 +72,9 @@ pub struct Summary {
     pub warnings: u32,
     /// Jobs the site refused (a 4xx other than 401), by FHIR type.
     pub skipped: Vec<String>,
+    /// Every FHIR type with a job that stopped before its last page, for any reason (the
+    /// refused ones included): the records of these types may be incomplete.
+    pub stopped: Vec<String>,
     pub seconds: u64,
     /// Time spent reading row keys to match resources to rows (CORE-CRATE.md §12, stage 3).
     pub key_read_ms: u128,
@@ -79,10 +84,14 @@ pub struct Summary {
     pub links_waiting: u32,
 }
 
+#[derive(Clone)]
 struct Job {
     fhir_type: String,
     table: Table,
     url: Text,
+    /// Jobs to run instead when the site refuses this one's first page. The plain
+    /// `Observation` search carries the 9 category searches here (FETCH.md §5.2).
+    fallback: Vec<Job>,
 }
 
 /// What the three workers share. They run on one task, so a RefCell is enough; no borrow is
@@ -95,6 +104,7 @@ struct Shared {
     sign_in_again: bool,
     warnings: u32,
     skipped: Vec<String>,
+    stopped: std::collections::BTreeSet<String>,
     keys: Keys,
     /// Links written.
     links: u32,
@@ -159,13 +169,13 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
     let scopes = site.scopes.as_ref().map(net::read_scopes);
     let mut jobs = VecDeque::new();
     for s in cap.searchable.iter().filter(|s| fhir::scope_allows(scopes.as_deref(), &s.fhir_type)) {
+        let mut j = job(&base, &patient, s, &[], &includes, page_size)?;
         if s.fhir_type == "Observation" && s.has_category {
             for c in OBSERVATION_CATEGORIES {
-                jobs.push_back(job(&base, &patient, s, &[("category", c)], &includes, page_size)?);
+                j.fallback.push(job(&base, &patient, s, &[("category", c)], &includes, page_size)?);
             }
-        } else {
-            jobs.push_back(job(&base, &patient, s, &[], &includes, page_size)?);
         }
+        jobs.push_back(j);
     }
 
     store.clear_warnings()?;
@@ -178,6 +188,7 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
         sign_in_again: false,
         warnings: 0,
         skipped: Vec::new(),
+        stopped: Default::default(),
         keys: Keys::default(),
         links: 0,
     });
@@ -201,6 +212,7 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
         progress: shared.progress,
         warnings: shared.warnings,
         skipped: shared.skipped,
+        stopped: shared.stopped.into_iter().collect(),
         seconds: timer.now().saturating_sub(started),
         key_read_ms: shared.keys.ms,
         links: shared.links,
@@ -221,7 +233,12 @@ fn job(
     q.extend(extra.iter().map(|(k, v)| (*k, Field::Plain(v))));
     let prefix = format!("{}:", s.fhir_type);
     q.extend(includes.iter().filter(|i| i.starts_with(&prefix)).map(|i| ("_include", Field::Plain(i.as_str()))));
-    Ok(Job { fhir_type: s.fhir_type.clone(), table: s.table, url: net::url_with(&net::join(base, &s.fhir_type), &q)? })
+    Ok(Job {
+        fhir_type: s.fhir_type.clone(),
+        table: s.table,
+        url: net::url_with(&net::join(base, &s.fhir_type), &q)?,
+        fallback: Vec::new(),
+    })
 }
 
 /// The wanted includes the site lists in its `searchInclude`.
@@ -284,6 +301,7 @@ async fn run_job<S: Store, T: Timer>(
 ) {
     let mut next = Some(job.url.clone());
     let mut refreshed = false;
+    let mut first = true;
     while let Some(url) = next.take() {
         let (token, generation) = {
             let s = shared.borrow();
@@ -304,10 +322,19 @@ async fn run_job<S: Store, T: Timer>(
             401 if !refreshed => {
                 refreshed = true;
                 if !renew(net, store, timer, shared, site, generation).await {
+                    // "Sign in again" ends the whole fetch and says so; any other failure
+                    // stops only this job, and must still leave a warning.
+                    if !shared.borrow().sign_in_again {
+                        warn(store, shared, &job.fhir_type, "token-refresh", timer.now());
+                    }
                     return;
                 }
                 next = Some(url);
                 continue;
+            }
+            status if first && !job.fallback.is_empty() && is_refusal(status) => {
+                use_fallback(shared, job);
+                return;
             }
             status => {
                 let issues = fhir::read_error(&reply.body);
@@ -328,6 +355,12 @@ async fn run_job<S: Store, T: Timer>(
                 return;
             }
         };
+        // A site may refuse with an empty page and an error issue instead of a 4xx.
+        if first && !job.fallback.is_empty() && page.found.is_empty() && has_error_issue(&page.issues) {
+            use_fallback(shared, job);
+            return;
+        }
+        first = false;
         if let Err(e) = write_page(store, shared, job, &page.found) {
             warn(store, shared, &job.fhir_type, if e == CoreError::Crypto { "seal" } else { "store" }, timer.now());
             return;
@@ -337,7 +370,7 @@ async fn run_job<S: Store, T: Timer>(
         (on_progress.borrow_mut())(&snapshot);
         // A `next` link must stay on this site: the token never goes to another host.
         next = match page.next {
-            Some(n) if net::starts_with(&n, base) => Some(n),
+            Some(n) if net::on_site(&n, base) => Some(n),
             Some(_) => {
                 warn(store, shared, &job.fhir_type, "next-link-off-site", timer.now());
                 None
@@ -345,6 +378,24 @@ async fn run_job<S: Store, T: Timer>(
             None => None,
         };
     }
+}
+
+/// A reply that means "not like this": any 4xx but 401 (the token) and 429 (the pace).
+fn is_refusal(status: u16) -> bool {
+    (400..500).contains(&status) && status != 401 && status != 429
+}
+
+fn has_error_issue(issues: &[Issue]) -> bool {
+    let (error, fatal) = (Shielded::new("error".to_owned()), Shielded::new("fatal".to_owned()));
+    issues.iter().any(|i| i.severity.as_ref().is_some_and(|s| *s == error || *s == fatal))
+}
+
+/// The site refused a plain search: queue its fallback jobs instead. No warning: the refusal
+/// is expected on such a site, and the fallback fetches the same records.
+fn use_fallback(shared: &RefCell<Shared>, job: &Job) {
+    let mut s = shared.borrow_mut();
+    s.progress.jobs_total += job.fallback.len();
+    s.jobs.extend(job.fallback.iter().cloned());
 }
 
 /// Renew the token after a 401, once per token generation (another worker may have done it).
@@ -520,8 +571,19 @@ pub struct Reindexed {
     pub waiting: u32,
 }
 
+/// Re-index the store if its rows were built with older index rules
+/// ([`crate::index::INDEX_VERSION`]). `None`: already current. The host calls it whenever it
+/// opens a site file for work (the owner, 2026-09-21: automatic, by version).
+pub fn reindex_if_stale<S: Store>(store: &S) -> Result<Option<Reindexed>, CoreError> {
+    if store.index_version()? >= crate::index::INDEX_VERSION {
+        return Ok(None);
+    }
+    reindex(store).map(Some)
+}
+
 /// Re-index every stored row from its raw resource: new index columns and new links, with no
-/// fetch (DATA-MODEL.md §6, decision 2). Run it when the index rules change.
+/// fetch (DATA-MODEL.md §6, decision 2). The store is then marked current, in the same
+/// transaction.
 pub fn reindex<S: Store>(store: &S) -> Result<Reindexed, CoreError> {
     let mut keys = Keys::default();
     store.in_transaction(|st| {
@@ -537,6 +599,7 @@ pub fn reindex<S: Store>(store: &S) -> Result<Reindexed, CoreError> {
             }
         }
         let (_, waiting) = resolve_links(st, &mut keys)?;
+        st.set_index_version(crate::index::INDEX_VERSION)?;
         Ok(Reindexed { rows, links, waiting })
     })
 }
@@ -558,8 +621,10 @@ impl Stopwatch {
     }
 }
 
-/// A warning of our own: what went wrong with a job, as a fixed code.
+/// A warning of our own: what went wrong with a job, as a fixed code. Every call stops a job,
+/// so the type is marked as stopped too.
 fn warn<S: Store>(store: &S, shared: &RefCell<Shared>, fhir_type: &str, code: &str, now: u64) {
+    shared.borrow_mut().stopped.insert(fhir_type.to_owned());
     let issue = Issue { severity: Some(Shielded::new("error".into())), code: Some(Shielded::new(code.into())), text: None };
     store_issues(store, shared, fhir_type, vec![issue], now);
 }

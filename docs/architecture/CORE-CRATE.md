@@ -6,9 +6,12 @@ updated: 2026-09-21
 ---
 # DeetsHealth — The core crate (scaffold step 3)
 
-> The web-ready Rust crate that signs in, fetches, seals, stores and normalizes. Nothing
-> here is built. The tables it fills are [DATA-MODEL.md](DATA-MODEL.md); the rules it keeps
-> are [SECURITY.md](SECURITY.md). Open forks: none.
+> The web-ready Rust crate that signs in, fetches, seals, stores and normalizes. **Stages
+> 1–6 of 8 are built**; §12 is the code, and where it disagrees with §1–§11, §12 wins. The
+> tables it fills are [DATA-MODEL.md](DATA-MODEL.md); the rules it keeps are
+> [SECURITY.md](SECURITY.md). The built parts have their own reference docs:
+> [SIGN-IN.md](SIGN-IN.md), [FETCH.md](FETCH.md), [INDEX-AND-LINKS.md](INDEX-AND-LINKS.md),
+> [STORE.md](STORE.md). Open forks: none.
 
 ## 1. Terms
 - **Core** — the crate `deetshealth-core`. It has no Tauri dependency, so it can also compile
@@ -52,25 +55,37 @@ check after each stage.
 8. Refresh on open, the weekly full refresh, the sign-out erase.
 
 ## 3. Layout
+> **Part:** built · 2026-09-21 · redrawn from the code after stage 6
+
 ```
 Cargo workspace at the repo root: members core/ and src-tauri/
 
 deetshealth-core (core/)
 ├── shielded    Shielded<T>, the pass (§4)
-├── seal        AES-256-GCM per value through the Cipher trait (§5)
-├── auth        smart-configuration, PKCE + state, authorize URL, token trade, refresh
-├── fhir        HTTP: search, paging, _include, Retry-After, OperationOutcome capture
-├── sync        the fetch plan per site, the pace, progress as counts only (§7)
-├── index       raw resource → index columns + links
-├── normalize   raw resource → model, at read time (DATA-MODEL.md §6, decision 2)
-├── model       the types the cards read
-├── store       the Store trait, the schema, the queries; SQLite behind a feature flag
-└── platform    traits the host fills: Cipher, KeyStore, SignInReturn, OpenBrowser
+├── seal        the sealed format around the Cipher trait (§5, STORE.md §5)
+├── platform    traits the host fills: Cipher, KeyStore, Timer, OpenBrowser; SiteKey
+├── net         the third pass (SitePass), the HTTP client, parse_reply (SIGN-IN.md, FETCH.md)
+├── auth        smart-configuration, PKCE + state, the link check, token trade, refresh
+├── fhir        type → table, the capability, scopes, reading a page and the patient
+├── index       raw resource → index columns + links (INDEX-AND-LINKS.md)
+├── sync        the fetch plan, the pace, retries, link resolution, reindex (FETCH.md)
+├── store       row types, the Store trait, CachePass; SQLite behind a feature (STORE.md)
+├── payload     the card-payload pass (CardPass); payload structs come with each card
+└── error       CoreError: kinds with fixed text
+
+not yet: normalize and model (card by card, §8)
 
 src-tauri (host)
-├── Windows CNG Cipher, DPAPI KeyStore, the deep-link SignInReturn, OpenBrowser
-└── commands: sites, sign_in, sign_out, refresh; a progress event (counts only)
+├── cng.rs, keystore.rs   Windows CNG Cipher, DPAPI KeyStore
+├── sites.rs              one file and one key per site: create, open, list, erase
+├── signin.rs, browser.rs the waiting sign-in, the returning link, OpenBrowser
+├── fetch.rs              the fetch off the UI thread; Timer
+└── commands: sign_in_start, sign_in_cancel, site_refresh
+    events: sign-in, sites-changed, fetch-progress, fetch-done (counts and fixed words only)
 ```
+- The sign-in return is not a trait: the host pushes the returning link to the core
+  (`signin::on_link` → `auth::check_link`).
+- Stage 7 adds the Sites commands (list, sign out) and `ts-rs`.
 - Every command that does I/O is `async fn` + `spawn_blocking` (CLAUDE.md › Conventions).
 - The web version later fills the same traits: WebCrypto, non-extractable keys, a web
   redirect, IndexedDB.
@@ -241,8 +256,9 @@ Where this part and the design above disagree, this part is the code.
 - **`core/src/store/sqlite.rs`** (feature `sqlite`, off for wasm): `SiteStore`, rusqlite 0.32
   with SQLite bundled. **Plain:** table names, row keys, a link's `from_id` / `to_id` and
   their table names (so SQL can join), `meta.schema_version`. **Sealed, `NOT NULL`:** every
-  other column; a missing value is sealed as "missing", so the file does not show which
-  fields a record lacks. One generic write and one generic read seal and unseal every
+  other column; a missing value is sealed as "missing". (Correction, 2026-09-21: the sealed
+  length still shows which values are missing, because a missing value is always the
+  shortest; STORE.md §4.) One generic write and one generic read seal and unseal every
   column. WAL, `secure_delete` on. A file with a newer schema is refused. SQL names:
   `order_` and `end_` (keywords).
 - **Lookups by FHIR id** read the table into Rust; there is no blind index. Cost to measure
@@ -321,8 +337,8 @@ Where this part and the design above disagree, this part is the code.
 - **Measured on the SMART sandbox** (2026-09-21): 76 jobs; 78 calls at 100 a page; 5–7 s
   for 94–397 resources; key reads under 1 ms. The site serves 74 patient-searchable types;
   66 of them have a table.
-- **Known limits:** on a site that needs `category` (Epic), an Observation in none of the 9
-  categories is not fetched. The raw JSON keeps the site's key order (serde_json
+- **Known limits:** on a site that lists `category` (Epic, and the SMART sandbox too), an
+  Observation in none of the 9 categories is not fetched (FETCH.md §5.2). The raw JSON keeps the site's key order (serde_json
   `preserve_order`, which adds `indexmap`). A full fetch does not yet remove rows the site deleted
   (stage 8).
 - **Checks:** core 24 tests + 3 proofs (table map, capability, scopes, a page with matches,
@@ -360,3 +376,20 @@ Where this part and the design above disagree, this part is the code.
   and roles, the encounter roles of DATA-MODEL.md §4, reference forms; a re-index of raw
   rows builds columns and links, resolves them, and a second re-index replaces them).
   The live fetch asserts links. Wasm, clippy, release check clean.
+
+**Fixes after stage 6** (built 2026-09-21, the owner's choices; the reference docs have the
+detail):
+- **Padding** (`seal.rs` format 2): Padmé with a 64-byte floor. **Schema 2**: a schema 1
+  file is re-sealed in place when it opens. A newer file gives `CoreError::Version`, a new
+  kind. Transactions take the write lock at once; a 5 s busy wait. STORE.md §5–§6.
+- **The Observation fallback:** a plain search first, the 9 categories when the site
+  refuses it. SMART: 68 jobs, 70 calls. FETCH.md §5.2.
+- **`net::on_site`** replaces the text-prefix `next` check. FETCH.md §13.
+- **`token-refresh` warning** and `Summary.stopped` (every type whose job stopped early).
+- **`INDEX_VERSION`** and `sync::reindex_if_stale`; the `Store` trait gained
+  `index_version` / `set_index_version`. INDEX-AND-LINKS.md §10.
+- **Host:** `src-tauri/src/errors.rs` (one `app-error` event, queued until the page
+  listens), every sign-in, fetch and store failure reports a code; `fetch::check_sites` at
+  start; `src/app-errors.ts` turns codes into toasts. ERRORS.md.
+- **Checks:** core 37 tests + 3 proofs, host 14, the live fetch; wasm, clippy (3 old notes
+  in `log.rs`), `tsc`, `vite build`.

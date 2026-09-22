@@ -19,6 +19,8 @@ pub enum CoreError {
     SignIn,
     /// The platform could not open the system browser.
     Browser,
+    /// A site file was written by a newer version of the app (a newer schema).
+    Version,
 }
 
 impl fmt::Display for CoreError {
@@ -31,6 +33,7 @@ impl fmt::Display for CoreError {
             CoreError::Parse => "unexpected reply",
             CoreError::SignIn => "sign-in error",
             CoreError::Browser => "could not open the browser",
+            CoreError::Version => "written by a newer version",
         })
     }
 }

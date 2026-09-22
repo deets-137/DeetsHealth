@@ -125,10 +125,21 @@ pub(crate) fn read_scopes(t: &Text) -> String {
 }
 
 /// Whether `url` is on the site at `base`: a `next` link must be, or the token would go
-/// elsewhere.
-pub(crate) fn starts_with(url: &Text, base: &Text) -> bool {
+/// elsewhere. The same scheme, host and port, and a path at or under the base path, split at
+/// a `/` (so `/fhir2` is not under `/fhir`). A text prefix is not enough: with a base of
+/// `https://a.org`, `https://a.org.other.net` would pass it.
+pub(crate) fn on_site(url: &Text, base: &Text) -> bool {
     let p = SitePass::issue();
-    url.reveal(&p).starts_with(base.reveal(&p).as_str())
+    let (Ok(u), Ok(b)) = (reqwest::Url::parse(url.reveal(&p)), reqwest::Url::parse(base.reveal(&p))) else {
+        return false;
+    };
+    let base_path = b.path().trim_end_matches('/');
+    u.scheme() == b.scheme()
+        && u.host_str().is_some()
+        && u.host_str() == b.host_str()
+        && u.port_or_known_default() == b.port_or_known_default()
+        && u.username().is_empty()
+        && (u.path().trim_end_matches('/') == base_path || u.path().starts_with(&format!("{base_path}/")))
 }
 
 /// A stored reference (`Type/id`, as the site sent it) split into its plain FHIR type and its
@@ -179,5 +190,31 @@ pub fn open_in_browser(browser: &impl OpenBrowser, url: &Text) -> Result<(), Cor
 impl SitePass {
     pub(crate) fn for_tests() -> Self {
         Self::issue()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn on(url: &str, base: &str) -> bool {
+        on_site(&Shielded::new(url.into()), &Shielded::new(base.into()))
+    }
+
+    #[test]
+    fn a_next_link_must_stay_on_the_site() {
+        let base = "https://launch.example.org/v/r4/sim/abc/fhir";
+        assert!(on("https://launch.example.org/v/r4/sim/abc/fhir?_getpages=x", base), "HAPI: the base itself");
+        assert!(on("https://launch.example.org/v/r4/sim/abc/fhir/Observation?page=2", base));
+        assert!(on("https://launch.example.org:443/v/r4/sim/abc/fhir/Observation", base), "the default port");
+        assert!(!on("https://launch.example.org/v/r4/sim/abc/fhir2/Observation", base), "a path boundary");
+        assert!(!on("https://launch.example.org/other/Observation", base));
+        assert!(!on("http://launch.example.org/v/r4/sim/abc/fhir/Observation", base), "the scheme");
+        assert!(!on("https://launch.example.org:8443/v/r4/sim/abc/fhir/Observation", base), "the port");
+        assert!(!on("https://user@launch.example.org/v/r4/sim/abc/fhir/Observation", base));
+        // The gap the text prefix had: a base URL with no path.
+        assert!(on("https://fhir.example.org/Observation?page=2", "https://fhir.example.org"));
+        assert!(!on("https://fhir.example.org.other.net/Observation", "https://fhir.example.org"));
+        assert!(!on("not a url", base));
     }
 }

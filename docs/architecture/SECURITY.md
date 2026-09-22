@@ -6,7 +6,9 @@ updated: 2026-09-21
 ---
 # DeetsHealth — Security and privacy
 
-> Nothing here is built. The rules in §4 are fixed before any code. Open forks: §7.
+> The rules in §4 were fixed before any code. Most of them are now built (CORE-CRATE.md
+> §12, stages 1–6); §8.8 says what is built, what is not, and what the build found. Open
+> forks: §7.
 
 ## 1. Priority (the owner, 2026-09-21)
 1. **Patient experience.**
@@ -149,12 +151,12 @@ there first.
    derived values computed at runtime, never stored (FHIR-SHAPES.md §5, fork 1).
 
 ## 8. The security measures, in one place
-> **Part:** designed · 2026-09-21
+> **Part:** project · 2026-09-21 · built through stage 6; payloads and erase wait for stages 7–8
 
 A summary to speak from, for a user, a reviewer or a health system. Each line points to its
-rule. Where this section and §4 disagree, §4 is the rule. Nothing here is built yet; when it
-is, this section gets an "as built" note. For a security engineer who helps us, the tour and
-the open questions are [SECURITY-BRIEF.md](SECURITY-BRIEF.md).
+rule. Where this section and §4 disagree, §4 is the rule. What is built is §8.8. For a
+security engineer who helps us, the tour and the open questions are
+[SECURITY-BRIEF.md](SECURITY-BRIEF.md).
 
 ### 8.1 The standard we hold
 - HIPAA does not bind an app that a patient chooses (§6). We hold the bar HHS sets for
@@ -237,3 +239,48 @@ build (§4.3).
 - A deleted key file may linger on an SSD. A copy still needs the same Windows user to
   unwrap it; Windows Device Encryption covers freed blocks (§4.6).
 - Development uses sandbox patients only. A real record is a later, owner-approved step (§4.8).
+
+### 8.8 As built
+> **Part:** built · 2026-09-21 · stages 1–6 of 8
+
+Where this part and §8.1–§8.7 disagree, this part is the code.
+
+**Built and tested:**
+- `Shielded<T>` and its three passes (`CachePass`, `CardPass`, `SitePass`), with
+  compile-fail proofs (CORE-CRATE.md §12). `CardPass` has no user until stage 7.
+- AES-256-GCM, random numbers and SHA-256 from Windows CNG; the GCM specification's test
+  vectors pass. The associated data is the table, the row key **and the column**: stricter
+  than §4.6. Every value is padded before it is sealed (STORE.md §5).
+- One data key per site, DPAPI-wrapped with app entropy; one SQLite file per site. A byte
+  scan of the real files finds no plaintext (STORE.md §12).
+- HTTPS only, TLS 1.2 or later through SChannel, no redirects; a `next` link must stay on
+  the site's base URL (FETCH.md §13).
+- Sign-in: PKCE S256, `state`, one waiting sign-in, 10 minutes, the link shielded on arrival
+  (SIGN-IN.md §10).
+- The log's wall: redaction inside the writer (JWTs, `Bearer`, URL query strings, the
+  Windows account name) and a panic hook that withholds the message (`src-tauri/src/log.rs`).
+  Every `CoreError` has fixed text. Events carry counts and fixed words only.
+- The CSP in `tauri.conf.json`; no DevTools feature in the Tauri build.
+
+**Not built yet:**
+- The payload structs, and so no record text reaches the page yet (stage 7).
+- The sign-out erase is built and tested (`SiteFiles::erase`) but nothing calls it; the
+  uninstaller's delete comes with the release path (STORE.md §8).
+
+**Found in the build, and fixed** (2026-09-21, the owner's choices):
+- **Sealed lengths.** A sealed value was its plaintext length plus 30 bytes, so the file
+  showed which values were missing and how long each note was. **Fixed:** every value is
+  padded before it is sealed (Padmé, 64-byte floor): every short value (a missing one
+  included) has one length, and a long one shows only a size class within about 12%. Old
+  files are migrated in place (STORE.md §4–§6).
+- **The `next`-link check** was a text prefix, so a base URL with no path accepted a link to
+  a look-alike host. **Fixed:** `net::on_site` compares scheme, host, port and the path at a
+  `/` (FETCH.md §13).
+- **Every failure now reaches the user** as a toast with a fixed code, never a value
+  (ERRORS.md).
+
+**Still true, said plainly:**
+- **The link graph is plain** so SQLite can join: the file shows which row points to which,
+  with no values (STORE.md §4).
+- **Roaming profile.** The data folder is under `%APPDATA%` (Roaming). A domain roaming
+  profile copies it to a server; the key still needs the same Windows user (STORE.md §2).

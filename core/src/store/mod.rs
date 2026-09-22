@@ -2,7 +2,8 @@
 //!
 //! One store per site. Every protected value is sealed on its own, bound to its table, row
 //! and column (`crate::seal`). Only opaque row keys, table names and the schema version are
-//! plain. A missing value is sealed too, so even "this result has no end date" is not visible.
+//! plain. A missing value is sealed too, and padded like any short value, so even "this
+//! result has no end date" is not visible (docs/architecture/STORE.md §4).
 //!
 //! This module is one of the three places that may read a [`crate::Shielded`] value: the
 //! cache writer seals each value just before its write and unseals it just after its read.
@@ -46,6 +47,9 @@ pub trait Store {
     fn clear_warnings(&self) -> Result<(), CoreError>;
     /// Run `f` as one transaction: all of its writes land, or none do.
     fn in_transaction<R>(&self, f: impl FnOnce(&Self) -> Result<R, CoreError>) -> Result<R, CoreError>;
+    /// The index rules the rows were built with (`index::INDEX_VERSION`); 0 when unknown.
+    fn index_version(&self) -> Result<i64, CoreError>;
+    fn set_index_version(&self, v: i64) -> Result<(), CoreError>;
 }
 
 /// The cache writer's pass. Its field is private, so only this module can make one.

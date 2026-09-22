@@ -6,9 +6,14 @@ updated: 2026-09-21
 ---
 # DeetsHealth — Data model
 
-> How the sealed cache holds a patient's record, with the encounter at the center. Nothing
-> here is built. The input is [FHIR-SHAPES.md](FHIR-SHAPES.md); the cache and the wall are
-> [DATA-ARCHITECTURE.md](DATA-ARCHITECTURE.md) and [SECURITY.md](SECURITY.md). Open forks: §8.
+> How the sealed cache holds a patient's record, with the encounter at the center. This is
+> the design. **The tables, the index columns and the links are built** (CORE-CRATE.md §12,
+> stages 3 and 6): the code is [STORE.md](STORE.md) (the files and the schema) and
+> [INDEX-AND-LINKS.md](INDEX-AND-LINKS.md) (kinds, codes, dates, roles); where they disagree
+> with this doc, they win. Not built: `$summary`, `$docref`, `Binary`, `directory`, `vocab`.
+> The input is [FHIR-SHAPES.md](FHIR-SHAPES.md); the map is
+> [DATA-ARCHITECTURE.md](DATA-ARCHITECTURE.md); the wall is [SECURITY.md](SECURITY.md).
+> Open forks: §8.
 
 ## 1. Terms
 - **Row** — one stored record, made from one FHIR resource.
@@ -113,7 +118,7 @@ design work.
 | `party` | `Practitioner`, `PractitionerRole`, `RelatedPerson`, `Organization`, `Location`, `CareTeam` (a group of parties) | `HealthcareService`, `OrganizationAffiliation`, `Endpoint`, `Person` |
 | `billing` | `Coverage` | `ExplanationOfBenefit`, `Claim`, `ClaimResponse`, `Account`, `ChargeItem`, `Invoice`, `Contract`, `InsurancePlan`, `CoverageEligibility*`, `Enrollment*`, `Payment*` |
 | `drug` | `Medication` | `Substance`, `MedicationKnowledge` |
-| link data | `Provenance` (the source of a row; its raw resource waits in `other` until stage 6 makes links) | — |
+| link data | `Provenance` (the source of a row; its raw resource sits in `other`, and its `provenance-of` links tie it to the rows it describes) | — |
 | `other` | — | §7.1 |
 | `definition`, `site`, `site_warning` | `smart-configuration`, `CapabilityStatement`, `OperationOutcome` | §7.2, §7.3 |
 | `document` (summaries) | — | `$summary`, `$docref` (§7.4) |
@@ -224,5 +229,7 @@ types, `Library`, `EventDefinition`, `SpecimenDefinition`, `DeviceDefinition`,
    opaque row keys and table names stay plain; core filters and sorts in Rust. **Built in
    stage 3, for the owner to confirm** (CORE-CRATE.md §12): plain are the table names, the row
    keys, a link's two row keys and their table names (so SQL can join), and the schema
-   version. A missing value is sealed too.
+   version. A missing value is sealed too. Every value is padded before it is sealed, so the
+   file does not show which values are missing. What it still shows (row counts, the link
+   graph, a size class per value) is listed in STORE.md §4.
 

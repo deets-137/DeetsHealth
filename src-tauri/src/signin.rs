@@ -5,16 +5,18 @@
 // The link arrives as plain text in the process arguments. It holds the code, so it is
 // shielded on arrival and never logged: a log line says only what happened.
 //
-// Events to the front end carry no protected data: `sign-in` with a fixed status word, and
-// `sites-changed` with no payload.
+// Events to the front end carry no protected data: `sign-in` with a fixed status word,
+// `sites-changed` with no payload, and `app-error` with a fixed code on every failure
+// (errors.rs).
 
 use crate::browser::SystemBrowser;
 use crate::cng::Cng;
+use crate::errors::{self, AppError};
 use crate::log;
 use crate::sites::SiteFiles;
 use deetshealth_core::auth::{self, LinkMatch, PendingSignIn};
 use deetshealth_core::net::{self, Net};
-use deetshealth_core::Shielded;
+use deetshealth_core::{CoreError, Shielded};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -50,15 +52,38 @@ fn status(app: &AppHandle, word: &'static str) {
     let _ = app.emit("sign-in", word);
 }
 
+/// Report a failed start (errors.rs) and hand the same code back to the caller. The caller
+/// does not toast it: the `app-error` event already does.
+fn start_failed(app: &AppHandle, e: AppError, code: &'static str) -> String {
+    errors::report(app, e);
+    code.to_owned()
+}
+
 /// Start a sign-in to one of the Connect menu's sites. A new start replaces a waiting one.
+/// On failure it returns the `app-error` code.
 #[tauri::command]
 pub async fn sign_in_start(app: AppHandle, site: usize) -> Result<(), String> {
-    let s = app.try_state::<SignIn>().ok_or("sign-in is not available")?;
+    let fail = |code: &'static str| start_failed(&app, AppError::new(code), code);
+    let s = app.try_state::<SignIn>().ok_or_else(|| fail("sign-in-unavailable"))?;
     let entries = auth::sandbox_sites();
-    let entry = entries.get(site).ok_or("no such site")?;
-    let (pending, url) = auth::begin(&s.net, &Cng, entry, &s.redirect_uri, now()).await.map_err(|e| e.to_string())?;
-    *s.pending.lock().map_err(|_| "busy")? = Some(pending);
-    net::open_in_browser(&SystemBrowser, &url).map_err(|e| e.to_string())?;
+    let entry = entries.get(site).ok_or_else(|| fail("sign-in-no-site"))?;
+    let (pending, url) = match auth::begin(&s.net, &Cng, entry, &s.redirect_uri, now()).await {
+        Ok(p) => p,
+        Err(e) => {
+            let code = match e {
+                CoreError::Network => "sign-in-site-unreachable",
+                CoreError::Parse => "sign-in-site-unreadable",
+                _ => "sign-in-failed",
+            };
+            log::warn(&format!("sign-in: could not start: {e}"));
+            return Err(start_failed(&app, AppError::new(code).kind(e), code));
+        }
+    };
+    *s.pending.lock().map_err(|_| fail("sign-in-failed"))? = Some(pending);
+    if let Err(e) = net::open_in_browser(&SystemBrowser, &url) {
+        log::warn(&format!("sign-in: {e}"));
+        return Err(start_failed(&app, AppError::new("sign-in-browser").kind(e), "sign-in-browser"));
+    }
     log::info("sign-in: started; waiting for the browser");
     status(&app, "waiting");
     Ok(())
@@ -86,23 +111,27 @@ pub fn on_link(app: &AppHandle, link: String) {
         match slot.as_ref() {
             None => {
                 log::warn("sign-in: a link arrived, but no sign-in was waiting; ignored");
+                errors::report(app, AppError::new("sign-in-stray-link"));
                 return;
             }
             Some(p) if p.expired(now()) => {
                 *slot = None;
                 log::warn("sign-in: a link arrived after the wait ran out; ignored");
                 status(app, "expired");
+                errors::report(app, AppError::new("sign-in-expired"));
                 return;
             }
             Some(p) => match auth::check_link(p, &link) {
                 LinkMatch::NotOurs => {
                     log::warn("sign-in: a link with the wrong state arrived; ignored");
+                    errors::report(app, AppError::new("sign-in-wrong-link"));
                     return;
                 }
                 LinkMatch::Refused => {
                     *slot = None;
                     log::info("sign-in: the site did not grant access");
                     status(app, "refused");
+                    errors::report(app, AppError::new("sign-in-refused"));
                     return;
                 }
                 LinkMatch::Ours(code) => (slot.take(), code),
@@ -118,6 +147,8 @@ pub fn on_link(app: &AppHandle, link: String) {
             Err(e) => {
                 log::warn(&format!("sign-in: the token trade failed: {e}"));
                 status(&app, "failed");
+                let code = if e == CoreError::SignIn { "sign-in-incomplete" } else { "sign-in-trade-failed" };
+                errors::report(&app, AppError::new(code).kind(e));
                 return;
             }
         };
@@ -136,9 +167,15 @@ pub fn on_link(app: &AppHandle, link: String) {
                 let _ = app.emit("sites-changed", ());
                 crate::fetch::start(&app, site);
             }
-            _ => {
-                log::error("sign-in: could not seal the new site");
+            Ok(Err(e)) => {
+                log::error(&format!("sign-in: could not seal the new site: {e}"));
                 status(&app, "failed");
+                errors::report(&app, AppError::new("site-seal-failed").kind(e));
+            }
+            Err(_) => {
+                log::error("sign-in: could not seal the new site: the task stopped");
+                status(&app, "failed");
+                errors::report(&app, AppError::new("site-seal-failed"));
             }
         }
     });

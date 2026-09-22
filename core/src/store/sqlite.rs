@@ -1,21 +1,29 @@
 //! The desktop store: one SQLite file per site (CORE-CRATE.md §5).
 //!
 //! Plain in the file: table names, row keys (`id`, and a link's `from_id` / `to_id`), a
-//! link's table names, and `meta.schema_version`. Everything else is a sealed BLOB, `NOT
-//! NULL`: a missing value is sealed as "missing", so the file does not show which fields a
-//! record lacks. SQLite never filters or sorts on a sealed value; core does, in Rust.
+//! link's table names, and `meta` (the schema and index versions). Everything else is a
+//! sealed BLOB, `NOT NULL`: a missing value is sealed as "missing", and padding (seal.rs)
+//! gives it the same length as any other short value (docs/architecture/STORE.md §4).
+//! SQLite never filters or sorts on a sealed value; core does, in Rust.
 //!
 //! `secure_delete` is on, so SQLite zeroes the pages it frees.
+//!
+//! Schema 2 (2026-09-21) is schema 1 with every value re-sealed padded. A schema 1 file is
+//! migrated in place when it opens: no value is lost and nothing is fetched.
 
 use super::{CachePass, LinkRow, PatientRow, ResourceRow, RowId, SiteRow, Store, Table, Text, WarningRow};
 use crate::platform::Cipher;
 use crate::seal::{self, Place};
 use crate::{CoreError, Shielded};
-use rusqlite::{params_from_iter, types::Value, Connection, OptionalExtension};
+use rusqlite::{params_from_iter, types::Value, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use std::path::Path;
+use std::time::Duration;
 use zeroize::Zeroizing;
 
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
+/// How long a write waits for another connection to the same file (a fetch and the start-up
+/// re-index can meet) before it fails.
+const BUSY_WAIT: Duration = Duration::from_secs(5);
 
 /// Sealed columns of every resource table, in order (ResourceRow).
 const RESOURCE_COLS: [&str; 14] = [
@@ -68,23 +76,85 @@ impl<C: Cipher> SiteStore<C> {
     }
 
     fn setup(&self) -> Result<(), CoreError> {
+        self.conn.busy_timeout(BUSY_WAIT).map_err(io)?;
         self.conn
             .execute_batch("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA secure_delete = ON;")
             .map_err(io)?;
         self.conn
             .execute_batch("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);")
             .map_err(io)?;
-        let version: Option<i64> = self
-            .conn
-            .query_row("SELECT value FROM meta WHERE key = 'schema_version'", [], |r| r.get(0))
-            .optional()
-            .map_err(io)?;
-        match version {
+        match self.meta("schema_version")? {
             Some(SCHEMA_VERSION) => Ok(()),
+            Some(1) => self.migrate_to_2(),
             // A newer file than this app: never guess at it.
-            Some(_) => Err(CoreError::Io),
+            Some(_) => Err(CoreError::Version),
             None => self.create_schema(),
         }
+    }
+
+    fn meta(&self, key: &str) -> Result<Option<i64>, CoreError> {
+        self.conn.query_row("SELECT value FROM meta WHERE key = ?", [key], |r| r.get(0)).optional().map_err(io)
+    }
+
+    fn set_meta(&self, key: &str, value: i64) -> Result<(), CoreError> {
+        self.conn
+            .execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?1, ?2)", rusqlite::params![key, value])
+            .map_err(io)?;
+        Ok(())
+    }
+
+    /// Every sealed column, per table: what the migration re-seals.
+    fn sealed_tables() -> Vec<(&'static str, &'static [&'static str])> {
+        let mut out: Vec<(&str, &[&str])> = Table::ALL.iter().map(|t| (t.name(), &RESOURCE_COLS[..])).collect();
+        out.extend([
+            ("patient", &PATIENT_COLS[..]),
+            ("site", &SITE_COLS[..]),
+            ("site_warning", &WARNING_COLS[..]),
+            ("link", &LINK_COLS[..]),
+        ]);
+        out
+    }
+
+    /// Schema 1 → 2: re-seal every value padded, in one transaction. The old bytes are freed
+    /// pages, which `secure_delete` zeroes; the checkpoint then clears them from the WAL.
+    fn migrate_to_2(&self) -> Result<(), CoreError> {
+        let tx = Transaction::new_unchecked(&self.conn, TransactionBehavior::Immediate).map_err(io)?;
+        // Another connection may have migrated while this one waited for the lock.
+        if self.meta("schema_version")? == Some(1) {
+            for (table, cols) in Self::sealed_tables() {
+                let rows: Vec<(String, Vec<Vec<u8>>)> = {
+                    let sql = format!("SELECT id, {} FROM {table}", cols.join(", "));
+                    let mut stmt = self.conn.prepare(&sql).map_err(io)?;
+                    let rows = stmt
+                        .query_map([], |r| {
+                            let id: String = r.get(0)?;
+                            let v = (0..cols.len()).map(|i| r.get::<_, Vec<u8>>(1 + i)).collect::<Result<Vec<_>, _>>()?;
+                            Ok((id, v))
+                        })
+                        .map_err(io)?
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(io)?;
+                    rows
+                };
+                let sets: Vec<String> = cols.iter().enumerate().map(|(i, c)| format!("{c} = ?{}", i + 1)).collect();
+                let sql = format!("UPDATE {table} SET {} WHERE id = ?{}", sets.join(", "), cols.len() + 1);
+                for (id, sealed) in rows {
+                    let mut params = Vec::with_capacity(cols.len() + 1);
+                    for (col, bytes) in cols.iter().zip(&sealed) {
+                        let place = Place { table, row: &id, column: col };
+                        let plain = seal::open(&self.cipher, &self.key, &place, bytes)?;
+                        params.push(Value::Blob(seal::seal(&self.cipher, &self.key, &place, &plain)?));
+                    }
+                    params.push(Value::Text(id));
+                    self.conn.execute(&sql, params_from_iter(params)).map_err(io)?;
+                }
+            }
+            self.set_meta("schema_version", 2)?;
+        }
+        tx.commit().map_err(io)?;
+        // Best effort: a failed checkpoint leaves the old pages in the WAL until the next one.
+        let _ = self.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
+        Ok(())
     }
 
     fn create_schema(&self) -> Result<(), CoreError> {
@@ -102,13 +172,19 @@ impl<C: Cipher> SiteStore<C> {
              CREATE INDEX link_to ON link (to_id);",
             sealed_cols(&LINK_COLS)
         );
-        sql += &format!("INSERT INTO meta (key, value) VALUES ('schema_version', {SCHEMA_VERSION}); COMMIT;");
+        // A new file is empty, so its index is current by definition.
+        sql += &format!(
+            "INSERT INTO meta (key, value) VALUES ('schema_version', {SCHEMA_VERSION}), ('index_version', {}); COMMIT;",
+            crate::index::INDEX_VERSION
+        );
         self.conn.execute_batch(&sql).map_err(io)
     }
 
     /// Run `f` as one transaction: all of its writes land, or none do.
+    /// It takes the write lock at the start (IMMEDIATE), so a second connection waits
+    /// [`BUSY_WAIT`] for it rather than failing halfway.
     pub fn transaction<R>(&self, f: impl FnOnce(&Self) -> Result<R, CoreError>) -> Result<R, CoreError> {
-        let tx = self.conn.unchecked_transaction().map_err(io)?;
+        let tx = Transaction::new_unchecked(&self.conn, TransactionBehavior::Immediate).map_err(io)?;
         let out = f(self)?;
         tx.commit().map_err(io)?;
         Ok(out)
@@ -424,6 +500,12 @@ impl<C: Cipher> Store for SiteStore<C> {
     fn in_transaction<R>(&self, f: impl FnOnce(&Self) -> Result<R, CoreError>) -> Result<R, CoreError> {
         self.transaction(f)
     }
+    fn index_version(&self) -> Result<i64, CoreError> {
+        Ok(self.meta("index_version")?.unwrap_or(0))
+    }
+    fn set_index_version(&self, v: i64) -> Result<(), CoreError> {
+        self.set_meta("index_version", v)
+    }
 }
 
 fn resource_row(id: String, v: Vec<Option<Text>>) -> Result<ResourceRow, CoreError> {
@@ -612,8 +694,76 @@ mod tests {
             let s = SiteStore::open(&path, Stand, ()).unwrap();
             s.conn.execute("UPDATE meta SET value = 99 WHERE key = 'schema_version'", []).unwrap();
         }
-        assert_eq!(SiteStore::open(&path, Stand, ()).err(), Some(CoreError::Io));
+        assert_eq!(SiteStore::open(&path, Stand, ()).err(), Some(CoreError::Version));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Padding: a missing value and a short one seal to the same length.
+    #[test]
+    fn missing_and_short_values_look_the_same() {
+        let s = store();
+        let place = Place { table: "result", row: "r", column: "end_" };
+        let missing = s.seal_value(&place, None).unwrap();
+        let short = s.seal_value(&place, Some(&t("2019-04-02"))).unwrap();
+        assert_eq!(missing.len(), short.len());
+    }
+
+    /// Schema 1 → 2: every value re-sealed padded, none lost, and the index marked stale.
+    #[test]
+    fn a_schema_1_file_is_migrated_in_place() {
+        let dir = std::env::temp_dir().join(format!("dh-store-test-{}", crate::platform::random_hex(&Stand).unwrap()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("site.db");
+        let id = RowId::generate(&Stand).unwrap();
+        {
+            let s = SiteStore::open(&path, Stand, ()).unwrap();
+            s.put_resource(Table::Result, &lab(id.clone())).unwrap();
+            s.put_site(&SiteRow { refresh_token: Some(t("r")), ..Default::default() }).unwrap();
+            // Turn it into a schema 1 file: every value in format 1, with the old markers.
+            for (table, cols) in SiteStore::<Stand>::sealed_tables() {
+                let ids: Vec<String> = s
+                    .conn
+                    .prepare(&format!("SELECT id FROM {table}"))
+                    .unwrap()
+                    .query_map([], |r| r.get(0))
+                    .unwrap()
+                    .map(Result::unwrap)
+                    .collect();
+                for row in ids {
+                    for col in cols {
+                        let place = Place { table, row: &row, column: col };
+                        let b: Vec<u8> =
+                            s.conn.query_row(&format!("SELECT {col} FROM {table} WHERE id = ?"), [&row], |r| r.get(0)).unwrap();
+                        let plain = seal::open(&Stand, &(), &place, &b).unwrap();
+                        let old = seal::seal_v1(&Stand, &(), &place, &plain).unwrap();
+                        s.conn.execute(&format!("UPDATE {table} SET {col} = ?1 WHERE id = ?2"), rusqlite::params![old, row]).unwrap();
+                    }
+                }
+            }
+            s.conn.execute("UPDATE meta SET value = 1 WHERE key = 'schema_version'", []).unwrap();
+            s.conn.execute("DELETE FROM meta WHERE key = 'index_version'", []).unwrap();
+        }
+        let s = SiteStore::open(&path, Stand, ()).unwrap();
+        assert_eq!(s.meta("schema_version").unwrap(), Some(2));
+        let raw: Vec<u8> = s.conn.query_row("SELECT raw FROM result", [], |r| r.get(0)).unwrap();
+        assert!(seal::is_current(&raw));
+        let back = s.resource(Table::Result, &id).unwrap().unwrap();
+        assert_eq!(show(&back.kind), "lab");
+        assert!(back.end.is_none(), "missing stays missing");
+        assert_eq!(show(Store::site(&s).unwrap().unwrap().refresh_token.as_ref().unwrap()), "r");
+        assert_eq!(Store::index_version(&s).unwrap(), 0, "a migrated file is re-indexed once");
+        drop(s);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn reindex_runs_only_when_stale() {
+        let s = store();
+        assert_eq!(Store::index_version(&s).unwrap(), crate::index::INDEX_VERSION, "a new file is current");
+        assert!(crate::sync::reindex_if_stale(&s).unwrap().is_none());
+        s.set_index_version(0).unwrap();
+        assert!(crate::sync::reindex_if_stale(&s).unwrap().is_some());
+        assert_eq!(Store::index_version(&s).unwrap(), crate::index::INDEX_VERSION);
     }
 
     /// Stage 6: rows written with only a raw resource (as stage 5 left them) get their index

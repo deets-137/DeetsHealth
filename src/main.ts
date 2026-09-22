@@ -14,6 +14,7 @@ import { initSkinSettings } from "./skin-settings";
 import { makeDropdown, setDropdownMode } from "./dropdown";
 import { withAppearanceTransition } from "./appearance";
 import { initQuickPanel } from "./quick-panel";
+import { initAppErrors } from "./app-errors";
 import * as frames from "./frames";
 
 // Wire the custom window buttons to the OS window. The titlebar drag is handled
@@ -111,6 +112,9 @@ window.addEventListener("DOMContentLoaded", () => {
   // ── Cards + layout: mount the Patient card (anchored top) and the content slots from the
   //    persisted assignment, and wire each slot's title picker. ──
   initLayout();
+  // Failures from the Rust side become toasts (app-errors.ts). After the layout, so the
+  // toast host has its place.
+  void initAppErrors();
   // The launch cover (boot-cover.ts): the window shows once the window is at its size, then
   // the cards rise into place. Nothing to restore yet, so `restored` settles at once.
   runBootCover(Promise.resolve(), [surfaceSized()]);

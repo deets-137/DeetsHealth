@@ -34,7 +34,8 @@ updated: 2026-09-21
     a Settings › Sites row; `Shielded<T>`; one key and file per site; Windows CNG and
     SChannel). Forks 8a and 11a, the Sites section (S1–S6) and the build order closed the
     same day. **Stages 1–6 built** (CORE-CRATE.md §12; sign-in, a full fetch, the index and
-    the links pass live tests against the SMART sandbox). The card models wait for each
+    the links pass live tests against the SMART sandbox; reference docs: SIGN-IN.md, FETCH.md,
+    INDEX-AND-LINKS.md, STORE.md). The card models wait for each
     card's design (the owner, at stage 6). **Next: stage 7**, `ts-rs` and the Settings ›
     Sites section (S1–S6). Before the desk test the owner starts
     `npm run dev:app` from his own terminal once, so the `deetshealth-dev://` scheme lands in
@@ -133,26 +134,12 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
    app-icon.svg` makes the set; the real icon is the owner's call.
 8. **Computed sex** — parked until the build. Direction set: display `gender`; calculations
    use a sex computed from several factors at runtime (FHIR-SHAPES.md §5, fork 4).
-10. **Docs to write or refresh** (noted 2026-09-21, at the end of stage 6; the owner asked for
-    thorough architecture docs). Do these before or with stage 7:
-    - **New `architecture/FETCH.md`**, the fetch's twin of SIGN-IN.md: the plan, every
-      constant (`PACE`, `PAGE_SIZE`, `TRIES`, `MAX_WAIT_S`, `WANTED_INCLUDES`, the Observation
-      categories), the retry and skip rules, the warning codes (`http-<status>`, `network`,
-      `unreadable-page`, `next-link-off-site`, `seal`, `store`), the events, the log lines,
-      the measured cost, troubleshooting, the live tests.
-    - **New `architecture/INDEX-AND-LINKS.md`**, the reference for card design: the `kind`
-      words, the code field per type, the date-field order, the canonical code systems, every
-      link role and its source fields, what is skipped, how `reindex` rebuilds. Today it is
-      spread over CORE-CRATE.md §12 and DATA-MODEL.md §4.
-    - **New `architecture/STORE.md`** (or a DATA-MODEL.md "as built" part): the files on disk
-      (`%APPDATA%\com.deetshealth.*\sites\*.db`, `keys\*.key`), the schema, what is plain, the
-      sealed "missing" value, the `Store` trait, erase.
-    - **Refresh, stale since the build:** DATA-ARCHITECTURE.md (its banner says nothing is
-      built; §2–§4 now live in SIGN-IN.md, CORE-CRATE.md and DATA-MODEL.md: cut it to a map,
-      or fold it in); CORE-CRATE.md's header ("nothing here is built") and the §3 layout
-      diagram (no `normalize` / `model` yet; the sign-in return is not a trait; add `net`,
-      `index`); SECURITY.md §8's "nothing here is built yet" (add an as-built note);
-      SECURITY-BRIEF.md §7 status (stages 5–6); CLAUDE.md's doc list for the new docs.
+10. **The fixes after stage 6 — built, for the owner's desk test** (2026-09-21;
+    CORE-CRATE.md §12 › Fixes after stage 6): padding and schema 2 (STORE.md), the
+    Observation fallback and the `next`-link check (FETCH.md), automatic re-index by version
+    (INDEX-AND-LINKS.md §10), and one `app-error` event with a toast for every failure
+    (ERRORS.md). **Open: the toast wording in ERRORS.md §3 is a draft for the owner.** Not
+    committed.
 
 ## Gotchas
 - Epic's sandbox data is small and tidy. Real site data is not.
@@ -188,7 +175,9 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
   (per-site keys wrapped by DPAPI): every `unsafe` crypto call in the app. `sites.rs`: one
   store file and one key per site; create, open, list, erase. `signin.rs`: the waiting
   sign-in, the returning link, the commands; `browser.rs`: opens https:// in the system browser.
-  `fetch.rs`: runs the fetch off the UI thread after sign-in; `site_refresh`; progress events.
+  `fetch.rs`: runs the fetch off the UI thread after sign-in; `site_refresh`; progress events;
+  `check_sites` at start. `errors.rs`: the one `app-error` event (ERRORS.md); the page side
+  is `src/app-errors.ts`.
 - `src/main.ts` — boot and the title bar. `src/layout.ts` — the slots per surface.
   `src/surface.ts` — Midi / Max and the resize bands. `src/cards.ts` — the registry.
   `src/record-cards.ts` — the empty record cards. `src/settings-card.ts` — Settings.
