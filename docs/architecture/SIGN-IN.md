@@ -1,15 +1,15 @@
 ---
 status: built
 desk_test: open
-sources: [core/src/auth.rs, core/src/net.rs, src-tauri/src/signin.rs, src-tauri/src/browser.rs, src-tauri/src/lib.rs, src-tauri/src/sites.rs]
-updated: 2026-09-21
+sources: [core/src/auth.rs, core/build.rs, core/src/net.rs, src-tauri/src/signin.rs, src-tauri/src/browser.rs, src-tauri/src/lib.rs, src-tauri/src/sites.rs]
+updated: 2026-10-13
 ---
 # DeetsHealth — Sign-in
 
 > How the app signs in to a site, step by step, with every value that can be changed and
 > where. For a user question, a bug, or a change. The design history is CORE-CRATE.md §6 and
-> §12 (stage 4); the rules are SECURITY.md §4.4 and §8.5. The Sites section that starts a
-> sign-in arrives in stage 7; until then the commands exist and nothing calls them.
+> §12 (stage 4); the rules are SECURITY.md §4.4 and §8.5. Settings › Sites starts a
+> sign-in (stage 7, CORE-CRATE.md §12).
 
 ## 1. Terms
 - **Site** — one health system's FHIR server, with its own base URL.
@@ -26,7 +26,8 @@ updated: 2026-09-21
   browser opening and the link returning. One at a time.
 
 ## 2. What the user sees
-1. Settings › **Sites** › **Connect a site**, then a pick from the menu (stage 7).
+1. Settings › **Sites** › **Connect a site** › **Choose**, then a pick from the menu. Or,
+   on a row that says "Sign in again", its **Sign in** half (§3, step 1b).
 2. The default browser opens at the site's sign-in page. For the SMART sandbox: a patient
    picker (synthetic patients), then sometimes a practice login with no real password.
 3. The browser asks to open DeetsHealth. The user allows it.
@@ -37,6 +38,7 @@ updated: 2026-09-21
 | Step | Where | What happens |
 |---|---|---|
 | 1 | `signin::sign_in_start(site)` (command) | Picks `auth::sandbox_sites()[site]`. |
+| 1b | `signin::site_sign_in(site)` (command; `site` is the app's site key) | Opens the saved site, finds its menu entry by base URL (`auth::entry_for`), and remembers the site in the waiting sign-in. At the return (`signin::save`), `auth::renew_site` puts the new tokens into the saved site if the same patient came back; another patient becomes a new site. |
 | 2 | `auth::begin` | GET `<base>/.well-known/smart-configuration`. Needs `authorization_endpoint` and `token_endpoint`, both `https://`. Makes the verifier (32 random bytes → 43 base64url characters), the challenge (base64url of SHA-256, both from CNG) and `state` (16 random bytes). Builds the authorize URL (§4). |
 | 3 | `signin.rs` | Stores the waiting sign-in (replacing any older one). |
 | 4 | `net::open_in_browser` → `browser::SystemBrowser` | `ShellExecuteW("open", url)`. `https://` only, checked twice. |
@@ -45,7 +47,7 @@ updated: 2026-09-21
 | 7 | `signin::on_link` | Shields the link at once. No waiting sign-in → ignored. Older than 10 min → dropped. Then `auth::check_link`. |
 | 8 | `auth::check_link` | `Ours(code)`: our `state` and a `code`. `Refused`: our `state`, but `error=` or no code. `NotOurs`: any other `state`, or not a URL — the waiting sign-in stays. |
 | 9 | `auth::exchange` | POST the token endpoint: `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id`, `code_verifier`. Needs `token_type` Bearer, an `access_token` and a `patient`. |
-| 10 | `sites::SiteFiles::create` + `SiteStore::put_site` | A new site key (random name), a new DPAPI-wrapped data key, a new SQLite file; the site row sealed: name, base URL, client id, `Patient` id, SMART config, scopes, tokens, expiry. |
+| 10 | `signin::save` → `sites::SiteFiles::create` + `SiteStore::put_site` | (A **Sign in** of a saved site with the same patient updates that site instead: step 1b.) A new site key (random name), a new DPAPI-wrapped data key, a new SQLite file; the site row sealed: name, base URL, client id, `Patient` id, SMART config, scopes, tokens, expiry. |
 | 11 | events | `sign-in` = `connected`; `sites-changed`. The fetch starts (stage 5). |
 
 **The authorize URL** (step 2): `response_type=code`, `client_id`, `redirect_uri`,
@@ -60,12 +62,12 @@ or the site answers 400 / 401. Any other failure is an error: try again later.
 ## 4. What to change, and where
 | To change | Where | Notes |
 |---|---|---|
-| Scopes | `auth::SCOPES` | Today `openid fhirUser launch/patient offline_access patient/*.read` (SMART v1). A site may grant less; the granted scope is sealed in `site.scopes`. Epic sets its scopes at app registration, not in this string. |
+| Scopes | `SiteEntry.scopes`: `auth::SCOPES` (SMART v1, `patient/*.read`) or `auth::SCOPES_V2` (`patient/*.rs`) | SMART uses v1. Epic uses the version its registration names (`scope_version` in `epic-client.json`). A site may grant less; the granted scope is sealed in `site.scopes`. Epic grants what the registration lists, whatever this string asks. |
 | How long a sign-in waits | `auth::WAIT_LIMIT_S` | 10 minutes. |
 | How early to refresh | `auth::REFRESH_MARGIN_S` | 2 minutes. |
 | Expiry when a site sends none | `auth::read_tokens` | 1 hour (the SMART default). |
-| Client id | `SiteEntry.client_id` in `auth::sandbox_sites` | `deetshealth` for the SMART sandbox (it accepts any). A real site's id comes from its registration and lives in a git-ignored file (SECURITY.md §4.8). |
-| Sites in the Connect menu | `auth::sandbox_sites` | A `SiteEntry` per site: name, base URL, client id. Real sites come from the directory (integrations/ENDPOINT-DIRECTORY.md). |
+| Client id | `SiteEntry.client_id` in `auth::sandbox_sites` | `deetshealth` for the SMART sandbox (it accepts any). Epic's comes from `epic-client.json` at the repo root (git-ignored; template `epic-client.example.json`): `core/build.rs` reads it at build time into `DEETSHEALTH_EPIC_CLIENT_ID` (integrations/EPIC.md §2). A change to the file rebuilds the core. |
+| Sites in the Connect menu | `auth::sandbox_sites` | A `SiteEntry` per site: name, base URL, client id, scopes. SMART is index 0. **Epic sandbox** is index 1, only in a build that found `epic-client.json` with a `nonprod_client_id` (`auth::EPIC_SANDBOX`). Real sites come from the directory (integrations/ENDPOINT-DIRECTORY.md). |
 | The SMART sandbox's setup | `auth::SMART_LAUNCH` | §5. |
 | Redirect URI | `lib.rs` `LINK_SCHEME` + `signin::SignIn::new` | `<scheme>://callback`. Debug: `deetshealth-dev`; release: `deetshealth`. A registered site must list the one the build sends, so a site may need both. |
 | HTTP rules | `net::Net::new` | HTTPS only, TLS 1.2+, no redirects, gzip, 30 s timeout, `User-Agent: DeetsHealth/<version>`. |
@@ -184,7 +186,7 @@ The log is `%APPDATA%\com.deetshealth.dev\deetshealth.log` (debug) or
   and a bad refresh token → `SignInAgain`.
 
 ## 12. Desk test
-> Open. Runs with the Sites section (stage 7).
+> Open. Built 2026-09-24; the whole Sites test is CORE-CRATE.md §12, "Stage 7 desk test".
 1. Start `npm run dev:app` from your own terminal (§6).
 2. Settings › Sites › Connect a site › SMART Health IT sandbox. Expect the browser at the
    patient picker.

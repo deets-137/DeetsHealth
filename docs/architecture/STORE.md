@@ -2,7 +2,7 @@
 status: built
 desk_test: none
 sources: [core/src/store/mod.rs, core/src/store/sqlite.rs, core/src/seal.rs, src-tauri/src/sites.rs, src-tauri/src/keystore.rs, src-tauri/src/cng.rs]
-updated: 2026-09-21
+updated: 2026-09-24
 ---
 # DeetsHealth — The sealed store
 
@@ -141,6 +141,7 @@ shielded.
 | `site`, `put_site` | The site row. |
 | `put_patient` | The patient row. |
 | `keys(table)` | Every row's key, FHIR type and FHIR id. |
+| `type_counts(table)` | Rows per FHIR type, for the Sites row. `SiteStore` opens one column (`fhir_type`); the default reads `keys`. |
 | `put_resource`, `resources(table)` | Write one resource row; read every row of a table, `raw` included. |
 | `put_link`, `delete_links_from`, `unresolved_links`, `set_link_target` | The links. |
 | `add_warning`, `clear_warnings` | The site's warnings. |
@@ -161,8 +162,12 @@ The pass: the store is one of the three modules that may read a `Shielded` value
 This is the cryptographic erase of NIST SP 800-88 (SECURITY.md §8.3). A copy of the file made
 before the erase cannot be opened: no other key opens it.
 
-**Built, not yet called.** The Sign out half arrives in stage 7 and the erase in stage 8.
-The uninstaller's delete of the whole folder (SECURITY.md §4.7) comes with the release path.
+**Called by Sign out** (stage 7, 2026-09-24): Settings › Sites › a row's **Sign out**,
+pressed twice within 3 s, calls `sites::site_sign_out`. It takes the site's `Running` claim,
+so it never erases under a fetch (`sign-out-busy`), and then calls `erase`. A file whose
+key is gone still gets a Sites row with Sign out, so an erase that stopped after step 1 can
+be finished from the app. The uninstaller's delete of the whole folder (SECURITY.md §4.7)
+comes with the release path.
 
 ## 9. When it goes wrong
 | Symptom | Likely cause | Fix |
@@ -171,7 +176,7 @@ The uninstaller's delete of the whole folder (SECURITY.md §4.7) comes with the 
 | `site: the store would not open: key store error` (toast `site-unreadable`) | DPAPI will not unwrap the key (another Windows user, or a profile copied to another PC). | The same. |
 | `crypto error` on a read or at the migration | A sealed value was changed or moved, or the file was opened with another site's key. | The same. |
 | `written by a newer version` (toast `site-newer`) | A newer build wrote the file. | Use the newer build, or sign out and connect again. |
-| A `.db` file with no `.key` | An erase stopped after step 1. | Delete the `.db`: it cannot be opened. |
+| A `.db` file with no `.key` | An erase stopped after step 1. | Its Sites row reads "cannot be opened": press Sign out twice. |
 
 ## 10. What to change, and where
 | To change | Where |

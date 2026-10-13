@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-09-21
+updated: 2026-10-13
 ---
 # DeetsHealth — Design
 
@@ -96,3 +96,24 @@ rule that holds on one platform only says so.
   from many health systems. With the user's permission, HealthKit gives an app those records
   as FHIR JSON (`HKClinicalRecord`), with no sign-in of our own. A fork for that time.
 - App Store review has rules for apps that hold health data.
+
+### 6.4 How ready the plan is for a web copy (checked against the code, 2026-10-13)
+The owner asked how well the plan supports a move to the web, or a second copy on the web.
+"Ready" means the code or the decided design already covers it.
+
+| Part | State | What the web needs |
+|---|---|---|
+| The core crate | **Ready.** No Tauri; `cargo check --target wasm32-unknown-unknown` passes (HANDOFF.md › Run). `reqwest` uses the browser's fetch on wasm. | Nothing |
+| The front end | **Mostly ready.** Vanilla TS and Vite. DeetsMusic's web demo runs its real `src/` in a browser through a shim (`../DeetsMusic/docs/features/WEB-DEMO.md`). | A host module: 11 `invoke` calls in `src/` go through one file that calls Tauri on the desktop and the wasm core on the web |
+| The record in memory (DeetsEngine, Decided 2026-10-13) | **Helps.** The globals are built in memory at open, so the core's sync `Store` trait never waits on IndexedDB, which is async. | The sealed rows in IndexedDB: one bulk read at open, one bulk write after a fetch |
+| `Cipher` (AES-GCM) | **Gap.** The trait is sync (`core/src/platform.rs`). WebCrypto is async. | A fork for that time: make the trait async, or use an audited Rust AES-GCM in wasm, with its key wrapped by a non-extractable WebCrypto key at rest |
+| `KeyStore` | **Designed** (§6): WebCrypto non-extractable keys | Build it |
+| Sign-in return | **Designed** (§6): a web redirect | A third redirect URI on the Epic registration (`https://…/callback`). Whether each site allows a browser to call its token and FHIR endpoints (CORS) needs a check per site, Epic first |
+| Hosting | Static files only, no record on a server | Cloudflare (the identity worker's host, ideas/IDENTITY-WORKER.md §8) |
+| A second copy beside the desktop | Two copies keep two stores; neither knows the other | Only the identity worker joins them (device linking). Without it, each copy signs in and fetches on its own: twice the calls to the site |
+| Code served fresh on each visit | **Open risk** (§6) | A design of its own before a web launch |
+
+**In short:** the data path (the core, the seal, the store, the fetch) was built for the web
+from the start, and the in-memory engine removes the hardest web problem (sync code over an
+async store). The real work is the async `Cipher`, the IndexedDB store, the host module, and
+the per-site CORS check.

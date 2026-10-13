@@ -2,11 +2,62 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-09-21
+updated: 2026-10-13
 ---
 # DeetsHealth — Work log
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
+
+## 2026-10-13 — fresh eyes: a true patient portal
+- The owner has a fhir.epic.com account, a new M engine (`../DeetsEngine`), and a larger
+  DeetsMusic to model the look on. He asked to pick up with fresh eyes.
+- He chose: read-only with a model designed for writes; Home and hub cards with levels; the
+  engine set D-A + R-A + L-A (the sealed SQLite store on disk, an in-memory globals tree
+  rebuilt at open, a protected mode in the engine, the tree kept while the app is open); Epic
+  sandbox sign-in next. All in HANDOFF.md › Decided (2026-10-13).
+- Found in the code: DeetsEngine's `NotUnique` error carries its values, and its index
+  subscripts are plain in its SQLite keys, so the engine cannot hold protected data on disk.
+  This is why the record stays in the sealed store and the engine runs in memory. The
+  collection-card engine and Compass never came across to DeetsHealth. The core's `Cipher`
+  trait is sync, but WebCrypto is async.
+- New docs: `integrations/EPIC.md` (the sheet he fills in, the plan, forks E0–E3),
+  `features/HOME-AND-HUBS.md` (the layout; after review, real forks H3 and H5), `ideas/IDENTITY-WORKER.md` (tiered
+  access over a Cloudflare worker; after review, real forks W2 and W3). New DESIGN.md §6.4 (web readiness).
+- No code changed. Stage 7's desk test is still open, and its work is still not committed.
+- The owner asked how many of the 12 layout and worker forks were real. 4 were. He asked for
+  the evaluation style in writing: new LESSONS.md §5 (the fork test) and two tie-breaker rows,
+  and a pointer in CLAUDE.md › Working style. EPIC.md §2 now follows the real "Create an App"
+  form, with a new fork E0 (Automatic Client Distribution).
+- The fork test went into the global `~/.claude/CLAUDE.md` (Bringing forks), with a rule that a
+  Claude-written or old rule may be wrong, so ask when it matters. A one-line pointer is in
+  LESSONS.md §5.2.
+- Incoming APIs: every R4 read and search (EPIC.md §2, row 2). Dynamic clients: the JWT bearer
+  grant (new EPIC.md §6). SECURITY.md §5 corrected: its "refresh tokens" words were Claude's,
+  and wrong for this path.
+- The owner filled in the Epic form and has a non-production client ID. Built E-2:
+  `core/build.rs` (reads `epic-client.json` at build time; serde_json as a build dependency,
+  already in the tree), `epic-client.example.json`, `SiteEntry.scopes`, `SCOPES_V2`,
+  `EPIC_SANDBOX`, the Epic sandbox at index 1 of the Connect menu, and the test
+  `epic_entry_follows_the_build`. E1–E3 failed the fork test, so each follows (EPIC.md §5).
+- Checks: core 41 tests + 3 proofs (the new test also with a dummy file, no file and a bad
+  file), wasm check, host `cargo check`. No live run: the owner's own terminal is needed for
+  the scheme.
+
+## 2026-09-24 — stage 7: `ts-rs` and Settings › Sites
+- The owner asked where the SMART work stood, then asked for stage 7.
+- Built: `core/src/payload.rs` (the Sites payloads and the event types; `CardPass`'s first
+  user, the site's name), `ts-rs` 12 behind the core's `ts` feature, `npm run types`
+  (`scripts/types.mjs` → `src/model/`, 9 files). `Store::type_counts`. `auth::entry_for`
+  and `auth::renew_site` for a saved site's Sign in. Host: `site_sign_in`, `sites_list`,
+  `site_sign_out`; the fetch drops dead tokens on "sign in again". Front end: `src/sites.ts`
+  and the Sites section of the Settings card. Three new error codes.
+- The sign-out erase came with stage 7 (S5 says the second click erases); stage 8 keeps the
+  refreshes.
+- Checks: core 40 tests + 3 proofs, host 14, wasm, clippy (3 old notes in `log.rs`), `tsc`,
+  `vite build`, `docs:check`. Live tests not run: the fetch itself did not change.
+- Corrected HANDOFF.md: the fixes after stage 6 were committed in `0061887`.
+- New crates: `ts-rs`, `ts-rs-macros` and `termcolor`, build time only (the `ts` feature).
+- Open: the owner's desk test (CORE-CRATE.md §12) and the choices in HANDOFF.md › Open now 11.
 
 ## 2026-09-21 — the fixes after stage 6
 - The owner said values can be padded, asked to fix the five findings, and asked that every

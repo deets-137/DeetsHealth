@@ -12,7 +12,10 @@
 // The quick panel (quick-panel.ts) draws sections of this card with this card's own code
 // (`mountSettingsParts`), so a row there and a row here can never disagree.
 //
-// All markup here is fixed app text. Nothing from a record is ever a setting.
+// All markup here is fixed app text. Nothing from a record is ever a setting. The one
+// exception is Sites (sites.ts): a connected site's name is protected data for a real site,
+// so a row's `name` goes in by `textContent` after the markup is built, and a site row has no
+// hover hint (CORE-CRATE.md §2, S2).
 
 import "./styles/settings.css";
 import { setting, setSetting, onSettingsChange, DEFAULTS, type Settings } from "./settings-store";
@@ -29,6 +32,11 @@ import { takeSettingRequest, onSettingRequest } from "./layout-bus";
 import type { CardDef, CardInstance, MountOpts } from "./cards";
 import { scrollSnapshot, applyScrollSnapshot } from "./card-memory";
 import { SIZE_KEYS, sizeSeen, type SurfaceName } from "./surface";
+import {
+  onSitesChange, sitesCatalog, sitesList, siteLive, signInWaiting, connect, signInAgain, cancelSignIn,
+  refresh, signOut, countsText, updatedText, WAITING_TEXT,
+} from "./sites";
+import type { SiteView } from "./model/SiteView";
 
 /** Escape text for markup. Every label and hint here is app text; this keeps it that way. */
 export const esc = (s: string): string =>
@@ -64,10 +72,11 @@ interface ChoiceRow {
   /** Force the dropdown form even at or under SPLIT_MAX. */
   menu?: boolean;
 }
-/** One half of a split pill. */
+/** One half of a split pill. A menu half shows its current option, or `label` when it is a
+ *  pick that starts something (Sites › Connect a site) rather than a setting. */
 type Half =
   | { type: "action"; label: string; hint?: string; run: (el: HTMLElement) => void }
-  | { type: "menu"; options: Option[]; get: () => string; set: (v: string) => void };
+  | { type: "menu"; options: Option[]; get: () => string; set: (v: string) => void; label?: string };
 interface SplitRow {
   kind: "split";
   id: string;
@@ -77,6 +86,11 @@ interface SplitRow {
   /** Heads the indented `sub` rows under it (its label is underlined); or is one of them. */
   group?: boolean;
   sub?: boolean;
+  /** Shown instead of `label`, set by `textContent` only: protected text (a site's name).
+   *  `label` stays the row's search text. */
+  name?: () => string;
+  /** A line under the label (Sites). Fixed words and counts only. */
+  status?: () => string;
 }
 /** A sub-heading inside one section's fold. Not a setting: skipped by the header's count. */
 interface HeadRow {
@@ -308,7 +322,91 @@ function mountSettings(host: HTMLElement, mountOpts?: MountOpts, parts?: Setting
     ],
   });
 
+  // ── Sites (CORE-CRATE.md §2, S1–S6): Connect, then one split row per saved site ──
+  // Rows are rebuilt from sites.ts on every read, so a click always acts on the state now.
+  const SIGN_OUT = "Sign out";
+  const SIGN_OUT_ASK = "Sign out?";
+  /** S5: a second click within this time erases. */
+  const SIGN_OUT_MS = 3000;
+  const armed = new Map<string, number>();
+  const siteRowId = (key: string) => `site-${key}`;
+  const cancelHalf: Half = { type: "action", label: "Cancel", hint: "Stops waiting for the browser", run: () => cancelSignIn() };
+  const signOutHalf = (key: string): Half => ({
+    type: "action",
+    label: armed.has(key) ? SIGN_OUT_ASK : SIGN_OUT,
+    hint: "Erases this site's data from this PC. Click twice",
+    run: (el) => {
+      const t = armed.get(key);
+      if (t !== undefined) {
+        window.clearTimeout(t);
+        armed.delete(key);
+        el.textContent = SIGN_OUT;
+        void signOut(key);
+        return;
+      }
+      el.textContent = SIGN_OUT_ASK;
+      armed.set(key, window.setTimeout(() => {
+        armed.delete(key);
+        // The row may have been redrawn meanwhile: find the half again.
+        body.querySelectorAll<HTMLElement>(`[data-row="${siteRowId(key)}"][data-half]`).forEach((b) => {
+          if (b.textContent === SIGN_OUT_ASK) b.textContent = SIGN_OUT;
+        });
+      }, SIGN_OUT_MS));
+    },
+  });
+  const siteStatus = (s: SiteView): string => {
+    const l = siteLive(s.key);
+    if (signInWaiting() === s.key) return WAITING_TEXT;
+    if (s.state === "unreadable") return "This site's saved data cannot be opened. Sign out to erase it.";
+    if (s.state === "newer") return "Saved by a newer version of DeetsHealth. Update the app, or sign out.";
+    if (l.fetching) {
+      const c = countsText(l.fetching);
+      return c ? `Fetching… ${c}` : "Fetching…";
+    }
+    if (l.signInAgain || s.state === "sign-in-again") return "Sign in again";
+    if (l.failed) return "Could not reach this site. Refresh to try again.";
+    return `${countsText(s.counts) || "No records yet"} · ${updatedText(s.updated)}`;
+  };
+  const siteHalves = (s: SiteView): Half[] => {
+    if (signInWaiting() === s.key) return [cancelHalf];
+    if (s.state === "unreadable" || s.state === "newer") return [signOutHalf(s.key)];
+    const dead = siteLive(s.key).signInAgain || s.state === "sign-in-again";
+    const left: Half = dead
+      ? { type: "action", label: "Sign in", hint: "Opens your browser to sign in to this site again", run: () => void signInAgain(s.key) }
+      : { type: "action", label: "Refresh", hint: "Fetches this site's record again", run: () => void refresh(s.key) };
+    return [left, signOutHalf(s.key)];
+  };
+  const siteRow = (s: SiteView): Row => ({
+    kind: "split",
+    id: siteRowId(s.key),
+    label: "Connected site",
+    // S2: the name is protected for a real site. No hint on this row.
+    name: () => s.name ?? "A saved site",
+    status: () => siteStatus(s),
+    halves: siteHalves(s),
+  });
+  const connectRow = (): Row =>
+    signInWaiting() === "new"
+      ? { kind: "split", id: "site-connect", label: "Connect a site", status: () => WAITING_TEXT, halves: [cancelHalf] }
+      : {
+          kind: "split", id: "site-connect", label: "Connect a site",
+          hint: () => "Opens your browser to sign in. The site's records are saved on this PC, sealed",
+          halves: [{
+            type: "menu", label: "Choose",
+            options: sitesCatalog().map((c) => ({ value: String(c.index), label: c.name })),
+            get: () => "",
+            set: (v) => void connect(Number(v)),
+          }],
+        };
+
   const sections: Section[] = [
+    {
+      title: "Sites",
+      defaultOpen: true,
+      get rows(): Row[] {
+        return [connectRow(), ...sitesList().map(siteRow)];
+      },
+    },
     // Labels: one short active statement each; the hint (hover) only where a word is missing.
     {
       title: "Window",
@@ -449,7 +547,7 @@ function mountSettings(host: HTMLElement, mountOpts?: MountOpts, parts?: Setting
       const tip = h.hint ? ` title="${esc(h.hint)}"` : "";
       return `<button class="set__half" type="button" ${at}${tip}>${esc(h.label)}</button>`;
     }
-    const cur = h.options.find((o) => o.value === h.get())?.label ?? "";
+    const cur = h.label ?? h.options.find((o) => o.value === h.get())?.label ?? "";
     return `<span class="set__menu-wrap"><button class="set__half set__half--menu" type="button" ${at} aria-haspopup="menu" aria-expanded="false">${esc(cur)}<span class="set__caret" aria-hidden="true">▾</span></button></span>`;
   };
 
@@ -467,7 +565,12 @@ function mountSettings(host: HTMLElement, mountOpts?: MountOpts, parts?: Setting
     if (r.kind === "head") return `<h4 class="set__sub-head">${esc(r.label)}</h4>`;
     const hint = r.kind === "choice" || r.kind === "range" ? r.hint : r.hint?.();
     const tip = hint ? ` title="${esc(hint)}"` : "";
-    const label = `<span class="set__label">${esc(r.label)}</span>`;
+    // A row with a name or a status stacks them; the name is filled by `fillNames` (textContent).
+    const label =
+      r.kind === "split" && (r.name || r.status)
+        ? `<span class="set__label set__label--stack"><span class="set__name"${r.name ? ` data-set-name="${r.id}">` : `>${esc(r.label)}`}</span>` +
+          `${r.status ? `<span class="set__status" data-set-status="${r.id}">${esc(r.status())}</span>` : ""}</span>`
+        : `<span class="set__label">${esc(r.label)}</span>`;
     const fx = flashOf(r.id);
     const mark = ` data-set-row="${r.id}"${fx.style}`;
     if (r.kind === "range") {
@@ -661,9 +764,27 @@ function mountSettings(host: HTMLElement, mountOpts?: MountOpts, parts?: Setting
         .join("");
     }
     if (rangeFocus) body.querySelector<HTMLElement>(`[data-range="${rangeFocus}"]`)?.focus({ preventScroll: true });
+    fillNames();
     wireMenus();
     wireRanges();
     markScrollable();
+  };
+  // Protected text reaches the page here only, by textContent (SECURITY.md §4.3).
+  const splitRows = (): SplitRow[] => sections.flatMap((s) => s.rows).filter((r): r is SplitRow => r.kind === "split");
+  const fillNames = () => {
+    for (const r of splitRows()) {
+      if (!r.name) continue;
+      const el = body.querySelector<HTMLElement>(`[data-set-name="${r.id}"]`);
+      if (el) el.textContent = r.name();
+    }
+  };
+  /** A fetch's counts and "Updated … ago" change in place, so an open menu stays open. */
+  const paintStatuses = () => {
+    for (const r of splitRows()) {
+      if (!r.status) continue;
+      const el = body.querySelector<HTMLElement>(`[data-set-status="${r.id}"]`);
+      if (el) el.textContent = r.status();
+    }
   };
   // The scrollbar thumb fades in only while the rows outgrow the card (settings.css).
   const markScrollable = () => body.classList.toggle("is-scrollable", body.scrollHeight > body.clientHeight + 1);
@@ -714,6 +835,10 @@ function mountSettings(host: HTMLElement, mountOpts?: MountOpts, parts?: Setting
   // Re-paint on any change, whoever made it. A full re-render is cheap here.
   const unsubStore = onSettingsChange(render);
   const unsubSkin = onSkinChange(() => render()); // skin-only rows come and go
+  // Sites: a row or a half changes → re-render; only counts change → the status lines.
+  const unsubSites = onSitesChange((c) => (c === "list" ? render() : paintStatuses()));
+  const SITES_CLOCK_MS = 60_000; // "Updated 2 min ago" keeps counting
+  const sitesClock = window.setInterval(paintStatuses, SITES_CLOCK_MS);
 
   // ── requestSetting (layout-bus.ts): unfold the row's section, scroll to the row, highlight it ──
   const focusRow = (id: string) => {
@@ -787,6 +912,9 @@ function mountSettings(host: HTMLElement, mountOpts?: MountOpts, parts?: Setting
     destroy() {
       unsubStore();
       unsubSkin();
+      unsubSites();
+      window.clearInterval(sitesClock);
+      armed.forEach((t) => window.clearTimeout(t));
       unsubRequest();
       dropMenus();
       window.removeEventListener("resize", closeMenus);

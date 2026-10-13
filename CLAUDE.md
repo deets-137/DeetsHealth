@@ -47,8 +47,13 @@ NAME=area`, never by hand.
 
 **`docs/integrations/`** — outside sources
 - `ENDPOINT-DIRECTORY.md` — Epic's Brands bundle (the real-site list), its shape, the weekly worker that re-hosts it.
+- `EPIC.md` — the fhir.epic.com registration sheet the owner fills in, the Epic sandbox, the sign-in plan and its forks.
+
+**`docs/features/`** — one feature or surface
+- `HOME-AND-HUBS.md` — the portal's layout: Home unites one patient's record, drills open hub cards with levels; forks.
 
 **`docs/ideas/`** — not built; never tell a user the app does these.
+- `IDENTITY-WORKER.md` — a Cloudflare worker for accounts, devices and tiered sharing (parent and child, read-only and act); zero-knowledge relay; forks.
 
 ## Privacy rules (this project only — read before any code)
 - **Priority: patient experience first, privacy and security second, everything else after.**
@@ -68,7 +73,8 @@ NAME=area`, never by hand.
 - **The owner runs the app and tests your changes** and gives feedback. Do NOT build
   throwaway test harnesses, mock pages or one-off tooling to verify UI behavior. Make the
   change, check that it compiles, then hand it over with the desk test written into the doc.
-- Cheap checks worth running: `npx tsc --noEmit`, `npx vite build`, `cargo check`.
+- Cheap checks worth running: `npm run types` (after a change to `core/src/payload.rs`),
+  `npx tsc --noEmit`, `npx vite build`, `cargo check`.
 - If something cannot be reasoned through and the owner is away, ask him to test.
 - **Registry writes from this session are not real.** The Claude desktop app is an MSIX
   package: your shells, and a dev app you launch, write `HKCU\Software\Classes` into a
@@ -90,6 +96,13 @@ NAME=area`, never by hand.
     the question.
   - Inside a fork he HAS chosen, build the full, polished thing without asking again.
   - At hand-off, list what you decided inside his choice, so nothing ships unseen.
+  - **Run the fork test before you show a fork** (`docs/LESSONS.md` §5, the owner,
+    2026-10-13). The patient is the most important user. Hold every option to maximum
+    security that still gives a great experience. Hard or complex work is never a cost. Drop
+    every option that a rule, his own words, the code or that standard rules out. One option
+    left = not a fork: state it in one line. Lists are drafts, and later choices wait for
+    their work. Open with the count: "N real forks; M things follow".
+    On 2026-10-13, 8 of 12 forks failed this test.
 - **Every fork weighs every platform** (the owner, 2026-09-21): Windows now; web, macOS and
   iPhone may follow. Each option names what it costs, or rules out, on each platform.
   Platform facts go behind the core's platform traits. DESIGN.md §6.
@@ -130,5 +143,5 @@ NAME=area`, never by hand.
 Local git only. **Never add a remote and never push.** A GitHub repo named DeetsHealth
 already exists for something else.
 Commit only when the user asks. Co-author trailer — name the model that did the work
-(today `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`); update this line when the
+(today `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`); update this line when the
 model changes.

@@ -2,7 +2,7 @@
 status: guide
 desk_test: none
 sources: [core/src/shielded.rs, core/src/seal.rs, core/src/platform.rs, src-tauri/src/cng.rs, src-tauri/src/keystore.rs, src-tauri/tauri.conf.json]
-updated: 2026-09-21
+updated: 2026-09-24
 ---
 # DeetsHealth — A brief for a security engineer
 
@@ -125,15 +125,17 @@ And the open-ended one: **what did I miss entirely?**
 
 ## 7. What exists today
 Honest status, so you know what is real and what is paper:
-- **Built and tested (stages 1–6 of 8):** the workspace, `Shielded<T>` and its three
+- **Built and tested (stages 1–7 of 8):** the workspace, `Shielded<T>` and its three
   passes, the platform traits, the error type; the CNG cipher (with the GCM specification's
   test vectors), the DPAPI key store, the seal format; the sealed SQLite store (a byte scan
   of the real files finds no plaintext); SMART sign-in with PKCE; the full fetch (HTTPS
   only, no redirects, a `next` link must stay on the site); the index and the links between
   rows. Sign-in and the fetch are tested live against the SMART sandbox. The log's
-  redaction and the panic hook (it withholds the message) are built.
+  redaction and the panic hook (it withholds the message) are built. Settings › Sites: the
+  one protected value on screen so far is the site's name, put in by `textContent`; the
+  Sign out button calls the erase.
 - **Designed only:** the normalizer and the card payloads (no record text reaches the page
-  yet), the sign-out button that calls the erase, the uninstaller's delete.
+  yet), the uninstaller's delete.
 - The build plan has 8 stages; the list is in [CORE-CRATE.md §2](CORE-CRATE.md). What the
   build found is [SECURITY.md §8.8](SECURITY.md).
 

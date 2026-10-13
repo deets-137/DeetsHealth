@@ -2,19 +2,20 @@
 status: built
 desk_test: none
 sources: []
-updated: 2026-09-21
+updated: 2026-09-24
 ---
 # DeetsHealth — Data architecture (the map)
 
 > The path of a patient's data, from sign-in to the card, one step per line. Each step
-> points to the doc that owns it. This file holds no rule of its own. Built: sign-in, the
-> fetch, the index and links, the sealed store (CORE-CRATE.md §12, stages 1–6). Not built:
-> the card models, the payloads, the Sites section, refresh and erase (stages 7–8).
+> points to the doc that owns it. This file holds no rule of its own. Built: the Sites
+> section, sign-in, the fetch, the index and links, the sealed store, the sign-out erase
+> (CORE-CRATE.md §12, stages 1–7). Not built: the card models and their payloads (card by
+> card), refresh on open and the weekly refresh (stage 8).
 
 ## The path
 | # | Step | State | Owner doc |
 |---|---|---|---|
-| 1 | The user picks a site (Settings › Sites). | stage 7 | CORE-CRATE.md §2 |
+| 1 | The user picks a site (Settings › Sites). | built | CORE-CRATE.md §2, §12 (stage 7) |
 | 2 | Sign-in: SMART standalone launch in the system browser, PKCE and `state`, the `deetshealth://callback` link, the token trade. | built | [SIGN-IN.md](SIGN-IN.md) |
 | 3 | A new site key, data key and SQLite file; the tokens sealed in the site row. | built | [STORE.md](STORE.md) §2, §5 |
 | 4 | The fetch: `/metadata`, the patient, one job per type, 3 at once, every page. | built | [FETCH.md](FETCH.md) |
@@ -22,9 +23,9 @@ updated: 2026-09-21
 | 6 | Each value sealed on its own, one transaction per page. | built | [STORE.md](STORE.md) §5–§6 |
 | 7 | The rows as a woven record: the encounter at the center. | designed | [DATA-MODEL.md](DATA-MODEL.md) |
 | 8 | Read time: the normalizer turns raw rows into the model a card needs. | card by card | CORE-CRATE.md §8 |
-| 9 | One payload struct per card view, plain values, TypeScript types generated. | stage 7 on | CORE-CRATE.md §9 |
+| 9 | One payload struct per card view, plain values, TypeScript types generated. | tooling and the Sites payloads built; card payloads card by card | CORE-CRATE.md §9 |
 | 10 | The card DOM, through `textContent` only. | card by card | SECURITY.md §4.3 |
-| 11 | Refresh (on open, weekly full) and the sign-out erase. | stage 8 | FETCH.md §12, STORE.md §8 |
+| 11 | Refresh (on open, weekly full) and the sign-out erase. | erase built (stage 7); refresh stage 8 | FETCH.md §12, STORE.md §8 |
 
 The security path of one value, end to end, is SECURITY.md §8.2.
 

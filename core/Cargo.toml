@@ -21,10 +21,17 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # `join_all` for the fetch's three workers (sync.rs). Runtime-free, so it also runs on the web;
 # already in the build through reqwest.
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+# The card payloads and events the front end receives (payload.rs). Shielded<T> never
+# implements Serialize, so only the plain payload structs can be sent.
+serde = { version = "1", features = ["derive"] }
+# TypeScript types for the payloads (CORE-CRATE.md §9, fork 8a). Build time only: behind the
+# `ts` feature, which only `npm run types` turns on. The app never links it.
+ts-rs = { version = "12", optional = true }
+
+[build-dependencies]
+# build.rs reads epic-client.json (EPIC.md §2). Already in the tree as a dependency above.
+serde_json = "1"
 
 [features]
 sqlite = ["dep:rusqlite"]
-
-[dev-dependencies]
-# Only so the doc test in shielded.rs proves Shielded<T> cannot be serialized.
-serde = "1"
+ts = ["dep:ts-rs"]

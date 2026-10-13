@@ -1,8 +1,8 @@
 ---
 status: built
 desk_test: open
-sources: [src-tauri/src/errors.rs, src/app-errors.ts, src-tauri/src/signin.rs, src-tauri/src/fetch.rs, src-tauri/src/lib.rs]
-updated: 2026-09-21
+sources: [src-tauri/src/errors.rs, src/app-errors.ts, src-tauri/src/signin.rs, src-tauri/src/fetch.rs, src-tauri/src/sites.rs, src-tauri/src/lib.rs]
+updated: 2026-09-24
 ---
 # DeetsHealth — App errors and their toasts
 
@@ -58,11 +58,14 @@ Draft wording. "Where" is the route that sends it.
 | `sign-in-incomplete` | error: "The site's sign-in did not give access to a record. Connect again." | `auth::exchange`: not Bearer, no token, or no `patient`. |
 | `site-seal-failed` | error: "Could not save the new site securely. Connect again." | `on_link`: the key or the file could not be made. |
 | `link-register-failed` | error: "Sign-in links cannot reach DeetsHealth. Reinstall the app." | `lib.rs` setup: the scheme write failed. |
-| `site-unknown` | error: "This site is not connected." | `site_refresh`: the site key is not in the right form. |
+| `site-unknown` | error: "This site is not connected." | `site_refresh`, `site_sign_in`, `site_sign_out`: the site key is not in the right form. |
 | `site-key-missing` | error: "The key for this site is gone, so its data cannot be opened. Sign out and connect again." | Opening a site: no key file. |
 | `site-unreadable` | error: "This site's saved data cannot be opened. Sign out and connect again." | Opening a site: DPAPI, the file, or the schema 2 migration failed. |
 | `site-newer` | error: "This site's data was saved by a newer version of DeetsHealth. Update the app." | Opening a site: a newer schema (`CoreError::Version`). |
 | `reindex-failed` | warn: "Could not update the record index. Your data is safe. The app tries again at the next start." | `reindex_if_stale` failed. The store still works; the old index stays. |
+| `sites-list-failed` | error: "Could not read your saved sites. Restart DeetsHealth." | `sites_list`: the task stopped. (One site that will not open gets its own row instead.) |
+| `sign-out-busy` | info: "This site is updating. Sign out when the update ends." | `site_sign_out`: the site is fetching; the fetch holds its file open. |
+| `sign-out-failed` | error: "Could not erase all of this site's data. Sign out again." | `site_sign_out`: the key or a file could not be deleted. The key may be gone already, so the row then reads "cannot be opened"; Sign out again finishes the erase. |
 | `fetch-unavailable` | error: "Updating is not available. Restart DeetsHealth." | A fetch or the start-up check with no sign-in state. |
 | `fetch-busy` | info: "This site is already updating." | `fetch::start`: work on this site runs already. |
 | `fetch-site-unreachable` | error: "Could not reach the site. Refresh to try again." | The whole fetch: `/metadata` or the token refresh did not answer. |
@@ -86,7 +89,10 @@ link.
 ## 5. Desk test
 > Open.
 1. Start `npm run dev:app`. Expect no toast at start.
-2. Settings › Sites › Connect (stage 7), then close the browser tab. Wait 10 minutes, then
-   open the old link. Expect "The sign-in took more than 10 minutes. Connect again."
-3. With the network off, press Refresh (stage 7). Expect "Could not reach the site…".
-4. Read each toast in §3 against the wording you want, and mark the changes.
+2. Settings › Sites › Connect a site › Choose › SMART Health IT sandbox, then close the
+   browser tab. Wait 10 minutes, then open the old link. Expect "The sign-in took more than
+   10 minutes. Connect again."
+3. With the network off, press Refresh. Expect "Could not reach the site…".
+4. Press Refresh, then press Sign out twice while the row counts up. Expect "This site is
+   updating. Sign out when the update ends."
+5. Read each toast in §3 against the wording you want, and mark the changes.

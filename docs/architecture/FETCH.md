@@ -2,16 +2,15 @@
 status: built
 desk_test: open
 sources: [core/src/sync.rs, core/src/fhir.rs, core/src/net.rs, src-tauri/src/fetch.rs]
-updated: 2026-09-21
+updated: 2026-09-24
 ---
 # DeetsHealth — The fetch
 
 > How the app downloads a patient's record from a site, step by step, with every value that
 > can be changed and where. The twin of [SIGN-IN.md](SIGN-IN.md). The design history is
 > CORE-CRATE.md §7 and §12 (stage 5); where the rows go is [STORE.md](STORE.md); what the
-> fetch reads from each resource is [INDEX-AND-LINKS.md](INDEX-AND-LINKS.md). The Sites
-> section that shows the fetch arrives in stage 7. Until then the fetch starts after a
-> sign-in, and nothing on screen shows it.
+> fetch reads from each resource is [INDEX-AND-LINKS.md](INDEX-AND-LINKS.md). Settings ›
+> Sites shows the fetch and starts it again (stage 7, CORE-CRATE.md §12).
 
 ## 1. Terms
 - **Site** — one health system's FHIR server, with its own base URL.
@@ -26,13 +25,15 @@ updated: 2026-09-21
   fixed code of ours when a job stops (§7).
 
 ## 2. What the user sees
-1. After a sign-in (or a press of **Refresh** in Settings › Sites, stage 7), the Sites row
-   counts up: "Fetching… 640 results · 12 medicines".
+1. After a sign-in (or a press of **Refresh** in Settings › Sites), the Sites row counts
+   up: "Fetching… 640 results · 12 medicines".
 2. When the fetch ends, the row shows the counts and "Updated 2 min ago" (CORE-CRATE.md §2, S6).
-3. If the site refuses the refresh token, the row says "Sign in again".
+   A kind with no records is left out of the line; with none at all it reads "No records yet".
+3. If the site refuses the refresh token, the row says "Sign in again", and its left half
+   becomes **Sign in**. The fetch drops both dead tokens, so this lasts across a restart.
 4. If the fetch fails, the row says "Could not reach this site. Refresh to try again."
 
-Today the host sends the events (§8). Nothing on screen reads them until stage 7.
+The page side is `src/sites.ts` (state and events) and `src/settings-card.ts` › Sites.
 
 ## 3. The flow in the code
 | Step | Where | What happens |
@@ -155,12 +156,14 @@ Both carry counts and the app's own random site key only (SECURITY.md §4.3).
 
 | Event | Payload | When |
 |---|---|---|
-| `fetch-progress` | `{ site, counts: { <FHIR type>: n }, jobsDone, jobsTotal, calls }` | After every page, and after every job. |
+| `fetch-progress` | `{ site, counts: { results, medicines, allergies, conditions, visits }, jobsDone, jobsTotal, calls }` | After every page, and after every job. |
 | `fetch-done` | `{ site, end }`, `end` = `done`, `sign-in-again` or `failed` | Once, at the end. |
 | `app-error` | `{ code, kind?, site?, count? }` | On every failure, and on a partial fetch (ERRORS.md). |
 
-`counts` is by FHIR type (`Observation`, `Condition`, …). The words on the Sites row
-("results", "medicines") are made from these in stage 7.
+The types are `FetchProgress` and `FetchDone` in `core/src/payload.rs`; their TypeScript is
+generated into `src/model/`. `counts` are the five words of the Sites row, made from the
+counts by FHIR type (`SiteCounts::from_types`, CORE-CRATE.md §12 stage 7). They count this
+fetch only, so a Refresh starts again at 0. The log line keeps the counts by FHIR type.
 
 ## 9. Log lines
 The log is `%APPDATA%\com.deetshealth.dev\deetshealth.log` (debug) or
@@ -220,7 +223,7 @@ have more pages; measure it when Epic comes back.
 ## 12. Changing it later
 - **Stage 8:** refresh on app open when the last fetch is more than 1 hour old; the small
   update (`_lastUpdated` after the last fetch); a weekly full refresh that removes rows the
-  site deleted; the sign-out erase (STORE.md §8).
+  site deleted. (The sign-out erase came early, in stage 7: STORE.md §8.)
 - **Epic:** measure the pages and the time. Check that Epic refuses the plain Observation
   search in a way §5.2 sees, and add Epic's own Observation categories to the fallback.
 - **`Binary`, `$summary`, `$docref`:** not fetched yet (DATA-MODEL.md §7.4).
@@ -252,7 +255,7 @@ have more pages; measure it when Epic comes back.
   that every table's row count did not change. About 165 calls with the sign-in.
 
 ## 15. Desk test
-> Open. Runs with the Sites section (stage 7).
+> Open. Built 2026-09-24; the whole Sites test is CORE-CRATE.md §12, "Stage 7 desk test".
 1. Start `npm run dev:app` from your own terminal (SIGN-IN.md §6).
 2. Settings › Sites › Connect a site › SMART Health IT sandbox. Pick a patient.
 3. Expect the row to count up, then the counts and "Updated just now".

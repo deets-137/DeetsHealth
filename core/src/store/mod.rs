@@ -18,6 +18,7 @@ pub use sqlite::SiteStore;
 
 use crate::platform::{is_hex_key, random_hex, Cipher};
 use crate::{CoreError, Shielded};
+use std::collections::BTreeMap;
 
 /// A protected text value, as the cache holds it.
 pub type Text = Shielded<String>;
@@ -33,6 +34,15 @@ pub trait Store {
     /// Every row's key, FHIR type and FHIR id: how the fetch finds the row to replace. The
     /// type is FHIR's own word, not record data, so it comes back plain.
     fn keys(&self, table: Table) -> Result<Vec<(RowId, String, Text)>, CoreError>;
+    /// How many rows of each FHIR type a table holds (the Sites row's counts). A store can
+    /// do this more cheaply than reading every key.
+    fn type_counts(&self, table: Table) -> Result<BTreeMap<String, u64>, CoreError> {
+        let mut n = BTreeMap::new();
+        for (_, t, _) in self.keys(table)? {
+            *n.entry(t).or_insert(0) += 1;
+        }
+        Ok(n)
+    }
     fn put_resource(&self, table: Table, r: &ResourceRow) -> Result<(), CoreError>;
     /// Every row of a table, raw resource included (the re-index reads them).
     fn resources(&self, table: Table) -> Result<Vec<ResourceRow>, CoreError>;

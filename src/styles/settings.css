@@ -98,6 +98,11 @@
    label only when the slot is too narrow (flex-wrap on the row, pills pushed right). */
 .set__row--choice { flex-wrap: wrap; min-height: var(--set-row-h); }
 .set__label { min-width: 0; flex: 1 1 auto; }
+/* Sites: the name over a status line. A zero basis keeps the pill on the name's line; a long
+   status wraps inside the label instead of pushing the pill down. */
+.set__label--stack { display: flex; flex-direction: column; flex-basis: 0; }
+.set__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set__status { font-size: var(--fs-subtext); color: var(--subtext); font-variant-numeric: tabular-nums; }
 /* A part of the row above it (Reset › Look and feel): indented one more step, quieter label. */
 .set__row--sub { padding-left: calc(var(--space-2) * 2); color: var(--subtext); }
 /* The row that heads them: an underlined label marks the group. */

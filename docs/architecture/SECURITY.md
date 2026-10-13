@@ -2,12 +2,12 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-09-21
+updated: 2026-09-24
 ---
 # DeetsHealth — Security and privacy
 
 > The rules in §4 were fixed before any code. Most of them are now built (CORE-CRATE.md
-> §12, stages 1–6); §8.8 says what is built, what is not, and what the build found. Open
+> §12, stages 1–7); §8.8 says what is built, what is not, and what the build found. Open
 > forks: §7.
 
 ## 1. Priority (the owner, 2026-09-21)
@@ -125,10 +125,17 @@ note. It covers PII as well as PHI: a patient name is wrapped exactly as a lab v
 
 ## 5. Keeping a user signed in (decided, the owner, 2026-09-21: 3a)
 Test Epic's dynamic client registration first: each install gets its own key pair, sealed as
-in §4.6, so Epic can issue refresh tokens to a public app. **On hold:** the owner cannot
-register on fhir.epic.com yet, so all Epic work waits. SMART Health IT's launcher accepts
+in §4.6, so the app can renew access with no new sign-in. SMART Health IT's launcher accepts
 `private_key_jwt` with no registration, so the per-install key half can be built and tested
 there first.
+
+**Corrected 2026-10-13.** Epic is back on (the owner has a fhir.epic.com account). The words
+"so Epic can issue refresh tokens" were Claude's, and they were wrong for this path. Epic's
+form asks how a dynamic client gets a new access token. The answer is the **JWT bearer grant**
+(`urn:ietf:params:oauth:grant-type:jwt-bearer`), not the refresh token grant: each new access
+token comes from a short JWT that the install signs with its own key. No refresh token is
+stored, so the only long-lived secret is a key that never leaves its key store. That is both
+more secure and fewer sign-ins (EPIC.md §6).
 
 ## 6. The law (a summary, not legal advice)
 - **HIPAA** binds covered entities (providers, health plans, clearinghouses) and their
@@ -241,13 +248,18 @@ build (§4.3).
 - Development uses sandbox patients only. A real record is a later, owner-approved step (§4.8).
 
 ### 8.8 As built
-> **Part:** built · 2026-09-21 · stages 1–6 of 8
+> **Part:** built · 2026-09-24 · stages 1–7 of 8
 
 Where this part and §8.1–§8.7 disagree, this part is the code.
 
 **Built and tested:**
 - `Shielded<T>` and its three passes (`CachePass`, `CardPass`, `SitePass`), with
-  compile-fail proofs (CORE-CRATE.md §12). `CardPass` has no user until stage 7.
+  compile-fail proofs (CORE-CRATE.md §12). `CardPass` has one user since stage 7:
+  `payload::site_view` reveals the **site's name** for its Settings › Sites row. The page
+  puts it in with `textContent` after the markup is built, and the row has no hover hint
+  (`src/settings-card.ts`, `fillNames`). No log line, event, toast or diag entry carries it.
+- The payload and event types are generated from Rust (`ts-rs`, `npm run types`), so the
+  page cannot expect a field Rust does not send (§4.3).
 - AES-256-GCM, random numbers and SHA-256 from Windows CNG; the GCM specification's test
   vectors pass. The associated data is the table, the row key **and the column**: stricter
   than §4.6. Every value is padded before it is sealed (STORE.md §5).
@@ -262,10 +274,12 @@ Where this part and §8.1–§8.7 disagree, this part is the code.
   Every `CoreError` has fixed text. Events carry counts and fixed words only.
 - The CSP in `tauri.conf.json`; no DevTools feature in the Tauri build.
 
+- The sign-out erase: a row's **Sign out**, pressed twice, destroys the site's key, then
+  its files (STORE.md §8). Not while the site fetches.
+
 **Not built yet:**
-- The payload structs, and so no record text reaches the page yet (stage 7).
-- The sign-out erase is built and tested (`SiteFiles::erase`) but nothing calls it; the
-  uninstaller's delete comes with the release path (STORE.md §8).
+- The card payloads, and so no record text reaches the page yet (card by card).
+- The uninstaller's delete comes with the release path (STORE.md §8).
 
 **Found in the build, and fixed** (2026-09-21, the owner's choices):
 - **Sealed lengths.** A sealed value was its plaintext length plus 30 bytes, so the file

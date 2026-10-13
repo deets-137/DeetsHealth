@@ -7,12 +7,22 @@
 // health system a user signed in to. Erase destroys the key first: from that moment the
 // file cannot be opened, whatever happens to the file delete after it.
 
+//
+// The Sites section's commands are at the end: `sites_list` (the rows) and `site_sign_out`
+// (the erase). Refresh is `fetch::site_refresh`; Connect and Sign in are in signin.rs.
+
 use crate::cng::Cng;
+use crate::errors::{self, AppError};
+use crate::fetch::Running;
 use crate::keystore::DpapiKeyStore;
+use crate::log;
+use crate::signin::SignIn;
+use deetshealth_core::payload::{self, SitesPayload};
 use deetshealth_core::platform::{KeyStore, SiteKey};
 use deetshealth_core::store::SiteStore;
 use deetshealth_core::CoreError;
 use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Emitter, Manager};
 
 pub struct SiteFiles {
     sites: PathBuf,
@@ -69,6 +79,85 @@ impl SiteFiles {
             }
         }
         Ok(())
+    }
+}
+
+fn now() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
+}
+
+/// Settings › Sites: the Connect menu and one row per saved site. A site whose file will not
+/// open still gets a row, so Sign out can erase it. The payload holds the site's name
+/// (protected): the page puts it in with `textContent` only.
+#[tauri::command]
+pub async fn sites_list(app: AppHandle) -> Result<SitesPayload, String> {
+    let app2 = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let app = app2;
+        // Already reported at setup when missing (lib.rs).
+        let s = app.try_state::<SignIn>().ok_or("sign-in-unavailable")?;
+        let files = s.files();
+        let mut sites = Vec::new();
+        for key in files.list() {
+            let view = match files.open(&key) {
+                Ok(Some(store)) => payload::site_view(&key, &store, now()),
+                Ok(None) => Err(CoreError::KeyStore),
+                Err(e) => Err(e),
+            };
+            sites.push(view.unwrap_or_else(|e| {
+                log::warn(&format!("sites: a site would not open for its row: {e}"));
+                payload::broken_site_view(&key, Some(e))
+            }));
+        }
+        Ok(SitesPayload { catalog: payload::catalog(), sites })
+    })
+    .await
+    .map_err(|_| {
+        log::error("sites: the list failed: the task stopped");
+        errors::report(&app, AppError::new("sites-list-failed"));
+        "sites-list-failed".to_owned()
+    })?
+    .map_err(|code: &str| code.to_owned())
+}
+
+/// The row's **Sign out**, after its confirm: erase the site (STORE.md §8). Refused while the
+/// site is fetching: the fetch holds the file open. On failure it returns the `app-error` code.
+#[tauri::command]
+pub async fn site_sign_out(app: AppHandle, site: String) -> Result<(), String> {
+    let fail = |code: &'static str| {
+        errors::report(&app, AppError::new(code).site(&site));
+        code.to_owned()
+    };
+    let key = SiteKey::from_stored(site.clone()).map_err(|_| fail("site-unknown"))?;
+    if !Running::claim(&app, key.as_str()) {
+        log::info("sites: sign-out refused; the site is updating");
+        return Err(fail("sign-out-busy"));
+    }
+    let app2 = app.clone();
+    let key2 = key.clone();
+    let erased = tauri::async_runtime::spawn_blocking(move || match app2.try_state::<SignIn>() {
+        Some(s) => s.files().erase(&key2),
+        None => Err(CoreError::Io),
+    })
+    .await;
+    Running::release(&app, key.as_str());
+    match erased {
+        Ok(Ok(())) => {
+            log::info("sites: signed out; the site is erased");
+            let _ = app.emit("sites-changed", ());
+            Ok(())
+        }
+        Ok(Err(e)) => {
+            log::error(&format!("sites: the erase failed: {e}"));
+            errors::report(&app, AppError::new("sign-out-failed").kind(e).site(&site));
+            // The key may be gone already: the row now says the data cannot be opened.
+            let _ = app.emit("sites-changed", ());
+            Err("sign-out-failed".into())
+        }
+        Err(_) => {
+            log::error("sites: the erase failed: the task stopped");
+            Err(fail("sign-out-failed"))
+        }
     }
 }
 

@@ -17,8 +17,13 @@ use crate::{CoreError, Shielded};
 use serde_json::Value;
 use zeroize::Zeroizing;
 
-/// Every patient read scope, plus identity and a refresh token (CORE-CRATE.md §6).
+/// Every patient read scope, plus identity and a refresh token (CORE-CRATE.md §6), in SMART
+/// v1 words.
 pub const SCOPES: &str = "openid fhirUser launch/patient offline_access patient/*.read";
+/// The same, in SMART v2 words (`.rs`: read and search). For a site registered with v2 scopes.
+pub const SCOPES_V2: &str = "openid fhirUser launch/patient offline_access patient/*.rs";
+/// Epic's sandbox (integrations/EPIC.md §3). No trailing slash: it is also the `aud`.
+pub const EPIC_SANDBOX: &str = "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4";
 /// A waiting sign-in older than this is dropped.
 pub const WAIT_LIMIT_S: u64 = 10 * 60;
 /// Refresh this long before the access token runs out (clock-skew margin).
@@ -29,6 +34,8 @@ pub struct SiteEntry {
     pub name: &'static str,
     pub base_url: String,
     pub client_id: &'static str,
+    /// The scope string this site's registration reads: [`SCOPES`] or [`SCOPES_V2`].
+    pub scopes: &'static str,
 }
 
 /// SMART Health IT's launcher, set up as a patient standalone launch with its patient picker,
@@ -39,11 +46,24 @@ pub struct SiteEntry {
 pub const SMART_LAUNCH: &str = r#"[3,"","","",0,0,0,"","","","","","","",0,2]"#;
 
 pub fn sandbox_sites() -> Vec<SiteEntry> {
-    vec![SiteEntry {
+    let mut sites = vec![SiteEntry {
         name: "SMART Health IT sandbox",
         base_url: format!("https://launch.smarthealthit.org/v/r4/sim/{}/fhir", b64url(SMART_LAUNCH.as_bytes())),
         client_id: "deetshealth",
-    }]
+        scopes: SCOPES,
+    }];
+    // Epic's sandbox, only in a build made with `epic-client.json` at the repo root (build.rs;
+    // EPIC.md §2). Its index follows SMART's, so a saved SMART site keeps its menu entry.
+    if let Some(id) = option_env!("DEETSHEALTH_EPIC_CLIENT_ID").filter(|s| !s.is_empty()) {
+        let v2 = option_env!("DEETSHEALTH_EPIC_SCOPES") == Some("v2");
+        sites.push(SiteEntry {
+            name: "Epic sandbox",
+            base_url: EPIC_SANDBOX.to_owned(),
+            client_id: id,
+            scopes: if v2 { SCOPES_V2 } else { SCOPES },
+        });
+    }
+    sites
 }
 
 /// A sign-in waiting for the browser to come back. Held in memory only, one at a time.
@@ -104,7 +124,7 @@ pub async fn begin<C: Cipher>(
             ("response_type", Field::Plain("code")),
             ("client_id", Field::Shielded(&client_id)),
             ("redirect_uri", Field::Plain(redirect_uri)),
-            ("scope", Field::Plain(SCOPES)),
+            ("scope", Field::Plain(entry.scopes)),
             ("state", Field::Shielded(&state)),
             ("aud", Field::Shielded(&base)),
             ("code_challenge", Field::Shielded(&challenge)),
@@ -182,6 +202,38 @@ pub async fn exchange(net: &Net, pending: PendingSignIn, code: Text, now: u64) -
         token_expiry: Some(t.expiry),
         ..Default::default()
     })
+}
+
+/// The Connect menu's entry that a saved site came from, found by its base URL. `None`: the
+/// entry is no longer in the menu. Compared shielded; nothing is revealed.
+pub fn entry_for(site: &SiteRow) -> Option<SiteEntry> {
+    let base = site.base_url.as_ref()?;
+    sandbox_sites().into_iter().find(|e| Shielded::new(e.base_url.clone()) == *base)
+}
+
+/// A new sign-in to a site that is already saved (the row's **Sign in**). If it opened the
+/// same patient, the old row takes the new tokens and keeps what the fetch learned
+/// ([`Renewal::Same`]). A different patient is [`Renewal::Other`]: the caller saves it as a
+/// new site, so two records never mix in one file.
+pub fn renew_site(old: SiteRow, new: SiteRow) -> Renewal {
+    if old.patient_fhir_id.is_none() || old.patient_fhir_id != new.patient_fhir_id {
+        return Renewal::Other(new);
+    }
+    Renewal::Same(SiteRow {
+        capability: old.capability,
+        software_version: old.software_version,
+        last_fetch: old.last_fetch,
+        last_full_fetch: old.last_full_fetch,
+        ..new
+    })
+}
+
+/// What [`renew_site`] found.
+pub enum Renewal {
+    /// The same patient: the saved row with the new tokens.
+    Same(SiteRow),
+    /// Another patient: the new row, to save as a new site.
+    Other(SiteRow),
 }
 
 /// True when the access token is missing or runs out within the margin.
@@ -299,6 +351,24 @@ mod tests {
     fn t(s: &str) -> Text {
         Shielded::new(s.to_owned())
     }
+
+    /// SMART is always first. Epic follows only in a build that read `epic-client.json`, with
+    /// the scope words of its registration.
+    #[test]
+    fn epic_entry_follows_the_build() {
+        let sites = sandbox_sites();
+        assert_eq!(sites[0].name, "SMART Health IT sandbox");
+        match option_env!("DEETSHEALTH_EPIC_CLIENT_ID").filter(|s| !s.is_empty()) {
+            None => assert_eq!(sites.len(), 1),
+            Some(id) => {
+                assert_eq!(sites.len(), 2);
+                assert_eq!(sites[1].client_id, id);
+                assert_eq!(sites[1].base_url, EPIC_SANDBOX);
+                let v2 = option_env!("DEETSHEALTH_EPIC_SCOPES") == Some("v2");
+                assert_eq!(sites[1].scopes, if v2 { SCOPES_V2 } else { SCOPES });
+            }
+        }
+    }
     fn show(v: &Text) -> String {
         v.reveal(&SitePass::for_tests()).clone()
     }
@@ -344,6 +414,24 @@ mod tests {
         assert!(matches!(ours("error=access_denied&state=s1"), LinkMatch::Refused));
         assert!(matches!(ours("state=s1"), LinkMatch::Refused));
         assert!(matches!(check_link(&p, &t("not a link")), LinkMatch::NotOurs));
+    }
+
+    #[test]
+    fn a_new_sign_in_renews_only_the_same_patient() {
+        let row = |pid: &str, fetched: Option<&str>| SiteRow {
+            patient_fhir_id: Some(t(pid)),
+            access_token: Some(t(&format!("token-{pid}"))),
+            last_fetch: fetched.map(t),
+            ..Default::default()
+        };
+        let Renewal::Same(merged) = renew_site(row("p1", Some("100")), row("p1", None)) else { panic!("same patient") };
+        assert_eq!(show(merged.last_fetch.as_ref().unwrap()), "100");
+        assert_eq!(show(merged.access_token.as_ref().unwrap()), "token-p1");
+        assert!(matches!(renew_site(row("p1", Some("100")), row("p2", None)), Renewal::Other(_)));
+
+        let saved = SiteRow { base_url: Some(t(&sandbox_sites()[0].base_url)), ..Default::default() };
+        assert!(entry_for(&saved).is_some());
+        assert!(entry_for(&SiteRow { base_url: Some(t("https://elsewhere.example")), ..Default::default() }).is_none());
     }
 
     #[test]

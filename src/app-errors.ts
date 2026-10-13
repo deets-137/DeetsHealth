@@ -50,6 +50,10 @@ export const COPY: Record<string, Copy> = {
   "site-unreadable": c("error", "This site's saved data cannot be opened. Sign out and connect again."),
   "site-newer": c("error", "This site's data was saved by a newer version of DeetsHealth. Update the app."),
   "reindex-failed": c("warn", "Could not update the record index. Your data is safe. The app tries again at the next start."),
+  // Settings › Sites
+  "sites-list-failed": c("error", "Could not read your saved sites. Restart DeetsHealth."),
+  "sign-out-busy": c("info", "This site is updating. Sign out when the update ends."),
+  "sign-out-failed": c("error", "Could not erase all of this site's data. Sign out again."),
   // The fetch
   "fetch-unavailable": c("error", "Updating is not available. Restart DeetsHealth."),
   "fetch-busy": c("info", "This site is already updating."),

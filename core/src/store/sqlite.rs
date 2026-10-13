@@ -471,6 +471,16 @@ impl<C: Cipher> Store for SiteStore<C> {
             })
             .collect()
     }
+    fn type_counts(&self, table: Table) -> Result<std::collections::BTreeMap<String, u64>, CoreError> {
+        // One sealed column instead of two: the FHIR id stays sealed.
+        let pass = CachePass::issue();
+        let mut n = std::collections::BTreeMap::new();
+        for (_, _, v) in self.read(table.name(), &[], &["fhir_type"], "", &[])? {
+            let t = v.into_iter().next().flatten().ok_or(CoreError::Io)?;
+            *n.entry(t.reveal(&pass).clone()).or_insert(0) += 1;
+        }
+        Ok(n)
+    }
     fn put_resource(&self, table: Table, r: &ResourceRow) -> Result<(), CoreError> {
         SiteStore::put_resource(self, table, r)
     }

@@ -13,6 +13,7 @@
     "dev:built": "node scripts/dev-app.mjs --built",
     "dev:fresh": "node scripts/dev-app.mjs --fresh",
     "tokens": "node scripts/tokens.mjs",
+    "types": "node scripts/types.mjs",
     "docs:check": "node scripts/docs-check.mjs"
   },
   "dependencies": {

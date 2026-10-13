@@ -2,14 +2,16 @@
 status: idea
 desk_test: none
 sources: []
-updated: 2026-09-21
+updated: 2026-10-13
 ---
 # Ideas — not built
 
 The docs in this folder describe features that do not exist in DeetsHealth. Do not tell a
 user that the app can do any of these things.
 
-- Proxy access (a parent or caregiver reads another person's record).
+- Proxy access (a parent or caregiver reads another person's record). Epic's own proxy sign-in
+  already works with one site per patient; sharing inside DeetsHealth, with tiers, is
+  [IDENTITY-WORKER.md](IDENTITY-WORKER.md).
 - Several sites in one view (two health systems, one timeline).
 - A MyChart file import (C-CDA XML) for people whose site has no working API.
 - An on-device small model — Cactus Needle 3 (the owner, 2026-09-21). 8–29 MB, Apache-2.0,

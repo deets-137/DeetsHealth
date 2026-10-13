@@ -3,8 +3,9 @@
 //
 // Events to the front end carry counts and the app's own random site key only, never a value
 // (SECURITY.md §4.3):
-//   fetch-progress { site, counts: { <FHIR type>: n }, jobsDone, jobsTotal, calls }
-//   fetch-done     { site, end: "done" | "sign-in-again" | "failed" }
+//   fetch-progress { site, counts: { results, medicines, allergies, conditions, visits },
+//                    jobsDone, jobsTotal, calls }                        (payload::FetchProgress)
+//   fetch-done     { site, end: "done" | "sign-in-again" | "failed" }   (payload::FetchDone)
 //   app-error      every failure, with a fixed code (errors.rs, ERRORS.md)
 //
 // Before any work on a site file, the file is brought up to date: opening it migrates an
@@ -14,11 +15,11 @@
 use crate::errors::{self, AppError};
 use crate::log;
 use crate::signin::SignIn;
+use deetshealth_core::payload::{FetchDone, FetchEndWord, FetchProgress, SiteCounts};
 use deetshealth_core::platform::{SiteKey, Timer};
 use deetshealth_core::store::SiteStore;
 use deetshealth_core::sync::{self, FetchEnd, Progress};
 use deetshealth_core::CoreError;
-use serde_json::json;
 use std::collections::HashSet;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
@@ -29,10 +30,10 @@ pub struct Running(Mutex<HashSet<String>>);
 
 impl Running {
     /// Claim a site for one piece of work. `false`: something else holds it.
-    fn claim(app: &AppHandle, key: &str) -> bool {
+    pub(crate) fn claim(app: &AppHandle, key: &str) -> bool {
         app.state::<Running>().0.lock().is_ok_and(|mut r| r.insert(key.to_owned()))
     }
-    fn release(app: &AppHandle, key: &str) {
+    pub(crate) fn release(app: &AppHandle, key: &str) {
         if let Ok(mut r) = app.state::<Running>().0.lock() {
             r.remove(key);
         }
@@ -101,8 +102,14 @@ impl Timer for HostTimer {
     }
 }
 
-fn progress_event(site: &str, p: &Progress) -> serde_json::Value {
-    json!({ "site": site, "counts": p.counts, "jobsDone": p.jobs_done, "jobsTotal": p.jobs_total, "calls": p.calls })
+fn progress_event(site: &str, p: &Progress) -> FetchProgress {
+    FetchProgress {
+        site: site.to_owned(),
+        counts: SiteCounts::from_types(&p.counts),
+        jobs_done: p.jobs_done as u32,
+        jobs_total: p.jobs_total as u32,
+        calls: p.calls,
+    }
 }
 
 /// Start a full fetch for one site, unless one is running. Returns at once.
@@ -119,12 +126,12 @@ pub fn start(app: &AppHandle, site: SiteKey) {
     tauri::async_runtime::spawn_blocking(move || {
         let end = tauri::async_runtime::block_on(run(&app, &site, &key));
         Running::release(&app, &key);
-        let _ = app.emit("fetch-done", json!({ "site": key, "end": end }));
+        let _ = app.emit("fetch-done", FetchDone { site: key, end });
     });
 }
 
-async fn run(app: &AppHandle, site: &SiteKey, key: &str) -> &'static str {
-    let Some(store) = open_current(app, site, key) else { return "failed" };
+async fn run(app: &AppHandle, site: &SiteKey, key: &str) -> FetchEndWord {
+    let Some(store) = open_current(app, site, key) else { return FetchEndWord::Failed };
     let s = app.state::<SignIn>();
     log::info("fetch: started");
     let result = sync::full_fetch(s.net(), &store, &HostTimer, |p| {
@@ -151,12 +158,13 @@ async fn run(app: &AppHandle, site: &SiteKey, key: &str) -> &'static str {
                 log::info(&format!("fetch: incomplete: {}", sum.stopped.join(", ")));
                 errors::report(app, AppError::new("fetch-partial").site(key).count(sum.stopped.len()));
             }
-            "done"
+            FetchEndWord::Done
         }
         Ok(FetchEnd::SignInAgain) => {
             log::info("fetch: the site refused the refresh token; sign in again");
+            forget_tokens(&store);
             errors::report(app, AppError::new("fetch-sign-in-again").site(key));
-            "sign-in-again"
+            FetchEndWord::SignInAgain
         }
         Err(e) => {
             log::warn(&format!("fetch: failed: {e}"));
@@ -168,12 +176,25 @@ async fn run(app: &AppHandle, site: &SiteKey, key: &str) -> &'static str {
                 _ => "fetch-failed",
             };
             errors::report(app, AppError::new(code).kind(e).site(key));
-            "failed"
+            FetchEndWord::Failed
         }
     }
 }
 
-/// The Sites row's Refresh half (stage 7). `site` is the app's own random site key. On
+/// The site refused the refresh token, so both tokens are dead. Drop them, so the Sites row
+/// says "Sign in again" also after a restart (`payload::site_view`). A failure here only
+/// costs that: the next Refresh finds out again.
+fn forget_tokens(store: &SiteStore<crate::cng::Cng>) {
+    let Ok(Some(mut row)) = store.site() else { return };
+    row.access_token = None;
+    row.refresh_token = None;
+    row.token_expiry = None;
+    if let Err(e) = store.put_site(&row) {
+        log::warn(&format!("fetch: could not drop the dead tokens: {e}"));
+    }
+}
+
+/// The Sites row's Refresh half. `site` is the app's own random site key. On
 /// failure it returns the `app-error` code.
 #[tauri::command]
 pub fn site_refresh(app: AppHandle, site: String) -> Result<(), String> {

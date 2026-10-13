@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-09-21
+updated: 2026-10-13
 ---
 # LESSONS — what the owner tends to want in DeetsHealth
 
@@ -26,6 +26,7 @@ local only. Never copy it into this repo, a commit or a doc.
 2. Check the feature's own doc and HANDOFF.md › Decided. Never re-open a decision.
 3. For anything else he has not chosen, **bring him the fork.** §3 and §4 tell you which
    option to recommend. They do not pick it for you.
+4. **Before you show a fork, run the fork test (§5).** Show only the forks that pass it.
 
 ## 1. The mission
 We are good stewards of our users and of the health systems we read from. A user's record is
@@ -133,3 +134,46 @@ These decide which option you *recommend* when two lessons pull against each oth
 | An existing primitive fits most of the need | Extend it. If the need shows a pattern several places will want, bring it up before you build. Read the whole primitive and its callers first. |
 | A visual ask is ambiguous | Take the literal reading. |
 | Convenience against the PHI wall | The wall wins. |
+| A more secure option costs the patient's experience | First look for a design that gives both. That is usually harder work; do it. If none exists, recommend the most secure option that still gives a great experience. |
+| One option is less work for us | Not a reason. Work for us never outweighs help for the patient (§1, Altruism). |
+
+## 5. The fork test (the owner, 2026-10-13)
+The owner: "Always going for maximum security that allows for a great user experience and
+understanding the patient is the most important user so we can help in any way we can without
+being afraid of hard / complex work." On the same day, 8 of 12 forks brought to him were not
+real forks. Each one cost him time to read and reject.
+
+### 5.1 The standard every option is held to
+1. **The patient is the most important user.** An option that helps the patient more wins,
+   whatever it costs us.
+2. **Maximum security that still gives a great experience.** Not the most secure option at
+   any cost to the patient, and never a weaker option for our own convenience. Where the two
+   pull apart, design a third option that gives both (§4).
+3. **Hard or complex work is not a cost.** Never cut an option, or recommend against one,
+   because it is more work, more code or a harder design (§3.7).
+
+### 5.2 Drop an option when
+- it breaks a stop rule (§2), a non-goal (DESIGN.md §5), a decided item (HANDOFF.md ›
+  Decided) or a working-style rule (CLAUDE.md, for example one load-bearing feature at a time);
+- his own words already choose it. Take the literal reading (§4);
+- the code rules it out. Test it against the code first;
+- it fails the standard in §5.1. It is less secure with no gain for the patient, or it serves
+  the patient less with no gain in security;
+- it does not give what he asked for.
+
+**A rule can be wrong.** Claude wrote many of the rules and decisions in these docs, and some
+go out of date. When a rule is the only thing that drops an option that would matter to him,
+ask in one line whether the rule still holds. The full text is in the global CLAUDE.md
+(`~/.claude/CLAUDE.md` › Bringing forks).
+
+### 5.3 Then sort what is left
+| What is left | It is | How to show it |
+|---|---|---|
+| Two or more options that pass | **A real fork** | Ask. Your recommendation first, at most three options, each with its cost on each platform (DESIGN.md §6.1). |
+| One option | **Not a fork** | Do not ask. One line: what follows and why ("Durable Objects: the engine already runs there"). |
+| A list for him to edit (shelves, tiers, wording) | **A draft** | Show it apart from the forks, as "edit this". |
+| A choice for later work | **Not now** | Keep it in that feature's doc. Ask when that work starts. |
+
+### 5.4 The shape of the message
+Open with the count: "2 real forks; 4 things follow". Then the real forks, then the
+one-line list of what follows, then any drafts. Each fork in a doc is marked the same way.

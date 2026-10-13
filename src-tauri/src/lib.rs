@@ -11,9 +11,7 @@ mod log;
 mod settings;
 // Sign-in: the waiting sign-in, the returning link, the new sealed site (CORE-CRATE.md §6).
 mod signin;
-// One sealed SQLite file and one key per site. Open, list and erase arrive with the fetch and
-// the sign-out (CORE-CRATE.md §2, stages 5 and 8).
-#[allow(dead_code)]
+// One sealed SQLite file and one key per site; the Sites section's list and sign-out.
 mod sites;
 mod watchdog;
 mod window;
@@ -139,7 +137,10 @@ pub fn run() {
             window::main_ready,
             signin::sign_in_start,
             signin::sign_in_cancel,
+            signin::site_sign_in,
             fetch::site_refresh,
+            sites::sites_list,
+            sites::site_sign_out,
             errors::app_errors_ready,
             log::diag_flush,
             log::log_event,
