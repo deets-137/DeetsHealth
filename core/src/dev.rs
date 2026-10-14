@@ -223,7 +223,9 @@ pub fn export_tables<C: Cipher>(store: &SiteStore<C>) -> Result<Option<Vec<Expor
         "row", "table", "type", "fhir_id", "kind", "code_system", "code", "display", "status", "start", "end", "recorded",
         "last_updated",
     ]);
-    let mut by_type: BTreeMap<String, Vec<(String, String, Vec<(String, String)>)>> = BTreeMap::new();
+    // Per FHIR type: (row, FHIR id, its field paths and values).
+    type Flat = (String, String, Vec<(String, String)>);
+    let mut by_type: BTreeMap<String, Vec<Flat>> = BTreeMap::new();
     for table in Table::ALL {
         for r in store.resources(table)? {
             let t = r.fhir_type.reveal(&pass).clone();
