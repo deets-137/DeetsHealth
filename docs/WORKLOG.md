@@ -42,6 +42,15 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - Checks: core 41 tests + 3 proofs (the new test also with a dummy file, no file and a bad
   file), wasm check, host `cargo check`. No live run: the owner's own terminal is needed for
   the scheme.
+- The owner chose USCDI v3 (E0), and the work was committed (`e2bb0a5`). First Epic sign-in as
+  Camila Lopez: the sign-in and consent worked, then the page stalled. The console showed the
+  cause: Epic's CSP `form-action *` blocks the redirect to a custom scheme (EPIC.md §3).
+- The owner chose a loopback return over the scheme (Decided 2 replaced). Built `loopback.rs`
+  (127.0.0.1, a port per sign-in, the `Host` check, `303 /done`, four fixed pages); `on_link`
+  returns an outcome; the scheme, its registry writes and `tauri-plugin-deep-link` are gone;
+  `link-register-failed` became `sign-in-port`. Checks: host 16 tests (2 new), `cargo check`,
+  `tsc`. The owner added `http://127.0.0.1/callback` to the registration; at the first check
+  Epic still answered `error=4` for it (not synced yet). A background probe waits for it.
 
 ## 2026-09-24 — stage 7: `ts-rs` and Settings › Sites
 - The owner asked where the SMART work stood, then asked for stage 7.

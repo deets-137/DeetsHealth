@@ -43,7 +43,7 @@ export const COPY: Record<string, Copy> = {
   "sign-in-trade-failed": c("error", "The site did not finish the sign-in. Connect again."),
   "sign-in-incomplete": c("error", "The site's sign-in did not give access to a record. Connect again."),
   "site-seal-failed": c("error", "Could not save the new site securely. Connect again."),
-  "link-register-failed": c("error", "Sign-in links cannot reach DeetsHealth. Reinstall the app."),
+  "sign-in-port": c("error", "Could not start sign-in on this PC. Try again."),
   // A site's saved data
   "site-unknown": c("error", "This site is not connected."),
   "site-key-missing": c("error", "The key for this site is gone, so its data cannot be opened. Sign out and connect again."),

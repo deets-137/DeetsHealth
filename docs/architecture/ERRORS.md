@@ -50,14 +50,14 @@ Draft wording. "Where" is the route that sends it.
 | `sign-in-site-unreadable` | error: "The site's sign-in settings cannot be used. Try again later." | `auth::begin`: the reply is not JSON, or its endpoints are not `https://`. |
 | `sign-in-failed` | error: "Could not start sign-in. Try again." | `sign_in_start`: any other failure (random bytes, a lock). |
 | `sign-in-browser` | error: "Could not open your browser for sign-in." | `open_in_browser` failed. |
-| `sign-in-stray-link` | warn: "A sign-in link arrived, but no sign-in was waiting. Connect again." | `on_link`: no sign-in waiting (an old tab, or the app restarted mid sign-in). |
+| `sign-in-stray-link` | warn: "A sign-in link arrived, but no sign-in was waiting. Connect again." | `on_link`: a request reached the return listener after the wait ended (Cancel, or a new sign-in), in the moment before the listener closed. |
 | `sign-in-wrong-link` | warn: "An old sign-in link arrived. Finish the newest sign-in in your browser." | `on_link`: the `state` is not ours. The waiting sign-in goes on. |
 | `sign-in-expired` | warn: "The sign-in took more than 10 minutes. Connect again." | `on_link`: the wait ran out. |
 | `sign-in-refused` | warn: "The site did not give access. Connect again to try again." | `on_link`: `error=` or no code. |
 | `sign-in-trade-failed` | error: "The site did not finish the sign-in. Connect again." | `auth::exchange`: no 2xx, or not JSON. |
 | `sign-in-incomplete` | error: "The site's sign-in did not give access to a record. Connect again." | `auth::exchange`: not Bearer, no token, or no `patient`. |
 | `site-seal-failed` | error: "Could not save the new site securely. Connect again." | `on_link`: the key or the file could not be made. |
-| `link-register-failed` | error: "Sign-in links cannot reach DeetsHealth. Reinstall the app." | `lib.rs` setup: the scheme write failed. |
+| `sign-in-port` | error: "Could not start sign-in on this PC. Try again." | `signin::begin`: no local port could be opened for the return (loopback.rs). Before the browser opens. |
 | `site-unknown` | error: "This site is not connected." | `site_refresh`, `site_sign_in`, `site_sign_out`: the site key is not in the right form. |
 | `site-key-missing` | error: "The key for this site is gone, so its data cannot be opened. Sign out and connect again." | Opening a site: no key file. |
 | `site-unreadable` | error: "This site's saved data cannot be opened. Sign out and connect again." | Opening a site: DPAPI, the file, or the schema 2 migration failed. |

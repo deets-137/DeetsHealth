@@ -36,8 +36,10 @@ experience comes to the owner first. Look for a design that gives both (LESSONS.
 2. **Text inside the record** — free-text notes rendered as HTML would run script inside a
    WebView2 that can call our Rust commands.
 3. **Other people and programs on the PC** — a stolen laptop, a copied backup, another user.
-4. **Another app that claims `deetshealth://`** — any app can register a scheme. PKCE makes a
-   stolen code useless without the verifier, which never leaves our process.
+4. **Another program that catches the sign-in return** — since 2026-10-13 the return is a
+   listener on 127.0.0.1 (SIGN-IN.md §6); before, any app could register our scheme. A program
+   that reached the port first would get a code. PKCE makes that code useless without the
+   verifier, which never leaves our process.
 5. **The network and the supply chain** — a changed dependency, an unsigned update.
 
 What we cannot stop: malware that runs as the same Windows user while the app is open. It
@@ -81,8 +83,10 @@ note. It covers PII as well as PHI: a patient name is wrapped exactly as a lab v
 
 ### 4.4 Sign-in
 - PKCE with S256 and a `state` check on every sign-in.
-- One sign-in may wait at a time. A deep link with no sign-in waiting, or with the wrong
+- One sign-in may wait at a time. A returning link with no sign-in waiting, or with the wrong
   `state`, is dropped and logged as "ignored" with no values (DeetsMusic's nonce pattern).
+- The return listener binds 127.0.0.1 only, lives only while a sign-in waits, checks `Host`,
+  and answers with fixed pages (SIGN-IN.md §6).
 - Sign-in runs in the system browser, never in WebView2.
 
 ### 4.5 Logs, panics and crashes

@@ -46,7 +46,8 @@ Most likely first:
 2. **The record's own text.** A free-text clinical note rendered as HTML could run script
    inside a WebView that can call my Rust commands.
 3. **Other people on the PC.** A stolen laptop, a copied backup, another Windows account.
-4. **Another app that claims my URL scheme** (`deetshealth://`), to catch the sign-in code.
+4. **Another program that catches the sign-in return** (a listener on 127.0.0.1 since
+   2026-10-13), to get the sign-in code.
 5. **The network and the supply chain.** A changed dependency, an unsigned update.
 
 **What I do not try to stop:** malware that runs as the same Windows user while the app is
@@ -57,7 +58,7 @@ open. It can read the screen and the process memory. I plan to say that plainly 
 | Layer | What I do |
 |---|---|
 | **In transit** | HTTPS only, through Windows SChannel (`reqwest` + `native-tls`). No `http://` base URL, no certificate override. |
-| **Sign-in** | SMART standalone launch in the **system browser**, never inside WebView2. PKCE (S256) and a `state` check. One sign-in may wait at a time; a deep link with no sign-in waiting, or the wrong `state`, is dropped. |
+| **Sign-in** | SMART standalone launch in the **system browser**, never inside WebView2. PKCE (S256) and a `state` check. One sign-in may wait at a time; the return is a listener on 127.0.0.1, open only while it waits; a link with no sign-in waiting, or the wrong `state`, is dropped. |
 | **In memory** | Every protected value lives in a wrapper type, `Shielded<T>` (§5). |
 | **At rest** | SQLite, but every protected value is sealed on its own: AES-256-GCM from Windows CNG, a random 96-bit nonce, and the table + row key + column as associated data, so a value copied to another cell fails to open. Each value is padded first (Padmé, 64-byte floor). A format byte leads each value. Index columns (dates, codes) are sealed too; only opaque row keys and table names are plain. Filtering and sorting happen in Rust. |
 | **Keys** | One data key and one SQLite file per health system. The key is 32 bytes from `BCryptGenRandom`, wrapped with DPAPI (`CurrentUser`) plus app-specific entropy. The raw key goes into a CNG key handle and the bytes are wiped. |

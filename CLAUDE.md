@@ -78,8 +78,9 @@ NAME=area`, never by hand.
 - If something cannot be reasoned through and the owner is away, ask him to test.
 - **Registry writes from this session are not real.** The Claude desktop app is an MSIX
   package: your shells, and a dev app you launch, write `HKCU\Software\Classes` into a
-  private hive that Edge and other programs cannot see. The `deetshealth://` scheme is
-  exposed to this. Check or write the real registry through a WMI-started process
+  private hive that Edge and other programs cannot see. Sign-in no longer registers a scheme
+  (a loopback return since 2026-10-13), so it is safe from this. Check or write the real
+  registry through a WMI-started process
   (`../DeetsMusic/docs/ops/DEBUGGING.md` §Sign-in has the command).
 - **Knowing the dev app is up** (once it exists): wait for the app's own start log line with
   `grep -a`. Never match `Running .*deetshealth`: cargo's color codes sit right after

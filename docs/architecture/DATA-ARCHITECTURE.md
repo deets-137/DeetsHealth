@@ -16,7 +16,7 @@ updated: 2026-09-24
 | # | Step | State | Owner doc |
 |---|---|---|---|
 | 1 | The user picks a site (Settings › Sites). | built | CORE-CRATE.md §2, §12 (stage 7) |
-| 2 | Sign-in: SMART standalone launch in the system browser, PKCE and `state`, the `deetshealth://callback` link, the token trade. | built | [SIGN-IN.md](SIGN-IN.md) |
+| 2 | Sign-in: SMART standalone launch in the system browser, PKCE and `state`, the return to a listener on 127.0.0.1 (a `deetshealth://` link until 2026-10-13), the token trade. | built | [SIGN-IN.md](SIGN-IN.md) |
 | 3 | A new site key, data key and SQLite file; the tokens sealed in the site row. | built | [STORE.md](STORE.md) §2, §5 |
 | 4 | The fetch: `/metadata`, the patient, one job per type, 3 at once, every page. | built | [FETCH.md](FETCH.md) |
 | 5 | Each resource: its table, its index columns and its links, in the same parse. | built | [INDEX-AND-LINKS.md](INDEX-AND-LINKS.md) |

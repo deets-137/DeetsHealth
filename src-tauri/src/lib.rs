@@ -8,6 +8,8 @@ mod errors;
 mod fetch;
 mod keystore;
 mod log;
+// The sign-in return: a listener on 127.0.0.1 while a sign-in waits (SIGN-IN.md §6).
+mod loopback;
 mod settings;
 // Sign-in: the waiting sign-in, the returning link, the new sealed site (CORE-CRATE.md §6).
 mod signin;
@@ -16,38 +18,17 @@ mod sites;
 mod watchdog;
 mod window;
 
-/// The sign-in return scheme (DATA-ARCHITECTURE.md §2). A debug build owns its own, so a
-/// dev run never takes over the installed app's links.
-#[cfg(debug_assertions)]
-const LINK_SCHEME: &str = "deetshealth-dev";
-#[cfg(not(debug_assertions))]
-const LINK_SCHEME: &str = "deetshealth";
-
-/// A `deetshealth://…` link among the arguments of a launch, if there is one.
-fn link_in_args<'a>(mut args: impl Iterator<Item = &'a String>) -> Option<&'a String> {
-    let prefix = format!("{LINK_SCHEME}://");
-    args.find(|a| a.starts_with(&prefix))
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // FIRST plugin on purpose: a second process must be turned away BEFORE any setup runs,
     // or it opens the same data dir. The callback brings the running window forward.
-    // The same second process is how a sign-in link will reach the app: the browser starts
-    // the exe with the link as its argument, and it lands here as argv. signin.rs shields it
-    // at once and matches it to the waiting sign-in (SECURITY.md §4.4).
-    let single_instance = tauri_plugin_single_instance::init(|app: &tauri::AppHandle, argv, _cwd| {
-        if let Some(link) = link_in_args(argv.iter()) {
-            signin::on_link(app, link.clone());
-        }
+    // (Sign-in links no longer arrive this way: they come to loopback.rs, 2026-10-13.)
+    let single_instance = tauri_plugin_single_instance::init(|app: &tauri::AppHandle, _argv, _cwd| {
         window::show_main(app);
     });
 
     tauri::Builder::default()
         .plugin(single_instance)
-        // Registers the scheme (the installer for a release, `register()` below for a debug
-        // build). Link delivery itself is the single-instance callback above.
-        .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
             use tauri::Manager;
 
@@ -61,7 +42,7 @@ pub fn run() {
             app.manage(settings::Settings::load(dir.clone()));
             app.manage(fetch::Running::default());
             window::restore_pos(app.handle());
-            match signin::SignIn::new(sites::SiteFiles::new(&dir), LINK_SCHEME) {
+            match signin::SignIn::new(sites::SiteFiles::new(&dir)) {
                 Ok(s) => {
                     app.manage(s);
                     // Migrate old site files and rebuild stale indexes, off the UI thread.
@@ -71,27 +52,6 @@ pub fn run() {
                     log::error(&format!("sign-in: unavailable: {e}"));
                     errors::report(app.handle(), errors::AppError::new("sign-in-unavailable").kind(e));
                 }
-            }
-
-            // The deep-link scheme. A debug build owns `deetshealth-dev://` and points it at
-            // this exe on every launch — one HKCU key, never the installed app's scheme.
-            // From a Claude desktop session this write lands in the MSIX private hive, not the
-            // real registry (CLAUDE.md › How to verify).
-            {
-                use tauri_plugin_deep_link::DeepLinkExt;
-                #[cfg(debug_assertions)]
-                let registered = app.deep_link().register(LINK_SCHEME);
-                #[cfg(not(debug_assertions))]
-                let registered = app.deep_link().register_all();
-                if let Err(e) = registered {
-                    log::warn(&format!("sign-in: could not register {LINK_SCHEME}://: {e}"));
-                    errors::report(app.handle(), errors::AppError::new("link-register-failed"));
-                }
-            }
-            let args: Vec<String> = std::env::args().collect();
-            if let Some(link) = link_in_args(args.iter()) {
-                // A fresh process has no waiting sign-in, so on_link logs it as ignored.
-                signin::on_link(app.handle(), link.clone());
             }
 
             // Show the window when the page is ready (`main_ready`), or after 3 s.

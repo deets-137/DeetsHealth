@@ -13,7 +13,13 @@ updated: 2026-10-13
 - **Fresh eyes (2026-10-13).** The owner has an Epic FHIR account, a new M engine
   (`../DeetsEngine`) and a much larger DeetsMusic to model the look on. New direction:
   Decided (2026-10-13) below. The next build is the Epic sandbox sign-in. Stage 7's desk
-  test is still open, and its work is still not committed.
+  test is still open (committed in `e2bb0a5` as a checkpoint).
+- **Next session (the owner, 2026-10-13): the app's layout.** He wants to redo much of the UI on
+  the same base (the shell, tokens, skins, the card engine). Start from
+  [HOME-AND-HUBS.md](features/HOME-AND-HUBS.md) (real forks H3, H5; the shelf list is a
+  draft) and the fork test (LESSONS.md §5).
+- **Waiting meanwhile: Epic's sandbox sync.** Run `node scripts/epic-redirect-check.mjs`. When
+  it says "accepted", the owner runs the E-3 desk test (EPIC.md §5a).
 
 ## State of play (2026-09-24)
 - **The empty shell is built** (scaffold steps 1–2): the Tauri app, the title bar (title menu,
@@ -59,6 +65,7 @@ npx tsc --noEmit      # front-end type check
 npm run docs:check    # links, mentions, § pointers, front matter
 npm run tokens        # regenerate docs/architecture/TOKENS.md after a token change
 npm run types         # regenerate src/model/ (TypeScript) from core/src/payload.rs
+node scripts/epic-redirect-check.mjs   # does Epic's sandbox know our redirect URI yet? (EPIC.md §3)
 cargo test -p deetshealth-core --features sqlite                  # core tests + compile-fail proofs
 cargo test -p deetshealth --lib                                   # host tests: CNG, DPAPI, the plaintext scan
 cargo test -p deetshealth --lib -- --ignored --nocapture          # live: sign-in (~7 calls) and a full fetch (~165 calls), SMART sandbox
@@ -68,8 +75,10 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
 
 ## Decided (the owner, 2026-09-21)
 1. **Scaffold:** copy DeetsMusic's Tauri skeleton, then strip what does not apply.
-2. **Sign-in return:** a custom deep-link scheme (`deetshealth://callback`), for a
-   distributable app. Test the scheme through the real registry (DeetsMusic's MSIX note).
+2. **Sign-in return:** ~~a custom deep-link scheme (`deetshealth://callback`)~~. **Replaced
+   2026-10-13 (the owner): a loopback listener, `http://127.0.0.1:<port>/callback`**
+   (RFC 8252 §7.3; SIGN-IN.md §6). Epic's sign-in page blocks a custom scheme in Edge
+   (EPIC.md §3).
 3. **First slice:** labs, meds, allergies for one or two sandbox patients (Camila Lopez first).
 4. **Cache:** SQLite on disk.
 - **Two sandbox sites in one app** (added the same day): Epic's sandbox and SMART Health IT's
@@ -161,6 +170,12 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
    `epic-client.json` at build time; [EPIC.md](integrations/EPIC.md) §5a). Next: the owner
    writes `epic-client.json`, then runs the E-3 desk test (§5a), which also runs the first
    Epic fetch. The registration lists both redirect URIs.
+   **E-3, first try (2026-10-13):** the sign-in and consent worked, but Epic's page could not
+   hand the browser to `deetshealth-dev://` (its CSP `form-action *` blocks a custom scheme;
+   EPIC.md §3). **The loopback return is built** (`loopback.rs`; the scheme, its registry
+   writes and the deep-link plugin are gone; SIGN-IN.md §6), not yet desk-tested. The owner
+   added `http://127.0.0.1/callback` to the registration. Epic did not accept it yet at first
+   check; whether it takes any port is open (EPIC.md §3).
 6. **Scaffold** — steps 1–2 built and desk-tested. Steps 3–5 to come (State of play).
 9. **App icon** — `app-icon.svg` is a placeholder (a plain card shape). `npx tauri icon
    app-icon.svg` makes the set; the real icon is the owner's call.
@@ -188,13 +203,12 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
 - **Registry writes from a Claude desktop session are not real** (DeetsMusic, 2026-09-13).
   The Claude app is an MSIX package, so its shells and any dev app they start write
   `HKCU\Software\Classes` into a private hive. Edge cannot see a scheme registered that way.
-  This hits the `deetshealth://` scheme. Check the real registry from a WMI-started process
-  (`../DeetsMusic/docs/ops/DEBUGGING.md` §Sign-in), or start the dev app from the owner's
-  own terminal once.
+  Sign-in no longer uses a scheme (2026-10-13), so this no longer touches it. Check the real
+  registry from a WMI-started process (`../DeetsMusic/docs/ops/DEBUGGING.md` §Sign-in).
+- **A sign-in return must be `http` or `https`.** Epic's sign-in page sets `form-action *`,
+  which blocks a redirect to any custom scheme in Chromium browsers (EPIC.md §3).
 - **No sign-in inside WebView2.** The SMART sign-in opens in the system browser, as
   DeetsMusic's does. Do not try to move it into an in-app popup.
-- **A `cmd /c start` of the callback link only tests Windows → app.** It cannot prove what a
-  browser sees. Quote the link: `cmd` splits an unquoted `&`.
 - **No inline script.** The CSP (`tauri.conf.json`) allows none, so the theme pre-paint is a
   file, `public/prepaint.js`. Keep its defaults in step with `theme.ts` and `skin.ts`.
 - **The wall in the engine** (SECURITY.md §4). Hover hints are written hints only (no row

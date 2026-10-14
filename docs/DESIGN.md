@@ -56,7 +56,7 @@ so every design assumes the app may become a web app later.
 - A web version keeps the same promise: **no server holds a record.** The browser does the
   sign-in, the fetch and the sealed store; the host serves only static files.
 - What differs per platform goes behind a small interface: the key store (DPAPI / WebCrypto
-  non-extractable keys), the sign-in return (deep link / web redirect), the cache (SQLite /
+  non-extractable keys), the sign-in return (a loopback listener / web redirect), the cache (SQLite /
   IndexedDB), opening a browser.
 - Decided: the normalizer, the model and the sealing live in a Rust crate with no Tauri
   dependency, so it can also compile to WebAssembly.
@@ -78,7 +78,7 @@ rule that holds on one platform only says so.
 | Crypto (`Cipher`) | CNG, FIPS 140-validated | Apple's validated module (corecrypto). Its AES-GCM is in CryptoKit, Swift only: a small Swift bridge, or a validated library such as `aws-lc-rs` in FIPS mode |
 | Keys (`KeyStore`) | DPAPI blob in a file | The Keychain. Stronger: the key never sits in our folder |
 | TLS | SChannel | Apple's Security framework, through the same `native-tls` |
-| Sign-in return | The link arrives as a launch argument (single-instance) | The link arrives as an "open URL" event from the deep-link plugin; `lib.rs` needs a second path |
+| Sign-in return | A listener on 127.0.0.1 (`loopback.rs`) | The same listener works as is |
 | **Uninstall erase** | The uninstaller deletes data and keys (SECURITY.md §4.7) | **A Mac app has no uninstaller.** The Trash leaves the data folder and Keychain items. It needs an in-app "Delete all data", and the rule becomes: sign-out erases; uninstall cannot |
 | Web view | WebView2 (Chromium) | WKWebView (Safari engine): small CSS and script differences; every skin, and Glass's blur cost, need a look |
 | Window and keys | Our title bar; Ctrl shortcuts | Traffic-light buttons; Cmd shortcuts. Design forks |

@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: none
-sources: [core/src/auth.rs, core/build.rs, epic-client.example.json, src-tauri/src/signin.rs, src-tauri/src/lib.rs, .gitignore]
+sources: [core/src/auth.rs, core/build.rs, epic-client.example.json, scripts/epic-redirect-check.mjs, src-tauri/src/signin.rs, src-tauri/src/lib.rs, .gitignore]
 updated: 2026-10-13
 ---
 # DeetsHealth — Epic: the registration and the sandbox sign-in
@@ -38,7 +38,7 @@ The rows follow the "Create an App" form, top to bottom (seen 2026-10-13).
 | 1a | Automatic Client Distribution | **USCDI v3** (fork E0, §5; chosen 2026-10-13). | Decides whether real Epic sites get the app with no per-site request. No effect on the sandbox. |
 | 1b | Public Documentation URL | Blank for now, if the form lets you save. Otherwise a page on deets.solutions. | Needed before production. |
 | 2 | Incoming APIs | **Every R4 `.Read` and `.Search`** the form offers, both **(Patient Chart)** and **(Outside Record)** (2026-10-13: the portal shows the whole record, and the fetch already maps every FHIR type, `core/src/fhir.rs` `table_for`). Skip DSTU2 and STU3; every `.Create`, `.Update` and other write (stop rule 1); **(Premium Billing)** (Epic charges for it); and any API the form refuses for a Patients audience. If fork E0 is USCDI v3, take what the form still allows. | Sets the scopes Epic grants. The fetch asks only for the types that the site's capability statement and the grant allow (FETCH.md). |
-| 3 | Endpoint URI (the redirect URI), then **Add Another URI** | `deetshealth://callback`, then `deetshealth-dev://callback`. If the form refuses a custom scheme, copy the exact error for me. | `lib.rs` `LINK_SCHEME`. A build sends one; Epic must know both. |
+| 3 | Endpoint URI (the redirect URI) | **`http://127.0.0.1/callback`** (added 2026-10-13). The two `deetshealth(-dev)://callback` entries from the first try are no longer used; they can go. The form also says production needs at least one `https` URI: the web app's callback can be that one, later. | `loopback.rs`: `http://127.0.0.1:<port>/callback`, a port per sign-in (§3). |
 | 4 | Is Confidential Client | **Unchecked.** A desktop app cannot keep a secret. PKCE proves it. | Already the design (SIGN-IN.md §1). |
 | 5 | Can Register Dynamic Clients | **Checked** (SECURITY.md §5, decided). | Step E-5 (§4). Without it, a public app gets no long-lived access, and the user signs in again about every hour. |
 | 5a | How will dynamic clients request an access token | **JWT bearer grant type** (§6). | Step E-5. |
@@ -68,8 +68,32 @@ APIs, pick them too: an unused scope costs no calls.
 - Test patients and their MyChart logins: fhir.epic.com › Documentation › **Test Data**.
   Camila Lopez first (HANDOFF.md › Decided 3). These are public fakes, so they may appear in
   docs and in chat (DOCS-ORG.md §1, rule 7).
+  - **Camila Lopez:** MyChart login `fhircamila`, password `epicepic1` (Epic's published
+    sandbox login; worked 2026-10-13).
+- **Epic's sign-in page cannot hand off to a custom scheme in Edge** (found 2026-10-13, E-3).
+  After the patient approves, the page POSTs a form to
+  `https://fhir.epic.com/mychart-fhir/Authentication/OAuth/Authorize`, and that POST is
+  redirected to our `deetshealth-dev://callback`. Epic's page sets the Content Security Policy
+  `form-action *`. Chromium checks `form-action` along a form's whole redirect chain, and `*`
+  matches only network schemes (http, https, ws, wss). So Edge blocks the last hop, and the
+  page stalls: "Sending form data to '…/OAuth/Authorize' violates … 'form-action *' … The
+  request has been blocked." We cannot change Epic's page. A sign-in return that Epic's page
+  allows must be an `http` or `https` URL (HANDOFF.md › Open now 5).
+- **What MyChart shows at sign-in** (2026-10-13): "Share your data with DeetsHealth", a notice
+  that "DeetsHealth, offered by Deets Solutions, is not affiliated with your healthcare provider
+  and might not be obligated by HIPAA", and a list of five practices that Deets Solutions "has
+  not shared if it" does (sells data, shares without permission, marketing, insights about the
+  family, stores health data permanently). Then the patient picks the data to share and for how
+  long (one hour was offered). The list comes from Epic's app attestation. Answering it on
+  fhir.epic.com is later work, before production.
 - A new or changed registration can take a while to reach the sandbox. A sign-in refused as
   "invalid client" in the first hour may only mean that.
+- **`error=4` on the authorize step** (a `302` to `…/OAuth/Start?error=4`) means the sandbox does
+  not know that redirect URI. Proved 2026-10-13: an `https://example.com` URI that was never
+  registered gets it, and a registered one does not. A redirect URI added on fhir.epic.com
+  still got `error=4` for a while after it was saved and listed: the change had not synced.
+  Check before a desk test: `node scripts/epic-redirect-check.mjs` ("accepted" or `error=4`, for
+  the plain loopback URI and one random port).
 - Epic's sandbox data is small and tidy (HANDOFF.md › Gotchas). It proves the path, not the mess.
 - **Epic's sign-in has a patient picker for proxies.** A person with proxy access in MyChart
   picks whose record to share, and the token is for that one patient. A parent who signs in
@@ -81,7 +105,7 @@ APIs, pick them too: an unused scope costs no calls.
 |---|---|---|---|
 | E-1 | Fill the sheet (§2) and write `epic-client.json`. **Form done 2026-10-13; the file is next.** | Owner | 0 |
 | E-2 | The Epic sandbox becomes a second entry in Settings › Sites › Connect, with its client ID and its own scope words. **Built 2026-10-13** (§5a). | Claude | 0 |
-| E-3 | Live sign-in as Camila Lopez. Start `npm run dev:app` from your own terminal first, so the `deetshealth-dev://` scheme is real (HANDOFF.md › Gotchas). | Owner, desk test | 2 (the SMART configuration, the token) |
+| E-3 | Live sign-in as Camila Lopez. First try 2026-10-13: blocked at the return (§3); the loopback return is built for the second try. | Owner, desk test | 2 (the SMART configuration, the token) |
 | E-4 | The full fetch against Epic. Then FHIR-SHAPES.md gets Epic's real shapes. The probe (`scripts/fhir-probe.mjs`) reads only open servers and holds no token, so for Epic the shapes come from the sealed store through the core, printing shapes only, never a value. That tool is part of this step. | Claude, then the owner | about 70–100 for the fetch, a guess (SMART took 70), measured after as FETCH.md does; 0 for the shapes |
 | E-5 | DCR: the install's key pair, registered after the first sign-in, then renewal with no sign-in (SECURITY.md §5). Its own paper design first. | Claude, design to the owner | 1 to register, then 1 per renewal |
 
@@ -127,12 +151,10 @@ option that passes:
 **Desk test (E-3):**
 1. Copy `epic-client.example.json` to `epic-client.json`. Paste the non-production client ID,
    and set `scope_version` to the form's SMART scope version.
-2. From **your own terminal** (not a Claude session): `npm run dev:app`. The debug scheme
-   `deetshealth-dev://` then reaches the real registry (HANDOFF.md › Gotchas).
+2. `npm run dev:app`, from any terminal (since 2026-10-13 there is no scheme to register).
 3. Settings › Sites › Connect a site › **Choose** › **Epic sandbox**.
-4. The browser opens Epic's MyChart sign-in. Sign in as Camila Lopez, with the login from
-   fhir.epic.com › Documentation › Test Data. Allow the data, then allow the browser to open
-   DeetsHealth.
+4. The browser opens Epic's MyChart sign-in. Sign in as Camila Lopez (`fhircamila`, §3). Allow
+   the data. The tab then says "You're signed in", and DeetsHealth comes to the front.
 5. The Sites row turns from "Finish signing in in your browser" to the counts, as the fetch
    runs. The fetch (E-4) runs at once, because the fetch code is already built.
 6. If a step fails: the toast's words, and what the browser showed. An "invalid client" in the

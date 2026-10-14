@@ -23,12 +23,9 @@ zeroize = "1"
 # The fetch's waits (Retry-After, back-off) on the runtime Tauri already runs (fetch.rs).
 tokio = { version = "1", features = ["time"] }
 tauri = { version = "2", features = [] }
-# One instance only: a second launch (the pinned taskbar button, or the browser handing
-# back a `deetshealth://` sign-in link) must reach the running app, not start another.
+# One instance only: a second launch (the pinned taskbar button) must reach the running app,
+# not start another.
 tauri-plugin-single-instance = "2"
-# Registers the `deetshealth://` scheme (DATA-ARCHITECTURE.md §2). Link delivery is the
-# single-instance callback; nothing reads a link yet — sign-in comes after the shell.
-tauri-plugin-deep-link = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Local time on log lines (log.rs).

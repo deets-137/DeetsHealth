@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [core/src/auth.rs, core/build.rs, core/src/net.rs, src-tauri/src/signin.rs, src-tauri/src/browser.rs, src-tauri/src/lib.rs, src-tauri/src/sites.rs]
+sources: [core/src/auth.rs, core/build.rs, core/src/net.rs, src-tauri/src/signin.rs, src-tauri/src/loopback.rs, src-tauri/src/browser.rs, src-tauri/src/lib.rs, src-tauri/src/sites.rs]
 updated: 2026-10-13
 ---
 # DeetsHealth — Sign-in
@@ -20,8 +20,12 @@ updated: 2026-10-13
 - **PKCE** — a random *verifier* kept in memory, and its SHA-256 *challenge* sent first. The
   code is useless without the verifier.
 - **`state`** — a random value sent with the request and checked on the returning link.
-- **The link** — `deetshealth-dev://callback?code=…&state=…` (a debug build) or
-  `deetshealth://callback?…` (the installed app). Windows starts the app with it.
+- **The link** — `http://127.0.0.1:<port>/callback?code=…&state=…`: the site sends the
+  browser here after sign-in.
+- **Return listener** — a tiny HTTP listener in the app, on 127.0.0.1 and a port Windows picks,
+  open only while one sign-in waits (`loopback.rs`; RFC 8252 §7.3). It replaced the
+  `deetshealth://` scheme on 2026-10-13: Epic's sign-in page cannot hand off to a custom
+  scheme in Edge (integrations/EPIC.md §3).
 - **Waiting sign-in** — the verifier, `state` and site facts held in memory between the
   browser opening and the link returning. One at a time.
 
@@ -30,7 +34,8 @@ updated: 2026-10-13
    on a row that says "Sign in again", its **Sign in** half (§3, step 1b).
 2. The default browser opens at the site's sign-in page. For the SMART sandbox: a patient
    picker (synthetic patients), then sometimes a practice login with no real password.
-3. The browser asks to open DeetsHealth. The user allows it.
+3. The browser tab shows a short page from the app: "You're signed in. DeetsHealth has your
+   sign-in. You can close this tab." No dialog, nothing to allow.
 4. DeetsHealth comes to the front; the Sites row goes from "Finish signing in in your
    browser" to the counts as the fetch runs (stage 5).
 
@@ -40,11 +45,12 @@ updated: 2026-10-13
 | 1 | `signin::sign_in_start(site)` (command) | Picks `auth::sandbox_sites()[site]`. |
 | 1b | `signin::site_sign_in(site)` (command; `site` is the app's site key) | Opens the saved site, finds its menu entry by base URL (`auth::entry_for`), and remembers the site in the waiting sign-in. At the return (`signin::save`), `auth::renew_site` puts the new tokens into the saved site if the same patient came back; another patient becomes a new site. |
 | 2 | `auth::begin` | GET `<base>/.well-known/smart-configuration`. Needs `authorization_endpoint` and `token_endpoint`, both `https://`. Makes the verifier (32 random bytes → 43 base64url characters), the challenge (base64url of SHA-256, both from CNG) and `state` (16 random bytes). Builds the authorize URL (§4). |
-| 3 | `signin.rs` | Stores the waiting sign-in (replacing any older one). |
+| 1c | `loopback::Bound::open` (before step 2) | Binds 127.0.0.1 on a port Windows picks. The redirect URI is `http://127.0.0.1:<port>/callback`. No port → `sign-in-port`. |
+| 3 | `signin.rs` | Stores the waiting sign-in (replacing any older one, which closes its listener) and starts this one's listener thread. |
 | 4 | `net::open_in_browser` → `browser::SystemBrowser` | `ShellExecuteW("open", url)`. `https://` only, checked twice. |
-| 5 | Windows | The site sends the browser to the link; Windows starts `deetshealth.exe <link>`. |
-| 6 | `lib.rs` single-instance callback (app already open) or `setup` (the link started the app) | `link_in_args` finds the argument that starts with `<scheme>://`; `signin::on_link` gets it. |
-| 7 | `signin::on_link` | Shields the link at once. No waiting sign-in → ignored. Older than 10 min → dropped. Then `auth::check_link`. |
+| 5 | the browser | The site sends the browser to the link. |
+| 6 | `loopback.rs` | Reads one request head (8 KB at most, 5 s). The `Host` must be `127.0.0.1:<port>`, or `421`; only `GET`. `/callback?…` → shielded at once → `signin::on_link`. Our link answers `303 /done` (the code leaves the address bar), then `/done` shows the page for the outcome and the listener closes. A wrong `state` gets a `400` page, and the listener keeps waiting. |
+| 7 | `signin::on_link` | No waiting sign-in → ignored. Older than 10 min → dropped. Then `auth::check_link`. Returns the outcome the page shows. |
 | 8 | `auth::check_link` | `Ours(code)`: our `state` and a `code`. `Refused`: our `state`, but `error=` or no code. `NotOurs`: any other `state`, or not a URL — the waiting sign-in stays. |
 | 9 | `auth::exchange` | POST the token endpoint: `grant_type=authorization_code`, `code`, `redirect_uri`, `client_id`, `code_verifier`. Needs `token_type` Bearer, an `access_token` and a `patient`. |
 | 10 | `signin::save` → `sites::SiteFiles::create` + `SiteStore::put_site` | (A **Sign in** of a saved site with the same patient updates that site instead: step 1b.) A new site key (random name), a new DPAPI-wrapped data key, a new SQLite file; the site row sealed: name, base URL, client id, `Patient` id, SMART config, scopes, tokens, expiry. |
@@ -69,7 +75,8 @@ or the site answers 400 / 401. Any other failure is an error: try again later.
 | Client id | `SiteEntry.client_id` in `auth::sandbox_sites` | `deetshealth` for the SMART sandbox (it accepts any). Epic's comes from `epic-client.json` at the repo root (git-ignored; template `epic-client.example.json`): `core/build.rs` reads it at build time into `DEETSHEALTH_EPIC_CLIENT_ID` (integrations/EPIC.md §2). A change to the file rebuilds the core. |
 | Sites in the Connect menu | `auth::sandbox_sites` | A `SiteEntry` per site: name, base URL, client id, scopes. SMART is index 0. **Epic sandbox** is index 1, only in a build that found `epic-client.json` with a `nonprod_client_id` (`auth::EPIC_SANDBOX`). Real sites come from the directory (integrations/ENDPOINT-DIRECTORY.md). |
 | The SMART sandbox's setup | `auth::SMART_LAUNCH` | §5. |
-| Redirect URI | `lib.rs` `LINK_SCHEME` + `signin::SignIn::new` | `<scheme>://callback`. Debug: `deetshealth-dev`; release: `deetshealth`. A registered site must list the one the build sends, so a site may need both. |
+| Redirect URI | `loopback::Bound::redirect_uri` | `http://127.0.0.1:<port>/callback`, one port per sign-in. Debug and release are the same. A registered site lists `http://127.0.0.1/callback`; whether it accepts any port is EPIC.md §3. |
+| The return pages | `loopback::Page::words` | Four fixed pages: signed in, not shared, ended, not current. A draft for the owner's words. |
 | HTTP rules | `net::Net::new` | HTTPS only, TLS 1.2+, no redirects, gzip, 30 s timeout, `User-Agent: DeetsHealth/<version>`. |
 | What the Sites row shows | the `sign-in` event words | `waiting`, `connected`, `refused`, `expired`, `failed`, `cancelled`. Fixed words only: never a value. |
 
@@ -103,26 +110,27 @@ The source of the format: `smart-launcher-v2`, `src/isomorphic/codec.ts`.
 step then answers `302` with the code in `Location` at once. **To simulate a failure** for a
 desk test, put a code from index 11 into a copy of the entry.
 
-## 6. The link on Windows
-- A debug build registers `deetshealth-dev://` for itself on **every start**
-  (`tauri-plugin-deep-link` `register`, HKCU). The installer registers `deetshealth://`.
-- **From a Claude desktop session the registration is not real.** The Claude app is an MSIX
-  package; its shells, and a dev app they start, write `HKCU\Software\Classes` into a
-  private hive. The browser then cannot find the scheme: Edge shows no "Open DeetsHealth?"
-  dialog, and its console says the scheme has no registered handler. **Fix:** start
-  `npm run dev:app` once from your own terminal. **Check** the real registry from a process
-  started outside the package:
-  ```powershell
-  Invoke-CimMethod Win32_Process -MethodName Create -Arguments @{ CommandLine =
-    'cmd /c reg query HKCU\Software\Classes\deetshealth-dev /ve > C:\Users\Public\scheme.txt' }
-  Get-Content C:\Users\Public\scheme.txt
-  ```
-  "unable to find" = not registered. (DeetsMusic hit this first: its `docs/ops/DEBUGGING.md`
-  §Sign-in.)
-- A `cmd /c start "deetshealth-dev://callback?…"` test proves Windows → app only, not what a
-  browser sees. Quote the link: `cmd` splits an unquoted `&`.
-- `tauri-plugin-single-instance` is the first plugin, so a second process never runs `setup`;
-  it hands its arguments to the running app and exits.
+## 6. The return listener
+- **Why not a custom scheme** (2026-10-13): after the patient approves, Epic's page POSTs a
+  form, and the reply redirects to the redirect URI. Epic's page sets `form-action *`, and
+  Chromium checks `form-action` along the whole redirect chain; `*` matches only network
+  schemes. So Edge blocked `deetshealth-dev://` with no prompt, and the page stalled.
+  `http://127.0.0.1` is a network scheme, so it passes.
+- **No registry, no installer step.** Nothing is registered with Windows, so the MSIX
+  private-hive trap of the old scheme (CLAUDE.md › How to verify) no longer touches sign-in.
+  A dev app started from a Claude session can sign in.
+- **Safety:** 127.0.0.1 only (never `0.0.0.0`); open only while a sign-in waits; the `Host`
+  check stops a web page that reaches the port through a DNS name; the code is useless without
+  the PKCE verifier, which never leaves the app; `state` must match. The pages send
+  `Content-Security-Policy: default-src 'none'`, `no-store` and `no-referrer`, and carry
+  fixed words only.
+- **Firewall:** a listener on 127.0.0.1 gets no Windows Firewall prompt (loopback traffic is
+  not filtered).
+- **Test the listener by hand:** while a sign-in waits, open
+  `http://127.0.0.1:<port>/callback?state=x&code=y` (the port is in the authorize URL's
+  `redirect_uri`). It shows "This link is not for the current sign-in", and the sign-in goes on.
+- `tauri-plugin-single-instance` is still the first plugin, so a second launch only brings the
+  running window forward.
 
 ## 7. Log lines
 The log is `%APPDATA%\com.deetshealth.dev\deetshealth.log` (debug) or
@@ -141,30 +149,32 @@ The log is `%APPDATA%\com.deetshealth.dev\deetshealth.log` (debug) or
 | `the token trade failed: <kind>` | `network error` (no reply, or not 2xx: wrong client id, wrong redirect URI, bad PKCE, used code) · `sign-in error` (not Bearer, no token, no `patient`) · `unexpected reply` (not JSON). | See §8. |
 | `could not seal the new site` | The key or the file could not be made. | Check the data folder is writable; see `keystore.rs`. |
 | `unavailable: <kind>` | The HTTP client could not start. Sign-in commands answer "sign-in is not available". | A TLS or system problem. |
-| `could not register deetshealth-dev://: <error>` | The scheme write failed. | §6. |
+| `could not open a local port for the return: <kind>` | No port on 127.0.0.1 (very rare: a security tool, or every port taken). | Try again; check local security software. |
+| `the return listener closed` | The sign-in ended (taken, cancelled, replaced, or 10 minutes). | — |
+| `the return listener stopped: <kind>` | The listener failed while it waited. | Connect again. |
 
 ## 8. When it goes wrong
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| The browser shows the sign-in page, but no "Open DeetsHealth?" dialog after it | The scheme is not in the real registry (§6). | Start `npm run dev:app` from your own terminal once. |
+| The site's page stalls after you approve, and the console says a form was blocked by `form-action` | The redirect URI is not `http` or `https` (§6). | Check the redirect URI the build sends. |
+| The site shows an error before its sign-in page | The site does not know this redirect URI, or not with this port (EPIC.md §3). | Check the site's registration. |
+| The tab says "This site can't be reached" at `127.0.0.1` | The listener had closed: the sign-in ended (Cancel, a newer sign-in, 10 minutes). | Connect again. |
 | The browser page says "Invalid launch options" | A plain launcher base URL, or a broken `SMART_LAUNCH`. | §5. |
 | `token trade failed: network error` right after the link | The code was already used or is too old, the redirect URI differs from the one in the authorize URL, or PKCE did not match. | Connect again. If it repeats, compare the client id and redirect URI with the site's registration. |
 | `token trade failed: sign-in error` | The site gave no `patient`: `launch/patient` was not granted. | Check the scopes the site allows. |
 | The Sites row says "Sign in again" | Refresh refused (400 / 401) or no refresh token (`offline_access` not granted). | Sign in again; for Epic, see §9. |
-| The dialog opens the installed app instead of the dev app | Both schemes point at their own exe; a debug build uses `deetshealth-dev`. | Check which build sent the sign-in. |
 
 ## 9. Changing it later
-- **Epic** (on hold): register the app on fhir.epic.com; list both redirect URIs
-  (`deetshealth-dev://callback`, `deetshealth://callback`); keep the client id in a
-  git-ignored file; Epic's scopes are set at registration. Then SECURITY.md §5: a key pair
-  per install and `private_key_jwt`, so Epic gives refresh tokens to the app. The SMART
-  launcher tests that half first (index 12–14 and client type 2).
+- **Epic:** registered 2026-10-13 (integrations/EPIC.md). Next after the sign-in works: dynamic
+  client registration with the JWT bearer grant (EPIC.md §6, SECURITY.md §5). The SMART
+  launcher can test the key half first (index 12–14 and client type 2).
 - **A real site list:** `sandbox_sites` gives way to the endpoint directory. Each site's
   `smart-configuration` is read at sign-in, so no endpoint is hard-coded.
 - **SMART v2 scopes** (`patient/*.rs`): change `SCOPES` per site, when a site asks for them.
-- **macOS:** the link arrives as an "open URL" event, not a launch argument; `lib.rs` needs a
-  second path (DESIGN.md §6.2). **iPhone:** `ASWebAuthenticationSession` instead of
-  `ShellExecute` (§6.3). **Web:** a redirect back to the page instead of a scheme.
+- **macOS:** the same return listener works as is. **iPhone:** `ASWebAuthenticationSession`
+  instead of `ShellExecute` (DESIGN.md §6.3); it catches the return itself, and whether Epic's
+  `form-action` affects it is a check for that time. **Web:** the site redirects back to the
+  web app's own `https://…/callback`, which `form-action *` allows.
 
 ## 10. Security, in one place
 - PKCE S256 and `state` on every sign-in; one waiting sign-in; 10-minute limit (SECURITY.md §4.4).
@@ -175,6 +185,9 @@ The log is `%APPDATA%\com.deetshealth.dev\deetshealth.log` (debug) or
 - No redirects are followed, so a token never reaches another host. HTTPS and TLS 1.2+ only.
 - The browser opens `https://` only; Rust opens it, and no opener is exposed to the page.
 - The tokens are sealed with the site's own key the moment the site row is written.
+- The return listener: 127.0.0.1 only, one per sign-in, closed when the wait ends; the `Host`
+  check; `303` so the code leaves the address bar; fixed pages with a `default-src 'none'`
+  policy (§6).
 
 ## 11. Tests
 - `cargo test -p deetshealth-core --features sqlite`: base64url (RFC 4648), the sandbox
@@ -184,12 +197,15 @@ The log is `%APPDATA%\com.deetshealth.dev\deetshealth.log` (debug) or
   sandbox, about 5 calls: `begin`, the authorize redirect read without a browser, a
   wrong-`state` link refused, the token trade (PKCE checked by the launcher), a refresh,
   and a bad refresh token → `SignInAgain`.
+- `cargo test -p deetshealth --lib loopback`: the listener binds 127.0.0.1 on a free port;
+  the pages carry fixed words and no script.
 
 ## 12. Desk test
 > Open. Built 2026-09-24; the whole Sites test is CORE-CRATE.md §12, "Stage 7 desk test".
-1. Start `npm run dev:app` from your own terminal (§6).
+1. Start `npm run dev:app` (any terminal since 2026-10-13: no scheme to register).
 2. Settings › Sites › Connect a site › SMART Health IT sandbox. Expect the browser at the
    patient picker.
-3. Pick a patient; allow "Open DeetsHealth?". Expect the app in front, the row counting up.
+3. Pick a patient. Expect the tab to say "You're signed in", the app in front, and the row
+   counting up. The tab's address bar shows `127.0.0.1:<port>/done`, with no code.
 4. Connect again and close the browser tab. After 10 minutes, a late link does nothing.
 5. Read the log: only the lines of §7, no value in any.
