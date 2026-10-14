@@ -79,6 +79,13 @@ npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--sample N] [--
   have each (`code.coding[].system: text  254/254`).
 - A sandbox site also: the patient row, every warning's text (grouped, with a count), and with
   `--sample N [--type Observation]` whole resources, pretty-printed.
+- **`--csv <folder>`, a sandbox site only** (the core refuses a real site): the whole record as
+  CSV files in `<folder>\<site>\`, to model cards on (the owner, 2026-10-13). `records.csv` has
+  one row per resource with its index columns (kind, code, display, status, dates);
+  `<Type>.csv` has one column per JSON field path, several values joined with ` | `;
+  `links.csv`, `warnings.csv`, `patient.csv`. The `row` column joins them. Write it under
+  `dev-dumps\` in the repo (git-ignored):
+  `npm run inspect -- --csv dev-dumps\epic-sandbox`.
 - **Run it outside the Claude desktop app.** A process started inside it sees a private copy of
   AppData, with no sites in it (CLAUDE.md › How to verify). From a Claude session, start it
   through WMI with `--out`:

@@ -196,6 +196,158 @@ pub fn report<C: Cipher>(store: &SiteStore<C>, opts: &Options) -> Result<String,
     Ok(out)
 }
 
+/// The whole record as CSV files, **for a sandbox site only** (`None` for a real site): the
+/// data to model cards on (the owner, 2026-10-13). Returns (file name, contents):
+/// - `records.csv`: one row per resource, with its index columns (kind, code, dates, status).
+/// - `<Type>.csv`: one row per resource of that type, one column per JSON field path; a field
+///   with several values (an array) joins them with ` | `.
+/// - `links.csv`, `warnings.csv`, `patient.csv`.
+///
+/// `row` is our own row key, cut to 10 characters: it joins the files.
+pub fn export_csv<C: Cipher>(store: &SiteStore<C>) -> Result<Option<Vec<(String, String)>>, CoreError> {
+    if sandbox_name(store)?.is_none() {
+        return Ok(None);
+    }
+    let pass = DevPass::issue();
+    let show = |t: &Option<Text>| t.as_ref().map_or(String::new(), |t| t.reveal(&pass).clone());
+    let short = |r: &crate::store::RowId| r.as_str()[..10].to_owned();
+    let mut files = Vec::new();
+    let mut type_of_row: BTreeMap<String, String> = BTreeMap::new();
+
+    let mut records = Csv::new(&[
+        "row", "table", "type", "fhir_id", "kind", "code_system", "code", "display", "status", "start", "end", "recorded",
+        "last_updated",
+    ]);
+    let mut by_type: BTreeMap<String, Vec<(String, String, Vec<(String, String)>)>> = BTreeMap::new();
+    for table in Table::ALL {
+        for r in store.resources(table)? {
+            let t = r.fhir_type.reveal(&pass).clone();
+            let row = short(&r.id);
+            type_of_row.insert(row.clone(), t.clone());
+            records.row(vec![
+                row.clone(),
+                table.name().to_owned(),
+                t.clone(),
+                r.fhir_id.reveal(&pass).clone(),
+                r.kind.reveal(&pass).clone(),
+                show(&r.code_system),
+                show(&r.code),
+                show(&r.code_display),
+                show(&r.status),
+                show(&r.start),
+                show(&r.end),
+                show(&r.recorded),
+                show(&r.last_updated),
+            ]);
+            let fields = serde_json::from_str::<Value>(r.raw.reveal(&pass)).map(|v| flatten(&v)).unwrap_or_default();
+            by_type.entry(t).or_default().push((row, r.fhir_id.reveal(&pass).clone(), fields));
+        }
+    }
+    files.push(("records.csv".to_owned(), records.text));
+
+    for (t, rows) in by_type {
+        // Columns: every path, the most common first, then by name.
+        let mut seen: BTreeMap<String, u32> = BTreeMap::new();
+        for (_, _, fields) in &rows {
+            let once: std::collections::BTreeSet<&String> = fields.iter().map(|(p, _)| p).collect();
+            for p in once {
+                *seen.entry(p.clone()).or_default() += 1;
+            }
+        }
+        let mut cols: Vec<(String, u32)> = seen.into_iter().collect();
+        cols.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        let mut head = vec!["row".to_owned(), "fhir_id".to_owned()];
+        head.extend(cols.iter().map(|(p, _)| p.clone()));
+        let mut csv = Csv::new(&head.iter().map(String::as_str).collect::<Vec<_>>());
+        for (row, id, fields) in rows {
+            let mut cells = vec![row, id];
+            for (p, _) in &cols {
+                let vals: Vec<&str> = fields.iter().filter(|(q, _)| q == p).map(|(_, v)| v.as_str()).collect();
+                cells.push(vals.join(" | "));
+            }
+            csv.row(cells);
+        }
+        files.push((format!("{t}.csv"), csv.text));
+    }
+
+    let mut links = Csv::new(&["from_row", "from_type", "role", "source_field", "to_table", "to_row", "to_type", "target", "resolved"]);
+    for l in store.all_links()? {
+        let from = short(&l.from_id);
+        let to = l.to_id.as_ref().map(short).unwrap_or_default();
+        links.row(vec![
+            from.clone(),
+            type_of_row.get(&from).cloned().unwrap_or_default(),
+            l.role.reveal(&pass).clone(),
+            l.source_field.reveal(&pass).clone(),
+            l.to_table.name().to_owned(),
+            to.clone(),
+            type_of_row.get(&to).cloned().unwrap_or_default(),
+            l.target_ref.reveal(&pass).clone(),
+            if l.to_id.is_some() { "yes" } else { "no" }.to_owned(),
+        ]);
+    }
+    files.push(("links.csv".to_owned(), links.text));
+
+    let mut warnings = Csv::new(&["type", "severity", "code", "text"]);
+    for x in store.warnings()? {
+        warnings.row(vec![x.fhir_type.reveal(&pass).clone(), show(&x.severity), show(&x.code), show(&x.text)]);
+    }
+    files.push(("warnings.csv".to_owned(), warnings.text));
+
+    let mut patient = Csv::new(&["fhir_id", "name", "birth_date", "sex"]);
+    if let Some(p) = store.patient()? {
+        patient.row(vec![p.fhir_id.reveal(&pass).clone(), show(&p.name), show(&p.birth_date), show(&p.sex)]);
+    }
+    files.push(("patient.csv".to_owned(), patient.text));
+    Ok(Some(files))
+}
+
+/// Every leaf of a resource as (field path, value), in document order.
+fn flatten(v: &Value) -> Vec<(String, String)> {
+    fn go(v: &Value, path: String, out: &mut Vec<(String, String)>) {
+        match v {
+            Value::Object(map) => {
+                for (k, child) in map {
+                    go(child, if path.is_empty() { k.clone() } else { format!("{path}.{k}") }, out);
+                }
+            }
+            Value::Array(items) => {
+                for item in items {
+                    go(item, format!("{path}[]"), out);
+                }
+            }
+            Value::String(s) => out.push((path, s.clone())),
+            Value::Null => {}
+            other => out.push((path, other.to_string())),
+        }
+    }
+    let mut out = Vec::new();
+    go(v, String::new(), &mut out);
+    out
+}
+
+/// A CSV file being written (RFC 4180: a field with a comma, a quote or a line break is quoted).
+struct Csv {
+    text: String,
+}
+
+impl Csv {
+    fn new(head: &[&str]) -> Self {
+        let mut c = Self { text: String::new() };
+        c.row(head.iter().map(|s| (*s).to_owned()).collect());
+        c
+    }
+
+    fn row(&mut self, cells: Vec<String>) {
+        let line: Vec<String> = cells
+            .into_iter()
+            .map(|c| if c.contains([',', '"', '\n', '\r']) { format!("\"{}\"", c.replace('"', "\"\"")) } else { c })
+            .collect();
+        self.text.push_str(&line.join(","));
+        self.text.push_str("\r\n");
+    }
+}
+
 /// A resource's FHIR type is FHIR's word, but stored sealed; let it out only when it is a type
 /// with a table.
 fn plain_type(t: &Text) -> String {
@@ -268,6 +420,15 @@ mod tests {
         assert!(s.contains(&"valueQuantity.value: number".to_owned()));
         assert!(s.contains(&"?: text".to_owned()));
         assert!(!s.iter().any(|p| p.contains("loinc") || p.contains("4548") || p.contains("6.1") || p.contains("weird")));
+    }
+
+    #[test]
+    fn csv_quotes_and_flatten_joins_paths() {
+        let mut c = Csv::new(&["a", "b"]);
+        c.row(vec!["x,y".into(), "say \"hi\"".into()]);
+        assert_eq!(c.text, "a,b\r\n\"x,y\",\"say \"\"hi\"\"\"\r\n");
+        let v: Value = serde_json::from_str(r#"{"code":{"coding":[{"code":"1"},{"code":"2"}]},"n":5,"z":null}"#).unwrap();
+        assert_eq!(flatten(&v), vec![("code.coding[].code".into(), "1".into()), ("code.coding[].code".into(), "2".into()), ("n".into(), "5".into())]);
     }
 
     #[test]

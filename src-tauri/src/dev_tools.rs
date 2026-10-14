@@ -20,6 +20,7 @@ pub fn inspect(args: Vec<String>) -> i32 {
     let mut dir = std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("com.deetshealth.dev"));
     let mut only: Option<String> = None;
     let mut out: Option<PathBuf> = None;
+    let mut csv: Option<PathBuf> = None;
     let mut opts = Options::default();
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
@@ -30,8 +31,10 @@ pub fn inspect(args: Vec<String>) -> i32 {
             "--sample" => opts.sample = it.next().and_then(|n| n.parse().ok()).unwrap_or(1),
             "--type" => opts.sample_types.extend(it.next()),
             "--out" => out = it.next().map(PathBuf::from),
+            "--csv" => csv = it.next().map(PathBuf::from),
             "--help" | "-h" => {
-                println!("npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--sample N] [--type T]... [--out <file>]");
+                println!("npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--sample N] [--type T]... [--out <file>] [--csv <folder>]");
+                println!("  --csv: a sandbox site's whole record as CSV files, one folder per site (a real site is refused)");
                 return 0;
             }
             other => {
@@ -56,10 +59,15 @@ pub fn inspect(args: Vec<String>) -> i32 {
     for site in &sites {
         text.push_str(&format!("\n════ site {} ════\n", short(site)));
         match files.open(site) {
-            Ok(Some(store)) => match dev::report(&store, &opts) {
-                Ok(r) => text.push_str(&r),
-                Err(e) => text.push_str(&format!("could not read: {e}\n")),
-            },
+            Ok(Some(store)) => {
+                match dev::report(&store, &opts) {
+                    Ok(r) => text.push_str(&r),
+                    Err(e) => text.push_str(&format!("could not read: {e}\n")),
+                }
+                if let Some(root) = &csv {
+                    text.push_str(&write_csv(&store, &root.join(short(site))));
+                }
+            }
             Ok(None) => text.push_str("no key for this site (erased?)\n"),
             Err(e) => text.push_str(&format!("could not open: {e}\n")),
         }
@@ -78,6 +86,27 @@ pub fn inspect(args: Vec<String>) -> i32 {
         None => {
             print!("{text}");
             0
+        }
+    }
+}
+
+/// Write one site's CSV files into `dir`. The core refuses a real site.
+fn write_csv(store: &deetshealth_core::store::SiteStore<crate::cng::Cng>, dir: &std::path::Path) -> String {
+    match dev::export_csv(store) {
+        Ok(None) => "\ncsv: refused, a real site (sandbox sites only)\n".to_owned(),
+        Err(e) => format!("\ncsv: could not read: {e}\n"),
+        Ok(Some(files)) => {
+            if let Err(e) = std::fs::create_dir_all(dir) {
+                return format!("\ncsv: could not make {}: {e}\n", dir.display());
+            }
+            let mut written = 0;
+            for (name, body) in &files {
+                // A UTF-8 mark first, so Excel reads accents right.
+                if std::fs::write(dir.join(name), format!("\u{feff}{body}")).is_ok() {
+                    written += 1;
+                }
+            }
+            format!("\ncsv: {written} files in {}\n", dir.display())
         }
     }
 }

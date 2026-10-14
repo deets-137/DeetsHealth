@@ -82,6 +82,10 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   store and redacted reports **ahead of the engine's stage 1**. Wrote the request:
   `../DeetsEngine/docs/ideas/deetshealth-needs.md`, with a pointer at the top of its
   HANDOFF.md › Open now. DeetsHealth's own globals are designed here afterwards.
+- Committed both repositories (DeetsEngine `adea158`, DeetsHealth `dfacc33`). The owner asked
+  for Camila's mock record as CSV to model the layout on. Built `dev::export_csv` (sandbox
+  only, enforced in the core) and `npm run inspect -- --csv <folder>`; exported 17 files to
+  `dev-dumps/epic-sandbox/` (git-ignored). Core 45 tests.
 
 ## 2026-09-24 — stage 7: `ts-rs` and Settings › Sites
 - The owner asked where the SMART work stood, then asked for stage 7.
