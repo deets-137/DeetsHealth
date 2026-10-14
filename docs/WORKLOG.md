@@ -76,6 +76,12 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   incomplete and toasted. Fixed: a refused fallback category is "not served" (`Job.is_fallback`,
   outcome `category-not-served`), and the refused list no longer repeats a type. Core 44 tests.
   Not run live yet. Committed and merged into `main`; the owner opens a branch for the layout.
+- DeetsEngine checked: it builds natively and for wasm; its `Store` trait is about 10 methods;
+  its API takes and returns plain strings. The owner chose **R-A lite** over R-A (a generic
+  value type would rework `globals.rs`, the indexes, packing and the journal), and the memory
+  store and redacted reports **ahead of the engine's stage 1**. Wrote the request:
+  `../DeetsEngine/docs/ideas/deetshealth-needs.md`, with a pointer at the top of its
+  HANDOFF.md › Open now. DeetsHealth's own globals are designed here afterwards.
 
 ## 2026-09-24 — stage 7: `ts-rs` and Settings › Sites
 - The owner asked where the SMART work stood, then asked for stage 7.

@@ -151,14 +151,18 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
   cards (visits, results, medicines, …), and each hub has levels in DeetsMusic's style (a
   hero, rows, Back). Paper design: [HOME-AND-HUBS.md](features/HOME-AND-HUBS.md), forks
   open.
-- **DeetsEngine: the "D-A + R-A + L-A" set.** The sealed SQLite store stays the record on
-  disk (D-A). At open, the core unseals it into an in-memory DeetsEngine tree of globals,
-  which is a derived view rebuilt at each open, so it needs no migration. The engine gets a
-  protected mode (R-A): values stay `Shielded<String>`, and a report never carries a
-  subscript or a value (today `NotUnique` carries its values, `DeetsEngine/src/error.rs`).
-  The tree stays in memory while the app is open (L-A); an idle drop is a later Settings
-  row. This needs DeetsEngine's stage 1 (the dictionary, pointers, walks) and a memory
-  store, built in that repository. Until then the cards read the built store.
+- **DeetsEngine: the "D-A + R-A lite + L-A" set.** The sealed SQLite store stays the record
+  on disk (D-A). At open, the core unseals it into an in-memory DeetsEngine tree of globals,
+  which is a derived view rebuilt at each open, so it needs no migration. **R-A lite** (the
+  owner, 2026-10-13, replacing R-A): values are plain strings inside the engine, wiped when
+  they drop; the guards are DeetsHealth's typed wrapper at the boundary (`Shielded` in and
+  out, a new pass) and redacted engine reports (today `NotUnique` carries its values,
+  `DeetsEngine/src/error.rs`). R-A full (a generic value type in the engine) was too large a
+  rework. The tree stays in memory while the app is open (L-A); an idle drop is a later
+  Settings row. **DeetsEngine builds the base layer first, ahead of its stage 1:** a memory
+  store and redacted reports, requested in `../DeetsEngine/docs/ideas/deetshealth-needs.md`.
+  **DeetsHealth's own globals are designed here,** with the owner, once that exists. Until
+  then the cards read the built store.
 - **Next: Epic sandbox sign-in**, before card work. The fill-in sheet and the plan:
   [EPIC.md](integrations/EPIC.md).
 - **Planned, paper only: a Cloudflare identity worker** for tiered access (parent and
