@@ -55,6 +55,18 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   `http://127.0.0.1/callback` at 17:41 (about 25 minutes after the save), but rejected every
   other port: it matches the port exactly. `loopback::PORTS` = 80, 42813, 46219, the first
   free one wins; the script checks each. Host tests 18 (3 new). The dev app rebuilt at 17:43.
+- Committed `400b5b0`. **E-3 passed:** Camila signed in through the loopback return; the fetch
+  stored 296 rows of 12 types, 32 calls, 8 s, 76 warnings, 592 waiting links, CarePlan refused.
+- The owner asked for DeetsMusic-grade telemetry and confirmed SECURITY.md §4.8 (sandbox data
+  may be shown). Built: the call ledger (`sync::CallNote`, `fetch.rs` `call_line`),
+  `fhir::issue_word` (FHIR's closed lists; digits-only detail codes), the fetch summary
+  (`Summary.waiting_by_type`, `warnings_by_code`), the inspector (`core/src/dev.rs` with
+  `DevPass`, feature `dev`; `src-tauri/src/dev_tools.rs`, `examples/inspect.rs`,
+  `npm run inspect`). New `ops/DEBUGGING.md`. Checks: core 43 tests (2 new) + 3 proofs with
+  `dev`; the inspector run on Camila's store through WMI.
+- What it showed (ops/DEBUGGING.md §7): CarePlan needs one of ten categories; 17 types withhold
+  Outside Record data from this client; SmartData Elements not authorized; the 592 waiting
+  links name 54 distinct records.
 
 ## 2026-09-24 — stage 7: `ts-rs` and Settings › Sites
 - The owner asked where the SMART work stood, then asked for stage 7.

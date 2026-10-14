@@ -174,7 +174,9 @@ and carries counts, FHIR type names and error kinds only.
 |---|---|---|
 | `started` | The store opened; the fetch runs. | — |
 | `already running for this site; not started again` | A second start while one runs. | Wait for `done`. |
+| `call <what> p<n> · <status> · …` | One per HTTP call: the call ledger (ops/DEBUGGING.md §3). | A `refused` line's issue words say why. |
 | `done: N resources, T types, L links (W waiting), C calls, S s, X warnings, key reads K ms` | The fetch ended. `W waiting` = links to a resource the site never sent. | — |
+| `types: …` · `waiting links point at: …` · `warnings: …` | The fetch summary: kinds and counts (ops/DEBUGGING.md §4). | `npm run inspect` for more. |
 | `the site refused: <types>` | These jobs stopped on an HTTP status. | Read the warnings; check the scopes. |
 | `incomplete: <types>` | These jobs stopped early, for any reason. | Refresh; read the warnings. |
 | `the site refused the refresh token; sign in again` | The refresh answered 400 or 401, or there is no refresh token. | Sign in again. |

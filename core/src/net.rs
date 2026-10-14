@@ -118,6 +118,18 @@ pub(crate) fn parse_link<R>(link: &Text, f: impl FnOnce(&reqwest::Url) -> Result
     f(&url)
 }
 
+/// A reply's size in bytes, for the call ledger (sync.rs). A length, never the content.
+pub(crate) fn byte_len(t: &Text) -> usize {
+    t.reveal(&SitePass::issue()).len()
+}
+
+/// The value when it is only ASCII digits, at most `max` of them: a site's message number
+/// (fhir::issue_word). Anything else gives `None`, so no text gets out.
+pub(crate) fn digits(t: &Text, max: usize) -> Option<String> {
+    let s = t.reveal(&SitePass::issue());
+    (!s.is_empty() && s.len() <= max && s.bytes().all(|b| b.is_ascii_digit())).then(|| s.clone())
+}
+
 /// The granted scope string, to decide which types to fetch. OAuth scopes are the site's
 /// words for what we may read, not record data.
 pub(crate) fn read_scopes(t: &Text) -> String {

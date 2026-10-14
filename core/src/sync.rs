@@ -82,11 +82,43 @@ pub struct Summary {
     pub links: u32,
     /// Links whose target the site never sent: a reference to a resource not fetched.
     pub links_waiting: u32,
+    /// The waiting links by the FHIR type they point at (`other` for a word that is not a FHIR
+    /// type), so a gap in the includes shows (FETCH.md §5.3).
+    pub waiting_by_type: BTreeMap<String, u32>,
+    /// The stored warnings by `<FHIR type> <word>`: our own codes (`http-400`), or the site's
+    /// issues as [`fhir::issue_word`] gives them. Never an issue's text.
+    pub warnings_by_code: BTreeMap<String, u32>,
+}
+
+/// One HTTP call of a fetch, for the call ledger in the log (FETCH.md §9). Our own words and
+/// numbers only: never a URL, an id, a token or a value from a reply (SECURITY.md §4.5).
+pub struct CallNote {
+    /// `metadata`, `Patient`, or the job: its FHIR type and our own extra parameters
+    /// (`Observation?category=laboratory`).
+    pub what: String,
+    /// The page within the job, from 1.
+    pub page: u32,
+    /// `None`: no reply after every try.
+    pub status: Option<u16>,
+    /// Attempts, retries included.
+    pub tries: u32,
+    pub ms: u128,
+    pub bytes: usize,
+    /// Resources the search matched, and resources brought by `_include`.
+    pub entries: u32,
+    pub included: u32,
+    /// The site's issues on this page, as [`fhir::issue_word`] gives them.
+    pub issues: Vec<String>,
+    /// What the job did next: `next-page`, `last-page`, `fallback`, `refused`, `token-renew`,
+    /// `network`, `unreadable`, `store-failed`, `next-link-off-site`.
+    pub outcome: &'static str,
 }
 
 #[derive(Clone)]
 struct Job {
     fhir_type: String,
+    /// The type and our own extra parameters, for the call ledger. No patient id.
+    label: String,
     table: Table,
     url: Text,
     /// Jobs to run instead when the site refuses this one's first page. The plain
@@ -108,16 +140,19 @@ struct Shared {
     keys: Keys,
     /// Links written.
     links: u32,
+    warnings_by_code: BTreeMap<String, u32>,
 }
 
-/// A full fetch for the site in `store`. `on_progress` gets counts after every page.
+/// A full fetch for the site in `store`. `on_progress` gets counts after every page;
+/// `on_call` gets one [`CallNote`] per HTTP call.
 pub async fn full_fetch<S: Store, T: Timer>(
     net: &Net,
     store: &S,
     timer: &T,
     on_progress: impl FnMut(&Progress),
+    on_call: impl FnMut(&CallNote),
 ) -> Result<FetchEnd, CoreError> {
-    full_fetch_paged(net, store, timer, PAGE_SIZE, on_progress).await
+    full_fetch_paged(net, store, timer, PAGE_SIZE, on_progress, on_call).await
 }
 
 /// [`full_fetch`] with another page size. The app always uses [`PAGE_SIZE`]; a test uses a
@@ -128,6 +163,7 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
     timer: &T,
     page_size: &str,
     mut on_progress: impl FnMut(&Progress),
+    mut on_call: impl FnMut(&CallNote),
 ) -> Result<FetchEnd, CoreError> {
     let started = timer.now();
     let mut site = store.site()?.ok_or(CoreError::Io)?;
@@ -143,7 +179,10 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
     let mut calls = 0u32;
 
     // What the site serves.
-    let meta = get(net, timer, &net::join(&base, "metadata"), None, &mut calls).await?;
+    let t0 = Stopwatch::start();
+    let meta = get(net, timer, &net::join(&base, "metadata"), None, &mut calls).await;
+    on_call(&simple_note("metadata", calls, t0.ms(), meta.as_ref().ok()));
+    let meta = meta?;
     if !meta.ok() {
         return Err(CoreError::Network);
     }
@@ -157,7 +196,10 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
         &net::join(&base, "Patient"),
         &[("_id", Field::Shielded(&patient)), ("_elements", Field::Plain("name,birthDate,gender"))],
     )?;
-    let reply = get(net, timer, &url, Some(&token), &mut calls).await?;
+    let (before, t0) = (calls, Stopwatch::start());
+    let reply = get(net, timer, &url, Some(&token), &mut calls).await;
+    on_call(&simple_note("Patient", calls - before, t0.ms(), reply.as_ref().ok()));
+    let reply = reply?;
     if reply.ok() {
         let page = fhir::read_page(&reply.body)?;
         if let Some(p) = page.found.iter().find(|f| f.fhir_type == "Patient") {
@@ -191,10 +233,12 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
         stopped: Default::default(),
         keys: Keys::default(),
         links: 0,
+        warnings_by_code: BTreeMap::new(),
     });
     let site_cell = RefCell::new(site);
     let progress_cb = RefCell::new(&mut on_progress);
-    let workers = (0..PACE).map(|_| worker(net, store, timer, &base, &shared, &site_cell, &progress_cb));
+    let call_cb = RefCell::new(&mut on_call);
+    let workers = (0..PACE).map(|_| worker(net, store, timer, &base, &shared, &site_cell, &progress_cb, &call_cb));
     futures_util::future::join_all(workers).await;
 
     let mut shared = shared.into_inner();
@@ -203,7 +247,7 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
         return Ok(FetchEnd::SignInAgain);
     }
     // Links whose target arrived on a later page, or in another job.
-    let (_, links_waiting) = store.in_transaction(|st| resolve_links(st, &mut shared.keys))?;
+    let (_, links_waiting, waiting_by_type) = store.in_transaction(|st| resolve_links(st, &mut shared.keys))?;
     let now = Shielded::new(timer.now().to_string());
     site.last_fetch = Some(now.clone());
     site.last_full_fetch = Some(now);
@@ -217,7 +261,25 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
         key_read_ms: shared.keys.ms,
         links: shared.links,
         links_waiting,
+        waiting_by_type,
+        warnings_by_code: shared.warnings_by_code,
     }))
+}
+
+/// The ledger note for a call outside the jobs (`metadata`, `Patient`).
+fn simple_note(what: &str, tries: u32, ms: u128, reply: Option<&Reply>) -> CallNote {
+    CallNote {
+        what: what.to_owned(),
+        page: 1,
+        status: reply.map(|r| r.status),
+        tries,
+        ms,
+        bytes: reply.map_or(0, |r| net::byte_len(&r.body)),
+        entries: 0,
+        included: 0,
+        issues: Vec::new(),
+        outcome: if reply.is_some() { "last-page" } else { "network" },
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -233,7 +295,13 @@ fn job(
     q.extend(extra.iter().map(|(k, v)| (*k, Field::Plain(v))));
     let prefix = format!("{}:", s.fhir_type);
     q.extend(includes.iter().filter(|i| i.starts_with(&prefix)).map(|i| ("_include", Field::Plain(i.as_str()))));
+    let mut label = s.fhir_type.clone();
+    if !extra.is_empty() {
+        label.push('?');
+        label.push_str(&extra.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("&"));
+    }
     Ok(Job {
+        label,
         fhir_type: s.fhir_type.clone(),
         table: s.table,
         url: net::url_with(&net::join(base, &s.fhir_type), &q)?,
@@ -258,6 +326,7 @@ fn read_includes(capability: &Text) -> Vec<String> {
 }
 
 /// One of the [`PACE`] workers: takes jobs until none are left.
+#[allow(clippy::too_many_arguments)]
 async fn worker<S: Store, T: Timer>(
     net: &Net,
     store: &S,
@@ -266,6 +335,7 @@ async fn worker<S: Store, T: Timer>(
     shared: &RefCell<Shared>,
     site: &RefCell<SiteRow>,
     on_progress: &RefCell<&mut impl FnMut(&Progress)>,
+    on_call: &RefCell<&mut impl FnMut(&CallNote)>,
 ) {
     loop {
         let job = {
@@ -278,7 +348,7 @@ async fn worker<S: Store, T: Timer>(
                 None => return,
             }
         };
-        run_job(net, store, timer, base, shared, site, &job, on_progress).await;
+        run_job(net, store, timer, base, shared, site, &job, on_progress, on_call).await;
         let snapshot = {
             let mut s = shared.borrow_mut();
             s.progress.jobs_done += 1;
@@ -298,29 +368,51 @@ async fn run_job<S: Store, T: Timer>(
     site: &RefCell<SiteRow>,
     job: &Job,
     on_progress: &RefCell<&mut impl FnMut(&Progress)>,
+    on_call: &RefCell<&mut impl FnMut(&CallNote)>,
 ) {
     let mut next = Some(job.url.clone());
     let mut refreshed = false;
     let mut first = true;
+    let mut page_no = 0;
+    let emit = |note: CallNote| (on_call.borrow_mut())(&note);
     while let Some(url) = next.take() {
         let (token, generation) = {
             let s = shared.borrow();
             (s.token.clone(), s.token_generation)
         };
         let mut calls = 0;
+        let t0 = Stopwatch::start();
         let reply = get(net, timer, &url, Some(&token), &mut calls).await;
         shared.borrow_mut().progress.calls += calls;
+        page_no += 1;
+        let mut note = CallNote {
+            what: job.label.clone(),
+            page: page_no,
+            status: None,
+            tries: calls,
+            ms: t0.ms(),
+            bytes: 0,
+            entries: 0,
+            included: 0,
+            issues: Vec::new(),
+            outcome: "network",
+        };
         let reply = match reply {
             Ok(r) => r,
             Err(_) => {
+                emit(note);
                 warn(store, shared, &job.fhir_type, "network", timer.now());
                 return;
             }
         };
+        note.status = Some(reply.status);
+        note.bytes = net::byte_len(&reply.body);
         match reply.status {
             200..=299 => {}
             401 if !refreshed => {
                 refreshed = true;
+                note.outcome = "token-renew";
+                emit(note);
                 if !renew(net, store, timer, shared, site, generation).await {
                     // "Sign in again" ends the whole fetch and says so; any other failure
                     // stops only this job, and must still leave a warning.
@@ -330,14 +422,21 @@ async fn run_job<S: Store, T: Timer>(
                     return;
                 }
                 next = Some(url);
+                page_no -= 1;
                 continue;
             }
             status if first && !job.fallback.is_empty() && is_refusal(status) => {
+                note.issues = fhir::read_error(&reply.body).iter().map(fhir::issue_word).collect();
+                note.outcome = "fallback";
+                emit(note);
                 use_fallback(shared, job);
                 return;
             }
             status => {
                 let issues = fhir::read_error(&reply.body);
+                note.issues = issues.iter().map(fhir::issue_word).collect();
+                note.outcome = "refused";
+                emit(note);
                 let now = timer.now();
                 {
                     let mut s = shared.borrow_mut();
@@ -351,26 +450,42 @@ async fn run_job<S: Store, T: Timer>(
         let page = match fhir::read_page(&reply.body) {
             Ok(p) => p,
             Err(_) => {
+                note.outcome = "unreadable";
+                emit(note);
                 warn(store, shared, &job.fhir_type, "unreadable-page", timer.now());
                 return;
             }
         };
+        note.included = page.found.iter().filter(|f| f.included).count() as u32;
+        note.entries = page.found.len() as u32 - note.included;
+        note.issues = page.issues.iter().map(fhir::issue_word).collect();
         // A site may refuse with an empty page and an error issue instead of a 4xx.
         if first && !job.fallback.is_empty() && page.found.is_empty() && has_error_issue(&page.issues) {
+            note.outcome = "fallback";
+            emit(note);
             use_fallback(shared, job);
             return;
         }
         first = false;
         if let Err(e) = write_page(store, shared, job, &page.found) {
+            note.outcome = "store-failed";
+            emit(note);
             warn(store, shared, &job.fhir_type, if e == CoreError::Crypto { "seal" } else { "store" }, timer.now());
             return;
         }
+        // A `next` link must stay on this site: the token never goes to another host.
+        let off_site = page.next.as_ref().is_some_and(|n| !net::on_site(n, base));
+        note.outcome = match (&page.next, off_site) {
+            (None, _) => "last-page",
+            (Some(_), false) => "next-page",
+            (Some(_), true) => "next-link-off-site",
+        };
+        emit(note);
         store_issues(store, shared, &job.fhir_type, page.issues, timer.now());
         let snapshot = shared.borrow().progress.clone();
         (on_progress.borrow_mut())(&snapshot);
-        // A `next` link must stay on this site: the token never goes to another host.
         next = match page.next {
-            Some(n) if net::on_site(&n, base) => Some(n),
+            Some(n) if !off_site => Some(n),
             Some(_) => {
                 warn(store, shared, &job.fhir_type, "next-link-off-site", timer.now());
                 None
@@ -546,11 +661,13 @@ fn write_resource<S: Store>(
 /// Point every waiting link at its target, now that more rows are stored. Returns the links
 /// resolved and the links still waiting (their target was never fetched). Call inside a
 /// transaction.
-pub(crate) fn resolve_links<S: Store>(store: &S, keys: &mut Keys) -> Result<(u32, u32), CoreError> {
+pub(crate) fn resolve_links<S: Store>(store: &S, keys: &mut Keys) -> Result<(u32, u32, BTreeMap<String, u32>), CoreError> {
     let (mut resolved, mut waiting) = (0, 0);
+    let mut by_type = BTreeMap::new();
     for l in store.unresolved_links()? {
-        let target = match net::split_ref(&l.target_ref) {
-            Some((t, id)) => keys.find(store, l.to_table, &t, &id)?,
+        let parts = net::split_ref(&l.target_ref);
+        let target = match &parts {
+            Some((t, id)) => keys.find(store, l.to_table, t, id)?,
             None => None,
         };
         match target {
@@ -558,10 +675,19 @@ pub(crate) fn resolve_links<S: Store>(store: &S, keys: &mut Keys) -> Result<(u32
                 store.set_link_target(&l.id, &row)?;
                 resolved += 1;
             }
-            None => waiting += 1,
+            None => {
+                waiting += 1;
+                // Only a FHIR type name is let out; anything else reads `other`.
+                let word = match &parts {
+                    Some((t, _)) if fhir::table_for(t).is_some() => t.clone(),
+                    Some(_) => "other".to_owned(),
+                    None => "not-a-reference".to_owned(),
+                };
+                *by_type.entry(word).or_default() += 1;
+            }
         }
     }
-    Ok((resolved, waiting))
+    Ok((resolved, waiting, by_type))
 }
 
 /// Counts only.
@@ -598,7 +724,7 @@ pub fn reindex<S: Store>(store: &S) -> Result<Reindexed, CoreError> {
                 rows += 1;
             }
         }
-        let (_, waiting) = resolve_links(st, &mut keys)?;
+        let (_, waiting, _) = resolve_links(st, &mut keys)?;
         st.set_index_version(crate::index::INDEX_VERSION)?;
         Ok(Reindexed { rows, links, waiting })
     })
@@ -625,12 +751,23 @@ impl Stopwatch {
 /// so the type is marked as stopped too.
 fn warn<S: Store>(store: &S, shared: &RefCell<Shared>, fhir_type: &str, code: &str, now: u64) {
     shared.borrow_mut().stopped.insert(fhir_type.to_owned());
-    let issue = Issue { severity: Some(Shielded::new("error".into())), code: Some(Shielded::new(code.into())), text: None };
-    store_issues(store, shared, fhir_type, vec![issue], now);
+    let issue = Issue { severity: Some(Shielded::new("error".into())), code: Some(Shielded::new(code.into())), text: None, detail: None };
+    // Our own code is a fixed word, so it is tallied as it is.
+    write_issues(store, shared, fhir_type, vec![(issue, code.to_owned())], now);
 }
 
+/// The site's issues: tallied as [`fhir::issue_word`] gives them, stored sealed.
 fn store_issues<S: Store>(store: &S, shared: &RefCell<Shared>, fhir_type: &str, issues: Vec<Issue>, now: u64) {
-    for i in issues {
+    let worded = issues.into_iter().map(|i| {
+        let w = fhir::issue_word(&i);
+        (i, w)
+    });
+    write_issues(store, shared, fhir_type, worded.collect(), now);
+}
+
+fn write_issues<S: Store>(store: &S, shared: &RefCell<Shared>, fhir_type: &str, issues: Vec<(Issue, String)>, now: u64) {
+    for (i, word) in issues {
+        *shared.borrow_mut().warnings_by_code.entry(format!("{fhir_type} {word}")).or_default() += 1;
         let Ok(id) = store.new_row_id() else { continue };
         let w = WarningRow {
             id,

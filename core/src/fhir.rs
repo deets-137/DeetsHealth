@@ -129,6 +129,37 @@ pub struct Issue {
     pub severity: Option<Text>,
     pub code: Option<Text>,
     pub text: Option<Text>,
+    /// The site's own message code (`details.coding[0].code`; Epic numbers its messages, such
+    /// as 4101). Shielded like the rest; [`issue_word`] lets out only a number.
+    pub detail: Option<Text>,
+}
+
+/// FHIR's issue severities and issue types (R4 value sets `issue-severity`, `issue-type`):
+/// closed lists, so a word in them is FHIR's, not the record's.
+const ISSUE_SEVERITIES: [&str; 4] = ["fatal", "error", "warning", "information"];
+const ISSUE_TYPES: [&str; 31] = [
+    "invalid", "structure", "required", "value", "invariant", "security", "login", "unknown", "expired",
+    "forbidden", "suppressed", "processing", "not-supported", "duplicate", "multiple-matches", "not-found",
+    "deleted", "too-long", "code-invalid", "extension", "too-costly", "business-rule", "conflict", "transient",
+    "lock-error", "no-store", "exception", "timeout", "incomplete", "throttled", "informational",
+];
+
+/// An issue as words safe for a log line (SECURITY.md §4.5): `severity:code`, plus `#<n>` for
+/// the site's message number. Each part is compared, shielded, against FHIR's closed lists;
+/// anything else reads `other`. The detail passes only as digits (at most 8), so no text from
+/// the site gets out. Never the issue's text.
+pub fn issue_word(i: &Issue) -> String {
+    fn pick(v: &Option<Text>, list: &[&'static str]) -> &'static str {
+        match v {
+            None => "none",
+            Some(v) => list.iter().copied().find(|w| *v == Shielded::new((*w).to_owned())).unwrap_or("other"),
+        }
+    }
+    let mut word = format!("{}:{}", pick(&i.severity, &ISSUE_SEVERITIES), pick(&i.code, &ISSUE_TYPES));
+    if let Some(n) = i.detail.as_ref().and_then(|d| crate::net::digits(d, 8)) {
+        word.push_str(&format!("#{n}"));
+    }
+    word
 }
 
 /// One page of a search.
@@ -151,6 +182,7 @@ fn issues_of(oo: &Value) -> Vec<Issue> {
                     severity: s(i.get("severity")),
                     code: s(i.get("code")),
                     text: s(i.get("diagnostics")).or_else(|| s(i.pointer("/details/text"))),
+                    detail: s(i.pointer("/details/coding/0/code")),
                 })
                 .collect()
         })

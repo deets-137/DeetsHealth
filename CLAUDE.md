@@ -52,6 +52,9 @@ NAME=area`, never by hand.
 **`docs/features/`** — one feature or surface
 - `HOME-AND-HUBS.md` — the portal's layout: Home unites one patient's record, drills open hub cards with levels; forks.
 
+**`docs/ops/`** — build, ship, diagnose
+- `DEBUGGING.md` — the call ledger, the fetch summary, `npm run inspect` (the sealed-store inspector: words for any site, full data for a sandbox), recipes, what the first Epic fetch showed.
+
 **`docs/ideas/`** — not built; never tell a user the app does these.
 - `IDENTITY-WORKER.md` — a Cloudflare worker for accounts, devices and tiered sharing (parent and child, read-only and act); zero-knowledge relay; forks.
 

@@ -65,6 +65,7 @@ npx tsc --noEmit      # front-end type check
 npm run docs:check    # links, mentions, § pointers, front matter
 npm run tokens        # regenerate docs/architecture/TOKENS.md after a token change
 npm run types         # regenerate src/model/ (TypeScript) from core/src/payload.rs
+npm run inspect -- --shapes             # dev only: what a site's sealed store holds (ops/DEBUGGING.md §5; run it outside the Claude app)
 node scripts/epic-redirect-check.mjs   # does Epic's sandbox know our redirect URI yet? (EPIC.md §3)
 cargo test -p deetshealth-core --features sqlite                  # core tests + compile-fail proofs
 cargo test -p deetshealth --lib                                   # host tests: CNG, DPAPI, the plaintext scan
@@ -177,7 +178,11 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
    added `http://127.0.0.1/callback` to the registration; Epic accepted it at 17:41, but only
    with no port: **Epic matches the port exactly** (EPIC.md §3). So the app tries ports 80,
    42813, 46219 in order (`loopback::PORTS`). Port 80 works now; the owner registers the two
-   fallback URIs. Next: the E-3 desk test as Camila.
+   fallback URIs. **E-3 passed (2026-10-13):** Camila signed in; the first Epic fetch stored 296
+   rows of 12 types in 32 calls. **E-4 tools built** (the call ledger, the fetch summary,
+   `npm run inspect`; ops/DEBUGGING.md). What the fetch showed, and the fixes it points to
+   (CarePlan's categories, Outside Record APIs, 54 missing referenced records):
+   ops/DEBUGGING.md §7. Not committed.
 6. **Scaffold** — steps 1–2 built and desk-tested. Steps 3–5 to come (State of play).
 9. **App icon** — `app-icon.svg` is a placeholder (a plain card shape). `npx tauri icon
    app-icon.svg` makes the set; the real icon is the owner's call.

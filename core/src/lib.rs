@@ -14,6 +14,9 @@
 //! The normalizer and each card's payload come card by card.
 
 pub mod auth;
+/// The dev inspector: feature `dev` only, never in a release (docs/ops/DEBUGGING.md).
+#[cfg(feature = "dev")]
+pub mod dev;
 pub mod error;
 pub mod fhir;
 pub mod index;

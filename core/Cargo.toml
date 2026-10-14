@@ -34,4 +34,6 @@ serde_json = "1"
 
 [features]
 sqlite = ["dep:rusqlite"]
+# The dev inspector (dev.rs): reads a sealed store for the developer. Never in a release.
+dev = ["sqlite"]
 ts = ["dep:ts-rs"]

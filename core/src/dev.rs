@@ -1,0 +1,287 @@
+//! The dev inspector (docs/ops/DEBUGGING.md): what a site's sealed store holds, for the
+//! developer. Feature `dev` only: a release never builds it (the owner, 2026-10-13: "set up dev
+//! mode / admin utilities to be able to read sandbox data specifically").
+//!
+//! Two levels, decided per site **inside this module**:
+//! - **Every site:** kinds and counts, links, warnings as words (`fhir::issue_word`), and
+//!   **shapes**: which JSON fields each type has, and how often. Never a value. This is safe
+//!   for a real record (SECURITY.md §4.5), and it is what FHIR-SHAPES.md needs.
+//! - **A sandbox site only** (its base URL is one of [`auth::sandbox_sites`], compared
+//!   shielded): also warning texts, the patient row, and whole sample resources. Sandbox data
+//!   is public fake data, which SECURITY.md §4.8 lets into docs and chat (the owner confirmed
+//!   2026-10-13).
+//!
+//! [`DevPass`] is the fourth pass (shielded.rs). It is made only here: for a sandbox site, and
+//! inside three helpers that let out only FHIR's own words, whatever the site: [`shape_of`]
+//! (field paths, every value dropped), `plain_type` (a FHIR type with a table) and
+//! `warning_word` (our codes, or FHIR's issue words).
+
+use crate::auth;
+use crate::fhir;
+use crate::net::Text;
+use crate::platform::Cipher;
+use crate::store::{SiteStore, Store, Table};
+use crate::{CoreError, Shielded};
+use serde_json::Value;
+use std::collections::BTreeMap;
+use std::fmt::Write as _;
+
+/// The dev inspector's pass. Its field is private, so only this module can make one.
+pub struct DevPass {
+    _only_here: (),
+}
+
+impl DevPass {
+    fn issue() -> Self {
+        Self { _only_here: () }
+    }
+}
+
+/// What to print beyond the counts.
+#[derive(Default)]
+pub struct Options {
+    /// The fields of each type, with how many resources have each.
+    pub shapes: bool,
+    /// Sandbox only: up to this many whole resources of each type named in `sample_types`
+    /// (all types when it is empty).
+    pub sample: usize,
+    pub sample_types: Vec<String>,
+}
+
+/// Our own warning codes (sync.rs `warn`): fixed words, so they can be shown as they are.
+const OWN_CODES: [&str; 6] = ["network", "unreadable-page", "next-link-off-site", "token-refresh", "seal", "store"];
+
+/// Which sandbox this site is, by its base URL, compared shielded. `None`: a real site.
+fn sandbox_name<C: Cipher>(store: &SiteStore<C>) -> Result<Option<&'static str>, CoreError> {
+    let Some(site) = store.site()? else { return Ok(None) };
+    let Some(base) = site.base_url else { return Ok(None) };
+    Ok(auth::sandbox_sites().into_iter().find(|e| Shielded::new(e.base_url.clone()) == base).map(|e| e.name))
+}
+
+/// The report for one site's store, as text.
+pub fn report<C: Cipher>(store: &SiteStore<C>, opts: &Options) -> Result<String, CoreError> {
+    let sandbox = sandbox_name(store)?;
+    let pass = sandbox.map(|_| DevPass::issue());
+    let show = |t: &Text| -> String { pass.as_ref().map_or("[sealed]".to_owned(), |p| t.reveal(p).clone()) };
+    let mut out = String::new();
+    let w = &mut out;
+
+    // ── the site ──
+    match sandbox {
+        Some(name) => writeln!(w, "site: {name} (sandbox: texts and samples shown)").ok(),
+        None => writeln!(w, "site: a real site (counts, words and shapes only)").ok(),
+    };
+    writeln!(w, "index version: {}", store.index_version()?).ok();
+    if let Some(site) = store.site()? {
+        if let Some(s) = &site.scopes {
+            // The site's words for what we may read: not record data.
+            writeln!(w, "granted scopes: {}", crate::net::read_scopes(s)).ok();
+        }
+        let stamp = |v: &Option<Text>| v.as_ref().and_then(crate::net::read_u64).map_or("never".to_owned(), |n| n.to_string());
+        writeln!(w, "last fetch: {} (seconds since 1970)", stamp(&site.last_fetch)).ok();
+    }
+    if let (Some(p), Some(pass)) = (store.patient()?, &pass) {
+        let v = |t: &Option<Text>| t.as_ref().map_or("-".to_owned(), |t| t.reveal(pass).clone());
+        writeln!(w, "patient: name {} · born {} · sex {}", v(&p.name), v(&p.birth_date), v(&p.sex)).ok();
+    }
+
+    // ── rows ──
+    writeln!(w, "\nrows by table and FHIR type:").ok();
+    let mut total = 0;
+    for table in Table::ALL {
+        let mut by_type: BTreeMap<String, u32> = BTreeMap::new();
+        for (_, t, _) in store.keys(table)? {
+            *by_type.entry(t).or_default() += 1;
+        }
+        if by_type.is_empty() {
+            continue;
+        }
+        let n: u32 = by_type.values().sum();
+        total += n;
+        let list = by_type.iter().map(|(k, v)| format!("{k} {v}")).collect::<Vec<_>>().join(", ");
+        writeln!(w, "  {:<11} {n:>5}  {list}", table.name()).ok();
+    }
+    writeln!(w, "  {:<11} {total:>5}", "all").ok();
+
+    // ── links ──
+    let links = store.all_links()?;
+    let waiting: Vec<_> = links.iter().filter(|l| l.to_id.is_none()).collect();
+    writeln!(w, "\nlinks: {} ({} resolved, {} waiting)", links.len(), links.len() - waiting.len(), waiting.len()).ok();
+    let mut pairs: BTreeMap<String, u32> = BTreeMap::new();
+    for l in &links {
+        let state = if l.to_id.is_some() { "" } else { " (waiting)" };
+        *pairs.entry(format!("{} -> {}{state}", l.from_table.name(), l.to_table.name())).or_default() += 1;
+    }
+    for (k, v) in &pairs {
+        writeln!(w, "  {k}: {v}").ok();
+    }
+    // Per target type: the waiting links, and the distinct records they name (compared
+    // shielded): what a read of each missing record would cost, in calls.
+    let mut waiting_types: BTreeMap<String, (u32, std::collections::BTreeSet<Text>)> = BTreeMap::new();
+    for l in &waiting {
+        let (word, id) = match crate::net::split_ref(&l.target_ref) {
+            Some((t, id)) if fhir::table_for(&t).is_some() => (t, Some(id)),
+            Some(_) => ("other".to_owned(), None),
+            None => ("not-a-reference".to_owned(), None),
+        };
+        let e = waiting_types.entry(word).or_default();
+        e.0 += 1;
+        e.1.extend(id);
+    }
+    if !waiting_types.is_empty() {
+        writeln!(w, "  waiting links point at (links → distinct records):").ok();
+        for (k, (n, ids)) in &waiting_types {
+            writeln!(w, "    {k}: {n} → {}", ids.len()).ok();
+        }
+    }
+
+    // ── warnings ──
+    let warnings = store.warnings()?;
+    writeln!(w, "\nwarnings: {}", warnings.len()).ok();
+    let mut by_word: BTreeMap<String, u32> = BTreeMap::new();
+    for x in &warnings {
+        *by_word.entry(format!("{} {}", plain_type(&x.fhir_type), warning_word(x))).or_default() += 1;
+    }
+    for (k, v) in &by_word {
+        writeln!(w, "  {k}: {v}").ok();
+    }
+    if pass.is_some() {
+        let mut texts: BTreeMap<String, u32> = BTreeMap::new();
+        for x in &warnings {
+            let text = x.text.as_ref().map_or("(no text)".to_owned(), &show);
+            *texts.entry(format!("{} {} — {text}", plain_type(&x.fhir_type), warning_word(x))).or_default() += 1;
+        }
+        writeln!(w, "  texts (sandbox):").ok();
+        for (k, v) in &texts {
+            writeln!(w, "    ×{v}  {k}").ok();
+        }
+    }
+
+    // ── shapes and samples ──
+    if opts.shapes || opts.sample > 0 {
+        for table in Table::ALL {
+            let rows = store.resources(table)?;
+            let mut by_type: BTreeMap<String, Vec<Text>> = BTreeMap::new();
+            for r in rows {
+                by_type.entry(plain_type(&r.fhir_type)).or_default().push(r.raw);
+            }
+            for (t, raws) in by_type {
+                if opts.shapes {
+                    writeln!(w, "\nshape of {t} ({} resources, table {}):", raws.len(), table.name()).ok();
+                    let mut paths: BTreeMap<String, u32> = BTreeMap::new();
+                    for raw in &raws {
+                        for p in shape_of(raw) {
+                            *paths.entry(p).or_default() += 1;
+                        }
+                    }
+                    for (p, n) in &paths {
+                        writeln!(w, "  {n:>5}/{:<5} {p}", raws.len()).ok();
+                    }
+                }
+                let wanted = opts.sample_types.is_empty() || opts.sample_types.iter().any(|s| s == &t);
+                if let (true, true, Some(p)) = (opts.sample > 0, wanted, &pass) {
+                    for raw in raws.iter().take(opts.sample) {
+                        let pretty = serde_json::from_str::<Value>(raw.reveal(p))
+                            .and_then(|v| serde_json::to_string_pretty(&v))
+                            .unwrap_or_else(|_| "(not JSON)".to_owned());
+                        writeln!(w, "\nsample {t} (sandbox):\n{pretty}").ok();
+                    }
+                }
+            }
+        }
+        if opts.sample > 0 && pass.is_none() {
+            writeln!(w, "\nsamples: none (a real site shows shapes only)").ok();
+        }
+    }
+    Ok(out)
+}
+
+/// A resource's FHIR type is FHIR's word, but stored sealed; let it out only when it is a type
+/// with a table.
+fn plain_type(t: &Text) -> String {
+    let pass = DevPass::issue();
+    let s = t.reveal(&pass);
+    if fhir::table_for(s).is_some() || s == "Patient" || s == "OperationOutcome" { s.clone() } else { "other".to_owned() }
+}
+
+/// A stored warning as a word: our own code as it is, or the site's issue as
+/// [`fhir::issue_word`] gives it.
+fn warning_word(x: &crate::store::WarningRow) -> String {
+    if let Some(code) = &x.code {
+        let own = OWN_CODES.iter().any(|c| *code == Shielded::new((*c).to_owned()));
+        let http = (100..600).any(|n| *code == Shielded::new(format!("http-{n}")));
+        if own || http {
+            return code.reveal(&DevPass::issue()).clone();
+        }
+    }
+    fhir::issue_word(&fhir::Issue { severity: x.severity.clone(), code: x.code.clone(), text: None, detail: None })
+}
+
+/// The field paths of one resource, values dropped: `code.coding[].system`. Only JSON keys
+/// leave this function, and FHIR's keys are FHIR's own field names. A key that is not a plain
+/// field name (letters, digits, `_`) is written `?`, so nothing odd gets out.
+pub fn shape_of(raw: &Text) -> Vec<String> {
+    let pass = DevPass::issue();
+    let Ok(v) = serde_json::from_str::<Value>(raw.reveal(&pass)) else { return Vec::new() };
+    let mut out = Vec::new();
+    walk(&v, String::new(), &mut out);
+    out.sort();
+    out.dedup();
+    out
+}
+
+fn walk(v: &Value, path: String, out: &mut Vec<String>) {
+    match v {
+        Value::Object(map) => {
+            for (k, child) in map {
+                let k = if k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') { k.as_str() } else { "?" };
+                let p = if path.is_empty() { k.to_owned() } else { format!("{path}.{k}") };
+                walk(child, p, out);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                walk(item, format!("{path}[]"), out);
+            }
+        }
+        leaf => {
+            let kind = match leaf {
+                Value::String(_) => "text",
+                Value::Number(_) => "number",
+                Value::Bool(_) => "bool",
+                _ => "null",
+            };
+            out.push(format!("{path}: {kind}"));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_shape_has_paths_and_no_values() {
+        let raw = Shielded::new(r#"{"resourceType":"Observation","code":{"coding":[{"system":"http://loinc.org","code":"4548-4"}]},"valueQuantity":{"value":6.1},"weird key":"x"}"#.to_owned());
+        let s = shape_of(&raw);
+        assert!(s.contains(&"code.coding[].system: text".to_owned()));
+        assert!(s.contains(&"valueQuantity.value: number".to_owned()));
+        assert!(s.contains(&"?: text".to_owned()));
+        assert!(!s.iter().any(|p| p.contains("loinc") || p.contains("4548") || p.contains("6.1") || p.contains("weird")));
+    }
+
+    #[test]
+    fn our_codes_and_site_issues_become_words() {
+        let row = |code: &str, sev: &str| crate::store::WarningRow {
+            id: crate::store::RowId::from_stored("0".repeat(32)).unwrap(),
+            fhir_type: Shielded::new("CarePlan".into()),
+            severity: Some(Shielded::new(sev.into())),
+            code: Some(Shielded::new(code.into())),
+            text: Some(Shielded::new("a site's text".into())),
+            at: Shielded::new("0".into()),
+        };
+        assert_eq!(warning_word(&row("http-400", "error")), "http-400");
+        assert_eq!(warning_word(&row("required", "error")), "error:required");
+        assert_eq!(warning_word(&row("a name", "error")), "error:other");
+    }
+}

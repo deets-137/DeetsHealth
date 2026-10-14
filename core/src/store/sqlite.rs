@@ -405,6 +405,12 @@ impl<C: Cipher> SiteStore<C> {
         self.write("link", l.id.as_str(), &plain, &LINK_COLS, &v)
     }
 
+    /// Every link (the dev inspector, `dev.rs`).
+    #[cfg(feature = "dev")]
+    pub fn all_links(&self) -> Result<Vec<LinkRow>, CoreError> {
+        self.links("", &[])
+    }
+
     /// Links that start at a row.
     pub fn links_from(&self, from: &RowId) -> Result<Vec<LinkRow>, CoreError> {
         self.links("WHERE from_id = ?", &[Value::Text(from.as_str().to_owned())])

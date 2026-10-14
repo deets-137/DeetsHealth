@@ -14,7 +14,8 @@
     "dev:fresh": "node scripts/dev-app.mjs --fresh",
     "tokens": "node scripts/tokens.mjs",
     "types": "node scripts/types.mjs",
-    "docs:check": "node scripts/docs-check.mjs"
+    "docs:check": "node scripts/docs-check.mjs",
+    "inspect": "cargo run -q -p deetshealth --features dev --example inspect --"
   },
   "dependencies": {
     "@tauri-apps/api": "^2"

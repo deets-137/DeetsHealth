@@ -2,6 +2,9 @@
 mod browser;
 // The Windows crypto provider and the per-site key store (SECURITY.md §4.6).
 mod cng;
+// Dev tools: the store inspector (feature `dev` only, never in a release; DEBUGGING.md).
+#[cfg(feature = "dev")]
+pub mod dev_tools;
 // Every failure the user should hear about, as one `app-error` event (ERRORS.md).
 mod errors;
 // The fetch: runs the core's full fetch off the UI thread; counts to the front end.

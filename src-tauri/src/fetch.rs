@@ -134,9 +134,15 @@ async fn run(app: &AppHandle, site: &SiteKey, key: &str) -> FetchEndWord {
     let Some(store) = open_current(app, site, key) else { return FetchEndWord::Failed };
     let s = app.state::<SignIn>();
     log::info("fetch: started");
-    let result = sync::full_fetch(s.net(), &store, &HostTimer, |p| {
-        let _ = app.emit("fetch-progress", progress_event(key, p));
-    })
+    let result = sync::full_fetch(
+        s.net(),
+        &store,
+        &HostTimer,
+        |p| {
+            let _ = app.emit("fetch-progress", progress_event(key, p));
+        },
+        |c| log::info(&call_line(c)),
+    )
     .await;
     match result {
         Ok(FetchEnd::Done(sum)) => {
@@ -151,6 +157,13 @@ async fn run(app: &AppHandle, site: &SiteKey, key: &str) -> FetchEndWord {
                 sum.warnings,
                 sum.key_read_ms
             ));
+            log::info(&format!("fetch: types: {}", tally(sum.progress.counts.iter().map(|(k, v)| (k, *v)))));
+            if !sum.waiting_by_type.is_empty() {
+                log::info(&format!("fetch: waiting links point at: {}", tally(sum.waiting_by_type.iter().map(|(k, v)| (k, *v as u64)))));
+            }
+            if !sum.warnings_by_code.is_empty() {
+                log::info(&format!("fetch: warnings: {}", tally(sum.warnings_by_code.iter().map(|(k, v)| (k, *v as u64)))));
+            }
             if !sum.skipped.is_empty() {
                 log::info(&format!("fetch: the site refused: {}", sum.skipped.join(", ")));
             }
@@ -179,6 +192,33 @@ async fn run(app: &AppHandle, site: &SiteKey, key: &str) -> FetchEndWord {
             FetchEndWord::Failed
         }
     }
+}
+
+/// One call-ledger line (FETCH.md §9): our words and numbers only (`sync::CallNote`).
+/// `fetch: call Observation?category=laboratory p1 · 200 · 34 + 5 included · 12.3 KB · 412 ms · next-page`
+fn call_line(c: &sync::CallNote) -> String {
+    let status = c.status.map_or("no reply".to_owned(), |s| s.to_string());
+    let mut line = format!("fetch: call {} p{} · {status}", c.what, c.page);
+    if c.entries > 0 || c.included > 0 {
+        line.push_str(&format!(" · {}", c.entries));
+        if c.included > 0 {
+            line.push_str(&format!(" + {} included", c.included));
+        }
+    }
+    line.push_str(&format!(" · {:.1} KB · {} ms", c.bytes as f64 / 1024.0, c.ms));
+    if c.tries > 1 {
+        line.push_str(&format!(" · {} tries", c.tries));
+    }
+    if !c.issues.is_empty() {
+        line.push_str(&format!(" · issues {}", c.issues.join(" ")));
+    }
+    line.push_str(&format!(" · {}", c.outcome));
+    line
+}
+
+/// `A 3, B 12`: kinds and counts, in key order.
+fn tally<'a>(items: impl Iterator<Item = (&'a String, u64)>) -> String {
+    items.map(|(k, v)| format!("{k} {v}")).collect::<Vec<_>>().join(", ")
 }
 
 /// The site refused the refresh token, so both tokens are dead. Drop them, so the Sites row
@@ -233,7 +273,7 @@ mod tests {
 
             // Pages of 20, so the `next` links are followed even on a small sandbox record.
             let mut pages = 0;
-            let end = sync::full_fetch_paged(&net, &store, &HostTimer, "20", |_| pages += 1).await.unwrap();
+            let end = sync::full_fetch_paged(&net, &store, &HostTimer, "20", |_| pages += 1, |_| {}).await.unwrap();
             let FetchEnd::Done(sum) = end else { panic!("sign in again") };
             let first_pages = sum.progress.calls as usize - 2; // less /metadata and the patient
             assert!(first_pages > sum.progress.jobs_total, "some job had a second page");
@@ -262,7 +302,7 @@ mod tests {
 
             // A second fetch, at the app's page size, replaces rows; it does not add them.
             let before: Vec<u64> = Table::ALL.iter().map(|t| store.count(*t).unwrap()).collect();
-            let FetchEnd::Done(second) = sync::full_fetch(&net, &store, &HostTimer, |_| {}).await.unwrap() else { panic!() };
+            let FetchEnd::Done(second) = sync::full_fetch(&net, &store, &HostTimer, |_| {}, |_| {}).await.unwrap() else { panic!() };
             let after: Vec<u64> = Table::ALL.iter().map(|t| store.count(*t).unwrap()).collect();
             assert_eq!(before, after);
             eprintln!("second fetch at 100 a page: {} calls, {} s, key reads {} ms", second.progress.calls, second.seconds, second.key_read_ms);

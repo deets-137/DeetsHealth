@@ -79,7 +79,8 @@ mod sealed {
     pub trait Sealed {}
 }
 
-/// Proof that the caller may read plaintext. Implemented for exactly three types, below.
+/// Proof that the caller may read plaintext. Implemented for exactly three types, below, and a
+/// fourth, `dev::DevPass`, only in a build with the `dev` feature (never a release).
 pub trait Pass: sealed::Sealed {}
 
 impl sealed::Sealed for crate::store::CachePass {}
@@ -88,6 +89,10 @@ impl sealed::Sealed for crate::payload::CardPass {}
 impl Pass for crate::payload::CardPass {}
 impl sealed::Sealed for crate::net::SitePass {}
 impl Pass for crate::net::SitePass {}
+#[cfg(feature = "dev")]
+impl sealed::Sealed for crate::dev::DevPass {}
+#[cfg(feature = "dev")]
+impl Pass for crate::dev::DevPass {}
 
 #[cfg(test)]
 mod tests {
