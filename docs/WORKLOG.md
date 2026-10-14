@@ -20,6 +20,10 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - Questions for him in GLOBALS.md §8 (how Epic sends a culture; LOINC on lab components).
   Next data step: an Epic sandbox patient with a CMP, a lipid panel and a culture.
 - No code changed.
+- The repo has a remote now. The owner had the old public `deets-137/DeetsHealth` (an iOS
+  Oura app) renamed to `DeetsHealthiOS`, and a new **private** `deets-137/DeetsHealth`
+  created as `origin`; `main` pushed. The history was checked first: no secret or record
+  file was ever committed. CLAUDE.md › Repo, HANDOFF.md and LESSONS.md §2 updated.
 
 ## 2026-10-13 — fresh eyes: a true patient portal
 - The owner has a fhir.epic.com account, a new M engine (`../DeetsEngine`), and a larger

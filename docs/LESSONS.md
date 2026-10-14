@@ -45,7 +45,7 @@ everything else after. The rules are SECURITY.md.
    any change that breaks or skirts them: a workaround of a rate limit, an unregistered
    scope, a write back to the record.
 2. **Ship and deploy.** Commit, release, publish, a change to the Epic app registration,
-   adding a git remote.
+   a push, adding or changing a git remote, making the repo public.
 3. **Loss of user data.** A destructive migration, a delete of the user's own notes or
    settings, a reset. An additive schema change is NOT a stop rule. (Sign-out deleting the
    record cache is by design: DATA-ARCHITECTURE.md §4.)

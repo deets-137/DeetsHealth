@@ -145,8 +145,10 @@ NAME=area`, never by hand.
   DeetsMusic's `scripts/dev-app.mjs` does.
 
 ## Repo
-Local git only. **Never add a remote and never push.** A GitHub repo named DeetsHealth
-already exists for something else.
-Commit only when the user asks. Co-author trailer — name the model that did the work
+The remote is `origin`: the **private** GitHub repo `deets-137/DeetsHealth` (since
+2026-10-13). Keep it private. The old iOS app (Oura) that had this name is now
+`deets-137/DeetsHealthiOS`.
+Commit and push only when the user asks. Never add another remote and never force-push.
+Co-author trailer — name the model that did the work
 (today `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`); update this line when the
 model changes.
