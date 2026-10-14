@@ -182,7 +182,10 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
    rows of 12 types in 32 calls. **E-4 tools built** (the call ledger, the fetch summary,
    `npm run inspect`; ops/DEBUGGING.md). What the fetch showed, and the fixes it points to
    (CarePlan's categories, Outside Record APIs, 54 missing referenced records):
-   ops/DEBUGGING.md §7. Not committed.
+   ops/DEBUGGING.md §7. The CarePlan category fallback is built (FETCH.md §5.2); a refused
+   category is "not served", not a failure, which a Refresh has not yet confirmed live. All
+   merged into `main` (2026-10-13). Open from the fetch: why Outside Record data is
+   suppressed although its APIs are selected; the 54 missing referenced records (stage 8).
 6. **Scaffold** — steps 1–2 built and desk-tested. Steps 3–5 to come (State of play).
 9. **App icon** — `app-icon.svg` is a placeholder (a plain card shape). `npx tauri icon
    app-icon.svg` makes the set; the real icon is the owner's call.

@@ -67,6 +67,15 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - What it showed (ops/DEBUGGING.md §7): CarePlan needs one of ten categories; 17 types withhold
   Outside Record data from this client; SmartData Elements not authorized; the 592 waiting
   links name 54 distinct records.
+- Committed `f42d691`. The owner: the Outside Record APIs are selected, so their suppression
+  has another cause (open). Built the CarePlan category fallback (`fhir::CAREPLAN_CATEGORIES`,
+  `category_fallback`; FETCH.md §5.2), one new test; not yet run against Epic (a Refresh runs it
+  and shows the call ledger). Not committed. The owner asked to pause and re-align the build path.
+- The owner ran a Refresh: the call ledger works (42 calls, 6 s, 300 resources, 13 types).
+  CarePlan: 2 of 10 categories accepted, 8 refused `fatal:invalid`, which marked CarePlan
+  incomplete and toasted. Fixed: a refused fallback category is "not served" (`Job.is_fallback`,
+  outcome `category-not-served`), and the refused list no longer repeats a type. Core 44 tests.
+  Not run live yet. Committed and merged into `main`; the owner opens a branch for the layout.
 
 ## 2026-09-24 — stage 7: `ts-rs` and Settings › Sites
 - The owner asked where the SMART work stood, then asked for stage 7.

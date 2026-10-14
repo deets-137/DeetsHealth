@@ -6,9 +6,10 @@
 //! 3. Read the patient: name, birth date and sex only (`_elements` asks for no more).
 //! 4. One job per type the site serves and the scopes allow. Each job:
 //!    `?<patient param>=<id>&_count=100`, plus the `_include`s the site lists from
-//!    [`WANTED_INCLUDES`], then every `next` page. `Observation` is searched plain first; when
-//!    the site supports `category` and refuses the plain search (Epic does), it is searched
-//!    once per category instead (the owner, 2026-09-21).
+//!    [`WANTED_INCLUDES`], then every `next` page. `Observation` and `CarePlan` are searched
+//!    plain first; when the site supports `category` and refuses the plain search (Epic does),
+//!    they are searched once per category instead (`fhir::category_fallback`; the owner,
+//!    2026-09-21 for Observation, 2026-10-13 for CarePlan).
 //! 5. Three jobs run at once ([`PACE`]). Pages inside one job run in order.
 //! 6. Each page is written in one transaction: a resource replaces its earlier row (same FHIR
 //!    type and id) or gets a new one, with its index columns and its links (index.rs).
@@ -16,7 +17,7 @@
 //! 7. Links whose target came later are resolved once every job is done.
 
 use crate::auth::{self, Refresh};
-use crate::fhir::{self, Issue, Searchable, OBSERVATION_CATEGORIES};
+use crate::fhir::{self, Issue, Searchable};
 use crate::net::{self, Field, Net, Reply, Text};
 use crate::platform::Timer;
 use crate::index::{Index, Ref};
@@ -109,7 +110,8 @@ pub struct CallNote {
     pub included: u32,
     /// The site's issues on this page, as [`fhir::issue_word`] gives them.
     pub issues: Vec<String>,
-    /// What the job did next: `next-page`, `last-page`, `fallback`, `refused`, `token-renew`,
+    /// What the job did next: `next-page`, `last-page`, `fallback`, `category-not-served`,
+    /// `refused`, `token-renew`,
     /// `network`, `unreadable`, `store-failed`, `next-link-off-site`.
     pub outcome: &'static str,
 }
@@ -124,6 +126,10 @@ struct Job {
     /// Jobs to run instead when the site refuses this one's first page. The plain
     /// `Observation` search carries the 9 category searches here (FETCH.md §5.2).
     fallback: Vec<Job>,
+    /// This job is one category of a fallback. A site may not know every category (Epic's
+    /// sandbox refuses 8 of the 10 CarePlan ones it names), so a refusal here means "not
+    /// served": no warning, and the type is not marked incomplete.
+    is_fallback: bool,
 }
 
 /// What the three workers share. They run on one task, so a RefCell is enough; no borrow is
@@ -212,8 +218,8 @@ pub async fn full_fetch_paged<S: Store, T: Timer>(
     let mut jobs = VecDeque::new();
     for s in cap.searchable.iter().filter(|s| fhir::scope_allows(scopes.as_deref(), &s.fhir_type)) {
         let mut j = job(&base, &patient, s, &[], &includes, page_size)?;
-        if s.fhir_type == "Observation" && s.has_category {
-            for c in OBSERVATION_CATEGORIES {
+        if s.has_category {
+            for c in fhir::category_fallback(&s.fhir_type) {
                 j.fallback.push(job(&base, &patient, s, &[("category", c)], &includes, page_size)?);
             }
         }
@@ -306,6 +312,7 @@ fn job(
         table: s.table,
         url: net::url_with(&net::join(base, &s.fhir_type), &q)?,
         fallback: Vec::new(),
+        is_fallback: !extra.is_empty(),
     })
 }
 
@@ -432,6 +439,12 @@ async fn run_job<S: Store, T: Timer>(
                 use_fallback(shared, job);
                 return;
             }
+            status if first && job.is_fallback && is_refusal(status) => {
+                note.issues = fhir::read_error(&reply.body).iter().map(fhir::issue_word).collect();
+                note.outcome = "category-not-served";
+                emit(note);
+                return;
+            }
             status => {
                 let issues = fhir::read_error(&reply.body);
                 note.issues = issues.iter().map(fhir::issue_word).collect();
@@ -440,7 +453,9 @@ async fn run_job<S: Store, T: Timer>(
                 let now = timer.now();
                 {
                     let mut s = shared.borrow_mut();
-                    s.skipped.push(job.fhir_type.clone());
+                    if !s.skipped.contains(&job.fhir_type) {
+                        s.skipped.push(job.fhir_type.clone());
+                    }
                 }
                 warn(store, shared, &job.fhir_type, &format!("http-{status}"), now);
                 store_issues(store, shared, &job.fhir_type, issues, now);

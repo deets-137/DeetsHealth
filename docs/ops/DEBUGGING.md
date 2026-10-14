@@ -54,7 +54,7 @@ fetch: call CarePlan p1 · 400 · 1.1 KB · 95 ms · issues fatal:business-rule 
 | `KB`, `ms` | the reply's size, and the time for all tries |
 | `tries` | shown when a retry happened |
 | `issues` | the site's issues on that page as `severity:code#detail`: each part only when it is in FHIR's closed lists; `#n` only when the site's message code is all digits (Epic numbers its messages). Never the text. `fhir::issue_word` |
-| outcome | `next-page`, `last-page`, `fallback` (the plain search was refused; categories follow), `refused`, `token-renew`, `network`, `unreadable`, `store-failed`, `next-link-off-site` |
+| outcome | `next-page`, `last-page`, `fallback` (the plain search was refused; categories follow), `category-not-served` (one fallback category refused: expected, no warning), `refused`, `token-renew`, `network`, `unreadable`, `store-failed`, `next-link-off-site` |
 
 ## 4. The fetch summary
 After `fetch: done: …` (FETCH.md §9), three more lines:
@@ -111,11 +111,22 @@ Organization, Medication) arrives only through an `_include` or a read (FETCH.md
 1. **CarePlan refused** (`http-400`, `fatal:business-rule`): Epic requires a `category` and
    names ten: longitudinal `38717003`, encounter `734163000`, outpatient `736271009`, inpatient
    `736353004`, dental `738906000`, oncology `736378000`, questionnaires due
-   `719091000000102`, `inpatient-pathway`, education `409073007`, `care-path`. Fix: the
-   Observation pattern (FETCH.md §5.2), CarePlan searched once per category.
+   `719091000000102`, `inpatient-pathway`, education `409073007`, `care-path`. **Fixed the
+   same day:** CarePlan falls back to one search per category, as Observation does
+   (FETCH.md §5.2). The Refresh at 18:09 (the first run of the call ledger: 42 calls, 6 s)
+   showed Epic's sandbox accepts only longitudinal (1 CarePlan) and encounter (none); the
+   other 8 answer `fatal:invalid#59022`. Those refusals then raised a false "incomplete"
+   toast, so a refused fallback category is now "not served" (FETCH.md §5.2), not yet run
+   live. Epic's message numbers seen: `#4101` no results, `#4119` the standard
+   "information available to the authorized user" note, `#59204` Outside Record not
+   authorized, `#59205` SmartData Elements not authorized, `#59108` a required parameter is
+   missing, `#59159` a category is required, `#59022` an invalid category, `#59134` the
+   document list could not be built.
 2. **"Client not authorized for … - Outside Record"** on 17 types: Epic withholds records from
-   other health systems (Care Everywhere) from this client. Check the registration's Outside
-   Record APIs (EPIC.md §2, row 2).
+   other health systems (Care Everywhere) from this client. **The Outside Record APIs are in the
+   registration's Selected list** (the owner, 2026-10-13), so the cause is elsewhere: open.
+   Candidates: Epic's sandbox may hold no outside records for its test patients, or the USCDI
+   v3 distribution may not carry them.
 3. **"User not authorized for Observation - SmartData Elements"** ×9: an Epic-specific
    Observation API this client does not have.
 4. **"This response includes information available to the authorized user …"** on every type

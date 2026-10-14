@@ -81,8 +81,8 @@ A type becomes a job when all four are true:
 3. Its search parameters include one of `PATIENT_PARAMS`.
 4. The granted scopes allow it (`fhir::scope_allows`).
 
-### 5.2 One job per type, and the Observation fallback
-> **Part:** built · 2026-09-21 · plain search first, then fall back (the owner's choice)
+### 5.2 One job per type, and the category fallback
+> **Part:** built · 2026-09-21 (Observation), 2026-10-13 (CarePlan) · plain search first, then fall back (the owner's choice)
 
 - Every type: one job, `<Type>?<patient param>=<id>&_count=100`.
 - `Observation` is searched plain too, so an Observation with no FHIR category is not
@@ -92,6 +92,14 @@ A type becomes a job when all four are true:
   401 and 429, or a page with no resources and an `error` or `fatal` issue. The fallback jobs
   go to the end of the list and `jobsTotal` grows by 9. No warning is stored: the refusal is
   expected on such a site (Epic).
+- **`CarePlan` too** (2026-10-13): Epic refuses a plain CarePlan search ("This resource
+  requires a category for searching") and names ten categories, so CarePlan carries 10
+  fallback jobs (`fhir::CAREPLAN_CATEGORIES`; ops/DEBUGGING.md §7). The table of types and
+  their categories is `fhir::category_fallback`.
+- **A refused category is "not served", not a failure** (2026-10-13). Epic's sandbox accepted
+  only 2 of the 10 CarePlan categories (longitudinal, encounter) and refused 8 with
+  `fatal:invalid`. A fallback job whose first page gets a 4xx (not 401 or 429) ends quietly:
+  ledger outcome `category-not-served`, no warning, the type not marked incomplete, no toast.
 - The SMART sandbox accepts the plain search: 1 job instead of 9.
 - **On a site that refuses the plain search** (Epic), an Observation in none of the 9
   categories is still missed. Epic has categories of its own; check the list when Epic comes

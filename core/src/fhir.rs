@@ -49,6 +49,33 @@ const PATIENT_PARAMS: [&str; 4] = ["patient", "subject", "beneficiary", "member"
 pub const OBSERVATION_CATEGORIES: [&str; 9] =
     ["laboratory", "vital-signs", "social-history", "survey", "exam", "imaging", "procedure", "therapy", "activity"];
 
+/// The `CarePlan` categories Epic requires one of (its own message, 2026-10-13: "This resource
+/// requires a category for searching"; ops/DEBUGGING.md §7): longitudinal, encounter,
+/// outpatient, inpatient, dental, oncology, questionnaires due, inpatient pathway, education,
+/// care path. SNOMED codes, and two of Epic's own words.
+pub const CAREPLAN_CATEGORIES: [&str; 10] = [
+    "38717003",
+    "734163000",
+    "736271009",
+    "736353004",
+    "738906000",
+    "736378000",
+    "719091000000102",
+    "inpatient-pathway",
+    "409073007",
+    "care-path",
+];
+
+/// The types searched plain first and, when the site refuses the plain search, once per
+/// category instead (FETCH.md §5.2).
+pub fn category_fallback(fhir_type: &str) -> &'static [&'static str] {
+    match fhir_type {
+        "Observation" => &OBSERVATION_CATEGORIES,
+        "CarePlan" => &CAREPLAN_CATEGORIES,
+        _ => &[],
+    }
+}
+
 /// One type a site lets us search by patient.
 #[derive(Clone)]
 pub struct Searchable {
@@ -253,6 +280,14 @@ pub fn read_patient(body: &Text) -> Result<crate::store::PatientRow, CoreError> 
 mod tests {
     use super::*;
     use crate::net::SitePass;
+
+    #[test]
+    fn observation_and_careplan_fall_back_by_category() {
+        assert_eq!(category_fallback("Observation").len(), 9);
+        assert_eq!(category_fallback("CarePlan").len(), 10);
+        assert!(category_fallback("CarePlan").contains(&"38717003"));
+        assert!(category_fallback("Condition").is_empty());
+    }
 
     fn t(s: &str) -> Text {
         Shielded::new(s.to_owned())
