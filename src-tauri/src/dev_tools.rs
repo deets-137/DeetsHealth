@@ -3,7 +3,10 @@
 // (core/src/dev.rs): counts, links, warnings and shapes for every site; texts, the patient
 // and sample resources only for a sandbox site.
 //
-//   npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--sample N] [--type T]... [--out <file>]
+//   npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--sample N] [--type T]... [--out <file>] [--export <folder>]
+//
+// `--export` (or `--csv`): a sandbox site's whole record as CSV files and one workbook,
+// `record.xlsx` (xlsx.rs), in `<folder>\<site>\`. The core refuses a real site.
 //
 // The default folder is the dev app's, `%APPDATA%\com.deetshealth.dev`. A process started
 // inside the Claude desktop app sees a private copy of AppData (CLAUDE.md › How to verify), so
@@ -31,10 +34,10 @@ pub fn inspect(args: Vec<String>) -> i32 {
             "--sample" => opts.sample = it.next().and_then(|n| n.parse().ok()).unwrap_or(1),
             "--type" => opts.sample_types.extend(it.next()),
             "--out" => out = it.next().map(PathBuf::from),
-            "--csv" => csv = it.next().map(PathBuf::from),
+            "--export" | "--csv" => csv = it.next().map(PathBuf::from),
             "--help" | "-h" => {
-                println!("npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--sample N] [--type T]... [--out <file>] [--csv <folder>]");
-                println!("  --csv: a sandbox site's whole record as CSV files, one folder per site (a real site is refused)");
+                println!("npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--sample N] [--type T]... [--out <file>] [--export <folder>]");
+                println!("  --export (or --csv): a sandbox site's whole record as CSV files and record.xlsx, one folder per site (a real site is refused)");
                 return 0;
             }
             other => {
@@ -90,24 +93,46 @@ pub fn inspect(args: Vec<String>) -> i32 {
     }
 }
 
-/// Write one site's CSV files into `dir`. The core refuses a real site.
+/// Write one site's export into `dir`: a CSV file per table and `record.xlsx` with every table
+/// as a sheet. The core refuses a real site.
 fn write_csv(store: &deetshealth_core::store::SiteStore<crate::cng::Cng>, dir: &std::path::Path) -> String {
-    match dev::export_csv(store) {
-        Ok(None) => "\ncsv: refused, a real site (sandbox sites only)\n".to_owned(),
-        Err(e) => format!("\ncsv: could not read: {e}\n"),
-        Ok(Some(files)) => {
-            if let Err(e) = std::fs::create_dir_all(dir) {
-                return format!("\ncsv: could not make {}: {e}\n", dir.display());
-            }
-            let mut written = 0;
-            for (name, body) in &files {
-                // A UTF-8 mark first, so Excel reads accents right.
-                if std::fs::write(dir.join(name), format!("\u{feff}{body}")).is_ok() {
-                    written += 1;
-                }
-            }
-            format!("\ncsv: {written} files in {}\n", dir.display())
+    let tables = match dev::export_tables(store) {
+        Ok(None) => return "\nexport: refused, a real site (sandbox sites only)\n".to_owned(),
+        Err(e) => return format!("\nexport: could not read: {e}\n"),
+        Ok(Some(t)) => t,
+    };
+    if let Err(e) = std::fs::create_dir_all(dir) {
+        return format!("\nexport: could not make {}: {e}\n", dir.display());
+    }
+    let mut written = 0;
+    for (name, rows) in &tables {
+        // A UTF-8 mark first, so Excel reads accents right.
+        if std::fs::write(dir.join(format!("{name}.csv")), format!("\u{feff}{}", dev::to_csv(rows))).is_ok() {
+            written += 1;
         }
+    }
+    let sheets: Vec<crate::xlsx::SheetData> = tables.iter().map(|(n, rows)| crate::xlsx::SheetData { name: n, rows }).collect();
+    let about = [
+        "DeetsHealth: a sandbox patient's record (public test data)",
+        "Made by `npm run inspect -- --export` (docs/ops/DEBUGGING.md §5). Sandbox sites only: the tool refuses a real record.",
+        "The `row` column joins every sheet. Several values in one field are joined with ' | '.",
+    ];
+    let book = crate::xlsx::workbook(&about, &sheets, describe);
+    let xlsx = match std::fs::write(dir.join("record.xlsx"), book) {
+        Ok(()) => "record.xlsx",
+        Err(_) => "no workbook (could not write record.xlsx)",
+    };
+    format!("\nexport: {written} CSV files and {xlsx} in {}\n", dir.display())
+}
+
+/// The About sheet's line for a table.
+fn describe(name: &str) -> String {
+    match name {
+        "records" => "One row per record: table, FHIR type, kind, code, display name, status, dates. The fields the cards sort and group by.".into(),
+        "patient" => "Name, birth date, sex: all the app keeps from the Patient resource.".into(),
+        "links" => "Which record points at which. resolved = no: the target was never fetched.".into(),
+        "warnings" => "The site's notes on each search, in full text.".into(),
+        t => format!("One row per {t} resource, one column per JSON field path."),
     }
 }
 

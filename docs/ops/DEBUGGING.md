@@ -79,13 +79,16 @@ npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--sample N] [--
   have each (`code.coding[].system: text  254/254`).
 - A sandbox site also: the patient row, every warning's text (grouped, with a count), and with
   `--sample N [--type Observation]` whole resources, pretty-printed.
-- **`--csv <folder>`, a sandbox site only** (the core refuses a real site): the whole record as
-  CSV files in `<folder>\<site>\`, to model cards on (the owner, 2026-10-13). `records.csv` has
-  one row per resource with its index columns (kind, code, display, status, dates);
-  `<Type>.csv` has one column per JSON field path, several values joined with ` | `;
-  `links.csv`, `warnings.csv`, `patient.csv`. The `row` column joins them. Write it under
-  `dev-dumps\` in the repo (git-ignored):
-  `npm run inspect -- --csv dev-dumps\epic-sandbox`.
+- **`--export <folder>` (or `--csv`), a sandbox site only** (the core refuses a real site): the
+  whole record in `<folder>\<site>\`, to model cards on (the owner, 2026-10-13), as CSV files
+  and one workbook, `record.xlsx`, with every table as a sheet after an About sheet.
+  `records` has one row per resource with its index columns (kind, code, display, status,
+  dates); `<Type>` has one column per JSON field path, several values joined with ` | `;
+  `links`, `warnings`, `patient`. The `row` column joins them. The workbook is written by
+  `src-tauri/src/xlsx.rs`, a small hand-rolled writer (stored zip, inline strings, Arial, a
+  frozen header, filters), so the dev tools add no crate. Write it under `dev-dumps\` in the
+  repo (git-ignored): `npm run inspect -- --export dev-dumps\epic-sandbox`. Sandbox data may
+  go to Google Sheets (SECURITY.md §4.8); a real record never goes to any outside service.
 - **Run it outside the Claude desktop app.** A process started inside it sees a private copy of
   AppData, with no sites in it (CLAUDE.md › How to verify). From a Claude session, start it
   through WMI with `--out`:

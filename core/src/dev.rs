@@ -196,15 +196,20 @@ pub fn report<C: Cipher>(store: &SiteStore<C>, opts: &Options) -> Result<String,
     Ok(out)
 }
 
-/// The whole record as CSV files, **for a sandbox site only** (`None` for a real site): the
-/// data to model cards on (the owner, 2026-10-13). Returns (file name, contents):
-/// - `records.csv`: one row per resource, with its index columns (kind, code, dates, status).
-/// - `<Type>.csv`: one row per resource of that type, one column per JSON field path; a field
-///   with several values (an array) joins them with ` | `.
-/// - `links.csv`, `warnings.csv`, `patient.csv`.
+/// One exported table: its name and its rows, the header first.
+pub type ExportTable = (String, Vec<Vec<String>>);
+
+/// The whole record as tables, **for a sandbox site only** (`None` for a real site): the data
+/// to model cards on (the owner, 2026-10-13). The host writes them as CSV files ([`to_csv`])
+/// and as one workbook. In this order:
+/// - `records`: one row per resource, with its index columns (kind, code, dates, status).
+/// - `patient`.
+/// - `<Type>`, `Encounter` first: one row per resource of that type, one column per JSON field
+///   path (the most common first); a field with several values (an array) joins them with ` | `.
+/// - `links`, `warnings`.
 ///
-/// `row` is our own row key, cut to 10 characters: it joins the files.
-pub fn export_csv<C: Cipher>(store: &SiteStore<C>) -> Result<Option<Vec<(String, String)>>, CoreError> {
+/// `row` is our own row key, cut to 10 characters: it joins the tables.
+pub fn export_tables<C: Cipher>(store: &SiteStore<C>) -> Result<Option<Vec<ExportTable>>, CoreError> {
     if sandbox_name(store)?.is_none() {
         return Ok(None);
     }
@@ -214,7 +219,7 @@ pub fn export_csv<C: Cipher>(store: &SiteStore<C>) -> Result<Option<Vec<(String,
     let mut files = Vec::new();
     let mut type_of_row: BTreeMap<String, String> = BTreeMap::new();
 
-    let mut records = Csv::new(&[
+    let mut records = Sheet::new(&[
         "row", "table", "type", "fhir_id", "kind", "code_system", "code", "display", "status", "start", "end", "recorded",
         "last_updated",
     ]);
@@ -243,7 +248,7 @@ pub fn export_csv<C: Cipher>(store: &SiteStore<C>) -> Result<Option<Vec<(String,
             by_type.entry(t).or_default().push((row, r.fhir_id.reveal(&pass).clone(), fields));
         }
     }
-    files.push(("records.csv".to_owned(), records.text));
+    files.push(("records".to_owned(), records.rows));
 
     for (t, rows) in by_type {
         // Columns: every path, the most common first, then by name.
@@ -258,7 +263,7 @@ pub fn export_csv<C: Cipher>(store: &SiteStore<C>) -> Result<Option<Vec<(String,
         cols.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
         let mut head = vec!["row".to_owned(), "fhir_id".to_owned()];
         head.extend(cols.iter().map(|(p, _)| p.clone()));
-        let mut csv = Csv::new(&head.iter().map(String::as_str).collect::<Vec<_>>());
+        let mut csv = Sheet::new(&head.iter().map(String::as_str).collect::<Vec<_>>());
         for (row, id, fields) in rows {
             let mut cells = vec![row, id];
             for (p, _) in &cols {
@@ -267,10 +272,10 @@ pub fn export_csv<C: Cipher>(store: &SiteStore<C>) -> Result<Option<Vec<(String,
             }
             csv.row(cells);
         }
-        files.push((format!("{t}.csv"), csv.text));
+        files.push((t, csv.rows));
     }
 
-    let mut links = Csv::new(&["from_row", "from_type", "role", "source_field", "to_table", "to_row", "to_type", "target", "resolved"]);
+    let mut links = Sheet::new(&["from_row", "from_type", "role", "source_field", "to_table", "to_row", "to_type", "target", "resolved"]);
     for l in store.all_links()? {
         let from = short(&l.from_id);
         let to = l.to_id.as_ref().map(short).unwrap_or_default();
@@ -286,20 +291,44 @@ pub fn export_csv<C: Cipher>(store: &SiteStore<C>) -> Result<Option<Vec<(String,
             if l.to_id.is_some() { "yes" } else { "no" }.to_owned(),
         ]);
     }
-    files.push(("links.csv".to_owned(), links.text));
+    files.push(("links".to_owned(), links.rows));
 
-    let mut warnings = Csv::new(&["type", "severity", "code", "text"]);
+    let mut warnings = Sheet::new(&["type", "severity", "code", "text"]);
     for x in store.warnings()? {
         warnings.row(vec![x.fhir_type.reveal(&pass).clone(), show(&x.severity), show(&x.code), show(&x.text)]);
     }
-    files.push(("warnings.csv".to_owned(), warnings.text));
+    files.push(("warnings".to_owned(), warnings.rows));
 
-    let mut patient = Csv::new(&["fhir_id", "name", "birth_date", "sex"]);
+    let mut patient = Sheet::new(&["fhir_id", "name", "birth_date", "sex"]);
     if let Some(p) = store.patient()? {
         patient.row(vec![p.fhir_id.reveal(&pass).clone(), show(&p.name), show(&p.birth_date), show(&p.sex)]);
     }
-    files.push(("patient.csv".to_owned(), patient.text));
+    files.push(("patient".to_owned(), patient.rows));
+    // The overview first, then the visit at the centre, then the rest; the plumbing last.
+    let rank = |n: &str| match n {
+        "records" => 0,
+        "patient" => 1,
+        "Encounter" => 2,
+        "links" => 4,
+        "warnings" => 5,
+        _ => 3,
+    };
+    files.sort_by_key(|(n, _)| rank(n));
     Ok(Some(files))
+}
+
+/// A table as CSV text (RFC 4180: a field with a comma, a quote or a line break is quoted).
+pub fn to_csv(rows: &[Vec<String>]) -> String {
+    let mut text = String::new();
+    for cells in rows {
+        let line: Vec<String> = cells
+            .iter()
+            .map(|c| if c.contains([',', '"', '\n', '\r']) { format!("\"{}\"", c.replace('"', "\"\"")) } else { c.clone() })
+            .collect();
+        text.push_str(&line.join(","));
+        text.push_str("\r\n");
+    }
+    text
 }
 
 /// Every leaf of a resource as (field path, value), in document order.
@@ -326,25 +355,18 @@ fn flatten(v: &Value) -> Vec<(String, String)> {
     out
 }
 
-/// A CSV file being written (RFC 4180: a field with a comma, a quote or a line break is quoted).
-struct Csv {
-    text: String,
+/// A table being built, the header first.
+struct Sheet {
+    rows: Vec<Vec<String>>,
 }
 
-impl Csv {
+impl Sheet {
     fn new(head: &[&str]) -> Self {
-        let mut c = Self { text: String::new() };
-        c.row(head.iter().map(|s| (*s).to_owned()).collect());
-        c
+        Self { rows: vec![head.iter().map(|s| (*s).to_owned()).collect()] }
     }
 
     fn row(&mut self, cells: Vec<String>) {
-        let line: Vec<String> = cells
-            .into_iter()
-            .map(|c| if c.contains([',', '"', '\n', '\r']) { format!("\"{}\"", c.replace('"', "\"\"")) } else { c })
-            .collect();
-        self.text.push_str(&line.join(","));
-        self.text.push_str("\r\n");
+        self.rows.push(cells);
     }
 }
 
@@ -424,9 +446,9 @@ mod tests {
 
     #[test]
     fn csv_quotes_and_flatten_joins_paths() {
-        let mut c = Csv::new(&["a", "b"]);
+        let mut c = Sheet::new(&["a", "b"]);
         c.row(vec!["x,y".into(), "say \"hi\"".into()]);
-        assert_eq!(c.text, "a,b\r\n\"x,y\",\"say \"\"hi\"\"\"\r\n");
+        assert_eq!(to_csv(&c.rows), "a,b\r\n\"x,y\",\"say \"\"hi\"\"\"\r\n");
         let v: Value = serde_json::from_str(r#"{"code":{"coding":[{"code":"1"},{"code":"2"}]},"n":5,"z":null}"#).unwrap();
         assert_eq!(flatten(&v), vec![("code.coding[].code".into(), "1".into()), ("code.coding[].code".into(), "2".into()), ("n".into(), "5".into())]);
     }

@@ -86,6 +86,12 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   for Camila's mock record as CSV to model the layout on. Built `dev::export_csv` (sandbox
   only, enforced in the core) and `npm run inspect -- --csv <folder>`; exported 17 files to
   `dev-dumps/epic-sandbox/` (git-ignored). Core 45 tests.
+- Committed `c6f610a`. The owner asked for one .xlsx in `npm run inspect`. The core now returns
+  tables (`dev::export_tables`, `to_csv`); `src-tauri/src/xlsx.rs` writes the workbook by hand
+  (no new crate). `--export` (or `--csv`) writes the CSV files and `record.xlsx`. A first build
+  wrote 2 extra bytes per zip directory entry, which Python refused; fixed, and the test now
+  walks the whole directory. Checked: Python's zip test, openpyxl reads all 18 sheets. Not
+  checked: Excel and LibreOffice (the LibreOffice helper does not run on Windows).
 
 ## 2026-09-24 — stage 7: `ts-rs` and Settings › Sites
 - The owner asked where the SMART work stood, then asked for stage 7.

@@ -5,6 +5,9 @@ mod cng;
 // Dev tools: the store inspector (feature `dev` only, never in a release; DEBUGGING.md).
 #[cfg(feature = "dev")]
 pub mod dev_tools;
+// The inspector's .xlsx writer (feature `dev` only).
+#[cfg(feature = "dev")]
+mod xlsx;
 // Every failure the user should hear about, as one `app-error` event (ERRORS.md).
 mod errors;
 // The fetch: runs the core's full fetch off the UI thread; counts to the front end.
