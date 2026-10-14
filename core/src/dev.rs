@@ -11,7 +11,7 @@
 //!   is public fake data, which SECURITY.md §4.8 lets into docs and chat (the owner confirmed
 //!   2026-10-13).
 //!
-//! [`DevPass`] is the fourth pass (shielded.rs). It is made only here: for a sandbox site, and
+//! [`DevPass`] is the fifth pass (shielded.rs). It is made only here: for a sandbox site, and
 //! inside three helpers that let out only FHIR's own words, whatever the site: [`shape_of`]
 //! (field paths, every value dropped), `plain_type` (a FHIR type with a table) and
 //! `warning_word` (our codes, or FHIR's issue words).
@@ -316,6 +316,57 @@ pub fn export_tables<C: Cipher>(store: &SiteStore<C>) -> Result<Option<Vec<Expor
         _ => 3,
     };
     files.sort_by_key(|(n, _)| rank(n));
+    Ok(Some(files))
+}
+
+/// The record view built from this store (GLOBALS.md), as counts: records, stubs and
+/// components per global, and the entries of every index. Numbers only, so safe for any site.
+pub fn tree_report<C: Cipher>(store: &SiteStore<C>) -> Result<String, CoreError> {
+    use crate::tree::{Global, Tree};
+    let started = std::time::Instant::now();
+    let tree = Tree::build(&[store], || 0)?;
+    let ms = started.elapsed().as_millis();
+    let mut out = String::new();
+    let w = &mut out;
+    writeln!(w, "\nrecord view (GLOBALS.md): built in {ms} ms").ok();
+    for (g, c) in Global::ALL.into_iter().zip(tree.counts()) {
+        let extra = if c.components > 0 { format!(", {} components", c.components) } else { String::new() };
+        writeln!(w, "  ^{:<6} {:>6} records ({} stubs{extra})", c.global, c.records, c.stubs).ok();
+        let sizes: Vec<String> = Tree::indexes(g)
+            .into_iter()
+            .map(|ix| format!("{ix} {}", tree.index_size(g, ix).map_or("?".to_owned(), |n| n.to_string())))
+            .collect();
+        if !sizes.is_empty() {
+            writeln!(w, "          {}", sizes.join(" · ")).ok();
+        }
+    }
+    Ok(out)
+}
+
+/// The record view's globals as tables, **for a sandbox site only** (`None` for a real site):
+/// one sheet per global (`^ENC`, `^RES`, …), one row per record, one column per field. The
+/// first column is the IEN; a pointer field holds the IEN of a record in its own global.
+pub fn export_tree<C: Cipher>(store: &SiteStore<C>) -> Result<Option<Vec<ExportTable>>, CoreError> {
+    use crate::tree::{Global, Tree};
+    if sandbox_name(store)?.is_none() {
+        return Ok(None);
+    }
+    let pass = DevPass::issue();
+    let tree = Tree::build(&[store], || 0)?;
+    let mut files = Vec::new();
+    for g in Global::ALL {
+        let records = tree.records(g)?;
+        let Some((_, first)) = records.first() else { continue };
+        let mut head = vec!["ien"];
+        head.extend(first.iter().map(|(n, _)| *n));
+        let mut sheet = Sheet::new(&head);
+        for (ien, cells) in &records {
+            let mut row = vec![ien.to_string()];
+            row.extend(cells.iter().map(|(_, v)| v.reveal(&pass).clone()));
+            sheet.row(row);
+        }
+        files.push((format!("^{}", g.name()), sheet.rows));
+    }
     Ok(Some(files))
 }
 

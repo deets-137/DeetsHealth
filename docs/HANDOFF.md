@@ -9,6 +9,17 @@ updated: 2026-10-13
 > Cold-start guide — read first. This file holds what is still true. The history of each
 > sitting is [WORKLOG.md](WORKLOG.md).
 
+## State of play (2026-10-13, late)
+- **The record view is built** (`core/src/tree/`, [GLOBALS.md](architecture/GLOBALS.md) §10):
+  DeetsHealth's globals in DeetsEngine, rebuilt from the sealed store; `TreePass` (the fourth
+  pass); a zeroing allocator in the app. Camila's record builds in 313 ms (debug), with 467
+  `^RES` records (GLOBALS.md §10.6). **No card reads it yet**, so the app does not build it;
+  the inspector does (`npm run inspect -- --tree`). Desk test: GLOBALS.md §10.7.
+- **Next (the owner, 2026-10-13): the UI**, and how to show the data, with Camila as the
+  example: HOME-AND-HUBS.md (forks H3, H5 still open) and the `^` sheets of
+  `npm run inspect -- --export`. The first card wires the tree into the app (GLOBALS.md
+  §10.3, item 9) and chooses the handle of a stub and a component (item 1).
+
 ## State of play (2026-10-13)
 - **Fresh eyes (2026-10-13).** The owner has an Epic FHIR account, a new M engine
   (`../DeetsEngine`) and a much larger DeetsMusic to model the look on. New direction:
@@ -162,6 +173,16 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
   rework. The tree stays in memory while the app is open (L-A); an idle drop is a later
   Settings row. **DeetsEngine builds the base layer first, ahead of its stage 1:** a memory
   store and redacted reports, requested in `../DeetsEngine/docs/ideas/deetshealth-needs.md`.
+  **Status (checked 2026-10-13): the base layer is built** (DeetsEngine `8b2242e`, `51adf0e`;
+  request doc §8, §10). `MemoryStore`: no journal, the caller's clock, builds for wasm, wipes
+  every key and value it drops (`zeroize`). It does **not** wipe copies that leave it (a `get`
+  result, error text). Redacted reports: log only `Error::redacted()`. `Error`'s own `Display`
+  and `Debug`, `report()`, and an `unwrap()` or `expect()` on an engine `Result` still carry
+  protected data, so the wrapper never uses them. Key every record by a numeric IEN: a record
+  under a text key gets no index entries and no unique check, with no error. Measured `^RES`
+  load (GLOBALS.md §6): 10 000 records in 0.72 s native, 0.84 s in wasm. DeetsEngine is now
+  making each write unpack its row once (not a fork). DeetsHealth's side: a zeroing allocator
+  and the wrapper (request doc §9.5).
   **DeetsHealth's own globals are designed here,** with the owner, once that exists. Until
   then the cards read the built store. The draft, from Camila's record and the owner's note
   on panels and microbiology: [GLOBALS.md](architecture/GLOBALS.md) (the owner, 2026-10-13: G1 A, one global per kind; G2 A, one value, one record).

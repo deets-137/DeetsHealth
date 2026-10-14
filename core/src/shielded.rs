@@ -2,11 +2,13 @@
 //!
 //! `Shielded<T>` has no `Debug`, `Display`, `Serialize` or `ToString`, so a log line, a panic
 //! message or a JSON reply that tries to carry one does not compile. The plaintext comes out
-//! only through [`Shielded::reveal`], which needs a [`Pass`]. Exactly three pass types exist,
-//! and this file names all three: [`crate::store::CachePass`] (the sealed cache writer),
-//! [`crate::payload::CardPass`] (the card payload) and [`crate::net::SitePass`] (a request
-//! to the site the value came from, and the parse of its reply; the owner, 2026-09-21). Each
-//! is built only inside its own module. The value is wiped from memory when it drops.
+//! only through [`Shielded::reveal`], which needs a [`Pass`]. Exactly four pass types exist
+//! in a release, and this file names all four: [`crate::store::CachePass`] (the sealed cache
+//! writer), [`crate::payload::CardPass`] (the card payload), [`crate::net::SitePass`] (a
+//! request to the site the value came from, and the parse of its reply; the owner,
+//! 2026-09-21) and [`crate::tree::TreePass`] (the record view, which writes values into the
+//! engine and wraps them again on every read; R-A lite, 2026-10-13). Each is built only
+//! inside its own module. The value is wiped from memory when it drops.
 //!
 //! A log line cannot print one:
 //! ```compile_fail
@@ -79,8 +81,8 @@ mod sealed {
     pub trait Sealed {}
 }
 
-/// Proof that the caller may read plaintext. Implemented for exactly three types, below, and a
-/// fourth, `dev::DevPass`, only in a build with the `dev` feature (never a release).
+/// Proof that the caller may read plaintext. Implemented for exactly four types, below, and a
+/// fifth, `dev::DevPass`, only in a build with the `dev` feature (never a release).
 pub trait Pass: sealed::Sealed {}
 
 impl sealed::Sealed for crate::store::CachePass {}
@@ -89,6 +91,10 @@ impl sealed::Sealed for crate::payload::CardPass {}
 impl Pass for crate::payload::CardPass {}
 impl sealed::Sealed for crate::net::SitePass {}
 impl Pass for crate::net::SitePass {}
+// The fourth: the record view, which writes values into the engine and wraps them again on
+// every read (R-A lite, HANDOFF.md › Decided, 2026-10-13).
+impl sealed::Sealed for crate::tree::TreePass {}
+impl Pass for crate::tree::TreePass {}
 #[cfg(feature = "dev")]
 impl sealed::Sealed for crate::dev::DevPass {}
 #[cfg(feature = "dev")]

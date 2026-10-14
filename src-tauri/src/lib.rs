@@ -22,7 +22,13 @@ mod signin;
 // One sealed SQLite file and one key per site; the Sites section's list and sign-out.
 mod sites;
 mod watchdog;
+// Every freed block is zeroed first, so a copy of record data that no wrapper owns is not
+// left behind in freed memory (wipe_alloc.rs).
+mod wipe_alloc;
 mod window;
+
+#[global_allocator]
+static ALLOC: wipe_alloc::Zeroing = wipe_alloc::Zeroing;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

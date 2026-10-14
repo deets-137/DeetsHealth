@@ -64,8 +64,10 @@ it goes anywhere. The type has no `Debug`, no `Display`, no `Serialize` to a log
 `ToString`. The only ways out are (a) the card payload to the front end, (b) the sealed
 cache writer, and (c) a request to the site the value came from: the site's URL, the
 access token, the `Patient` id, a form field (the owner, 2026-09-21: a third pass, held by
-the core's network module only). A leak into a log is then a compile error, not a review
-note. It covers PII as well as PHI: a patient name is wrapped exactly as a lab value is.
+the core's network module only). A fourth pass, `TreePass`, is the record view's
+(GLOBALS.md §10.2; R-A lite, the owner, 2026-10-13): it reveals a value only to write it into
+the in-memory engine, and wraps every value it reads back. A leak into a log is then a
+compile error, not a review note. It covers PII as well as PHI: a patient name is wrapped exactly as a lab value is.
 - **The moment of parsing:** a site's reply is read only inside the network module's parse
   call, and the code there wraps every value it keeps. That call is the one place a reply's
   plaintext exists outside the wrapper (CORE-CRATE.md §12, stage 4).
@@ -257,6 +259,10 @@ build (§4.3).
 Where this part and §8.1–§8.7 disagree, this part is the code.
 
 **Built and tested:**
+- **The record view (2026-10-13):** `TreePass`, the fourth pass; values plain inside the
+  engine's memory store and wiped when they drop; engine errors kept as their redacted
+  report's code only; a zeroing allocator that wipes every freed block in the app
+  (`src-tauri/src/wipe_alloc.rs`). GLOBALS.md §10.2.
 - `Shielded<T>` and its three passes (`CachePass`, `CardPass`, `SitePass`), with
   compile-fail proofs (CORE-CRATE.md §12). `CardPass` has one user since stage 7:
   `payload::site_view` reveals the **site's name** for its Settings › Sites row. The page

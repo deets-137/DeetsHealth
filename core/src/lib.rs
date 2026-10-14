@@ -27,6 +27,8 @@ pub mod seal;
 pub mod shielded;
 pub mod store;
 pub mod sync;
+/// The record view: the globals in DeetsEngine, rebuilt from the sealed store (GLOBALS.md).
+pub mod tree;
 
 pub use error::CoreError;
 pub use shielded::{Pass, Shielded};

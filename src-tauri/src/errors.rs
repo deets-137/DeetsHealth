@@ -67,6 +67,7 @@ pub fn kind_word(e: CoreError) -> &'static str {
         CoreError::SignIn => "sign-in",
         CoreError::Browser => "browser",
         CoreError::Version => "newer-version",
+        CoreError::Tree(_) => "record-view",
     }
 }
 

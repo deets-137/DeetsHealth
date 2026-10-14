@@ -8,6 +8,27 @@ updated: 2026-10-13
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-10-13 — the record view: DeetsHealth's globals, built
+- Checked DeetsEngine's base layer twice: the memory store, then redacted reports and the
+  `^RES`-shaped load (10 000 records in 0.72 s native, 0.84 s wasm). Ran its suites and the
+  wasm check. Wrote DeetsHealth's further asks into its request doc §9; it answered in §10.
+- Designed the globals on paper (GLOBALS.md §5.2–§5.9). One real fork: M1, where medicines
+  go. The owner chose **M1 A** (`^MED`). His Epic answers: susceptibilities likely come as
+  components; LOINC is often on a lab component; other patients are like Camila. LOINC's
+  API cannot map a site's local code, and a per-code lookup breaks the wall: route 1 (the
+  site's own LOINC) is the plan.
+- Built `core/src/tree/`: the declarations, the load, the normalizer, the date key, the typed
+  reads, `TreePass`, `CoreError::Tree`; `index::Ref` keeps a reference's display (for stubs);
+  `serde_json` keeps numbers as sent (`arbitrary_precision`). The zeroing allocator in the
+  host (`wipe_alloc.rs`; no measurable cost on 20 000 parses). The inspector's `--tree`, and
+  the `^` sheets in `--export`.
+- Decided inside his choices (GLOBALS.md §10.3): `by-row` in place of a keyed handle (stubs'
+  and components' handle waits for the first card); `by-kind` as (kind, date); `^LINK` only
+  for targets in the tree; the app does not build the tree until a card reads it.
+- Tests: core 60 (18 new), host 19, clippy clean for the new code, the wasm check passes.
+  Camila's record through `--tree` via WMI: GLOBALS.md §10.6.
+- Not committed.
+
 ## 2026-10-13 — the globals draft, from Camila's record
 - The owner asked whether Camila's exported record shows the shape of the globals to tune
   DeetsEngine towards. Answer: it shows the axes, not the proportions (one synthetic

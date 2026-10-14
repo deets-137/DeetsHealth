@@ -70,8 +70,11 @@ reads `other`.
 Opens each site's sealed store with this PC's keys and prints the core's report
 (`core/src/dev.rs`):
 ```
-npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--sample N] [--type T]... [--out <file>]
+npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--tree] [--sample N] [--type T]... [--out <file>]
 ```
+- **`--tree`, every site:** builds the record view (architecture/GLOBALS.md) from the store
+  and prints its build time, the records, stubs and components of each global, and the size
+  of every index. Numbers only. Camila's numbers: GLOBALS.md §10.6.
 - Every site: the index version, the granted scopes (the site's own scope words), rows by
   table and FHIR type, links by table pair with the waiting ones split out, **the waiting links
   by target type with the number of distinct records they name** (the cost of fetching them),
@@ -84,7 +87,9 @@ npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--sample N] [--
   and one workbook, `record.xlsx`, with every table as a sheet after an About sheet.
   `records` has one row per resource with its index columns (kind, code, display, status,
   dates); `<Type>` has one column per JSON field path, several values joined with ` | `;
-  `links`, `warnings`, `patient`. The `row` column joins them. The workbook is written by
+  `links`, `warnings`, `patient`. The `row` column joins them. Then one `^` sheet per global
+  of the record view (`^ENC`, `^RES`, …): one row per record, `ien` first, a pointer field
+  holding an IEN in its own global (GLOBALS.md §10). The workbook is written by
   `src-tauri/src/xlsx.rs`, a small hand-rolled writer (stored zip, inline strings, Arial, a
   frozen header, filters), so the dev tools add no crate. Write it under `dev-dumps\` in the
   repo (git-ignored): `npm run inspect -- --export dev-dumps\epic-sandbox`. Sandbox data may
@@ -99,7 +104,7 @@ npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--sample N] [--
   Build it first: `cargo build -p deetshealth --features dev --example inspect`. Delete the
   output file when done; for a real site it holds words only, but it is still a file about a
   person's record.
-- The pass behind it, `dev::DevPass`, is the fourth pass (shielded.rs). It exists only in a
+- The pass behind it, `dev::DevPass`, is the fifth pass (shielded.rs; the fourth is the record view's `TreePass`). It exists only in a
   `dev` build. It is made for a sandbox site, and inside three helpers that let out FHIR's own
   words whatever the site: `shape_of`, `plain_type`, `warning_word`.
 

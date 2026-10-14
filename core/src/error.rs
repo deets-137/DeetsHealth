@@ -21,10 +21,16 @@ pub enum CoreError {
     Browser,
     /// A site file was written by a newer version of the app (a newer schema).
     Version,
+    /// The record view (`tree`) failed. It carries the code of the engine's redacted report
+    /// (`index.not_unique`, …): a fixed word from the engine's code, never record data.
+    Tree(&'static str),
 }
 
 impl fmt::Display for CoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let CoreError::Tree(code) = self {
+            return write!(f, "record view error: {code}");
+        }
         f.write_str(match self {
             CoreError::Crypto => "crypto error",
             CoreError::KeyStore => "key store error",
@@ -34,6 +40,7 @@ impl fmt::Display for CoreError {
             CoreError::SignIn => "sign-in error",
             CoreError::Browser => "could not open the browser",
             CoreError::Version => "written by a newer version",
+            CoreError::Tree(_) => unreachable!("written above"),
         })
     }
 }

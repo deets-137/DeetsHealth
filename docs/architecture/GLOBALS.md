@@ -1,18 +1,20 @@
 ---
-status: project
-desk_test: none
-sources: [core/src/index.rs, core/src/store/mod.rs, ../DeetsEngine/docs/ideas/deetshealth-needs.md, ../DeetsEngine/docs/architecture/IENS-AND-INDEXES.md]
+status: built
+desk_test: open
+sources: [core/src/tree/mod.rs, core/src/tree/load.rs, core/src/tree/normalize.rs, core/src/tree/schema.rs, core/src/tree/date.rs, src-tauri/src/wipe_alloc.rs, core/src/index.rs, core/src/store/mod.rs, ../DeetsEngine/docs/ideas/deetshealth-needs.md, ../DeetsEngine/docs/architecture/IENS-AND-INDEXES.md]
 updated: 2026-10-13
 ---
-# DeetsHealth — The globals: a draft
+# DeetsHealth — The globals (the record view)
 
-> **A draft, with its two forks decided** (G1 A, G2 A, §7). What the first Epic fetch (Camila Lopez, the Epic sandbox)
-> shows about the shape of the record, and a first sketch of DeetsHealth's own globals in
-> DeetsEngine. The owner asked for it on 2026-10-13, and added the results that Camila does
-> not have: panels of 8 to 15 values (a lipid panel, a CMP) and microbiology with more
-> (§4). The globals are designed with the owner in a later session, after the engine's base
-> layer exists (HANDOFF.md › Decided, "D-A + R-A lite + L-A"). Nothing here is built. Still
-> open: the questions and the data in §8, and the details inside §5.
+> **Built 2026-10-13** (core `tree/`), with its three forks decided (G1 A, G2 A, M1 A, §7).
+> **Read §10, "As built", first:** where it differs from the design in §5, it is the code. No
+> card reads the tree yet; the inspector builds it (`npm run inspect -- --tree`). The desk
+> test is §10.7.
+>
+> How it came about: the first Epic fetch (Camila Lopez, the Epic sandbox) showed the shape
+> of the record (§2, §3). The owner added the results Camila does not have: panels of 8 to 15
+> values and microbiology with more (§4). DeetsEngine built the base layer (§6). Still open:
+> the data to see in §8 (more sandbox patients).
 
 ## 1. Terms
 - **Global** — one DeetsEngine tree, such as `^RES`. Here, a derived view: the core rebuilds
@@ -121,7 +123,7 @@ the report.
   trend index points at the value, not at its panel.
 
 ## 5. The draft globals
-> **Part:** project · 2026-10-13 · G1 A and G2 A decided, §7
+> **Part:** project · 2026-10-13 · G1 A, G2 A and M1 A decided (§7)
 
 ### 5.1 One rule for results: one value, one record
 **Every value is a record in `^RES`, with a `parent` pointer and a `seq`.** A panel, a report
@@ -150,53 +152,159 @@ group at once, walk `by-root`.
 (Shapes only. Codes are public LOINC codes; no value is shown.)
 
 ### 5.2 The globals
-| Global | Holds | Pointers | Indexes |
-|---|---|---|---|
-| `^ENC` | visits, and stub visits | — | by-date, by-fhir (unique) |
-| `^RES` | every result: groups (report, panel, culture, isolate) and values | enc, order, parent, root | by-trend (concept, date), by-enc, by-parent (parent, seq), by-root, by-order, by-date, by-code (Each: every coding), by-fhir (unique) |
-| `^ORD` | orders (`ServiceRequest`), with the parent order | enc, parent | by-order-number, by-enc, by-date, by-fhir (unique) |
-| `^CHART` | longitudinal items: problems, visit diagnoses, allergies, medicines, vaccines, goals, care plans | enc (when it has one), addresses | by-kind (kind, status), by-enc, by-trend for medicines, by-fhir (unique) |
-| `^DOC` | notes and documents | enc, order | by-enc, by-date, by-fhir (unique) |
-| `^PARTY` | practitioners, locations, organizations, care teams; mostly stubs | — | by-fhir (unique) |
-| `^LINK` | every link role with no pointer field | from, to | by-from (role), by-to (role) |
-| `^FETCH` | per FHIR type: served, none, not shared (suppressed), refused | — | — |
+> **Part:** project · 2026-10-13 · the full design; M1 A decided (§7)
 
-A value is packed (DeetsEngine PACKING.md), one format per global. `^RES`'s format holds:
-kind, concept, value kind, comparator, value, unit, UCUM code, low, high, range text, flag,
-status, the date key and the date as sent, enc, order, parent, root, seq, the FHIR id, and a
-stub mark. Notes are a subfile node (`^RES(ien,"note",n)`): free text does not go into a
-packed value.
+Each global holds the store tables in the right column. A store table with no global stays
+in the sealed store only (§5.9). Medicines have their own global, `^MED` (M1 A).
+
+| Global | Holds (store table → kinds) | Pointers | Indexes |
+|---|---|---|---|
+| `^SITE` | one record per site in this tree: its name, its last fetch | — | — |
+| `^PAT` | the patient, per site: name, birth date, sex (store `patient`) | site | — |
+| `^ENC` | `encounter` → visit, planned (`Appointment`), episode; and stub visits | site, location, provider, parent, episode, diagnoses (list), participants (list) | by-date, by-kind (kind, date), by-diagnosis (Each), by-parent, by-handle (unique) |
+| `^RES` | `result` → every result: groups (panel, report, culture, isolate) and values | site, enc, order, parent, root, specimen | by-trend (kind, concept, date), by-enc (enc, date), by-parent (parent, seq), by-root, by-order, by-date, by-code (Each: every coding), by-handle (unique) |
+| `^ORD` | `order_` → orders other than medicines | site, enc, parent, requester, reasons (list) | by-enc, by-date, by-parent, by-number (placer order number), by-handle (unique) |
+| `^MED` | `medication` and `drug` → ordered, filled, given, reported, vaccine, vaccine-due, drug | site, enc, drug, order, requester, reasons (list) | by-medicine (concept, date), by-kind (kind, status), by-order, by-enc, by-reason (Each), by-handle (unique) |
+| `^CHART` | `chart_item` → problem, visit diagnosis, health concern, allergy, procedure, goal, care plan, device, family history | site, enc, asserter, performer | by-kind (kind, status, date), by-enc, by-date, by-handle (unique) |
+| `^DOC` | `document` → note, form, message | site, enc, author, order | by-enc, by-date, by-handle (unique) |
+| `^PARTY` | `party` → people, places, organizations, care teams; mostly stubs | site | by-handle (unique) |
+| `^LINK` | every link role with no pointer field (§5.8) | from, to | by-from (global, IEN, role), by-to (global, IEN, role) |
+| `^FETCH` | per site and FHIR type: served, none, not shared (suppressed), refused | — | — (text keys, not records) |
+
+**Fields every record has** (the first fields of each packed format): site, FHIR type, FHIR
+id, `meta.versionId` (for later writes, HOME-AND-HUBS.md §5), handle (§5.6), kind, status,
+date key, date precision, date mark (§5.4), stub mark, and the reference's display text for
+a stub.
+
+**Each global's own fields** (packed, one format per global, DeetsEngine PACKING.md):
+- **`^ENC`:** class, type (concept and display), start, end, location, service provider,
+  parent, episode, `diagnoses[]` (`^CHART` IENs), `participants[]` (`^PARTY` IENs).
+  `by-diagnosis` gives a problem's level its visits (HOME-AND-HUBS.md §4, Problems).
+- **`^RES`:** concept, every coding (`codes...`), value kind, comparator, value, unit, UCUM
+  code, low, high, range text, flag, enc, order, parent, root, seq, specimen. Notes are a
+  subfile node (`^RES(ien,"note",n)`): free text does not go into a packed value.
+  `by-trend` serves both the Results hub's list (the concepts of one kind) and a test's trend
+  (its values by date), so one index does the work of two.
+- **`^ORD`:** concept, intent, priority, ordered date, occurrence date, enc, parent order,
+  requester, placer order number, `reasons[]`.
+- **`^MED`:** concept, drug (the `Medication` record, for a medicine named by reference),
+  dose quantity and unit, route, frequency text, as needed, the sig text, quantity, refills,
+  days supply, the order a fill or a dose belongs to, enc, requester, `reasons[]`. Vaccines:
+  the CVX concept, dose number, lot. A medicine named by reference takes its concept from its
+  drug record at load, so `by-medicine` groups every order of one drug.
+- **`^CHART`:** concept, clinical status, verification status, onset, abatement, recorded,
+  enc, asserter. Allergies: category, criticality, `reactions[substance,manifestation,severity]`.
+  Procedures: performed date, performer. Verification status is in the tree, so a problem that
+  is `refuted` or `entered-in-error` can be kept off a hub (INDEX-AND-LINKS.md §6 left it out
+  of the store's index).
+- **`^DOC`:** type (concept and display), description, date, enc, author, order, the content
+  list (content type and the `Binary` reference). The note's text is not loaded; it is fetched
+  when the patient opens the note (DATA-MODEL.md §5).
+- **`^PARTY`:** display name, specialty or role (concept and display).
 
 ### 5.3 The concept key
-The trend index needs one key per value. Draft rule: the LOINC code when the value has one,
-else the site's own code, prefixed by the site (`site:<oid>:<code>`), so two sites' local
-codes never merge. Later, a bundled map of local codes to LOINC (DATA-MODEL.md §8, fork 7)
-can join more of them. Every coding stays in by-code.
+One key per record, chosen at load, for the indexes that group by concept (`by-trend`,
+`by-medicine`):
+- **The standard system for the global, when any coding has it:** LOINC in `^RES` and
+  `^ORD`; RxNorm in `^MED`, CVX for a vaccine; SNOMED, then ICD-10-CM, in `^CHART`. These
+  keys are the same at every site, so LDL from two health systems is one trend.
+- **Else the first coding, prefixed by the site number:** `s<site>:<system>|<code>`. Two
+  sites' local codes never merge by accident.
+- Later, a bundled map of local codes to standard codes (DATA-MODEL.md §8, fork 7) joins more
+  of them. Every coding stays in `codes...` and `by-code`.
 
 ### 5.4 The date key
-- One sortable key per record: UTC, the precision kept (`2019`, `2019-04`, a full time).
-  Text with mixed offsets does not sort in time order (INDEX-AND-LINKS.md §6), so the key is
-  normalized at load.
-- The first of: the clinical date (`start`), `recorded`, `last_updated`. A record that used a
-  fallback has a mark, so the card can say "date recorded" and not "date of care".
-- A record with no date at all is indexed under a fixed last key, so it is never lost from a
-  hub.
+- **One sortable key per record:** a full UTC instant, `YYYY-MM-DDTHH:MM:SSZ`. A partial date
+  fills its missing parts with the start of its period (`2019` becomes
+  `2019-01-01T00:00:00Z`), and the **date precision** field keeps what was sent (year,
+  month, day, time), so the card shows `2019`, never "1 January 2019".
+- **Why never the year alone:** the engine indexes a canonical number as a number, and
+  numbers sort before every string (DeetsEngine `index.rs`, `index_value`). A key of `2019`
+  would sort before every full date.
+- A date with an offset is turned into UTC. A date with no time (`2019-04-05`) is not shifted.
+- **The first of:** the clinical date (`start`), `recorded`, `last_updated`. The **date mark**
+  says which, so the card can say "date recorded" and not "date of care".
+- **No date at all:** the key `0000-01-01T00:00:00Z`. A hub that lists newest first shows
+  these last, and none is lost.
 
 ### 5.5 Stubs
-A reference whose target did not arrive makes a stub in the target's global, once per FHIR
-id, with the reference's display text. Every pointer then holds an IEN. When a later fetch
-brings the resource, the rebuild at open fills the record.
+A reference whose target did not arrive makes a stub in the target's global, once per site,
+FHIR type and FHIR id, with the reference's display text. Every pointer then holds an IEN.
+When a later fetch brings the resource, the next rebuild fills the record. A stub visit can
+be opened like any visit: Camila's busiest visit (248 vitals) is a stub.
+
+### 5.6 IENs and handles
+- **IENs are new at every rebuild.** The core numbers each global's records from 1 at load.
+  An IEN never leaves the core and is never kept on disk.
+- **The handle is what the front end holds:** a keyed hash of (site, FHIR type, FHIR id),
+  made with the site's own key. It is the same across rebuilds and fetches, for a stub too,
+  so a card can keep its place (card memory) after a fetch or a restart. It carries no
+  identifier: without the site key it cannot be turned back into a FHIR id, and erasing the
+  site's key at sign-out makes every handle meaningless.
+- **`by-handle` (unique) replaces the draft's `by-fhir`.** A handle reads a record back; a
+  clash report shows an opaque value, never an identifier. The FHIR id stays a field.
+
+### 5.7 The load (a rebuild)
+When: at open, and after each fetch. Off the UI thread (CLAUDE.md › Conventions).
+1. **Number the records.** Read every store row's key in each table that has a global, and
+   every waiting link's target. Give each row and each stub its IEN. The map from store row
+   key to IEN lives only for the load, and is wiped after it.
+2. **Write the records,** one global at a time, in batches of a few hundred
+   (DeetsEngine request doc §8, "Batch size"): unseal the raw resource, normalize it, fill
+   each pointer field from the store's links (`to` row key → IEN, or the stub's IEN), and set
+   the packed record. Each record is written once, so index upkeep runs once per record.
+3. **Swap.** The new tree replaces the old one in one step. A card never reads a half-built
+   tree.
+
+Cost, from the engine's `^RES`-shaped load (§6): about 0.7 s natively for 10 000 records,
+before the engine's unpack-once change.
+
+### 5.8 Pointers and `^LINK`
+- **A pointer field** for each role a hub reads: a result's visit (`collected`) and order
+  (`fulfils`), a group's members (`contains` → `parent`), an order's visit (`ordered`), a
+  medicine's drug, order and reasons, a visit's diagnoses and people.
+- **`^LINK`** holds every other role (`derived-from`, `part-of` outside results, `author`,
+  `provenance-of`, …), with both ends as (global, IEN) and the source field. No hub reads it
+  yet. It keeps the rule "every reference the site sent has a place" (DATA-MODEL.md §2).
+- **A visit's whole view:** walk `by-enc` in `^RES`, `^ORD`, `^MED`, `^CHART` and `^DOC`.
+  The results ordered at the visit but collected at another come through its orders
+  (`^ORD` `by-enc`, then `^RES` `by-order`). Nothing is copied from one record to another.
+
+### 5.9 What stays out of the tree
+The tree holds only what a hub reads. `billing`, `other` and `definition` stay sealed in the
+store, and a note's text stays at the site until it is opened. Reason: protected data that no
+card shows is not unsealed into memory (SECURITY.md §1, second priority). A later hub adds
+its global; a global is a derived view, so this needs no migration.
 
 ## 6. What to tune the engine for
+> **Part:** project · 2026-10-13 · the engine's base layer is built
+
+**The engine's base layer, as of 2026-10-13.** The memory store and redacted reports are
+built (DeetsEngine `docs/ideas/deetshealth-needs.md` §8, §10). DeetsEngine measured a load
+in the shape of §5.2's `^RES` (21 packed fields, 5 codings, 8 indexes with `by-code` as
+`Each` and `by-fhir` unique, 500 records per transaction):
+
+| `^RES` records | Native (Ryzen 7 5700X) | Wasm (V8, Node 24) | Heap, native / wasm |
+|---|---|---|---|
+| 10 000 | 0.72 s | 0.84 s | 16.8 / 11.5 MiB |
+| 100 000 | 9.4 s | 12.6 s | 175 / 119 MiB |
+
+Index upkeep was about 87% of the time, because each packed index unpacked the row again.
+DeetsEngine is making each write unpack its row once (not a fork), then it measures again.
+A bulk-load path is a fork only if the open is still too slow after that.
+
 - **The bulk load.** With "one value, one record", one record is about 8 nodes (the packed
   value and about 7 index entries). A real adult record of about 10 000 values (an estimate)
-  is about 80 000 nodes. A long admission adds many flowsheet values to one visit. The
-  engine's load measurements (needs §3: 10 000, 100 000 and 1 000 000 nodes) cover this
-  range. The cost of one `set` decides the open time.
+  adds about 0.7 s to the open today. A long admission adds many flowsheet values to one
+  visit.
+- **Numeric IENs only.** A record under a text key gets no index entries and no unique
+  check, with no error (DeetsEngine IENS-AND-INDEXES.md). §5 already keys every record by
+  its IEN, with the FHIR id in a field.
 - **Deep walks.** A culture group is a walk of 3 or more levels of `by-parent`. This is
   ordered traversal (`$ORDER`), which the engine has.
-- **Unique indexes on protected values.** `by-fhir` is unique. A clash report carries values
-  today. The redacted reports (needs §4) are required before this index exists.
+- **Unique indexes.** `by-handle` is the only unique index (§5.6). Its values are opaque,
+  and any clash is redacted by `Error::redacted()` too, proved with markers (DeetsEngine
+  `tests/redact.rs`). The wrapper logs only that form.
 - **Nothing new is needed** for multi-value indexes, subfiles or stubs.
 
 ## 7. Forks
@@ -223,13 +331,149 @@ components). Decided: A.**
 
 Every platform: both are the same engine calls everywhere.
 
-## 8. Questions for the owner (Epic knowledge) and data still to see
-- How does Epic's FHIR send a culture: an isolate as an `Observation` with `hasMember`
-  susceptibilities, as components, or only as report text?
-- How often do Epic sites send LOINC on a lab component? If seldom, the concept key (§5.3)
-  needs the local-code map sooner.
-- Is Camila's fan-in of 248 on one visit a fair small model of an inpatient stay's flowsheet
-  rows? The answer sets the sizes for the engine's load measurements.
-- **Data to see:** an Epic sandbox patient with a CMP, a lipid panel and a culture. Cost: one
-  sign-in and one fetch (Camila's took 32 calls). Then `npm run inspect -- --csv` shows the
-  real shapes, and §4.1's open row closes.
+**M1 — Where medicines go. Decided: A (the owner, 2026-10-13: "M1A").** §5.2 as first drafted put medicines and vaccines in
+`^CHART`, and G1 A approved that table. But the store keeps `medication` apart from
+`chart_item` (DATA-MODEL.md §6, decisions 4a and 5a), and a medicine's shape (dose, route,
+refills, fills and doses given against an order) is not a problem's or an allergy's.
+- **A. `^MED`, its own global (chosen).** Orders, fills, doses given, reported
+  medicines, vaccines and drug records, with one packed format and the indexes the Medicines
+  hub reads (§5.2). It follows G1's own reason: each kind has its own format. Cost: the
+  visit view walks `by-enc` in five globals, not four.
+- **B. In `^CHART`, as first drafted.** Cost: `^CHART`'s one format must hold dose, route
+  and refill fields that problems and allergies never use. An inpatient stay's hundreds of
+  doses given sit in the same global as a few allergies.
+- **C. Epic's split.** Medicine orders go in `^ORD` with the other orders, as Epic's order
+  master file holds both. Fills, doses given and reported medicines go in `^MED`. Cost: the
+  Medicines hub reads two globals, and `^ORD`'s format holds both kinds of order.
+
+Every platform: all three are the same engine calls on Windows, web, macOS and iPhone.
+
+## 8. The owner's answers (Epic knowledge) and data still to see
+The owner, 2026-10-13:
+- **Cultures:** "Unsure how Epic sends a culture through FHIR. Expecting susceptibilities to
+  be components." The design holds either way. As components, each susceptibility becomes a
+  child record of its isolate (G2 A), with the isolate as `parent`. As `hasMember`, each is
+  its own `Observation` and a child the same way (§5.1). Only report text would need more: a
+  culture with no structured values shows as its report.
+- **LOINC:** "Expecting LOINC will often be on a lab component." So the concept key (§5.3)
+  joins most labs across sites without the local-code map. The map stays later work.
+- **Size:** "We can expect other patients to be like Camila." The engine's 10 000 and
+  100 000 record measurements (§6) cover it.
+- **Data to see:** "We can test other patients / pull their data to see into a spreadsheet."
+  Sign in as more Epic sandbox patients (Test Data list: EPIC.md §3), fetch each, and run
+  `npm run inspect -- --export dev-dumps\epic-sandbox` (ops/DEBUGGING.md) to see each record
+  as a workbook. Look first for a patient with a CMP, a lipid panel and a culture: that
+  closes §4.1's open row and shows Epic's real culture shape. Cost: one sign-in and one fetch
+  per patient (Camila's fetch took 32 calls).
+
+## 10. As built (2026-10-13)
+> **Part:** built · 2026-10-13 · desk test open (§10.7)
+
+Where this section and §5 disagree, this section is the code.
+
+### 10.1 Where it lives
+| File | What |
+|---|---|
+| `core/src/tree/mod.rs` | `Tree`: `build`, the typed reads, `TreePass`, `Global`, `TreeSource` |
+| `core/src/tree/schema.rs` | every packed format and `File` declaration (§5.2) |
+| `core/src/tree/load.rs` | the load: number, plan, finish, write (§5.7) |
+| `core/src/tree/normalize.rs` | each global's own fields from the raw resource, the concept key (§5.3), values |
+| `core/src/tree/date.rs` | the date key (§5.4) |
+| `core/src/tree/tests.rs` | a small record shaped like Camila's (§10.5) |
+| `src-tauri/src/wipe_alloc.rs` | the zeroing allocator |
+| `core/src/dev.rs` `tree_report`, `export_tree` | the inspector's view (ops/DEBUGGING.md §5) |
+
+The engine comes in by path (`almirah-engine`, `../../DeetsEngine`, no default features). The
+core still builds for `wasm32-unknown-unknown`.
+
+### 10.2 The wall
+- **`TreePass`** is the fourth pass (`shielded.rs`; R-A lite's "new pass"). Only `tree/` makes
+  one. The load reveals each value with it to write it; every read wraps the value again.
+- **An IEN comes back plain:** it is the engine's number, not record data.
+- **An engine error** becomes `CoreError::Tree(code)`, the code of its redacted report. The
+  rest of the error is dropped.
+- **The zeroing allocator** wipes every freed block in the app, the inspector and the tests:
+  serde's buffers, the engine's short-lived copies, everything no wrapper owns. A `realloc`
+  moves the block by hand, so the old block is wiped too. Measured (release, Ryzen 7 5700X):
+  20 000 parses of a lab result, 147 ms with the wipe and 147 ms without it. No test proves
+  the wipe itself; the engine's own scan test covers its store.
+
+### 10.3 Differences from §5
+1. **`by-row` in place of `by-handle` (§5.6).** The unique index is (site, store row key). A
+   row key is already random, opaque and kept across fetches (INDEX-AND-LINKS.md §7), so it
+   is a stable handle for every stored record with no new key. A stub and a component have
+   no row key, so no entry. **Their handle is chosen with the first card that opens one** (a
+   stub visit, a blood pressure's systolic): a keyed hash (§5.6), or a store row for each
+   stub. Not built: no card needs it yet.
+2. **`by-kind` is (kind, date) in `^MED` and `^CHART`,** not (kind, status). An index entry
+   needs every field, and many records have no status, so they would drop out of the hub.
+   A card filters by status as it reads (Active | Past, Active | Resolved).
+3. **`^LINK` keeps only links whose target is in the tree.** A link to billing or a
+   definition stays in the store's link table (§5.9).
+4. **A number keeps the digits the site wrote** (`5.10`, not `5.1`): the core's JSON parser
+   now keeps numbers as text (`serde_json` `arbitrary_precision`). This affects every parse
+   in the core; every core and host test passes with it.
+5. **A record's `version`** is `meta.versionId`, for later writes (HOME-AND-HUBS.md §5).
+6. **A component** copies its parent's head (site, FHIR type and id, kind, status, date) and
+   visit, and has an empty `row`.
+7. **A result's group:** when a result is a member of two groups (a panel `Observation` and
+   its report), the `Observation` is its parent, since the report holds that `Observation`.
+8. **`^FETCH(site, type)`** holds the rows stored and each warning's code. The words "not
+   shared" and "refused" are made from these codes by the card, later.
+9. **Not wired into the app yet.** No card reads the tree, so the app does not build it at
+   open or after a fetch: that would unseal the whole record into memory for nothing (§5.9).
+   The first card's work adds the build (off the UI thread) and its rebuild after a fetch.
+
+### 10.4 Reading it
+`Tree` (all values come back shielded):
+- `field(global, ien, name)`, `pointer(global, ien, name)`, `list(global, ien, name)`,
+  `notes(ien)`;
+- `walk(global, index, prefix, newest_first)`: the IENs under a prefix, in index order. For
+  example `walk(Res, "by-trend", [kind, concept], true)` is one test's values, newest first;
+- `values(global, index, prefix)`: the distinct values at the next level. For example
+  `values(Res, "by-trend", [kind])` is every test of one kind;
+- `by_row(global, site, row)`, `site_field(Patient | Site, site, name)`, `fetch(site, type)`;
+- `counts()`, `index_size`, `records(global)` (the inspector).
+
+### 10.5 Tests
+`cargo test -p deetshealth-core --features sqlite tree` (18 tests): the date key (UTC across
+a day, a month, a year and a leap day; partial dates; never a number); the concept key
+(LOINC second still wins; a local code per site); values (trailing zeros, comparators,
+ranges, ratios, coded answers, absent values); and a record shaped like Camila's: a stub visit
+with 9 values on it, blood pressure components in order and trending by their own code, a
+panel in the lab's order with a member that did not arrive, the visit's diagnoses and people,
+a medicine's concept from its drug, two sites that never share a record or a local code.
+
+### 10.6 Camila's record through the tree (Claude, 2026-10-13, through WMI)
+`npm run inspect -- --tree` on the Epic sandbox site. Built in **313 ms** (a debug build).
+
+| Global | Records | Stubs | Index entries |
+|---|---|---|---|
+| `^ENC` | 7 | 2 | by-date 7, by-kind 7, by-diagnosis 0, by-parent 0, by-row 5 |
+| `^RES` | 467 (182 components) | 27 | by-trend 439, by-enc 437, by-parent 211, by-root 467, by-order 3, by-date 467, by-code 1679, by-row 258 |
+| `^ORD` | 5 | 1 | by-enc 2, by-date 5, by-parent 1, by-number 4, by-row 4 |
+| `^MED` | 3 | 1 | by-medicine 1, by-kind 3, by-order 0, by-enc 1, by-reason 0, by-row 2 |
+| `^CHART` | 28 | 6 | by-kind 28, by-enc 4, by-date 28, by-row 22 |
+| `^DOC` | 5 | 0 | by-enc 5, by-date 5, by-row 5 |
+| `^PARTY` | 18 | 17 | by-row 1 |
+| `^LINK` | 294 | — | by-from 294, by-to 294 |
+
+What it shows, for the card work:
+- **No visit has a diagnosis list** (`by-diagnosis` 0): Camila's encounters send no
+  `Encounter.diagnosis`. A problem's visits come from `Condition.encounter` (`^CHART`
+  `by-enc`, 4) until a site sends more.
+- **Her medicine's drug is a stub.** The order names its drug by reference, and the site did
+  not send the `Medication`. So the order has no concept and is not in `by-medicine`. The
+  Medicines hub must show it by the stub's display text. A choice for the Medicines card.
+- **People are almost all stubs** (17 of 18): names come from the references' display text.
+- **294 links have no pointer field**, mostly a result's `performer`. No hub reads them yet.
+
+### 10.7 Desk test (the owner)
+Run from your own terminal (the Claude app sees a private AppData):
+1. `npm run inspect -- --tree`. Expect, for Camila: in `^RES`, her stored results (254
+   Observations and her reports), 182 components (91 blood pressures × 2) and about 22 stubs
+   (the `hasMember` targets that did not arrive); in `^ENC`, 6 visits, 1 of them a stub; the
+   build time in milliseconds; and every index's size.
+2. `npm run inspect -- --export dev-dumps\epic-sandbox`. `record.xlsx` now ends with one
+   `^` sheet per global. Check that the busiest visit (the stub) holds the vitals, and that
+   each blood pressure's systolic and diastolic follow it in `^RES`.

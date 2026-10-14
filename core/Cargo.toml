@@ -17,7 +17,9 @@ rusqlite = { version = "0.32", features = ["bundled"], optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["native-tls", "gzip"] }
 # Reading FHIR and SMART replies (net::parse_reply). preserve_order: the raw resource keeps the
 # site's own key order (DATA-MODEL.md §2: store what the site gives, as it gives it).
-serde_json = { version = "1", features = ["preserve_order"] }
+# arbitrary_precision: a number keeps the digits the site sent, so a lab value of 5.10 is not
+# shown as 5.1 (the record view, tree/normalize.rs).
+serde_json = { version = "1", features = ["preserve_order", "arbitrary_precision"] }
 # `join_all` for the fetch's three workers (sync.rs). Runtime-free, so it also runs on the web;
 # already in the build through reqwest.
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
@@ -27,6 +29,11 @@ serde = { version = "1", features = ["derive"] }
 # TypeScript types for the payloads (CORE-CRATE.md §9, fork 8a). Build time only: behind the
 # `ts` feature, which only `npm run types` turns on. The app never links it.
 ts-rs = { version = "12", optional = true }
+# The record view (tree/): DeetsEngine's in-memory globals, rebuilt from the sealed store
+# (GLOBALS.md). By path until it has a crate name and a tag; no default features, so no SQLite
+# and no JSON, and it builds for wasm. Values inside it are plain and wiped when they drop
+# (R-A lite, HANDOFF.md › Decided).
+almirah-engine = { path = "../../DeetsEngine", default-features = false }
 
 [build-dependencies]
 # build.rs reads epic-client.json (EPIC.md §2). Already in the tree as a dependency above.

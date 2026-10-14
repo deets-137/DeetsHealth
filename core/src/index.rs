@@ -47,6 +47,9 @@ pub struct Ref {
     pub target_id: Text,
     /// The reference as the site sent it.
     pub target_ref: Text,
+    /// The reference's `display`: all the record view knows of a target the site did not
+    /// send (a stub, GLOBALS.md §5.5). Not stored in the link table.
+    pub display: Option<Text>,
 }
 
 fn text(v: Option<&Value>) -> Option<Text> {
@@ -81,7 +84,7 @@ const RECORDED: [&str; 10] =
     ["issued", "recordedDate", "recorded", "authoredOn", "authored", "dateAsserted", "date", "created", "received", "dateWritten"];
 
 /// The concept that names a resource, per type; `code` for every type not listed.
-fn code_field(t: &str) -> &'static [&'static str] {
+pub(crate) fn code_field(t: &str) -> &'static [&'static str] {
     match t {
         "MedicationRequest" | "MedicationDispense" | "MedicationAdministration" | "MedicationStatement" => {
             &["medicationCodeableConcept"]
@@ -259,6 +262,7 @@ fn walk(t: &str, v: &Value, path: &str, out: &mut Vec<Ref>) {
                             target_table: table,
                             target_id: Shielded::new(id.to_owned()),
                             target_ref: Shielded::new(s.to_owned()),
+                            display: text(o.get("display")),
                         });
                     }
                 }
