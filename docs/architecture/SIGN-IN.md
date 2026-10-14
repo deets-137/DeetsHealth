@@ -22,7 +22,7 @@ updated: 2026-10-13
 - **`state`** — a random value sent with the request and checked on the returning link.
 - **The link** — `http://127.0.0.1:<port>/callback?code=…&state=…`: the site sends the
   browser here after sign-in.
-- **Return listener** — a tiny HTTP listener in the app, on 127.0.0.1 and a port Windows picks,
+- **Return listener** — a tiny HTTP listener in the app, on 127.0.0.1 and a registered port,
   open only while one sign-in waits (`loopback.rs`; RFC 8252 §7.3). It replaced the
   `deetshealth://` scheme on 2026-10-13: Epic's sign-in page cannot hand off to a custom
   scheme in Edge (integrations/EPIC.md §3).
@@ -45,7 +45,7 @@ updated: 2026-10-13
 | 1 | `signin::sign_in_start(site)` (command) | Picks `auth::sandbox_sites()[site]`. |
 | 1b | `signin::site_sign_in(site)` (command; `site` is the app's site key) | Opens the saved site, finds its menu entry by base URL (`auth::entry_for`), and remembers the site in the waiting sign-in. At the return (`signin::save`), `auth::renew_site` puts the new tokens into the saved site if the same patient came back; another patient becomes a new site. |
 | 2 | `auth::begin` | GET `<base>/.well-known/smart-configuration`. Needs `authorization_endpoint` and `token_endpoint`, both `https://`. Makes the verifier (32 random bytes → 43 base64url characters), the challenge (base64url of SHA-256, both from CNG) and `state` (16 random bytes). Builds the authorize URL (§4). |
-| 1c | `loopback::Bound::open` (before step 2) | Binds 127.0.0.1 on a port Windows picks. The redirect URI is `http://127.0.0.1:<port>/callback`. No port → `sign-in-port`. |
+| 1c | `loopback::Bound::open` (before step 2) | Binds 127.0.0.1 on the first free port of `PORTS` (80, 42813, 46219). The redirect URI is `http://127.0.0.1/callback` on 80, else with the port. None free → `sign-in-port`. |
 | 3 | `signin.rs` | Stores the waiting sign-in (replacing any older one, which closes its listener) and starts this one's listener thread. |
 | 4 | `net::open_in_browser` → `browser::SystemBrowser` | `ShellExecuteW("open", url)`. `https://` only, checked twice. |
 | 5 | the browser | The site sends the browser to the link. |
@@ -75,7 +75,7 @@ or the site answers 400 / 401. Any other failure is an error: try again later.
 | Client id | `SiteEntry.client_id` in `auth::sandbox_sites` | `deetshealth` for the SMART sandbox (it accepts any). Epic's comes from `epic-client.json` at the repo root (git-ignored; template `epic-client.example.json`): `core/build.rs` reads it at build time into `DEETSHEALTH_EPIC_CLIENT_ID` (integrations/EPIC.md §2). A change to the file rebuilds the core. |
 | Sites in the Connect menu | `auth::sandbox_sites` | A `SiteEntry` per site: name, base URL, client id, scopes. SMART is index 0. **Epic sandbox** is index 1, only in a build that found `epic-client.json` with a `nonprod_client_id` (`auth::EPIC_SANDBOX`). Real sites come from the directory (integrations/ENDPOINT-DIRECTORY.md). |
 | The SMART sandbox's setup | `auth::SMART_LAUNCH` | §5. |
-| Redirect URI | `loopback::Bound::redirect_uri` | `http://127.0.0.1:<port>/callback`, one port per sign-in. Debug and release are the same. A registered site lists `http://127.0.0.1/callback`; whether it accepts any port is EPIC.md §3. |
+| Redirect URI | `loopback::PORTS`, `Bound::redirect_uri` | The first free port of 80, 42813, 46219: `http://127.0.0.1/callback` for 80, else `http://127.0.0.1:<port>/callback`. Epic matches the port exactly, so every listed port must be registered (EPIC.md §3); a new port means a new registered URI. Debug and release are the same. |
 | The return pages | `loopback::Page::words` | Four fixed pages: signed in, not shared, ended, not current. A draft for the owner's words. |
 | HTTP rules | `net::Net::new` | HTTPS only, TLS 1.2+, no redirects, gzip, 30 s timeout, `User-Agent: DeetsHealth/<version>`. |
 | What the Sites row shows | the `sign-in` event words | `waiting`, `connected`, `refused`, `expired`, `failed`, `cancelled`. Fixed words only: never a value. |
@@ -197,7 +197,7 @@ The log is `%APPDATA%\com.deetshealth.dev\deetshealth.log` (debug) or
   sandbox, about 5 calls: `begin`, the authorize redirect read without a browser, a
   wrong-`state` link refused, the token trade (PKCE checked by the launcher), a refresh,
   and a bad refresh token → `SignInAgain`.
-- `cargo test -p deetshealth --lib loopback`: the listener binds 127.0.0.1 on a free port;
+- `cargo test -p deetshealth --lib loopback`: the listener binds 127.0.0.1 on a listed port, skips a taken one, and writes port 80 with no port;
   the pages carry fixed words and no script.
 
 ## 12. Desk test

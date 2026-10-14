@@ -38,7 +38,7 @@ The rows follow the "Create an App" form, top to bottom (seen 2026-10-13).
 | 1a | Automatic Client Distribution | **USCDI v3** (fork E0, §5; chosen 2026-10-13). | Decides whether real Epic sites get the app with no per-site request. No effect on the sandbox. |
 | 1b | Public Documentation URL | Blank for now, if the form lets you save. Otherwise a page on deets.solutions. | Needed before production. |
 | 2 | Incoming APIs | **Every R4 `.Read` and `.Search`** the form offers, both **(Patient Chart)** and **(Outside Record)** (2026-10-13: the portal shows the whole record, and the fetch already maps every FHIR type, `core/src/fhir.rs` `table_for`). Skip DSTU2 and STU3; every `.Create`, `.Update` and other write (stop rule 1); **(Premium Billing)** (Epic charges for it); and any API the form refuses for a Patients audience. If fork E0 is USCDI v3, take what the form still allows. | Sets the scopes Epic grants. The fetch asks only for the types that the site's capability statement and the grant allow (FETCH.md). |
-| 3 | Endpoint URI (the redirect URI) | **`http://127.0.0.1/callback`** (added 2026-10-13). The two `deetshealth(-dev)://callback` entries from the first try are no longer used; they can go. The form also says production needs at least one `https` URI: the web app's callback can be that one, later. | `loopback.rs`: `http://127.0.0.1:<port>/callback`, a port per sign-in (§3). |
+| 3 | Endpoint URI (the redirect URI) | **`http://127.0.0.1/callback`** (added 2026-10-13), **`http://127.0.0.1:42813/callback`** and **`http://127.0.0.1:46219/callback`** (the fallback ports, §3). The two `deetshealth(-dev)://callback` entries from the first try are no longer used; they can go. The form also says production needs at least one `https` URI: the web app's callback can be that one, later. | `loopback::PORTS`: the first free port of 80, 42813, 46219 (§3). |
 | 4 | Is Confidential Client | **Unchecked.** A desktop app cannot keep a secret. PKCE proves it. | Already the design (SIGN-IN.md §1). |
 | 5 | Can Register Dynamic Clients | **Checked** (SECURITY.md §5, decided). | Step E-5 (§4). Without it, a public app gets no long-lived access, and the user signs in again about every hour. |
 | 5a | How will dynamic clients request an access token | **JWT bearer grant type** (§6). | Step E-5. |
@@ -92,8 +92,15 @@ APIs, pick them too: an unused scope costs no calls.
   not know that redirect URI. Proved 2026-10-13: an `https://example.com` URI that was never
   registered gets it, and a registered one does not. A redirect URI added on fhir.epic.com
   still got `error=4` for a while after it was saved and listed: the change had not synced.
-  Check before a desk test: `node scripts/epic-redirect-check.mjs` ("accepted" or `error=4`, for
-  the plain loopback URI and one random port).
+  It synced in about 25 minutes (saved near 17:15, accepted at 17:41).
+- **Epic matches the redirect URI's port exactly** (2026-10-13). Once `http://127.0.0.1/callback`
+  was accepted, the same URI with any other port still got `error=4`. RFC 8252 §7.3 asks a
+  server to accept any port on a loopback URI; Epic does not. So the app tries a short fixed list
+  (`loopback::PORTS`: 80, then 42813, then 46219), and **every port in it must be registered**:
+  `http://127.0.0.1/callback` (port 80), `http://127.0.0.1:42813/callback`,
+  `http://127.0.0.1:46219/callback`.
+  Check before a desk test: `node scripts/epic-redirect-check.mjs` ("accepted" or `error=4` for each
+  port in `loopback::PORTS`).
 - Epic's sandbox data is small and tidy (HANDOFF.md › Gotchas). It proves the path, not the mess.
 - **Epic's sign-in has a patient picker for proxies.** A person with proxy access in MyChart
   picks whose record to share, and the token is for that one patient. A parent who signs in

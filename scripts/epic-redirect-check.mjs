@@ -5,8 +5,9 @@
 // Sends one authorize request per URI, with the non-production client ID from epic-client.json,
 // and reads only where Epic redirects. It never follows the redirect, never signs anyone in, and
 // prints no ID: "accepted", or Epic's error number (4 = the sandbox does not know this redirect
-// URI; a change on fhir.epic.com takes a while to sync). With no URI, it checks the loopback
-// return the app sends (`http://127.0.0.1/callback`) and the same with a random port.
+// URI; a change on fhir.epic.com takes a while to sync). With no URI, it checks every return URI
+// the app may send: one per port in src-tauri/src/loopback.rs `PORTS` (Epic matches the port
+// exactly; port 80 is the URI with no port).
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -25,8 +26,12 @@ if (!id) {
 }
 
 const base = "https://fhir.epic.com/interconnect-fhir-oauth";
-const port = 49152 + Math.floor(Math.random() * 16000);
-const uris = process.argv.slice(2).length ? process.argv.slice(2) : ["http://127.0.0.1/callback", `http://127.0.0.1:${port}/callback`];
+const ports = readFileSync(root + "src-tauri/src/loopback.rs", "utf8")
+  .match(/pub const PORTS: &\[u16\] = &\[([\d, ]+)\]/)[1]
+  .split(",")
+  .map((p) => Number(p.trim()));
+const ours = ports.map((p) => (p === 80 ? "http://127.0.0.1/callback" : `http://127.0.0.1:${p}/callback`));
+const uris = process.argv.slice(2).length ? process.argv.slice(2) : ours;
 
 for (const uri of uris) {
   const u = new URL(base + "/oauth2/authorize");

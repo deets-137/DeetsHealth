@@ -51,6 +51,10 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   `link-register-failed` became `sign-in-port`. Checks: host 16 tests (2 new), `cargo check`,
   `tsc`. The owner added `http://127.0.0.1/callback` to the registration; at the first check
   Epic still answered `error=4` for it (not synced yet). A background probe waits for it.
+- Committed `1ccf20e`. Added `scripts/epic-redirect-check.mjs` (kept). Epic accepted
+  `http://127.0.0.1/callback` at 17:41 (about 25 minutes after the save), but rejected every
+  other port: it matches the port exactly. `loopback::PORTS` = 80, 42813, 46219, the first
+  free one wins; the script checks each. Host tests 18 (3 new). The dev app rebuilt at 17:43.
 
 ## 2026-09-24 — stage 7: `ts-rs` and Settings › Sites
 - The owner asked where the SMART work stood, then asked for stage 7.

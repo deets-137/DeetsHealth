@@ -174,8 +174,10 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
    hand the browser to `deetshealth-dev://` (its CSP `form-action *` blocks a custom scheme;
    EPIC.md §3). **The loopback return is built** (`loopback.rs`; the scheme, its registry
    writes and the deep-link plugin are gone; SIGN-IN.md §6), not yet desk-tested. The owner
-   added `http://127.0.0.1/callback` to the registration. Epic did not accept it yet at first
-   check; whether it takes any port is open (EPIC.md §3).
+   added `http://127.0.0.1/callback` to the registration; Epic accepted it at 17:41, but only
+   with no port: **Epic matches the port exactly** (EPIC.md §3). So the app tries ports 80,
+   42813, 46219 in order (`loopback::PORTS`). Port 80 works now; the owner registers the two
+   fallback URIs. Next: the E-3 desk test as Camila.
 6. **Scaffold** — steps 1–2 built and desk-tested. Steps 3–5 to come (State of play).
 9. **App icon** — `app-icon.svg` is a placeholder (a plain card shape). `npx tauri icon
    app-icon.svg` makes the set; the real icon is the owner's call.

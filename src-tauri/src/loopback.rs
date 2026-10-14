@@ -3,7 +3,8 @@
 // integrations/EPIC.md §3), so the site sends the browser to `http://127.0.0.1:<port>/callback`
 // and this file answers it.
 //
-// - It listens on 127.0.0.1 only, on a port Windows picks, and only while one sign-in waits.
+// - It listens on 127.0.0.1 only, on the first free port of a short registered list (PORTS:
+//   Epic matches the port exactly), and only while one sign-in waits.
 //   A new sign-in, Cancel, or the end of the wait (auth::WAIT_LIMIT_S) closes it.
 // - It reads one request line. `/callback?…` goes to `signin::on_link`, which shields the link
 //   and matches its `state` (SECURITY.md §4.4). The code is useless without the PKCE verifier,
@@ -34,6 +35,13 @@ const DONE_WAIT: Duration = Duration::from_secs(10);
 /// How often the accept loop looks at the stop flag and the clock.
 const TICK: Duration = Duration::from_millis(100);
 
+/// The ports the return may use, in order. Epic matches a redirect URI's port exactly (it does
+/// not follow RFC 8252's "any port"; EPIC.md §3), so each one must be registered with the site:
+/// 80 as `http://127.0.0.1/callback`, the others with their port. The first free one wins. The
+/// fallbacks are for a PC where another program holds port 80. Outside Windows' dynamic range
+/// (49152–65535), where outgoing connections take their ports.
+pub const PORTS: &[u16] = &[80, 42813, 46219];
+
 /// A listener bound and ready; the redirect URI names its port.
 pub struct Bound {
     listener: TcpListener,
@@ -41,17 +49,30 @@ pub struct Bound {
 }
 
 impl Bound {
-    /// Bind 127.0.0.1 on a port Windows picks.
+    /// Bind 127.0.0.1 on the first free port of [`PORTS`].
     pub fn open() -> std::io::Result<Self> {
-        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))?;
-        listener.set_nonblocking(true)?;
-        let port = listener.local_addr()?.port();
-        Ok(Self { listener, port })
+        let mut last = std::io::Error::new(ErrorKind::AddrInUse, "no port free");
+        for &port in PORTS {
+            match TcpListener::bind((Ipv4Addr::LOCALHOST, port)) {
+                Ok(listener) => {
+                    listener.set_nonblocking(true)?;
+                    return Ok(Self { listener, port });
+                }
+                Err(e) => last = e,
+            }
+        }
+        Err(last)
+    }
+
+    /// `127.0.0.1`, with the port unless it is 80: the form the browser sends as `Host`, and
+    /// the form the site has registered.
+    fn host(&self) -> String {
+        if self.port == 80 { "127.0.0.1".to_owned() } else { format!("127.0.0.1:{}", self.port) }
     }
 
     /// The redirect URI this listener answers.
     pub fn redirect_uri(&self) -> String {
-        format!("http://127.0.0.1:{}/callback", self.port)
+        format!("http://{}/callback", self.host())
     }
 
     /// Serve on its own thread until the sign-in ends: `stop` is set (a new sign-in, Cancel),
@@ -91,7 +112,7 @@ impl Page {
 }
 
 fn run(bound: Bound, app: AppHandle, stop: Arc<AtomicBool>, wait: Duration) {
-    let host = format!("127.0.0.1:{}", bound.port);
+    let host = bound.host();
     let started = Instant::now();
     // Once the callback has its answer, only `/done` is left to serve, for DONE_WAIT.
     let mut finished: Option<(Page, Instant)> = None;
@@ -233,12 +254,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn binds_loopback_only_on_a_free_port() {
+    fn binds_loopback_only_on_a_listed_port() {
         let b = Bound::open().unwrap();
         let addr = b.listener.local_addr().unwrap();
         assert!(addr.ip().is_loopback());
-        assert_ne!(b.port, 0);
-        assert_eq!(b.redirect_uri(), format!("http://127.0.0.1:{}/callback", b.port));
+        assert!(PORTS.contains(&b.port));
+    }
+
+    #[test]
+    fn port_80_has_no_port_in_the_uri() {
+        let at = |port| Bound { listener: TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap(), port };
+        assert_eq!(at(80).redirect_uri(), "http://127.0.0.1/callback");
+        assert_eq!(at(42813).redirect_uri(), "http://127.0.0.1:42813/callback");
+        assert_eq!(at(42813).host(), "127.0.0.1:42813");
+    }
+
+    #[test]
+    fn a_taken_port_moves_to_the_next() {
+        // Hold the first listed port that is free now; the next open must skip it.
+        let held = PORTS.iter().find_map(|&p| TcpListener::bind((Ipv4Addr::LOCALHOST, p)).ok().map(|l| (p, l)));
+        let Some((taken, _hold)) = held else { return };
+        let b = Bound::open().unwrap();
+        assert_ne!(b.port, taken);
     }
 
     #[test]
