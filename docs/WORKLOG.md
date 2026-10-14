@@ -8,6 +8,19 @@ updated: 2026-10-13
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-10-13 — the globals draft, from Camila's record
+- The owner asked whether Camila's exported record shows the shape of the globals to tune
+  DeetsEngine towards. Answer: it shows the axes, not the proportions (one synthetic
+  patient; 248 of 297 rows are vitals on one visit, and that visit was not sent).
+- He asked for a draft doc, and added: prepare for panels of 8 to 15 values (lipid, CMP) and
+  microbiology with more. New `architecture/GLOBALS.md`: one value, one record in `^RES`,
+  with `parent`, `root` and `seq`; stubs for targets that did not arrive; a concept key and a
+  date key; forks G1 (how to split the globals) and G2 (components as records or a subfile).
+  He chose G1 A (one global per kind) and G2 A (one value, one record, components included).
+- Questions for him in GLOBALS.md §8 (how Epic sends a culture; LOINC on lab components).
+  Next data step: an Epic sandbox patient with a CMP, a lipid panel and a culture.
+- No code changed.
+
 ## 2026-10-13 — fresh eyes: a true patient portal
 - The owner has a fhir.epic.com account, a new M engine (`../DeetsEngine`), and a larger
   DeetsMusic to model the look on. He asked to pick up with fresh eyes.

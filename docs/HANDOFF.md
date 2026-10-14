@@ -162,7 +162,8 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
   Settings row. **DeetsEngine builds the base layer first, ahead of its stage 1:** a memory
   store and redacted reports, requested in `../DeetsEngine/docs/ideas/deetshealth-needs.md`.
   **DeetsHealth's own globals are designed here,** with the owner, once that exists. Until
-  then the cards read the built store.
+  then the cards read the built store. The draft, from Camila's record and the owner's note
+  on panels and microbiology: [GLOBALS.md](architecture/GLOBALS.md) (the owner, 2026-10-13: G1 A, one global per kind; G2 A, one value, one record).
 - **Next: Epic sandbox sign-in**, before card work. The fill-in sheet and the plan:
   [EPIC.md](integrations/EPIC.md).
 - **Planned, paper only: a Cloudflare identity worker** for tiered access (parent and

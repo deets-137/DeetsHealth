@@ -33,6 +33,7 @@ NAME=area`, never by hand.
 - `FETCH.md` — the fetch step by step: the plan, every constant, retries and stops, warning codes, events, log lines, measured cost, troubleshooting.
 - `DATA-MODEL.md` — the cache's tables, the encounter at the center, the link table, where every FHIR type goes.
 - `INDEX-AND-LINKS.md` — for card design: the table of each type, the `kind` words, the code field, dates, code systems, every link role, re-index.
+- `GLOBALS.md` — a draft: DeetsHealth's globals in DeetsEngine, from Camila's record; one value, one record; panels and microbiology; G1 A and G2 A decided.
 - `ERRORS.md` — the one `app-error` event: every failure code, where it comes from, and its toast.
 - `STORE.md` — the sealed store: the files on disk, the schema, what the file shows, sealing, the `Store` trait, erase.
 - `SURFACES-AND-CARDS.md` — Midi and Max, the cards, the shell as built, its desk test.
