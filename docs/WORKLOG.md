@@ -28,6 +28,10 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - EPIC.md (the backend app registration), DEBUGGING.md and SECURITY-BRIEF.md rewritten for the
   phone agent, the old ones archived as `PATIENT-APP-*`; a header on CORE-CRATE.md; a draft
   `ops/PROTOCOLS.md` for helpers and their agents (the owner's ask).
+- One doc per vendor in `integrations/` (the owner's ask): Twilio, Cartesia, Anthropic,
+  Pipecat, the cloud (fork C1 open) and the EHRs after Epic, from the day's research plus a
+  search of users' lessons (Pipecat's GitHub issues on Twilio barge-in and 8 kHz pacing; Twilio's
+  latency guide; Cartesia's pronunciation dictionary).
 
 ## 2026-10-13 — the globals draft, from Camila's record
 - The owner asked whether Camila's exported record shows the shape of the globals to tune

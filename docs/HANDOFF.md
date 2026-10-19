@@ -47,6 +47,7 @@ interface (VOICE-AGENT.md §7.2).
   (the console's design).
 
 ### His to design or decide
+- **Our cloud for A2** (CLOUD.md §4, fork C1): AWS `us-east-1` recommended.
 - **PROTOCOLS.md** (a draft, §10 there): branch names, who merges, issues or HANDOFF,
   an agents file at the root.
 - **SECURITY.md's drafts** (§7): the roles, the retention values, the list of verification

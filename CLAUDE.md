@@ -79,6 +79,12 @@ bundle and the worker that re-hosts it. `IDENTITY-WORKER.md` — the patient-sha
 **`docs/integrations/`** — outside sources
 - `EPIC.md` — the backend app registration sheet (Backend Services, a JWKS URL, the APIs to
   pick), what the sandbox can prove, what a hospital must do, the plan E-1 to E-4.
+- One doc per vendor, each with what we use, the BAA, configuration, cost, what users learned,
+  and what to find out: `TWILIO.md` (the phone line, Media Streams, `clear` and `mark`),
+  `CARTESIA.md` (Ink and Sonic, ZDR, the pronunciation dictionary; ElevenLabs as the fallback),
+  `ANTHROPIC.md` (HIPAA readiness, the models and prices, caching for voice), `PIPECAT.md` (the
+  call loop; known issues to test first), `CLOUD.md` (what a deploy needs; fork C1, our cloud),
+  `OTHER-EHRS.md` (Oracle Health, athenahealth, MEDITECH).
 
 **`docs/ops/`** — build, ship, diagnose
 - `DEBUGGING.md` — how a call is read after it goes wrong: the call log, the call timeline, the
