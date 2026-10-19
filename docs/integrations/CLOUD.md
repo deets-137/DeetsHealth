@@ -6,10 +6,10 @@ updated: 2026-10-19
 ---
 # The cloud — where each hospital's deploy runs
 
-> **Chosen 2026-10-19: AWS `us-east-1`** (fork C1 A, the owner: "C1A is fine"). The deploy is A2: a separate account per hospital in our cloud, behind an interface
-> so a hospital's own cloud account (B) can follow (VOICE-AGENT.md §7.2). This doc holds the open
-> fork for our own cloud (§4). Comparisons below are from secondary sources whose numbers
-> disagree; check each provider's own HIPAA-eligible list.
+> **Chosen 2026-10-19: AWS `us-east-1`** (fork C1 A, the owner: "C1A is fine"; §4). The deploy
+> is A2: a separate account per hospital in our cloud, behind an interface so a hospital's own
+> cloud account (B) can follow (VOICE-AGENT.md §7.2). Comparisons below are from secondary
+> sources whose numbers disagree; check each provider's own HIPAA-eligible list.
 
 ## 1. What a deploy needs
 - Managed **Postgres** (VOICE-AGENT.md §8.7), a **KMS** with customer-held keys (BYOK), a
