@@ -109,8 +109,9 @@ store on the PC, DPAPI keys, the patient's SMART sign-in.
 - **Hospital security reviews ask for a SOC 2 Type II report**, often HITRUST too. Plan for it.
 
 ## 7. Forks (for the owner)
-Decided 2026-10-19: **V1 B** (a phone agent) and **F1 B** (convert this repo). 4 real forks
-left; the wedge (§5) is a question first.
+Decided 2026-10-19: **V1 B** (a phone agent), **F1 B** (convert this repo), and the stack:
+Twilio, Cartesia or ElevenLabs, the Anthropic API, FHIR (§8). 6 real forks left; the wedge (§5)
+is a question first.
 
 - **W. The wedge** (§5): 1 non-Epic hospitals (recommended: no Emmie there, and the larger count
   of sites) · 2 the window before Epic's 2027 voice · 3 better calls. A question, not a fork:
@@ -126,10 +127,88 @@ left; the wedge (§5) is a question first.
   results (recommended first) · B results too, read to a verified caller (helps the patient
   more; brings clinical risk and the question of how a result is said with no clinician).
 
+- **F5. Voice vendor** (§8.2): A Cartesia for both directions, Ink in and Sonic out
+  (recommended: one vendor, one BAA, built for low latency) · B ElevenLabs for both (Scribe in,
+  Flash out) · C split, Cartesia Ink in and ElevenLabs out (only if a listening test says
+  ElevenLabs' voice is clearly better; it costs a second BAA).
+- **F6. Who runs the call loop** (§8.3): A our own service on Twilio Media Streams
+  (recommended: every PHI step in our code, full control of turn-taking and latency) · B Twilio
+  ConversationRelay: Twilio does speech in and out, our service gets text over a WebSocket
+  (less code; the voice is Twilio's choice of engine). ElevenLabs' own agent platform is out:
+  in its HIPAA mode it limits the language model to its allowlist and turns off MCP tools.
+
 Every platform: the patient's side is a phone call, so it is the same on every phone. The
 hospital's side is a web console; the Windows app is not part of it.
 
-## 8. Sources
+## 8. The stack
+> **Part:** idea · 2026-10-19 · forks §7 F5, F6
+
+The owner (2026-10-19): "eleven labs / Cartesia Sonic/Ink for voice, Anthropic API for llm and
+FHIR for data with Twilio for phone connection".
+
+### 8.1 The path of one call
+```
+caller ─► Twilio (phone number, audio 8 kHz μ-law)
+            │ Media Streams WebSocket
+            ▼
+        our call service ──► STT (Cartesia Ink) ──► words
+            │                                        │
+            │          Claude (Messages API, tools) ◄┘
+            │             │ tool calls: verify caller, find slots, book, read chart
+            │             ▼
+            │          EHR adapter (FHIR, per EHR) ──► the hospital's EHR
+            ▼
+        TTS (Cartesia Sonic) ──► audio back to Twilio ──► caller
+```
+- **Target: under about 800 ms** from the end of the caller's speech to the first sound back.
+  Streaming at every step: STT partials, Claude streaming, TTS from the first sentence.
+- **Claude only routes and words.** Every chart value comes from a tool result (the normalized
+  model), not from the model's memory (§6). A tool returns what the template says out loud.
+- **The caller is verified by a tool** (date of birth plus a match on the calling number or a
+  code by text) before any chart tool unlocks. The model cannot skip it: the service does not
+  register chart tools until the check passes.
+- **One FHIR fetch per call**, after verification, for what the call needs; held in memory for
+  the call only (LESSONS.md §3.3).
+
+### 8.2 Each vendor and its BAA
+Every row needs a signed BAA before the first real call. All facts from vendor pages and
+third-party summaries; confirm each with the vendor in writing.
+
+| Part | Vendor | HIPAA path | Watch |
+|---|---|---|---|
+| Phone | Twilio | BAA on the Security or Enterprise Edition. Programmable Voice, Media Streams and ConversationRelay are listed HIPAA-eligible. | Only eligible products are covered. Recording and transcription need their own controls. |
+| STT and TTS | Cartesia (Ink, Sonic) | Enterprise plan: BAA, and zero data retention for STT and TTS. | No voice cloning: it is outside ZDR. Confirm ZDR covers the exact Ink model. |
+| STT and TTS | ElevenLabs | Enterprise plan: BAA, with Zero Retention Mode on. | Its agent platform limits LLMs and tools in that mode (F6). |
+| Language model | Anthropic API | "HIPAA readiness": sign the BAA in the Claude Console. The Messages API is eligible. | **Beta features are reported as outside the BAA**: keep the PHI path on GA features only. Claude Fable 5.1 needs 30-day retention; not needed here. |
+| Data | the hospital's EHR | Covered by the hospital's own BAA with us. | §8.4. |
+
+### 8.3 The language model
+- The Messages API with our own tools (find slots, book, read visits, read medicines, verify
+  caller, hand off to a person), streaming, prompt caching on the fixed system prompt.
+- **Which model is a measure, not a fork now:** voice needs a fast first token. Start with
+  Claude Opus 5.5 at `low` effort (its thinking cannot be turned off), and measure the time to
+  first token and the tool accuracy against Claude Sonnet 5.5 and Claude Haiku 5.5 on the same
+  recorded test calls. The owner picks from the numbers.
+- Server-side refusal fallbacks are a beta feature: check whether the BAA covers them before
+  turning them on.
+
+### 8.4 FHIR: reads are common, writes are not
+"FHIR for data" holds for **reads**: the R4 resources we already normalize. **Booking is
+different for each EHR** (secondary sources; confirm on each vendor's developer portal):
+- **Epic:** `Appointment/$find` and `$book`, STU3, after the hospital builds its Cadence rules.
+- **Oracle Health:** R4 `POST /Appointment` and status updates; the hospital picks which
+  providers and locations are open to booking.
+- **athenahealth:** booking is its own REST API, not FHIR.
+- **MEDITECH Expanse:** scheduling APIs listed; write support not confirmed.
+
+So the core holds one `Scheduler` trait, and each EHR gets an adapter, as the patient app holds
+its platform traits. This bears on the wedge (§5): non-Epic hospitals mean more adapters.
+
+### 8.5 What it costs to run
+Not quoted yet. Before the first build, quote a cost per call minute: Twilio per minute, STT
+and TTS per minute, Claude tokens per turn with caching. Hospitals buy per call or per minute.
+
+## 9. Sources
 - [Epic — Emmie for Patients](https://www.epic.com/software/emmie/)
 - [Epic on X — Introducing Emmie](https://x.com/HeyEpic/status/1957844340882936118)
 - [Becker's — Community Health Network launches Emmie](https://www.beckershospitalreview.com/healthcare-information-technology/ehrs/community-health-network-launches-epics-emmie-in-mychart/)
@@ -143,3 +222,15 @@ hospital's side is a web console; the Windows app is not part of it.
 - [MobiHealthNews — AI voice tools (Hyro and Tampa General)](https://www.mobihealthnews.com/tag/ai-backed-healthcare-voice-tool)
 - [Nirmitee — FHIR scheduling APIs in Epic, Oracle, athenahealth](https://nirmitee.io/blog/fhir-scheduling-api-appointment-slot-epic-oracle-athenahealth/)
 - [FHIR chat — Appointment $find vs Slot.search](https://chat-archive.fhir.org/stream/179166-implementers/topic/Appointment.20.24find.20vs.20Slot.2Esearch.html)
+- [Twilio — ConversationRelay is now HIPAA eligible](https://www.twilio.com/en-us/changelog/conversationrelay-is-now-hipaa-eligible)
+- [Twilio — ConversationRelay docs](https://www.twilio.com/docs/voice/twiml/connect/conversationrelay)
+- [Twilio — HIPAA eligible products (PDF)](https://twilio-cms-prod.s3.amazonaws.com/documents/HIPAA-eligible-products-and-services.pdf)
+- [Cartesia — Zero Data Retention](https://docs.cartesia.ai/enterprise/zero-data-retention)
+- [Cartesia — Sonic](https://www.cartesia.ai/sonic) · [Ink](https://www.cartesia.ai/ink)
+- [ElevenLabs on X — Conversational AI is HIPAA compliant](https://x.com/ElevenLabs/status/1900226974175351055?lang=en)
+- [ElevenLabs — Privacy and compliance (DeepWiki summary)](https://deepwiki.com/elevenlabs/elevenlabs-docs/5.2-privacy-and-compliance)
+- [Anthropic — API and data retention](https://platform.claude.com/docs/en/manage-claude/api-and-data-retention)
+- [IntuitionLabs — Is Claude HIPAA compliant](https://intuitionlabs.ai/articles/is-claude-hipaa-compliant)
+- [Oracle Health — FHIR R4 Appointment](https://docs.oracle.com/en/industries/health/millennium-platform-apis/mfrap/api-appointment.html)
+- [athenahealth — Appointment](https://mydata.athenahealth.com/static/apidoc/ig-ge-appointment.html)
+- [Taction — athenahealth API guide](https://www.tactionsoft.com/blog/athenahealth-api-integration-guide/)
