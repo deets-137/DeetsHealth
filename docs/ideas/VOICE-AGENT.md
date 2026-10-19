@@ -110,28 +110,48 @@ store on the PC, DPAPI keys, the patient's SMART sign-in.
 
 ## 7. Forks (for the owner)
 Decided 2026-10-19: **V1 B** (a phone agent), **F1 B** (convert this repo), and the stack:
-Twilio, Cartesia or ElevenLabs, the Anthropic API, FHIR (§8). 6 real forks left; the wedge (§5)
-is a question first.
+Twilio, Cartesia or ElevenLabs, the Anthropic API, FHIR (§8). Then the owner chose:
+- **The wedge: W1 and W3.** Non-Epic hospitals, and a better call than the rest. The owner:
+  "Epic's agent factory is not quite user friendly". So the first EHR adapter is not Epic's.
+- **F3: A, then B.** Inbound first; outbound (reminders, confirmations) later.
+- **F4: both.** Visits, medicines, refill state **and results**, in version 1. What follows
+  from it (§7.1).
 
-- **W. The wedge** (§5): 1 non-Epic hospitals (recommended: no Emmie there, and the larger count
-  of sites) · 2 the window before Epic's 2027 voice · 3 better calls. A question, not a fork:
-  the answer decides which EHR adapter comes first.
-- **F2. Who runs the servers:** A we host one HIPAA-grade cloud service, each hospital
-  configures its own (recommended: patches reach every hospital at once) · B it runs in each
-  hospital's own cloud account (Azure, AWS) and we ship updates (security teams like it;
-  patches arrive slowly) · C on the hospital's own servers (not recommended).
-- **F3. Call direction for version 1:** A inbound: the patient calls, the agent schedules and
-  answers (recommended: what the owner asked; hold time is the patient's pain) · B outbound:
-  reminders and confirmations (simpler, but Epic says answer rates are 15–30 percent).
-- **F4. Chart answers in version 1:** A the visit list, medicines and refill state only, no
-  results (recommended first) · B results too, read to a verified caller (helps the patient
-  more; brings clinical risk and the question of how a result is said with no clinician).
+3 real forks left: F2 (re-opened, §7.2), F5, F6.
 
+### 7.1 Results on the phone: what follows
+- **Only results already released to the patient portal.** The agent says nothing the patient
+  could not already read in their portal. Epic's Emmie keeps the same rule.
+- **A stronger check before results.** A phone caller is weaker proof than a portal sign-in.
+  Before any result: date of birth and a one-time code sent by text to the phone number on
+  file. Visits and medicines need only the first check (§8.1).
+- **Sensitive results are never read on the phone:** HIV and other STI tests, genetic tests,
+  mental health and substance use (42 CFR Part 2), and a teen's confidential results. State
+  laws differ; the hospital's settings can add to the list, never remove from it. The agent
+  says "that result is in your portal" and offers a person.
+- **The value, the reference range and the flag, read from the record.** No meaning, no advice.
+  "Is that bad?" gets "your care team can explain it" and an offer to send a message or
+  transfer.
+
+### 7.2 F2 re-opened
+The owner leaned to B ("best for HIPAA and ease of development"). Claude's push-back: HIPAA asks
+for the same controls in either place, and B is the **harder** one to build and run: one deploy
+per hospital, in clouds we do not control, often different clouds, with no view of its logs
+when a call fails. What B gives is a sale: the hospital's security team sees PHI stay in its
+own account. A third option gives that and keeps one way to run it:
+- **A2 (recommended). A dedicated deploy per hospital, in our cloud:** a separate account,
+  database and keys for each hospital; the hospital holds its own encryption key (BYOK) and
+  can revoke it. One code base, one way to patch; the isolation a security team asks for.
+- **A. One shared service** for all hospitals. Simplest; the weakest answer in a security review.
+- **B. In each hospital's own cloud account.** Use only when a hospital requires it; plan it as
+  an option for later, built on the same deploy scripts as A2.
+
+### 7.3 Still open: F5, F6
 - **F5. Voice vendor** (§8.2): A Cartesia for both directions, Ink in and Sonic out
   (recommended: one vendor, one BAA, built for low latency) · B ElevenLabs for both (Scribe in,
   Flash out) · C split, Cartesia Ink in and ElevenLabs out (only if a listening test says
   ElevenLabs' voice is clearly better; it costs a second BAA).
-- **F6. Who runs the call loop** (§8.3): A our own service on Twilio Media Streams
+- **F6. Who runs the call loop** (§8.1): A our own service on Twilio Media Streams
   (recommended: every PHI step in our code, full control of turn-taking and latency) · B Twilio
   ConversationRelay: Twilio does speech in and out, our service gets text over a WebSocket
   (less code; the voice is Twilio's choice of engine). ElevenLabs' own agent platform is out:
