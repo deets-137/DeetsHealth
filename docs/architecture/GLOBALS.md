@@ -116,7 +116,7 @@ the report.
 - **Reference range and flag per value.** Low, high, the range text, and the flag (H, L, HH,
   LL, A; S, I, R for susceptibility). A range is often absent (FHIR-SHAPES.md §3.1): the card
   never guesses one.
-- **Notes per value and per group.** Free text, so SECURITY.md §4.3 applies.
+- **Notes per value and per group.** Free text, so PATIENT-APP-SECURITY.md §4.3 applies.
 - **A trend across groups.** LDL from five lipid panels over ten years is one trend. So the
   trend index points at the value, not at its panel.
 

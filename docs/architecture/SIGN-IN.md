@@ -8,7 +8,7 @@ updated: 2026-10-13
 
 > How the app signs in to a site, step by step, with every value that can be changed and
 > where. For a user question, a bug, or a change. The design history is CORE-CRATE.md §6 and
-> §12 (stage 4); the rules are SECURITY.md §4.4 and §8.5. Settings › Sites starts a
+> §12 (stage 4); the rules are PATIENT-APP-SECURITY.md §4.4 and §8.5. Settings › Sites starts a
 > sign-in (stage 7, CORE-CRATE.md §12).
 
 ## 1. Terms
@@ -166,7 +166,7 @@ The log is `%APPDATA%\com.deetshealth.dev\deetshealth.log` (debug) or
 
 ## 9. Changing it later
 - **Epic:** registered 2026-10-13 (integrations/EPIC.md). Next after the sign-in works: dynamic
-  client registration with the JWT bearer grant (EPIC.md §6, SECURITY.md §5). The SMART
+  client registration with the JWT bearer grant (EPIC.md §6, PATIENT-APP-SECURITY.md §5). The SMART
   launcher can test the key half first (index 12–14 and client type 2).
 - **A real site list:** `sandbox_sites` gives way to the endpoint directory. Each site's
   `smart-configuration` is read at sign-in, so no endpoint is hard-coded.
@@ -177,11 +177,11 @@ The log is `%APPDATA%\com.deetshealth.dev\deetshealth.log` (debug) or
   web app's own `https://…/callback`, which `form-action *` allows.
 
 ## 10. Security, in one place
-- PKCE S256 and `state` on every sign-in; one waiting sign-in; 10-minute limit (SECURITY.md §4.4).
+- PKCE S256 and `state` on every sign-in; one waiting sign-in; 10-minute limit (PATIENT-APP-SECURITY.md §4.4).
 - The link is shielded on arrival and never logged. A wrong-`state` link cannot cancel the
   user's sign-in.
 - The verifier, the code, the tokens, the `Patient` id and the site's URL go only to that
-  site, through the network module's pass (`net.rs`, SECURITY.md §4.2).
+  site, through the network module's pass (`net.rs`, PATIENT-APP-SECURITY.md §4.2).
 - No redirects are followed, so a token never reaches another host. HTTPS and TLS 1.2+ only.
 - The browser opens `https://` only; Rust opens it, and no opener is exposed to the page.
 - The tokens are sealed with the site's own key the moment the site row is written.

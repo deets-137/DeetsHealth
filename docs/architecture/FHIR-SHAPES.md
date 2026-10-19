@@ -13,7 +13,7 @@ updated: 2026-09-21
 ## 1. How this was made
 - `node scripts/fhir-probe.mjs --site smart-open --write` reads up to 300 resources of each
   type and writes [probes/smart-open.md](probes/smart-open.md): every field path, its share,
-  the value[x] kinds, the code systems. It prints **no values** (SECURITY.md §2).
+  the value[x] kinds, the code systems. It prints **no values** (PATIENT-APP-SECURITY.md §2).
 - Run it once per site, and again when a site or a resource type is added. Sites that need
   sign-in (Epic, the SMART launcher) wait for the app's own sign-in.
 - **Sample bias:** the probe takes the first 300 resources in server order, across many
@@ -61,7 +61,7 @@ sign-in. `_count=100` and `link[rel=next]` paging both work.
 - 15% are `component[]` (blood pressure: two values in one resource). Some components carry
   `dataAbsentReason` instead of a value.
 - One non-standard code system appears (a Cerner code set). Real data mixes vendors.
-- `note[].text` and narrative HTML appear (8%): free text, so SECURITY.md §4.3 applies.
+- `note[].text` and narrative HTML appear (8%): free text, so PATIENT-APP-SECURITY.md §4.3 applies.
 
 ### 3.3 Lab panels — `DiagnosticReport`
 - `result[]` links each panel (a CBC, a metabolic panel) to its `Observation`s, 100%.
@@ -95,7 +95,7 @@ sign-in. `_count=100` and `link[rel=next]` paging both work.
   phone, identifiers, and extensions (race, ethnicity, birthplace, mother's maiden name).
 - `identifier[]` carries several ID types (v2-0203 codes). In Synthea these include social
   security, driver's licence and passport numbers.
-- Narrative HTML (`text.div`) is on 100% of patients. It is never rendered (SECURITY.md §4.3).
+- Narrative HTML (`text.div`) is on 100% of patients. It is never rendered (PATIENT-APP-SECURITY.md §4.3).
 - See fork §5.1: what we keep.
 
 ## 4. Rules for the normalizer, from the above

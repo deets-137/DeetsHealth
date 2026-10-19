@@ -34,7 +34,7 @@ src/app-errors.ts ──► COPY[code] ──► toast({ kind, text })     diag:
   until the page calls `app_errors_ready`, which returns the queue and switches to live
   events (`initAppErrors`, called from `main.ts` after the layout).
 - **The wall.** The event carries only fixed words, the random site key and a count. The
-  toast text is ours; the only thing put into it is the count (SECURITY.md §4.3).
+  toast text is ours; the only thing put into it is the count (PATIENT-APP-SECURITY.md §4.3).
 - **Toast tiers** (toast.ts): `error` is sticky; `warn` is timed; `info` shows only under
   the "all" tier.
 - A code with no entry in `COPY` still toasts, with the fallback text.

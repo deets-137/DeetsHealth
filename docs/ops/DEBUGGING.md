@@ -20,7 +20,7 @@ updated: 2026-10-13
   from a record, an id, a URL with a query, a name or a site's own text.
 - **Sandbox site** — a site whose base URL is one of `auth::sandbox_sites()` (the Epic
   sandbox, the SMART launcher), compared shielded. Its data is public fake data, so a dev tool
-  may show it in full (SECURITY.md §4.8; the owner confirmed 2026-10-13).
+  may show it in full (PATIENT-APP-SECURITY.md §4.8; the owner confirmed 2026-10-13).
 - **Dev feature** — the Cargo feature `dev` (core and host). Only the dev tools turn it on; a
   release never builds it.
 
@@ -88,7 +88,7 @@ npm run inspect -- [--dir <app data>] [--site <key>] [--shapes] [--sample N] [--
   `src-tauri/src/xlsx.rs`, a small hand-rolled writer (stored zip, inline strings, Arial, a
   frozen header, filters), so the dev tools add no crate. Write it under `dev-dumps\` in the
   repo (git-ignored): `npm run inspect -- --export dev-dumps\epic-sandbox`. Sandbox data may
-  go to Google Sheets (SECURITY.md §4.8); a real record never goes to any outside service.
+  go to Google Sheets (PATIENT-APP-SECURITY.md §4.8); a real record never goes to any outside service.
 - **Run it outside the Claude desktop app.** A process started inside it sees a private copy of
   AppData, with no sites in it (CLAUDE.md › How to verify). From a Claude session, start it
   through WMI with `--out`:

@@ -160,7 +160,7 @@ A card can use the site's warnings to say "the site withheld some results", so a
 like a gap (DATA-MODEL.md §7.3).
 
 ## 8. Events
-Both carry counts and the app's own random site key only (SECURITY.md §4.3).
+Both carry counts and the app's own random site key only (PATIENT-APP-SECURITY.md §4.3).
 
 | Event | Payload | When |
 |---|---|---|
@@ -242,7 +242,7 @@ have more pages; measure it when Epic comes back.
 
 ## 13. Security, in one place
 - The token, the `Patient` id and the base URL go only to the site they came from, through
-  the network module's pass (SECURITY.md §4.2).
+  the network module's pass (PATIENT-APP-SECURITY.md §4.2).
 - No redirects are followed, and a `next` link must stay on the base URL, so the token never
   reaches another host. `net::on_site` parses both URLs: the same scheme, host and port, no
   user name, and a path at or under the base path, split at a `/` (so `/fhir2` is not under

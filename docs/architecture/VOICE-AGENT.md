@@ -136,8 +136,8 @@ No fork left in this list. Later choices wait for their work: the Claude model (
 - **Only results already released to the patient portal.** The agent says nothing the patient
   could not already read in their portal. Epic's Emmie keeps the same rule.
 - **A stronger check before results.** A phone caller is weaker proof than a portal sign-in.
-  Before any result: date of birth and a one-time code sent by text to the phone number on
-  file. Visits and medicines need only the first check (§8.1).
+  Superseded 2026-10-19 by fork S2 A: **two factors before any chart answer**, results
+  included (SECURITY.md §4.4).
 - **Sensitive results are never read on the phone:** HIV and other STI tests, genetic tests,
   mental health and substance use (42 CFR Part 2), and a teen's confidential results. State
   laws differ; the hospital's settings can add to the list, never remove from it. The agent
@@ -186,14 +186,17 @@ caller ─► Twilio (phone number, audio 8 kHz μ-law)
   Streaming at every step: STT partials, Claude streaming, TTS from the first sentence.
 - **Claude only routes and words.** Every chart value comes from a tool result (the normalized
   model), not from the model's memory (§6). A tool returns what the template says out loud.
-- **The caller is verified by a tool** (date of birth plus a match on the calling number or a
-  code by text) before any chart tool unlocks. The model cannot skip it: the chart tools do not
+- **The caller is verified by a tool** before any chart tool unlocks: two factors, something
+  known (date of birth or a random chart fact) and something held (a code by text or a call
+  back to the number on file) (SECURITY.md §4.4, fork S2 A). The model cannot skip it: the chart tools do not
   exist until the check passes. Pipecat Flows makes this the shape of the call. Each node has
   its own instructions and its own tools:
   ```
-  greet ─► verify (date of birth) ─► menu ─┬─► schedule (find, book, move, cancel)
-                                           ├─► visits and medicines (read)
-                                           └─► verify+ (code by text) ─► results (read, §7.1)
+  greet ─► hospital questions (no check)
+        └► verify: known (birth date or chart fact) + held (code or call back) ─► menu
+              menu ─┬─► schedule (find, book, move, cancel)
+                    ├─► visits and medicines (read)
+                    └─► results (read, §7.1)
   any node ─► hand off to a person
   ```
 - **One FHIR fetch per call**, after verification, for what the call needs; held in memory for

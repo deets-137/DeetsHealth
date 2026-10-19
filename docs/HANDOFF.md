@@ -35,9 +35,9 @@ interface (VOICE-AGENT.md §7.2).
 ### The conversion (CONVERSION.md §5)
 - **Push the tag** `patient-app-final` from the owner's machine. This session's git proxy
   refused it (HTTP 403); the branch `archive/patient-app` stands in (CONVERSION.md §5.1).
-- **Step 4, the docs.** Done: DESIGN.md, HANDOFF.md, CLAUDE.md, the archive rule. Open:
-  SECURITY.md (forks first), then SECURITY-BRIEF.md, CORE-CRATE.md, `integrations/EPIC.md`,
-  `ops/DEBUGGING.md`, and LESSONS.md's patient-app lessons.
+- **Step 4, the docs.** Done: DESIGN.md, HANDOFF.md, CLAUDE.md, SECURITY.md, the archive rule.
+  Open: SECURITY-BRIEF.md, CORE-CRATE.md, `integrations/EPIC.md`, `ops/DEBUGGING.md`, and
+  LESSONS.md's patient-app lessons.
 - **Step 5, the first feature:** SMART Backend Services against the Epic sandbox. Epic needs a
   backend app registration.
 - **Held back from the archive**, each moving with the work that replaces it (CONVERSION.md
@@ -46,7 +46,8 @@ interface (VOICE-AGENT.md §7.2).
   (the console's design).
 
 ### His to design or decide
-- **SECURITY.md for a server product** (DESIGN.md §2 G).
+- **SECURITY.md's drafts** (§7): the roles, the retention values, the list of verification
+  questions that reveal nothing, how a hospital approves our emergency support access.
 - **The console** (DESIGN.md §2 C, D): what it shows, staff sign-in, which looks it keeps.
 - **The repo layout** (CONVERSION.md §6, a draft).
 - **The agent's words, name and voice** (DESIGN.md §2 B).
@@ -57,6 +58,8 @@ interface (VOICE-AGENT.md §7.2).
 - Which refill and message actions Epic exposes to a backend app (VOICE-AGENT.md §4).
 - Cartesia's multilingual speech-in for Spanish (VOICE-AGENT.md §8.6).
 - Each vendor's BAA and zero-retention terms, in writing (VOICE-AGENT.md §8.2).
+- **Before the first real hospital** (SECURITY.md §6): a written risk analysis, named security
+  and privacy officers, written policies, workforce training for everyone with access.
 - The cost per call minute (DESIGN.md §2 I).
 
 ### Tooling to bring across from DeetsMusic

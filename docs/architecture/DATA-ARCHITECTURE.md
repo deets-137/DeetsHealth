@@ -24,10 +24,10 @@ updated: 2026-09-24
 | 7 | The rows as a woven record: the encounter at the center. | designed | [DATA-MODEL.md](DATA-MODEL.md) |
 | 8 | Read time: the normalizer turns raw rows into the model a card needs. | card by card | CORE-CRATE.md §8 |
 | 9 | One payload struct per card view, plain values, TypeScript types generated. | tooling and the Sites payloads built; card payloads card by card | CORE-CRATE.md §9 |
-| 10 | The card DOM, through `textContent` only. | card by card | SECURITY.md §4.3 |
+| 10 | The card DOM, through `textContent` only. | card by card | PATIENT-APP-SECURITY.md §4.3 |
 | 11 | Refresh (on open, weekly full) and the sign-out erase. | erase built (stage 7); refresh stage 8 | FETCH.md §12, STORE.md §8 |
 
-The security path of one value, end to end, is SECURITY.md §8.2.
+The security path of one value, end to end, is PATIENT-APP-SECURITY.md §8.2.
 
 ## 1. Terms
 - **Site** — one health system's FHIR server, with its own base URL.
@@ -50,9 +50,9 @@ sealed in the site row with the site's own key (STORE.md §3), not in a separate
 - The fetch: [FETCH.md](FETCH.md).
 - What each row holds, and the links: [INDEX-AND-LINKS.md](INDEX-AND-LINKS.md).
 - The cache on disk, sealing, keys and erase: [STORE.md](STORE.md). Sign-out deletes the
-  site's data by design (SECURITY.md §4.7).
+  site's data by design (PATIENT-APP-SECURITY.md §4.7).
 - The front end never sees raw FHIR, only payload structs (CORE-CRATE.md §9).
 
 ## 5. The PHI wall
-The rules are SECURITY.md §4; the summary is SECURITY.md §8. In short: protected data (PHI
+The rules are PATIENT-APP-SECURITY.md §4; the summary is PATIENT-APP-SECURITY.md §8. In short: protected data (PHI
 and PII) may exist only in `Shielded<T>` in memory, the sealed store, and the card DOM.

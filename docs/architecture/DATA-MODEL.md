@@ -180,7 +180,7 @@ Cost: one read per distinct definition, shared by every patient at that site.
   `CapabilityStatement` (sealed raw), the site's software version, and when each was read.
   The fetch asks only for the types the site serves, so there are fewer failed calls. Cost:
   `smart-configuration` is free (sign-in reads it); `/metadata` is 1 call per sign-in, with
-  no token. The row is sealed: the site's name is protected data (SECURITY.md §2).
+  no token. The row is sealed: the site's name is protected data (PATIENT-APP-SECURITY.md §2).
 - **`site_warning`** — one row per `OperationOutcome` issue found inside a search reply: site,
   FHIR type, severity, issue code, the sealed text, and when. It is free: the warning comes
   in the same reply. It lets a card say "the site withheld some results", so a gap looks
@@ -198,7 +198,7 @@ Cost: one read per distinct definition, shared by every patient at that site.
 ### 7.5 `directory` and `vocab` — from outside the site
 Neither holds patient data, so neither is sealed. Each comes as a whole file, bundled in the
 installer or downloaded whole. **Never a per-code lookup:** that would send a health fact
-and the user's IP address outside the wall (SECURITY.md §4).
+and the user's IP address outside the wall (PATIENT-APP-SECURITY.md §4).
 - **`directory`** — Epic's endpoint directory, the list for the site picker
   (DATA-ARCHITECTURE.md §2). A worker re-hosts it weekly; its shape is
   [ENDPOINT-DIRECTORY.md](../archive/ENDPOINT-DIRECTORY.md).
@@ -224,7 +224,7 @@ types, `Library`, `EventDefinition`, `SpecimenDefinition`, `DeviceDefinition`,
      per-code web service is not yet checked.
    - Open: which files, bundled in the installer or downloaded on first run, and how they
      are updated. Bring this with the first card that shows a code's plain name.
-8. **Which columns stay plain in SQLite** (SECURITY.md §4.6). Narrowed 2026-09-21 by the
+8. **Which columns stay plain in SQLite** (PATIENT-APP-SECURITY.md §4.6). Narrowed 2026-09-21 by the
    strictest-standard rule: no protected value is plain, the index columns included. Only
    opaque row keys and table names stay plain; core filters and sorts in Rust. **Built in
    stage 3, for the owner to confirm** (CORE-CRATE.md §12): plain are the table names, the row

@@ -15,13 +15,13 @@ updated: 2026-10-13
 - **Registration** — the app's record on fhir.epic.com: its audience, its APIs, its redirect
   URIs. Epic gives it two client IDs.
 - **Non-production client ID** — works against Epic's sandbox only. Not a secret for a public
-  client, but it lives in a git-ignored file all the same (SECURITY.md §4.8).
+  client, but it lives in a git-ignored file all the same (PATIENT-APP-SECURITY.md §4.8).
 - **Production client ID** — works against real health systems once Epic syncs it to them.
   Not used until a real record is approved (stop rule 4).
 - **Epic sandbox** — Epic's test FHIR server with fake patients:
   `https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4/`.
 - **DCR** — dynamic client registration. Each install registers its own key with the site
-  after its first sign-in, so the site can renew access with no new sign-in (SECURITY.md §5,
+  after its first sign-in, so the site can renew access with no new sign-in (PATIENT-APP-SECURITY.md §5,
   decided 2026-09-21).
 
 ## 2. The sheet: what the owner fills in
@@ -40,7 +40,7 @@ The rows follow the "Create an App" form, top to bottom (seen 2026-10-13).
 | 2 | Incoming APIs | **Every R4 `.Read` and `.Search`** the form offers, both **(Patient Chart)** and **(Outside Record)** (2026-10-13: the portal shows the whole record, and the fetch already maps every FHIR type, `core/src/fhir.rs` `table_for`). Skip DSTU2 and STU3; every `.Create`, `.Update` and other write (stop rule 1); **(Premium Billing)** (Epic charges for it); and any API the form refuses for a Patients audience. If fork E0 is USCDI v3, take what the form still allows. | Sets the scopes Epic grants. The fetch asks only for the types that the site's capability statement and the grant allow (FETCH.md). |
 | 3 | Endpoint URI (the redirect URI) | **`http://127.0.0.1/callback`** (added 2026-10-13), **`http://127.0.0.1:42813/callback`** and **`http://127.0.0.1:46219/callback`** (the fallback ports, §3). The two `deetshealth(-dev)://callback` entries from the first try are no longer used; they can go. The form also says production needs at least one `https` URI: the web app's callback can be that one, later. | `loopback::PORTS`: the first free port of 80, 42813, 46219 (§3). |
 | 4 | Is Confidential Client | **Unchecked.** A desktop app cannot keep a secret. PKCE proves it. | Already the design (SIGN-IN.md §1). |
-| 5 | Can Register Dynamic Clients | **Checked** (SECURITY.md §5, decided). | Step E-5 (§4). Without it, a public app gets no long-lived access, and the user signs in again about every hour. |
+| 5 | Can Register Dynamic Clients | **Checked** (PATIENT-APP-SECURITY.md §5, decided). | Step E-5 (§4). Without it, a public app gets no long-lived access, and the user signs in again about every hour. |
 | 5a | How will dynamic clients request an access token | **JWT bearer grant type** (§6). | Step E-5. |
 | 6 | SMART on FHIR version | **R4** | |
 | 7 | SMART scope version | Tell me **v1 or v2**. | v1: `patient/*.read`. v2: `patient/*.rs`. Today the app asks with v1 words (`auth::SCOPES`). |
@@ -114,7 +114,7 @@ APIs, pick them too: an unused scope costs no calls.
 | E-2 | The Epic sandbox becomes a second entry in Settings › Sites › Connect, with its client ID and its own scope words. **Built 2026-10-13** (§5a). | Claude | 0 |
 | E-3 | Live sign-in as Camila Lopez. First try 2026-10-13: blocked at the return (§3); the loopback return is built for the second try. | Owner, desk test | 2 (the SMART configuration, the token) |
 | E-4 | The full fetch against Epic. Then FHIR-SHAPES.md gets Epic's real shapes. The probe (`scripts/fhir-probe.mjs`) reads only open servers and holds no token, so for Epic the shapes come from the sealed store through the core, printing shapes only, never a value. That tool is part of this step. | Claude, then the owner | about 70–100 for the fetch, a guess (SMART took 70), measured after as FETCH.md does; 0 for the shapes |
-| E-5 | DCR: the install's key pair, registered after the first sign-in, then renewal with no sign-in (SECURITY.md §5). Its own paper design first. | Claude, design to the owner | 1 to register, then 1 per renewal |
+| E-5 | DCR: the install's key pair, registered after the first sign-in, then renewal with no sign-in (PATIENT-APP-SECURITY.md §5). Its own paper design first. | Claude, design to the owner | 1 to register, then 1 per renewal |
 
 E-2 to E-4 change no schema, and they do not touch the wall. The store, the fetch and the
 seal are the ones built for SMART.

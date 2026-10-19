@@ -8,7 +8,7 @@ updated: 2026-09-24
 
 > Where a site's record lives on disk, what the file holds, what it shows, and how it is
 > erased. The design is DATA-MODEL.md (what goes where) and CORE-CRATE.md §5 (sealing and
-> keys); the build history is CORE-CRATE.md §12 (stages 2–3). The rules are SECURITY.md §4.6
+> keys); the build history is CORE-CRATE.md §12 (stages 2–3). The rules are PATIENT-APP-SECURITY.md §4.6
 > and §4.7. What fills the rows is [FETCH.md](FETCH.md) and [INDEX-AND-LINKS.md](INDEX-AND-LINKS.md).
 
 ## 1. Terms
@@ -152,21 +152,21 @@ shielded.
 `delete_resource`, `patient`, `warnings`, `links_from(row)`, `links_to(row)`.
 
 The pass: the store is one of the three modules that may read a `Shielded` value
-(`CachePass`, SECURITY.md §4.2). It reveals a value only to seal it.
+(`CachePass`, PATIENT-APP-SECURITY.md §4.2). It reveals a value only to seal it.
 
 ## 8. Erase
 `SiteFiles::erase(site)` in `src-tauri/src/sites.rs`. The caller closes the store first.
 1. The data key is destroyed. From this moment the file cannot be opened.
 2. The `.db`, `-wal` and `-shm` files are deleted.
 
-This is the cryptographic erase of NIST SP 800-88 (SECURITY.md §8.3). A copy of the file made
+This is the cryptographic erase of NIST SP 800-88 (PATIENT-APP-SECURITY.md §8.3). A copy of the file made
 before the erase cannot be opened: no other key opens it.
 
 **Called by Sign out** (stage 7, 2026-09-24): Settings › Sites › a row's **Sign out**,
 pressed twice within 3 s, calls `sites::site_sign_out`. It takes the site's `Running` claim,
 so it never erases under a fetch (`sign-out-busy`), and then calls `erase`. A file whose
 key is gone still gets a Sites row with Sign out, so an erase that stopped after step 1 can
-be finished from the app. The uninstaller's delete of the whole folder (SECURITY.md §4.7)
+be finished from the app. The uninstaller's delete of the whole folder (PATIENT-APP-SECURITY.md §4.7)
 comes with the release path.
 
 ## 9. When it goes wrong
@@ -184,7 +184,7 @@ comes with the release path.
 | A column of the resource tables | `RESOURCE_COLS`, `ResourceRow`, `put_resource`, `resource_row`; then raise `SCHEMA_VERSION` and write a migration |
 | The site or patient columns | `SITE_COLS` / `PATIENT_COLS` and their row types, the same way |
 | A new table | `Table` and `Table::ALL`, `Table::name`; `fhir::table_for` |
-| What is plain | `put_link` (the plain columns) and this doc's §4; SECURITY.md §4.6 first |
+| What is plain | `put_link` (the plain columns) and this doc's §4; PATIENT-APP-SECURITY.md §4.6 first |
 | The folder layout | `SiteFiles::new` |
 | The sealed format or the padding | `seal.rs` (`PAD_FLOOR`, `padded_len`; a new format byte, and keep opening the old ones) |
 

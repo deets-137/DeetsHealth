@@ -138,10 +138,10 @@ Honest status, so you know what is real and what is paper:
 - **Designed only:** the normalizer and the card payloads (no record text reaches the page
   yet), the uninstaller's delete.
 - The build plan has 8 stages; the list is in [CORE-CRATE.md §2](CORE-CRATE.md). What the
-  build found is [SECURITY.md §8.8](SECURITY.md).
+  build found is [PATIENT-APP-SECURITY.md §8.8](SECURITY.md).
 
 ## 8. Where to read next
-1. [SECURITY.md §8](SECURITY.md) — the one-page summary of the rules. §4 has every rule in
+1. [PATIENT-APP-SECURITY.md §8](SECURITY.md) — the one-page summary of the rules. §4 has every rule in
    full.
 2. [CORE-CRATE.md](CORE-CRATE.md) §4, §5 and §12 — the wrapper, sealing and keys, and what is
    built. [STORE.md](STORE.md) — the files on disk and what they show;

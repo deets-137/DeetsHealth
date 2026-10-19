@@ -21,7 +21,10 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   the session's git proxy (403); the branch `archive/patient-app` stands in for it.
 - Step 4, first pass, with DeetsMusic as the model (`deets-137/DeetsMusicWindows`; the public
   `deets-137/DeetsMusic` is an older Swift app): DESIGN.md, HANDOFF.md and CLAUDE.md rewritten
-  in its shape; its archive rule ported. SECURITY.md waits for its forks.
+  in its shape; its archive rule ported.
+- SECURITY.md rewritten for the phone agent (the old one archived): S1 A, the hospital's own
+  single sign-on; S2 A, two factors for any chart answer, configurable above a floor, with a
+  random chart fact as an option for the first (its question may never reveal the chart).
 
 ## 2026-10-13 — the globals draft, from Camila's record
 - The owner asked whether Camila's exported record shows the shape of the globals to tune

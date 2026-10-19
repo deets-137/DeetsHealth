@@ -80,7 +80,8 @@ staff second, us third.
   schema
 - **F. Technical architecture** — ✅ the stack (§1); 🔵 the repo layout (CONVERSION.md §6, a
   draft)
-- **G. Security and compliance** — 🔵 SECURITY.md, rewritten for a server product, forks first
+- **G. Security and compliance** — ✅ [SECURITY.md](architecture/SECURITY.md): S1 the hospital's own
+  single sign-on, S2 two factors for any chart answer; 🔵 its drafts (§7 there)
 - **H. Vendors and credentials** — ⬜ the accounts, the BAAs, the Epic backend app
   registration
 - **I. Cost** — ⬜ the cost per call minute, quoted before the first build
@@ -100,8 +101,8 @@ Status: ✅ done · 🔵 designing · ⬜ todo · ❄️ deferred to later
 | # | Feature | Status |
 |---|---|---|
 | C1 | Answer and greet; the recording notice when any rule can record | ⬜ |
-| C2 | Verify the caller: date of birth and the calling number | ⬜ |
-| C3 | Verify more for results: a one-time code by text to the number on file | ⬜ |
+| C2 | Verify the caller, factor 1: date of birth, or a random chart fact whose question reveals nothing (SECURITY.md §4.4) | ⬜ |
+| C3 | Verify the caller, factor 2: a code by text or a call back to the number on file; needed for any chart answer or booking | ⬜ |
 | C4 | Hand off to a person, from any node | ⬜ |
 | C5 | Emergency words transfer at once | ⬜ |
 | C6 | Turn-taking and barge-in | ⬜ |
@@ -128,7 +129,7 @@ Status: ✅ done · 🔵 designing · ⬜ todo · ❄️ deferred to later
 **The console**
 | # | Feature | Status |
 |---|---|---|
-| K1 | Staff sign-in | ⬜ (a fork, §2 C) |
+| K1 | Staff sign-in: the hospital's own single sign-on (SAML or OIDC) | ⬜ (SECURITY.md §4.10) |
 | K2 | The hospital's settings: hours, visit types, transfer numbers, the sensitive-results list | ⬜ |
 | K3 | The call log and the latency of each step | ⬜ |
 | K4 | Read a transcript (each view is audited) | ⬜ |
