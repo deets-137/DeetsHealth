@@ -112,12 +112,21 @@ store on the PC, DPAPI keys, the patient's SMART sign-in.
 Decided 2026-10-19: **V1 B** (a phone agent), **F1 B** (convert this repo), and the stack:
 Twilio, Cartesia or ElevenLabs, the Anthropic API, FHIR (§8). Then the owner chose:
 - **The wedge: W1 and W3.** Non-Epic hospitals, and a better call than the rest. The owner:
-  "Epic's agent factory is not quite user friendly". So the first EHR adapter is not Epic's.
+  "Epic's agent factory is not quite user friendly". Then (same day): the code to call Epic's
+  APIs is already built, so **build for every EHR from the start**: one `Scheduler` and reader
+  interface, an adapter per EHR, Epic's first because it exists. What carries over: the FHIR
+  client, the normalizer, the shapes. What does not: the sign-in. Today's code signs in as a
+  patient (SMART standalone launch, PKCE). A hospital deploy signs in as a system (SMART
+  Backend Services, a signed JWT), and Epic needs a backend app registration for it.
 - **F3: A, then B.** Inbound first; outbound (reminders, confirmations) later.
 - **F4: both.** Visits, medicines, refill state **and results**, in version 1. What follows
   from it (§7.1).
 
-3 real forks left: F2 (re-opened, §7.2), F5, F6.
+- **F2: A2, with the deploy target behind an interface** so B (the hospital's own cloud
+  account) can be added later with no change to the service (§7.2).
+- **F5: Cartesia** for both directions: Ink in, Sonic out.
+
+1 real fork left: F6 (§8.6).
 
 ### 7.1 Results on the phone: what follows
 - **Only results already released to the patient portal.** The agent says nothing the patient
@@ -146,16 +155,9 @@ own account. A third option gives that and keeps one way to run it:
 - **B. In each hospital's own cloud account.** Use only when a hospital requires it; plan it as
   an option for later, built on the same deploy scripts as A2.
 
-### 7.3 Still open: F5, F6
-- **F5. Voice vendor** (§8.2): A Cartesia for both directions, Ink in and Sonic out
-  (recommended: one vendor, one BAA, built for low latency) · B ElevenLabs for both (Scribe in,
-  Flash out) · C split, Cartesia Ink in and ElevenLabs out (only if a listening test says
-  ElevenLabs' voice is clearly better; it costs a second BAA).
-- **F6. Who runs the call loop** (§8.1): A our own service on Twilio Media Streams
-  (recommended: every PHI step in our code, full control of turn-taking and latency) · B Twilio
-  ConversationRelay: Twilio does speech in and out, our service gets text over a WebSocket
-  (less code; the voice is Twilio's choice of engine). ElevenLabs' own agent platform is out:
-  in its HIPAA mode it limits the language model to its allowlist and turns off MCP tools.
+### 7.3 Still open: F6
+- **F6. How we build the call loop** (§8.6): A Pipecat, open source, run by us (recommended) ·
+  B our own loop in Rust. Twilio ConversationRelay is out: it cannot use Cartesia (F5).
 
 Every platform: the patient's side is a phone call, so it is the same on every phone. The
 hospital's side is a web console; the Windows app is not part of it.
@@ -228,6 +230,48 @@ its platform traits. This bears on the wedge (§5): non-Epic hospitals mean more
 Not quoted yet. Before the first build, quote a cost per call minute: Twilio per minute, STT
 and TTS per minute, Claude tokens per turn with caching. Hospitals buy per call or per minute.
 
+### 8.6 The call loop (F6): what the digging found
+> **Part:** idea · 2026-10-19 · forks §7 F6
+
+**Twilio ConversationRelay is out.** Its speech-out engines are Google, Amazon and ElevenLabs;
+its speech-in engines are Google and Deepgram. **No Cartesia**, so it breaks F5. It also adds
+about $0.07 a minute; Media Streams adds $0.0044. With ConversationRelay, Twilio decides
+turn-taking and interruption; we get text only, and cannot tune either. ElevenLabs' agent
+platform is out too (§7, before).
+
+So the loop is ours, on **Twilio Media Streams** (a two-way WebSocket of 8 kHz μ-law audio,
+about $0.013 a minute for a US inbound call with the voice rate). The real fork is how to build it.
+
+**The hard parts of a call loop**, in order of what the caller notices:
+1. **Turn-taking:** knowing the caller has finished, not just paused. Too early and the agent
+   talks over them; too late and the line feels dead. Cartesia's Ink-2 has turn detection built
+   in.
+2. **Barge-in:** the caller talks while the agent speaks. Stop the audio at once, clear
+   Twilio's buffer, cancel the Claude stream and the TTS stream, keep what was already said in
+   the history.
+3. **Latency:** stream every step, start TTS on the first sentence, host near Twilio's media
+   region (US1).
+4. **Fillers and silence:** "One moment, I am checking the schedule" while a slow EHR call runs.
+5. **Phone audio:** 8 kHz μ-law in and out; resample with care. One guide reports that
+   Pipecat's Smart Turn v3 fails silently at 8 kHz; Ink-2's own turn detection avoids it.
+
+| | A. Pipecat (recommended) | B. Our own loop in Rust |
+|---|---|---|
+| What it is | Open-source Python framework for voice agents (from Daily). Has a Twilio Media Streams serializer, Cartesia STT and TTS, Anthropic, interruption handling. | A tokio service: the WebSocket, the audio, turn-taking, barge-in, all ours. |
+| The caller's experience | Turn-taking and barge-in already tested by many teams. | As good as we make it; months to reach the same polish. |
+| PHI wall | Runs in our A2 deploy; no Pipecat company in the path (do not use Pipecat Cloud: another vendor and BAA). Python has no `Shielded<T>`: the loop holds PHI in plain strings. | One language with the core; `Shielded<T>` from the socket to the EHR. |
+| EHR code | The adapters stay in the Rust core, as a small internal service the Pipecat tools call. Two languages, one network hop inside the deploy. | One process. |
+| Fits F2 (swap the deploy) | Yes: a container. | Yes: a container. |
+| Risk | A dependency on a young framework; pin it and read each upgrade. | All the bugs are ours. |
+
+Recommended A, because the caller notices turn-taking first, and Pipecat is ahead there. The
+PHI held in Python is in memory only, for one call, inside our deploy; the log rules hold for
+it as they do for the core (SECURITY.md §4.5).
+
+**One gap for F4 and the patient:** Ink-2 is English only (Cartesia changelog, 2026). Many
+callers will want Spanish first. Check Cartesia's multilingual STT (Ink-Whisper) for Spanish
+before version 1, or plan a second STT for it.
+
 ## 9. Sources
 - [Epic — Emmie for Patients](https://www.epic.com/software/emmie/)
 - [Epic on X — Introducing Emmie](https://x.com/HeyEpic/status/1957844340882936118)
@@ -254,3 +298,12 @@ and TTS per minute, Claude tokens per turn with caching. Hospitals buy per call 
 - [Oracle Health — FHIR R4 Appointment](https://docs.oracle.com/en/industries/health/millennium-platform-apis/mfrap/api-appointment.html)
 - [athenahealth — Appointment](https://mydata.athenahealth.com/static/apidoc/ig-ge-appointment.html)
 - [Taction — athenahealth API guide](https://www.tactionsoft.com/blog/athenahealth-api-integration-guide/)
+- [Twilio — ConversationRelay voice configuration](https://www.twilio.com/docs/voice/conversationrelay/voice-configuration)
+- [Twilio — ConversationRelay best practices](https://www.twilio.com/docs/voice/conversationrelay/best-practices)
+- [Twilio — ElevenLabs voices in ConversationRelay](https://www.twilio.com/en-us/blog/integrate-elevenlabs-voices-with-twilios-conversationrelay)
+- [Twilio — Voice pricing (Media Streams)](https://www.twilio.com/en-us/voice/pricing/gb)
+- [Cartesia — Twilio pricing 2026](https://www.cartesia.ai/learn/twilio-pricing)
+- [Zian AI — Twilio vs Telnyx costs](https://zian.ai/twilio-vs-telnyx-ai-voice-agents/)
+- [Evalgent — Pipecat and Twilio](https://www.evalgent.com/blog/pipecat-twilio-telnyx-phone-calls)
+- [Cartesia — Changelog 2026](https://docs.cartesia.ai/changelog/2026)
+- [Pipecat in production guide](https://luonghongthuan.com/en/blog/pipecat-voice-agent-production-scalable-guide/)
