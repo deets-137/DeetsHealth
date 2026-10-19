@@ -6,6 +6,15 @@ updated: 2026-09-24
 ---
 # DeetsHealth — The core crate (scaffold step 3)
 
+> **The phone agent (2026-10-19).** This doc describes the core as the patient app built it,
+> and that code is still in the tree, so the doc stays as written until the code changes.
+> What carries forward and what changes is [CONVERSION.md](../CONVERSION.md) §4.1: `shielded`,
+> `net`, `fhir`, `index`, `seal`, `platform` and `error` stay; the passes change; `auth` gives
+> way to Backend Services ([EPIC.md](../integrations/EPIC.md) §5); `sync`, `store`, `payload`
+> and `dev` go to the archive when their replacements land. Each change rewrites its section
+> here, in the same commit as the code. "The host" below is the archived Tauri app
+> (`archive/src-tauri`); for the phone agent it is the Rust service.
+>
 > The web-ready Rust crate that signs in, fetches, seals, stores and normalizes. **Stages
 > 1–7 of 8 are built**; §12 is the code, and where it disagrees with §1–§11, §12 wins. The
 > tables it fills are [DATA-MODEL.md](DATA-MODEL.md); the rules it keeps are

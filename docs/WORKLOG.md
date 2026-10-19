@@ -25,6 +25,9 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - SECURITY.md rewritten for the phone agent (the old one archived): S1 A, the hospital's own
   single sign-on; S2 A, two factors for any chart answer, configurable above a floor, with a
   random chart fact as an option for the first (its question may never reveal the chart).
+- EPIC.md (the backend app registration), DEBUGGING.md and SECURITY-BRIEF.md rewritten for the
+  phone agent, the old ones archived as `PATIENT-APP-*`; a header on CORE-CRATE.md; a draft
+  `ops/PROTOCOLS.md` for helpers and their agents (the owner's ask).
 
 ## 2026-10-13 — the globals draft, from Camila's record
 - The owner asked whether Camila's exported record shows the shape of the globals to tune
@@ -61,25 +64,25 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - No code changed. Stage 7's desk test is still open, and its work is still not committed.
 - The owner asked how many of the 12 layout and worker forks were real. 4 were. He asked for
   the evaluation style in writing: new LESSONS.md §5 (the fork test) and two tie-breaker rows,
-  and a pointer in CLAUDE.md › Working style. EPIC.md §2 now follows the real "Create an App"
+  and a pointer in CLAUDE.md › Working style. PATIENT-APP-EPIC.md §2 now follows the real "Create an App"
   form, with a new fork E0 (Automatic Client Distribution).
 - The fork test went into the global `~/.claude/CLAUDE.md` (Bringing forks), with a rule that a
   Claude-written or old rule may be wrong, so ask when it matters. A one-line pointer is in
   LESSONS.md §5.2.
-- Incoming APIs: every R4 read and search (EPIC.md §2, row 2). Dynamic clients: the JWT bearer
-  grant (new EPIC.md §6). SECURITY.md §5 corrected: its "refresh tokens" words were Claude's,
+- Incoming APIs: every R4 read and search (PATIENT-APP-EPIC.md §2, row 2). Dynamic clients: the JWT bearer
+  grant (new PATIENT-APP-EPIC.md §6). SECURITY.md §5 corrected: its "refresh tokens" words were Claude's,
   and wrong for this path.
 - The owner filled in the Epic form and has a non-production client ID. Built E-2:
   `core/build.rs` (reads `epic-client.json` at build time; serde_json as a build dependency,
   already in the tree), `epic-client.example.json`, `SiteEntry.scopes`, `SCOPES_V2`,
   `EPIC_SANDBOX`, the Epic sandbox at index 1 of the Connect menu, and the test
-  `epic_entry_follows_the_build`. E1–E3 failed the fork test, so each follows (EPIC.md §5).
+  `epic_entry_follows_the_build`. E1–E3 failed the fork test, so each follows (PATIENT-APP-EPIC.md §5).
 - Checks: core 41 tests + 3 proofs (the new test also with a dummy file, no file and a bad
   file), wasm check, host `cargo check`. No live run: the owner's own terminal is needed for
   the scheme.
 - The owner chose USCDI v3 (E0), and the work was committed (`e2bb0a5`). First Epic sign-in as
   Camila Lopez: the sign-in and consent worked, then the page stalled. The console showed the
-  cause: Epic's CSP `form-action *` blocks the redirect to a custom scheme (EPIC.md §3).
+  cause: Epic's CSP `form-action *` blocks the redirect to a custom scheme (PATIENT-APP-EPIC.md §3).
 - The owner chose a loopback return over the scheme (Decided 2 replaced). Built `loopback.rs`
   (127.0.0.1, a port per sign-in, the `Host` check, `303 /done`, four fixed pages); `on_link`
   returns an outcome; the scheme, its registry writes and `tauri-plugin-deep-link` are gone;

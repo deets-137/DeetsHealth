@@ -26,7 +26,7 @@ updated: 2026-10-13
 ## 2. What the health system already does
 **Epic has proxy access at the source.** A parent with proxy access signs in to MyChart as
 themselves, picks the child in Epic's patient picker, and the token is for the child only
-(EPIC.md §3). The site applies its own rules, including each state's limits on a parent's
+(PATIENT-APP-EPIC.md §3). The site applies its own rules, including each state's limits on a parent's
 view of a teen's record. DeetsHealth already makes one site per patient, so this works with
 no worker.
 

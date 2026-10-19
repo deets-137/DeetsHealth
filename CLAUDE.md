@@ -38,7 +38,9 @@ above it, it is the code. A new doc gets front matter (DOCS-ORG.md §2) and one 
 
 **`docs/archive/`** — docs no longer needed, kept as a record (`status: archived`).
 `PATIENT-APP-DESIGN.md` and `PATIENT-APP-HANDOFF.md` — the patient app's design and handoff.
-`PATIENT-APP-IDEAS.md` — its idea list. `PATIENT-APP-SECURITY.md` — its security design. `HOME-AND-HUBS.md` — the patient portal's layout. `ENDPOINT-DIRECTORY.md` — Epic's Brands
+`PATIENT-APP-IDEAS.md` — its idea list. `PATIENT-APP-SECURITY.md` and `PATIENT-APP-SECURITY-BRIEF.md` — its security design and brief.
+`PATIENT-APP-EPIC.md` — its Epic registration and sandbox findings. `PATIENT-APP-DEBUGGING.md` —
+its fetch ledger, inspector and the first Epic fetch. `HOME-AND-HUBS.md` — the patient portal's layout. `ENDPOINT-DIRECTORY.md` — Epic's Brands
 bundle and the worker that re-hosts it. `IDENTITY-WORKER.md` — the patient-sharing worker idea.
 
 **`archive/`** (repo root) — the patient app's code, not built, not checked
@@ -50,7 +52,8 @@ bundle and the worker that re-hosts it. `IDENTITY-WORKER.md` — the patient-sha
   EHR), every fork and its answer (§7), the stack (§8: the call path, BAAs, the model, the call
   loop, the store), the test tooling (§9).
 - `CORE-CRATE.md` — the core crate's modules, `Shielded<T>`, sealing and keys, sign-in, the
-  fetch. Written for the patient app; its rewrite is open (HANDOFF.md › Open now).
+  fetch, as the patient app built them (the code is still in the tree). Its header says what
+  changes; each section is rewritten in the same commit as its code.
 - `DATA-MODEL.md` — the normalized model, the encounter at the center, the link table, where
   every FHIR type goes (its cache tables are the patient app's).
 - `INDEX-AND-LINKS.md` — the table of each type, the `kind` words, the code field, dates, code
@@ -62,7 +65,8 @@ bundle and the worker that re-hosts it. `IDENTITY-WORKER.md` — the patient-sha
 - `SECURITY.md` — the phone agent's: the priority order, protected data, the threats, the
   rules (end to end, the wrapper type, the console, caller verification, logs, keys,
   retention, the model, staff access), vendors and BAAs, the law. S1 and S2 decided.
-- `SECURITY-BRIEF.md` — the one-pager for an outside security engineer (the patient app's).
+- `SECURITY-BRIEF.md` — the one-pager for an outside security engineer: the stack, the threats,
+  the plan, the idea to poke at (the model never chooses a patient), the questions.
 - `ERRORS.md` — the one `app-error` event and its codes (the patient app's; the pattern
   carries).
 - `GLOBALS.md` — a draft: DeetsHealth's globals in DeetsEngine, from Camila's record. Waits on
@@ -73,12 +77,15 @@ bundle and the worker that re-hosts it. `IDENTITY-WORKER.md` — the patient-sha
   archive: `SIGN-IN.md`, `FETCH.md`, `STORE.md`, `DATA-ARCHITECTURE.md`.
 
 **`docs/integrations/`** — outside sources
-- `EPIC.md` — the fhir.epic.com registration sheet, the Epic sandbox, the patient sign-in plan.
-  The backend app registration for the phone agent is open.
+- `EPIC.md` — the backend app registration sheet (Backend Services, a JWKS URL, the APIs to
+  pick), what the sandbox can prove, what a hospital must do, the plan E-1 to E-4.
 
 **`docs/ops/`** — build, ship, diagnose
-- `DEBUGGING.md` — the call ledger, the fetch summary, the sealed-store inspector, recipes,
-  what the first Epic fetch showed (the patient app's; the ledger carries).
+- `DEBUGGING.md` — how a call is read after it goes wrong: the call log, the call timeline, the
+  EHR ledger, record and replay, recipes. Not built.
+- `PROTOCOLS.md` — a draft: how the owner, helpers and their agents work here (the rules that
+  never bend, joining and leaving, branches and PRs, the review checklist, agents, vendors,
+  incidents).
 
 **`docs/ideas/`** — not built; never tell a user the app does these.
 - `README.md` — the short list of ideas without a doc of their own.

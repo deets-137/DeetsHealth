@@ -33,7 +33,7 @@ updated: 2026-10-19
   [HOME-AND-HUBS.md](HOME-AND-HUBS.md) (real forks H3, H5; the shelf list is a
   draft) and the fork test (LESSONS.md §5).
 - **Waiting meanwhile: Epic's sandbox sync.** Run `node scripts/epic-redirect-check.mjs`. When
-  it says "accepted", the owner runs the E-3 desk test (EPIC.md §5a).
+  it says "accepted", the owner runs the E-3 desk test (PATIENT-APP-EPIC.md §5a).
 
 ## State of play (2026-09-24)
 - **The empty shell is built** (scaffold steps 1–2): the Tauri app, the title bar (title menu,
@@ -81,7 +81,7 @@ npm run docs:check    # links, mentions, § pointers, front matter
 npm run tokens        # regenerate docs/architecture/TOKENS.md after a token change
 npm run types         # regenerate src/model/ (TypeScript) from core/src/payload.rs
 npm run inspect -- --shapes             # dev only: what a site's sealed store holds (ops/DEBUGGING.md §5; run it outside the Claude app)
-node scripts/epic-redirect-check.mjs   # does Epic's sandbox know our redirect URI yet? (EPIC.md §3)
+node scripts/epic-redirect-check.mjs   # does Epic's sandbox know our redirect URI yet? (PATIENT-APP-EPIC.md §3)
 cargo test -p deetshealth-core --features sqlite                  # core tests + compile-fail proofs
 cargo test -p deetshealth --lib                                   # host tests: CNG, DPAPI, the plaintext scan
 cargo test -p deetshealth --lib -- --ignored --nocapture          # live: sign-in (~7 calls) and a full fetch (~165 calls), SMART sandbox
@@ -94,7 +94,7 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
 2. **Sign-in return:** ~~a custom deep-link scheme (`deetshealth://callback`)~~. **Replaced
    2026-10-13 (the owner): a loopback listener, `http://127.0.0.1:<port>/callback`**
    (RFC 8252 §7.3; SIGN-IN.md §6). Epic's sign-in page blocks a custom scheme in Edge
-   (EPIC.md §3).
+   (PATIENT-APP-EPIC.md §3).
 3. **First slice:** labs, meds, allergies for one or two sandbox patients (Camila Lopez first).
 4. **Cache:** SQLite on disk.
 - **Two sandbox sites in one app** (added the same day): Epic's sandbox and SMART Health IT's
@@ -193,16 +193,16 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
    Epic fetch. The registration lists both redirect URIs.
    **E-3, first try (2026-10-13):** the sign-in and consent worked, but Epic's page could not
    hand the browser to `deetshealth-dev://` (its CSP `form-action *` blocks a custom scheme;
-   EPIC.md §3). **The loopback return is built** (`loopback.rs`; the scheme, its registry
+   PATIENT-APP-EPIC.md §3). **The loopback return is built** (`loopback.rs`; the scheme, its registry
    writes and the deep-link plugin are gone; SIGN-IN.md §6), not yet desk-tested. The owner
    added `http://127.0.0.1/callback` to the registration; Epic accepted it at 17:41, but only
-   with no port: **Epic matches the port exactly** (EPIC.md §3). So the app tries ports 80,
+   with no port: **Epic matches the port exactly** (PATIENT-APP-EPIC.md §3). So the app tries ports 80,
    42813, 46219 in order (`loopback::PORTS`). Port 80 works now; the owner registers the two
    fallback URIs. **E-3 passed (2026-10-13):** Camila signed in; the first Epic fetch stored 296
    rows of 12 types in 32 calls. **E-4 tools built** (the call ledger, the fetch summary,
    `npm run inspect`; ops/DEBUGGING.md). What the fetch showed, and the fixes it points to
    (CarePlan's categories, Outside Record APIs, 54 missing referenced records):
-   ops/DEBUGGING.md §7. The CarePlan category fallback is built (FETCH.md §5.2); a refused
+   archive/PATIENT-APP-DEBUGGING.md §7. The CarePlan category fallback is built (FETCH.md §5.2); a refused
    category is "not served", not a failure, which a Refresh has not yet confirmed live. All
    merged into `main` (2026-10-13). Open from the fetch: why Outside Record data is
    suppressed although its APIs are selected; the 54 missing referenced records (stage 8).
@@ -236,7 +236,7 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
   Sign-in no longer uses a scheme (2026-10-13), so this no longer touches it. Check the real
   registry from a WMI-started process (`../DeetsMusic/docs/ops/DEBUGGING.md` §Sign-in).
 - **A sign-in return must be `http` or `https`.** Epic's sign-in page sets `form-action *`,
-  which blocks a redirect to any custom scheme in Chromium browsers (EPIC.md §3).
+  which blocks a redirect to any custom scheme in Chromium browsers (PATIENT-APP-EPIC.md §3).
 - **No sign-in inside WebView2.** The SMART sign-in opens in the system browser, as
   DeetsMusic's does. Do not try to move it into an in-app popup.
 - **No inline script.** The CSP (`tauri.conf.json`) allows none, so the theme pre-paint is a

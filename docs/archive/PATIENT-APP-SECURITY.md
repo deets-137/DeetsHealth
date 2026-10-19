@@ -142,7 +142,7 @@ form asks how a dynamic client gets a new access token. The answer is the **JWT 
 (`urn:ietf:params:oauth:grant-type:jwt-bearer`), not the refresh token grant: each new access
 token comes from a short JWT that the install signs with its own key. No refresh token is
 stored, so the only long-lived secret is a key that never leaves its key store. That is both
-more secure and fewer sign-ins (EPIC.md §6).
+more secure and fewer sign-ins (PATIENT-APP-EPIC.md §6).
 
 ## 6. The law (a summary, not legal advice)
 - **HIPAA** binds covered entities (providers, health plans, clearinghouses) and their

@@ -94,7 +94,7 @@ A type becomes a job when all four are true:
   expected on such a site (Epic).
 - **`CarePlan` too** (2026-10-13): Epic refuses a plain CarePlan search ("This resource
   requires a category for searching") and names ten categories, so CarePlan carries 10
-  fallback jobs (`fhir::CAREPLAN_CATEGORIES`; ops/DEBUGGING.md §7). The table of types and
+  fallback jobs (`fhir::CAREPLAN_CATEGORIES`; archive/PATIENT-APP-DEBUGGING.md §7). The table of types and
   their categories is `fhir::category_fallback`.
 - **A refused category is "not served", not a failure** (2026-10-13). Epic's sandbox accepted
   only 2 of the 10 CarePlan categories (longitudinal, encounter) and refused 8 with

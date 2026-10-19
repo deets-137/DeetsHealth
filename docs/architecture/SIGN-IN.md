@@ -75,7 +75,7 @@ or the site answers 400 / 401. Any other failure is an error: try again later.
 | Client id | `SiteEntry.client_id` in `auth::sandbox_sites` | `deetshealth` for the SMART sandbox (it accepts any). Epic's comes from `epic-client.json` at the repo root (git-ignored; template `epic-client.example.json`): `core/build.rs` reads it at build time into `DEETSHEALTH_EPIC_CLIENT_ID` (integrations/EPIC.md §2). A change to the file rebuilds the core. |
 | Sites in the Connect menu | `auth::sandbox_sites` | A `SiteEntry` per site: name, base URL, client id, scopes. SMART is index 0. **Epic sandbox** is index 1, only in a build that found `epic-client.json` with a `nonprod_client_id` (`auth::EPIC_SANDBOX`). Real sites come from the directory (integrations/ENDPOINT-DIRECTORY.md). |
 | The SMART sandbox's setup | `auth::SMART_LAUNCH` | §5. |
-| Redirect URI | `loopback::PORTS`, `Bound::redirect_uri` | The first free port of 80, 42813, 46219: `http://127.0.0.1/callback` for 80, else `http://127.0.0.1:<port>/callback`. Epic matches the port exactly, so every listed port must be registered (EPIC.md §3); a new port means a new registered URI. Debug and release are the same. |
+| Redirect URI | `loopback::PORTS`, `Bound::redirect_uri` | The first free port of 80, 42813, 46219: `http://127.0.0.1/callback` for 80, else `http://127.0.0.1:<port>/callback`. Epic matches the port exactly, so every listed port must be registered (PATIENT-APP-EPIC.md §3); a new port means a new registered URI. Debug and release are the same. |
 | The return pages | `loopback::Page::words` | Four fixed pages: signed in, not shared, ended, not current. A draft for the owner's words. |
 | HTTP rules | `net::Net::new` | HTTPS only, TLS 1.2+, no redirects, gzip, 30 s timeout, `User-Agent: DeetsHealth/<version>`. |
 | What the Sites row shows | the `sign-in` event words | `waiting`, `connected`, `refused`, `expired`, `failed`, `cancelled`. Fixed words only: never a value. |
@@ -157,7 +157,7 @@ The log is `%APPDATA%\com.deetshealth.dev\deetshealth.log` (debug) or
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | The site's page stalls after you approve, and the console says a form was blocked by `form-action` | The redirect URI is not `http` or `https` (§6). | Check the redirect URI the build sends. |
-| The site shows an error before its sign-in page | The site does not know this redirect URI, or not with this port (EPIC.md §3). | Check the site's registration. |
+| The site shows an error before its sign-in page | The site does not know this redirect URI, or not with this port (PATIENT-APP-EPIC.md §3). | Check the site's registration. |
 | The tab says "This site can't be reached" at `127.0.0.1` | The listener had closed: the sign-in ended (Cancel, a newer sign-in, 10 minutes). | Connect again. |
 | The browser page says "Invalid launch options" | A plain launcher base URL, or a broken `SMART_LAUNCH`. | §5. |
 | `token trade failed: network error` right after the link | The code was already used or is too old, the redirect URI differs from the one in the authorize URL, or PKCE did not match. | Connect again. If it repeats, compare the client id and redirect URI with the site's registration. |
@@ -166,7 +166,7 @@ The log is `%APPDATA%\com.deetshealth.dev\deetshealth.log` (debug) or
 
 ## 9. Changing it later
 - **Epic:** registered 2026-10-13 (integrations/EPIC.md). Next after the sign-in works: dynamic
-  client registration with the JWT bearer grant (EPIC.md §6, PATIENT-APP-SECURITY.md §5). The SMART
+  client registration with the JWT bearer grant (PATIENT-APP-EPIC.md §6, PATIENT-APP-SECURITY.md §5). The SMART
   launcher can test the key half first (index 12–14 and client type 2).
 - **A real site list:** `sandbox_sites` gives way to the endpoint directory. Each site's
   `smart-configuration` is read at sign-in, so no endpoint is hard-coded.
