@@ -126,7 +126,11 @@ Twilio, Cartesia or ElevenLabs, the Anthropic API, FHIR (§8). Then the owner ch
   account) can be added later with no change to the service (§7.2).
 - **F5: Cartesia** for both directions: Ink in, Sonic out.
 
-1 real fork left: F6 (§8.6).
+- **F6: Pipecat**, run by us, with Pipecat Flows. The owner: "be open to tuning it heavily if
+  needed" (§8.6).
+
+No fork left in this list. Later choices wait for their work: the Claude model (a measure,
+§8.3), Spanish speech in (§8.6), the cost per minute (§8.5).
 
 ### 7.1 Results on the phone: what follows
 - **Only results already released to the patient portal.** The agent says nothing the patient
@@ -155,15 +159,11 @@ own account. A third option gives that and keeps one way to run it:
 - **B. In each hospital's own cloud account.** Use only when a hospital requires it; plan it as
   an option for later, built on the same deploy scripts as A2.
 
-### 7.3 Still open: F6
-- **F6. How we build the call loop** (§8.6): A Pipecat, open source, run by us (recommended) ·
-  B our own loop in Rust. Twilio ConversationRelay is out: it cannot use Cartesia (F5).
 
 Every platform: the patient's side is a phone call, so it is the same on every phone. The
 hospital's side is a web console; the Windows app is not part of it.
 
 ## 8. The stack
-> **Part:** idea · 2026-10-19 · forks §7 F5, F6
 
 The owner (2026-10-19): "eleven labs / Cartesia Sonic/Ink for voice, Anthropic API for llm and
 FHIR for data with Twilio for phone connection".
@@ -187,8 +187,15 @@ caller ─► Twilio (phone number, audio 8 kHz μ-law)
 - **Claude only routes and words.** Every chart value comes from a tool result (the normalized
   model), not from the model's memory (§6). A tool returns what the template says out loud.
 - **The caller is verified by a tool** (date of birth plus a match on the calling number or a
-  code by text) before any chart tool unlocks. The model cannot skip it: the service does not
-  register chart tools until the check passes.
+  code by text) before any chart tool unlocks. The model cannot skip it: the chart tools do not
+  exist until the check passes. Pipecat Flows makes this the shape of the call. Each node has
+  its own instructions and its own tools:
+  ```
+  greet ─► verify (date of birth) ─► menu ─┬─► schedule (find, book, move, cancel)
+                                           ├─► visits and medicines (read)
+                                           └─► verify+ (code by text) ─► results (read, §7.1)
+  any node ─► hand off to a person
+  ```
 - **One FHIR fetch per call**, after verification, for what the call needs; held in memory for
   the call only (LESSONS.md §3.3).
 
@@ -231,7 +238,7 @@ Not quoted yet. Before the first build, quote a cost per call minute: Twilio per
 and TTS per minute, Claude tokens per turn with caching. Hospitals buy per call or per minute.
 
 ### 8.6 The call loop (F6): what the digging found
-> **Part:** idea · 2026-10-19 · forks §7 F6
+Decided 2026-10-19: **A, Pipecat**, open to heavy tuning (end of this section).
 
 **Twilio ConversationRelay is out.** Its speech-out engines are Google, Amazon and ElevenLabs;
 its speech-in engines are Google and Deepgram. **No Cartesia**, so it breaks F5. It also adds
@@ -267,6 +274,18 @@ about $0.013 a minute for a US inbound call with the voice rate). The real fork 
 Recommended A, because the caller notices turn-taking first, and Pipecat is ahead there. The
 PHI held in Python is in memory only, for one call, inside our deploy; the log rules hold for
 it as they do for the core (SECURITY.md §4.5).
+
+**Tuning Pipecat (the owner: "be open to tuning it heavily if needed").** In order, lightest
+first; each step only when a measure on recorded test calls shows the need:
+1. Settings: VAD and turn timings, Ink-2's turn detection, TTS chunking, filler speech.
+2. Our own processors in the pipeline: a PHI redactor in front of every log and metric, the
+   verify gate, a latency recorder per step. Pipecat is built for this; no fork needed.
+3. Our own service classes: subclass its Cartesia, Anthropic or Twilio service when one does not
+   do what we need.
+4. A fork of Pipecat, pinned, with our changes kept small and offered upstream where they are
+   not ours alone. Last, because a fork means we merge every upgrade by hand.
+Whatever the step, the EHR adapters stay in the Rust core behind their interface, so a change
+to the call loop never touches them.
 
 **One gap for F4 and the patient:** Ink-2 is English only (Cartesia changelog, 2026). Many
 callers will want Spanish first. Check Cartesia's multilingual STT (Ink-Whisper) for Spanish
