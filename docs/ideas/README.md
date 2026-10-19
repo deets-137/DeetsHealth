@@ -12,8 +12,8 @@ user that the app can do any of these things.
 - Proxy access (a parent or caregiver reads another person's record). Epic's own proxy sign-in
   already works with one site per patient; sharing inside DeetsHealth, with tiers, is
   [IDENTITY-WORKER.md](IDENTITY-WORKER.md).
-- A voice agent: the patient asks out loud, the app finds and answers from the record, all on
-  the PC ([VOICE-AGENT.md](VOICE-AGENT.md)).
+- A hospital-run phone agent: it schedules visits and answers questions from the chart. This
+  repo will convert to it ([VOICE-AGENT.md](VOICE-AGENT.md)).
 - Several sites in one view (two health systems, one timeline).
 - A MyChart file import (C-CDA XML) for people whose site has no working API.
 - An on-device small model — Cactus Needle 3 (the owner, 2026-09-21). 8–29 MB, Apache-2.0,
