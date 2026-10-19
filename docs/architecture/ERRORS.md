@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [src-tauri/src/errors.rs, src/app-errors.ts, src-tauri/src/signin.rs, src-tauri/src/fetch.rs, src-tauri/src/sites.rs, src-tauri/src/lib.rs]
+sources: [archive/src-tauri/src/errors.rs, src/app-errors.ts, archive/src-tauri/src/signin.rs, archive/src-tauri/src/fetch.rs, archive/src-tauri/src/sites.rs, archive/src-tauri/src/lib.rs]
 updated: 2026-09-24
 ---
 # DeetsHealth — App errors and their toasts

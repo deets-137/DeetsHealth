@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [core/src/auth.rs, core/build.rs, core/src/net.rs, src-tauri/src/signin.rs, src-tauri/src/loopback.rs, src-tauri/src/browser.rs, src-tauri/src/lib.rs, src-tauri/src/sites.rs]
+sources: [core/src/auth.rs, core/build.rs, core/src/net.rs, archive/src-tauri/src/signin.rs, archive/src-tauri/src/loopback.rs, archive/src-tauri/src/browser.rs, archive/src-tauri/src/lib.rs, archive/src-tauri/src/sites.rs]
 updated: 2026-10-13
 ---
 # DeetsHealth — Sign-in

@@ -201,7 +201,7 @@ installer or downloaded whole. **Never a per-code lookup:** that would send a he
 and the user's IP address outside the wall (SECURITY.md §4).
 - **`directory`** — Epic's endpoint directory, the list for the site picker
   (DATA-ARCHITECTURE.md §2). A worker re-hosts it weekly; its shape is
-  [ENDPOINT-DIRECTORY.md](../integrations/ENDPOINT-DIRECTORY.md).
+  [ENDPOINT-DIRECTORY.md](../../archive/docs/integrations/ENDPOINT-DIRECTORY.md).
 - **`vocab`** — plain names for codes: RxNorm (drugs), LOINC (tests; it has a consumer-name
   field), UCUM (units), and MedlinePlus health-topic text. Which files, and how: fork 7.
 

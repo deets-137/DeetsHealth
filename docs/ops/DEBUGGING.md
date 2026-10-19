@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: none
-sources: [src-tauri/src/log.rs, src-tauri/src/fetch.rs, core/src/sync.rs, core/src/fhir.rs, core/src/dev.rs, src-tauri/src/dev_tools.rs, src-tauri/examples/inspect.rs, scripts/epic-redirect-check.mjs]
+sources: [archive/src-tauri/src/log.rs, archive/src-tauri/src/fetch.rs, core/src/sync.rs, core/src/fhir.rs, core/src/dev.rs, archive/src-tauri/src/dev_tools.rs, archive/src-tauri/examples/inspect.rs, archive/scripts/epic-redirect-check.mjs]
 updated: 2026-10-13
 ---
 # DeetsHealth — Debugging tools

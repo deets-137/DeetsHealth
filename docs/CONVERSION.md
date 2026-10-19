@@ -111,6 +111,37 @@ Each step is one commit; the tree builds after each one.
 5. **The first feature** (one load-bearing feature in flight): SMART Backend Services against
    the Epic sandbox, with `net.rs` and `fhir.rs`. Epic needs a backend app registration.
 
+### 5.1 As built (2026-10-19)
+> **Part:** built · 2026-10-19
+
+- **Step 1:** `docs/voice-agent-idea` merged into `main` (fast-forward, `073b9b3`). The tag
+  `patient-app-final` exists locally only: this session's git proxy refused the tag push
+  (HTTP 403). The branch `archive/patient-app` points at the same commit and is pushed. The
+  owner pushes the tag from his own machine:
+  `git tag -a patient-app-final 073b9b3 -m "The last patient-app commit" && git push origin patient-app-final`.
+- **Step 2, smaller than planned.** The code is more tangled than §3 assumed, so only the
+  clean cuts moved: all of `src-tauri/`, `app-icon.svg`, `scripts/dev-app.mjs`,
+  `scripts/epic-redirect-check.mjs`, `features/HOME-AND-HUBS.md`,
+  `integrations/ENDPOINT-DIRECTORY.md`, `ideas/IDENTITY-WORKER.md`.
+- **Held back, with the reason** (each moves with the work that replaces it):
+  - `core/src/store/`, `payload.rs`: `shielded.rs` names their passes (`CachePass`,
+    `CardPass`), and `fhir.rs` and `index.rs` use `store::Table` and `store::PatientRow`. They
+    move when the pass redesign lands (§4.1, first feature).
+  - `core/src/auth.rs`, `sync.rs`, `dev.rs`, `build.rs`, `epic-client.example.json`: they
+    move when Backend Services sign-in replaces them (step 5).
+  - The front-end files in §3.3: nearly every kept file imports `frames.ts` or
+    `boot-cover.ts` (`tokenMs`), `cards.ts` registers the patient cards, and
+    `settings-card.ts` reads `SiteView`. Untangling them is console design work, with its
+    forks. Until then the front end stays whole and keeps `@tauri-apps/api` so it compiles;
+    it does not run in a plain browser.
+  - The docs in §3.5 that describe kept code stay until step 4 rewrites them. Their links and
+    `sources` now point into `archive/`.
+- **Step 3:** the workspace builds `core` only; the build folder is `target/` at the root;
+  `package.json` lost `@tauri-apps/cli` and the `tauri`, `dev:*` and `inspect` scripts;
+  `vite.config.ts` lost the Tauri options and takes the next free port. Checks run:
+  `cargo check --workspace --all-features`, `cargo test` (35 passed), `npx tsc --noEmit`,
+  `npx vite build`, `npm run docs:check` (only the 3 sibling-repo facts fail, as before).
+
 ## 6. The new layout (a draft for the owner to edit)
 ```
 core/       Rust: the kept core (§4.1) — the FHIR client, normalizer, sealing, Shielded<T>

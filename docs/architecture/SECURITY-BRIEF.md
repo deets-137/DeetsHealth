@@ -1,7 +1,7 @@
 ---
 status: guide
 desk_test: none
-sources: [core/src/shielded.rs, core/src/seal.rs, core/src/platform.rs, src-tauri/src/cng.rs, src-tauri/src/keystore.rs, src-tauri/tauri.conf.json]
+sources: [core/src/shielded.rs, core/src/seal.rs, core/src/platform.rs, archive/src-tauri/src/cng.rs, archive/src-tauri/src/keystore.rs, archive/src-tauri/tauri.conf.json]
 updated: 2026-09-24
 ---
 # DeetsHealth — A brief for a security engineer
@@ -68,8 +68,8 @@ open. It can read the screen and the process memory. I plan to say that plainly 
 
 **Crypto policy.** Every primitive comes from the OS's FIPS 140-validated modules (CNG and
 SChannel). No third-party crypto crate, and no cipher, mode or key derivation of my own. All
-the `unsafe` FFI sits in two files: [cng.rs](../../src-tauri/src/cng.rs) and
-[keystore.rs](../../src-tauri/src/keystore.rs).
+the `unsafe` FFI sits in two files: [cng.rs](../../archive/src-tauri/src/cng.rs) and
+[keystore.rs](../../archive/src-tauri/src/keystore.rs).
 
 ## 5. The one idea I am proudest of (please poke at it)
 [core/src/shielded.rs](../../core/src/shielded.rs)
@@ -113,13 +113,13 @@ is it a real risk, is it worth fixing, and how would you do it?
 5. **SSD remnants.** A deleted key file may linger on an SSD. I lean on BitLocker / Device
    Encryption for freed blocks. Is that fair to say, or should I do more?
 6. **The CSP allows `style-src 'unsafe-inline'`**
-   ([tauri.conf.json](../../src-tauri/tauri.conf.json)). How much does that matter when no
+   ([tauri.conf.json](../../archive/src-tauri/tauri.conf.json)). How much does that matter when no
    script can run inline? Should I remove it?
 7. **Refresh tokens for a public client.** Until a health system lets me register a key per
    install (`private_key_jwt`), the app is a public client with PKCE. How much should that
    worry me?
-8. **The `unsafe` code.** A plain review of [cng.rs](../../src-tauri/src/cng.rs) and
-   [keystore.rs](../../src-tauri/src/keystore.rs) would mean a lot. It is my first real FFI
+8. **The `unsafe` code.** A plain review of [cng.rs](../../archive/src-tauri/src/cng.rs) and
+   [keystore.rs](../../archive/src-tauri/src/keystore.rs) would mean a lot. It is my first real FFI
    to CNG and DPAPI.
 
 And the open-ended one: **what did I miss entirely?**
@@ -148,7 +148,7 @@ Honest status, so you know what is real and what is paper:
    [SIGN-IN.md](SIGN-IN.md) §10 and [FETCH.md](FETCH.md) §13 — the network side.
 3. The code, in this order: [shielded.rs](../../core/src/shielded.rs),
    [seal.rs](../../core/src/seal.rs), [platform.rs](../../core/src/platform.rs),
-   [cng.rs](../../src-tauri/src/cng.rs), [keystore.rs](../../src-tauri/src/keystore.rs).
+   [cng.rs](../../archive/src-tauri/src/cng.rs), [keystore.rs](../../archive/src-tauri/src/keystore.rs).
 
 Checks you can run: `cargo test -p deetshealth-core`, `cargo check`, `cargo clippy`.
 

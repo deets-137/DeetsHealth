@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: none
-sources: [core/src/store/mod.rs, core/src/store/sqlite.rs, core/src/seal.rs, src-tauri/src/sites.rs, src-tauri/src/keystore.rs, src-tauri/src/cng.rs]
+sources: [core/src/store/mod.rs, core/src/store/sqlite.rs, core/src/seal.rs, archive/src-tauri/src/sites.rs, archive/src-tauri/src/keystore.rs, archive/src-tauri/src/cng.rs]
 updated: 2026-09-24
 ---
 # DeetsHealth — The sealed store

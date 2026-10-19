@@ -2,11 +2,23 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-10-13
+updated: 2026-10-19
 ---
 # DeetsHealth — Work log
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
+
+## 2026-10-19 — the pivot to a hospital phone agent; conversion steps 1–3
+- The owner asked for a voice-agent idea doc, then chose the phone agent run by hospitals:
+  [ideas/VOICE-AGENT.md](ideas/VOICE-AGENT.md). Researched Epic's Emmie and voice roadmap
+  (incoming voice AI in 2027), the vendors' BAAs, FHIR booking per EHR, Twilio
+  ConversationRelay versus Media Streams, and Pipecat.
+- Decided: phone agent; convert this repo; wedge W1 and W3 but every EHR from the start;
+  A2 deploy behind an interface; inbound first; results on the phone with guards; Cartesia;
+  Pipecat with Flows; Postgres with our sealing; no call audio by default; sandboxes with
+  record and replay, no local FHIR server for now.
+- Conversion steps 1–3 ([CONVERSION.md](CONVERSION.md) §5.1). The tag push was refused by
+  the session's git proxy (403); the branch `archive/patient-app` stands in for it.
 
 ## 2026-10-13 — the globals draft, from Camila's record
 - The owner asked whether Camila's exported record shows the shape of the globals to tune

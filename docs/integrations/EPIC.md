@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: none
-sources: [core/src/auth.rs, core/build.rs, epic-client.example.json, scripts/epic-redirect-check.mjs, src-tauri/src/signin.rs, src-tauri/src/lib.rs, .gitignore]
+sources: [core/src/auth.rs, core/build.rs, epic-client.example.json, archive/scripts/epic-redirect-check.mjs, archive/src-tauri/src/signin.rs, archive/src-tauri/src/lib.rs, .gitignore]
 updated: 2026-10-13
 ---
 # DeetsHealth — Epic: the registration and the sandbox sign-in

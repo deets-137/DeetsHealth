@@ -2,12 +2,22 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-10-13
+updated: 2026-10-19
 ---
 # DeetsHealth — Handoff
 
 > Cold-start guide — read first. This file holds what is still true. The history of each
 > sitting is [WORKLOG.md](WORKLOG.md).
+
+## State of play (2026-10-19)
+- **The conversion has started** ([CONVERSION.md](CONVERSION.md) §5.1). DeetsHealth becomes
+  the hospital phone agent ([ideas/VOICE-AGENT.md](ideas/VOICE-AGENT.md)). The Tauri host is
+  in `archive/`; the workspace builds the core only. The patient app is the branch
+  `archive/patient-app` (the tag `patient-app-final` waits for the owner's push).
+- Everything below this section describes the patient app and is history until step 4
+  rewrites this file.
+- **Next:** step 4, the docs (DESIGN, SECURITY, CLAUDE.md, HANDOFF) for the hospital product,
+  forks first.
 
 ## State of play (2026-10-13)
 - **Fresh eyes (2026-10-13).** The owner has an Epic FHIR account, a new M engine
@@ -16,7 +26,7 @@ updated: 2026-10-13
   test is still open (committed in `e2bb0a5` as a checkpoint).
 - **Next session (the owner, 2026-10-13): the app's layout.** He wants to redo much of the UI on
   the same base (the shell, tokens, skins, the card engine). Start from
-  [HOME-AND-HUBS.md](features/HOME-AND-HUBS.md) (real forks H3, H5; the shelf list is a
+  [HOME-AND-HUBS.md](../archive/docs/features/HOME-AND-HUBS.md) (real forks H3, H5; the shelf list is a
   draft) and the fork test (LESSONS.md §5).
 - **Waiting meanwhile: Epic's sandbox sync.** Run `node scripts/epic-redirect-check.mjs`. When
   it says "accepted", the owner runs the E-3 desk test (EPIC.md §5a).
@@ -150,7 +160,7 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
   review.
 - **Shell: Home and hubs.** Home unites the record for one patient. Its tiles drill into hub
   cards (visits, results, medicines, …), and each hub has levels in DeetsMusic's style (a
-  hero, rows, Back). Paper design: [HOME-AND-HUBS.md](features/HOME-AND-HUBS.md), forks
+  hero, rows, Back). Paper design: [HOME-AND-HUBS.md](../archive/docs/features/HOME-AND-HUBS.md), forks
   open.
 - **DeetsEngine: the "D-A + R-A lite + L-A" set.** The sealed SQLite store stays the record
   on disk (D-A). At open, the core unseals it into an in-memory DeetsEngine tree of globals,
@@ -168,7 +178,7 @@ The dev app is up when its output has `start: DeetsHealth` (read it with `grep -
 - **Next: Epic sandbox sign-in**, before card work. The fill-in sheet and the plan:
   [EPIC.md](integrations/EPIC.md).
 - **Planned, paper only: a Cloudflare identity worker** for tiered access (parent and
-  child, read-only and read-write): [ideas/IDENTITY-WORKER.md](ideas/IDENTITY-WORKER.md).
+  child, read-only and read-write): [ideas/IDENTITY-WORKER.md](../archive/docs/ideas/IDENTITY-WORKER.md).
 - **Web:** how ready the plan is for a web copy is DESIGN.md §6.4.
 
 ## Open now

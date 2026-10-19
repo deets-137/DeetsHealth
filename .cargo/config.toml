@@ -1,4 +1,4 @@
-# One build folder for the whole workspace, kept where the Tauri app always had it, so the
-# existing build cache and the .gitignore line still apply.
+# One build folder for the whole workspace, at the repo root (the Tauri host that held it is
+# archived: docs/CONVERSION.md).
 [build]
-target-dir = "src-tauri/target"
+target-dir = "target"

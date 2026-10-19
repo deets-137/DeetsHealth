@@ -27,6 +27,10 @@ NAME=area`, never by hand.
 `HANDOFF.md` · `WORKLOG.md` · `DOCS-ORG.md`.
 - `CONVERSION.md` — the plan to turn this repo into the hospital phone agent: what moves to `archive/`, what carries forward, the steps.
 
+**`archive/`** — the patient app, not built, not checked (`archive/README.md`): the Tauri host,
+its scripts, and the patient-only docs (`HOME-AND-HUBS.md`, `ENDPOINT-DIRECTORY.md`,
+`IDENTITY-WORKER.md`).
+
 **`docs/architecture/`** — the engine
 - `DATA-ARCHITECTURE.md` — the map: the path of the data from sign-in to the card, one line per step, each pointing to its doc.
 - `CORE-CRATE.md` — step 3: the core crate's modules, `Shielded<T>`, sealing and keys, sign-in, the fetch.
@@ -48,17 +52,12 @@ NAME=area`, never by hand.
   Edit the script, never the output. The probe prints shapes only, never a value.
 
 **`docs/integrations/`** — outside sources
-- `ENDPOINT-DIRECTORY.md` — Epic's Brands bundle (the real-site list), its shape, the weekly worker that re-hosts it.
 - `EPIC.md` — the fhir.epic.com registration sheet the owner fills in, the Epic sandbox, the sign-in plan and its forks.
-
-**`docs/features/`** — one feature or surface
-- `HOME-AND-HUBS.md` — the portal's layout: Home unites one patient's record, drills open hub cards with levels; forks.
 
 **`docs/ops/`** — build, ship, diagnose
 - `DEBUGGING.md` — the call ledger, the fetch summary, `npm run inspect` (the sealed-store inspector: words for any site, full data for a sandbox), recipes, what the first Epic fetch showed.
 
 **`docs/ideas/`** — not built; never tell a user the app does these.
-- `IDENTITY-WORKER.md` — a Cloudflare worker for accounts, devices and tiered sharing (parent and child, read-only and act); zero-knowledge relay; forks.
 - `VOICE-AGENT.md` — a hospital-run phone agent (scheduling, chart questions) that this repo will convert to; Epic's Emmie and voice roadmap; the wedge; forks.
 
 ## Privacy rules (this project only — read before any code)

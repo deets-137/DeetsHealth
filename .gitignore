@@ -6,8 +6,8 @@ logs
 *.log
 
 # Rust
-src-tauri/target/
-src-tauri/.tauri.dev.gen.json
+/target/
+archive/src-tauri/target/
 
 # Secrets and PHI — never commit
 .env*

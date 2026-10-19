@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [core/src/sync.rs, core/src/fhir.rs, core/src/net.rs, src-tauri/src/fetch.rs]
+sources: [core/src/sync.rs, core/src/fhir.rs, core/src/net.rs, archive/src-tauri/src/fetch.rs]
 updated: 2026-09-24
 ---
 # DeetsHealth — The fetch

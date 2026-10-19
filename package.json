@@ -7,21 +7,14 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri",
-    "dev:app": "node scripts/dev-app.mjs",
-    "dev:perf": "node scripts/dev-app.mjs --perf",
-    "dev:built": "node scripts/dev-app.mjs --built",
-    "dev:fresh": "node scripts/dev-app.mjs --fresh",
     "tokens": "node scripts/tokens.mjs",
     "types": "node scripts/types.mjs",
-    "docs:check": "node scripts/docs-check.mjs",
-    "inspect": "cargo run -q -p deetshealth --features dev --example inspect --"
+    "docs:check": "node scripts/docs-check.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
     "vite": "^6.0.3",
     "typescript": "~5.6.2"
   }
