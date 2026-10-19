@@ -291,7 +291,75 @@ to the call loop never touches them.
 callers will want Spanish first. Check Cartesia's multilingual STT (Ink-Whisper) for Spanish
 before version 1, or plan a second STT for it.
 
-## 9. Sources
+### 8.7 The store
+Decided 2026-10-19: **Postgres, with our own sealing on top** (the owner: "Postgres with our
+build on top of it"). One database per hospital (F2 A2); managed Postgres runs under the BAA
+of every large cloud, so F2 B needs no change.
+- **The store never holds the record.** The chart lives in memory for one call (§8.1).
+- **What it holds:** the hospital's settings; the call log (time, length, Flow path, outcome,
+  latency per step); transcripts; the audit trail (each FHIR read per call, each staff view
+  of a transcript or recording); recordings, when on (below).
+- **Sealed per field** with `seal.rs`, bound to table, row and column, under the hospital's
+  own key in the cloud KMS (BYOK). Columns used to search and sort stay plain and carry no
+  protected data: time, outcome, Flow node, latency.
+- **Secrets are never in Postgres:** the backend-services private key and vendor keys live in
+  the KMS or the cloud's secret manager.
+- **The Rust `ehr` service owns the store.** Pipecat sends it events; it never writes the
+  database itself. `Shielded<T>` and sealing stay in one language.
+- **Transcripts kept 30 days by default** (a draft value for the owner to edit); the hospital
+  sets its own.
+
+**Call audio** (D1, decided 2026-10-19: A): **not stored by default.** The owner: "an option
+to do so (configurable by rules or hospital admin, also for debug and audit work)".
+- **Who turns it on:** a hospital admin in the console, for the whole hospital or by rule.
+  Draft rules: a share of calls (for quality review); calls that end in a hand-off or an
+  error; one phone line or Flow node; a debug window that ends by itself at a set time.
+- **Each recording** is sealed like any field, in object storage (S3 or Azure Blob) under the
+  hospital's key, with its own retention. The audit trail records who turned recording on,
+  which rule caught the call, and who played it.
+- **Consent:** some US states need every party to agree to a recording. When any rule can
+  record a call, the greeting says so ("this call may be recorded") before the caller speaks.
+- **Debug recordings in our dev accounts:** synthetic calls only (§9).
+
+## 9. Test and debug tooling
+> **Part:** idea · 2026-10-19
+
+Local first, cheap first. Dev accounts with Cartesia, Anthropic and Twilio get synthetic data
+only. These are kept tools (LESSONS.md §3.11), not one-off checks.
+
+**No local FHIR server for now** (the owner: "skip 1 and just use 2", and "keep in mind
+efficiency"). The SMART and Epic sandboxes are the FHIR source. Two rules keep that efficient:
+- **Record once, replay always.** A recorder captures each sandbox reply the first time
+  (synthetic patients, so the replies may be kept in the repo). Everyday tests replay them:
+  no network, milliseconds a test, and no load on Epic's sandbox. Live sandbox runs happen
+  only when an adapter changes, or by hand.
+- **Booking runs against a fake.** The sandboxes are shared and their scheduling setup is
+  fixed, so an automated suite cannot book freely there. A small in-memory `Scheduler`
+  (open slots, book, move, cancel) stands in for tests. Live booking is checked by hand on the
+  Epic sandbox, once its `$find`/`$book` support is confirmed.
+- HAPI FHIR with Synthea comes back only when the first non-Epic adapter needs real FHIR
+  writes (for example Oracle Health's `POST /Appointment`).
+
+**The layers, cheapest first** (build order: 3, 4, 5, 7, then 6, then 8):
+
+| # | Tool | Tests | Cost |
+|---|---|---|---|
+| 2 | The sandboxes, through record and replay | Real shapes, Backend Services sign-in, the Epic adapter | Free |
+| 3 | A text-only call harness: the real Flow, text in and out | The Flow graph, the verify gate, tool calls, wording | Claude tokens |
+| 4 | Simulated callers: Claude plays a caller from a persona card | Edge cases, the §7.1 rules; becomes the test suite | Claude tokens |
+| 5 | A fake Twilio: a local client that speaks Media Streams (8 kHz μ-law) from WAV files | Our serializer, the 8 kHz path, timed barge-in, Cartesia in and out | Cartesia minutes |
+| 6 | Call against call: layer 4's caller speaks through TTS into layer 5 | The whole call, both sides speaking (nightly) | Claude and Cartesia |
+| 7 | Talk to it: Pipecat's local WebRTC transport and the laptop microphone | How the call feels; the owner's desk test | Cartesia minutes |
+| 8 | A Twilio trial number and a tunnel | The real phone network, last | About $1 a month, about $0.013 a minute |
+
+**Across the layers:**
+- **A call timeline:** one trace per call, each step with its latency, in a local
+  OpenTelemetry viewer (Jaeger in Docker).
+- **Record and replay for the vendors too:** the STT result per audio file and Claude's reply
+  per unchanged prompt are cached, so everyday runs cost nothing; the nightly run is live.
+- **A PHI-free log processor** in the pipeline from day one.
+
+## 10. Sources
 - [Epic — Emmie for Patients](https://www.epic.com/software/emmie/)
 - [Epic on X — Introducing Emmie](https://x.com/HeyEpic/status/1957844340882936118)
 - [Becker's — Community Health Network launches Emmie](https://www.beckershospitalreview.com/healthcare-information-technology/ehrs/community-health-network-launches-epics-emmie-in-mychart/)
