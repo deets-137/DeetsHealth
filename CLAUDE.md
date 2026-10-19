@@ -58,6 +58,7 @@ NAME=area`, never by hand.
 
 **`docs/ideas/`** — not built; never tell a user the app does these.
 - `IDENTITY-WORKER.md` — a Cloudflare worker for accounts, devices and tiered sharing (parent and child, read-only and act); zero-knowledge relay; forks.
+- `VOICE-AGENT.md` — push-to-talk voice over the record: on-device speech, a router that only routes, template answers; values out loud; forks.
 
 ## Privacy rules (this project only — read before any code)
 - **Priority: patient experience first, privacy and security second, everything else after.**
