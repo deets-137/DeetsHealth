@@ -25,6 +25,7 @@ NAME=area`, never by hand.
 
 **`docs/`** — `DESIGN.md` product intent · `LESSONS.md` the owner's lessons ·
 `HANDOFF.md` · `WORKLOG.md` · `DOCS-ORG.md`.
+- `CONVERSION.md` — the plan to turn this repo into the hospital phone agent: what moves to `archive/`, what carries forward, the steps.
 
 **`docs/architecture/`** — the engine
 - `DATA-ARCHITECTURE.md` — the map: the path of the data from sign-in to the card, one line per step, each pointing to its doc.
