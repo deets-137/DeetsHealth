@@ -15,7 +15,7 @@ updated: 2026-09-24
 
 ## 1. Terms
 - **Core** — the crate `deetshealth-core`. It has no Tauri dependency, so it can also compile
-  to WebAssembly (DESIGN.md §6).
+  to WebAssembly (PATIENT-APP-DESIGN.md §6).
 - **Host** — the Tauri app in `src-tauri`. It supplies the platform parts (§3).
 - **Index columns** — the facts taken from a resource to fill its row and its links: kind,
   code, dates, references (DATA-MODEL.md §3). They are sealed like every other protected value.

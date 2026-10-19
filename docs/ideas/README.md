@@ -7,28 +7,12 @@ updated: 2026-10-19
 # Ideas — not built
 
 The docs in this folder describe features that do not exist in DeetsHealth. Do not tell a
-user that the app can do any of these things.
+hospital or a patient that the agent can do any of these things. The patient app's ideas are
+[archive/PATIENT-APP-IDEAS.md](../archive/PATIENT-APP-IDEAS.md).
 
-- Proxy access (a parent or caregiver reads another person's record). Epic's own proxy sign-in
-  already works with one site per patient; sharing inside DeetsHealth, with tiers, is
-  [IDENTITY-WORKER.md](../../archive/docs/ideas/IDENTITY-WORKER.md).
-- A hospital-run phone agent: it schedules visits and answers questions from the chart. This
-  repo will convert to it ([VOICE-AGENT.md](VOICE-AGENT.md)).
-- Several sites in one view (two health systems, one timeline).
-- A MyChart file import (C-CDA XML) for people whose site has no working API.
-- An on-device small model — Cactus Needle 3 (the owner, 2026-09-21). 8–29 MB, Apache-2.0,
-  tool calling, structured extraction and embeddings, engines for Windows and the browser.
-  Runs in-process, so the record stays on the PC. Candidate uses, lowest risk first: Compass
-  words to a card and filter; search by meaning ("kidney" finds creatinine); suggesting
-  groups for lab names with no code. Never for dose text or any value the user reads.
-  Planned shape (the owner, 2026-09-21): a layer on Compass that handles ambiguous asks;
-  typed Compass works without it.
-- Lab companies as sites: Quest and Labcorp (2026-09-21). Neither has a documented open
-  patient SMART API the way Epic does. Quest has a login-gated developer portal and a FHIR
-  API for its Quanum EHR product; Labcorp has a patient registration page on
-  `fhir.labcorp.com` (the host returned 503 when checked) and sends results to Apple Health.
-  Most results already reach the ordering clinic's EHR, so the same result can arrive twice:
-  de-duplication would be needed.
-- Filling a missing reference range (the owner, 2026-09-21). Sites give a range for only
-  about half of lab results, and ranges differ between hospitals. Any filled range must
-  say where it came from and never pass as the site's own. Ranges depend on age and sex.
+- **Outbound calls** (decided for after inbound, VOICE-AGENT.md §7): reminders, confirmations,
+  check-in calls after discharge. Epic reports outbound answer rates of about 15–30 percent.
+- **Spanish and other languages.** Cartesia's Ink-2 is English only (VOICE-AGENT.md §8.6).
+- **Running on Epic's Agent Factory** once Epic opens external connectors (VOICE-AGENT.md §5).
+- **Other health products in this repo** (the owner, 2026-10-19: "if we ever get more health
+  products / ideas can stay in this repo").

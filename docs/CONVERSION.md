@@ -9,7 +9,7 @@ updated: 2026-10-19
 > Paper only: no file has moved. The owner (2026-10-19): "plan out the conversion, what
 > existing files should be moved into archive/ … keep UI pieces for the management interface
 > and the API calls / learnings to carry forward". The product is
-> [ideas/VOICE-AGENT.md](ideas/VOICE-AGENT.md).
+> [ideas/VOICE-AGENT.md](architecture/VOICE-AGENT.md).
 
 ## 1. Terms
 - **Archive** — `archive/` at the repo root. It holds the patient app's files at their old
@@ -141,6 +141,14 @@ Each step is one commit; the tree builds after each one.
   `vite.config.ts` lost the Tauri options and takes the next free port. Checks run:
   `cargo check --workspace --all-features`, `cargo test` (35 passed), `npx tsc --noEmit`,
   `npx vite build`, `npm run docs:check` (only the 3 sibling-repo facts fail, as before).
+
+- **Step 4, first pass (2026-10-19), with DeetsMusic as the model** (the owner: "use DeetsMusic
+  as my holy grail for my dev process and doc structure"): new DESIGN.md, HANDOFF.md and
+  CLAUDE.md in DeetsMusic's shape; the old DESIGN, HANDOFF and idea list archived as
+  `archive/PATIENT-APP-*.md`; DeetsMusic's archive rule (`docs/archive/`, status `archived`)
+  added to DOCS-ORG.md §5 and to `docs-check.mjs`; the three archived docs moved from
+  `archive/docs/` to `docs/archive/`; VOICE-AGENT.md moved to `architecture/`. Open:
+  SECURITY.md and the docs that follow it (HANDOFF.md › Open now).
 
 ## 6. The new layout (a draft for the owner to edit)
 ```

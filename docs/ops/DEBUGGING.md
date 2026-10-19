@@ -36,7 +36,7 @@ updated: 2026-10-13
 
 Next (not built): Settings › Diagnostics for users (the last fetch in words, Copy a report),
 after the layout work; a "Report a problem" form with the identity worker; an agent route only
-once the wall is designed for it (DESIGN.md §3).
+once the wall is designed for it (PATIENT-APP-DESIGN.md §3).
 
 ## 3. The call ledger
 One `INFO` line per HTTP call of a fetch, as it ends (the numbers below are illustrative):

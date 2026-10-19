@@ -1,5 +1,5 @@
 ---
-status: project
+status: archived
 desk_test: none
 sources: []
 updated: 2026-09-21

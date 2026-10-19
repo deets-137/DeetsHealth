@@ -1,5 +1,5 @@
 ---
-status: idea
+status: archived
 desk_test: none
 sources: []
 updated: 2026-10-13
@@ -9,7 +9,7 @@ updated: 2026-10-13
 > Not built, not designed: forks open (§7). The owner (2026-10-13): "setup cloudflare workers to
 > do better identity and security verification for a tiered access setup (imagine parent /
 > child, or read-only vs read-write permissions, etc)". Do not tell a user the app does this.
-> It changes DESIGN.md §5 ("No cloud copy") only under option W1-C, which is not recommended.
+> It changes PATIENT-APP-DESIGN.md §5 ("No cloud copy") only under option W1-C, which is not recommended.
 
 ## 1. Terms
 - **Worker** — a Cloudflare Worker: our code on Cloudflare's servers. Created and deployed
@@ -76,7 +76,7 @@ device. A worker only links one person's devices (a sealed backup and settings).
 privacy. Covers no caregiver without a MyChart proxy.
 
 **W1-C. A cloud copy of the record (not recommended).** The worker stores the record and checks
-tiers on each read. This breaks DESIGN.md §5 and SECURITY.md §4.1, brings breach duties, and
+tiers on each read. This breaks PATIENT-APP-DESIGN.md §5 and SECURITY.md §4.1, brings breach duties, and
 puts every user's record in one place to attack.
 
 ## 6. Identity: how strong
@@ -98,7 +98,7 @@ puts every user's record in one place to attack.
 ## 7. Forks (for the owner, when this comes up)
 The owner asked how many of the first six forks were real (2026-10-13). Four were not:
 - **The architecture is the zero-knowledge relay** (§5, W1-A). The cloud copy breaks a decided
-  non-goal (DESIGN.md §5). No sharing worker does not give the tiered access he asked for.
+  non-goal (PATIENT-APP-DESIGN.md §5). No sharing worker does not give the tiered access he asked for.
 - **The worker's store is Durable Objects with DeetsEngine globals.** The engine already has a
   Durable Object backend, and he built it to be the data structure of new work.
 - **When:** after the Epic sign-in and the first hubs. The one-feature rule decides it
@@ -118,6 +118,6 @@ The real forks:
 - **Windows:** device keys from CNG, wrapped by DPAPI, as the site keys are (SECURITY.md §4.6).
 - **Web:** WebCrypto non-extractable keys. The web app talks to the same worker. The worker
   also serves the web app's static files, so the code the browser runs and the relay share one
-  deploy. DESIGN.md §6 names the risk: a changed host could serve changed code.
+  deploy. PATIENT-APP-DESIGN.md §6 names the risk: a changed host could serve changed code.
 - **macOS and iPhone:** the Keychain and the Secure Enclave hold the device key. Passkeys are
   native.

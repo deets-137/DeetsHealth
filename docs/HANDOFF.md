@@ -6,267 +6,112 @@ updated: 2026-10-19
 ---
 # DeetsHealth — Handoff
 
-> Cold-start guide — read first. This file holds what is still true. The history of each
-> sitting is [WORKLOG.md](WORKLOG.md).
+> Cold-start guide — read first. This file holds what is still true: run, **Open now**, state of
+> play, gotchas, decisions, file map. Corrected in place. The record of each sitting is
+> [WORKLOG.md](WORKLOG.md). The product is [DESIGN.md](DESIGN.md). The patient app's handoff
+> is [archive/PATIENT-APP-HANDOFF.md](archive/PATIENT-APP-HANDOFF.md).
 
-## State of play (2026-10-19)
-- **The conversion has started** ([CONVERSION.md](CONVERSION.md) §5.1). DeetsHealth becomes
-  the hospital phone agent ([ideas/VOICE-AGENT.md](ideas/VOICE-AGENT.md)). The Tauri host is
-  in `archive/`; the workspace builds the core only. The patient app is the branch
-  `archive/patient-app` (the tag `patient-app-final` waits for the owner's push).
-- Everything below this section describes the patient app and is history until step 4
-  rewrites this file.
-- **Next:** step 4, the docs (DESIGN, SECURITY, CLAUDE.md, HANDOFF) for the hospital product,
-  forks first.
-
-## State of play (2026-10-13)
-- **Fresh eyes (2026-10-13).** The owner has an Epic FHIR account, a new M engine
-  (`../DeetsEngine`) and a much larger DeetsMusic to model the look on. New direction:
-  Decided (2026-10-13) below. The next build is the Epic sandbox sign-in. Stage 7's desk
-  test is still open (committed in `e2bb0a5` as a checkpoint).
-- **Next session (the owner, 2026-10-13): the app's layout.** He wants to redo much of the UI on
-  the same base (the shell, tokens, skins, the card engine). Start from
-  [HOME-AND-HUBS.md](../archive/docs/features/HOME-AND-HUBS.md) (real forks H3, H5; the shelf list is a
-  draft) and the fork test (LESSONS.md §5).
-- **Waiting meanwhile: Epic's sandbox sync.** Run `node scripts/epic-redirect-check.mjs`. When
-  it says "accepted", the owner runs the E-3 desk test (EPIC.md §5a).
-
-## State of play (2026-09-24)
-- **The empty shell is built** (scaffold steps 1–2): the Tauri app, the title bar (title menu,
-  cog and quick panel, window buttons), all themes and skins, Midi and Max, the card slots,
-  swap, grow, memory, the Settings card, and six empty record cards. No record data, no
-  sign-in. Desk test passed 2026-09-21 ([SURFACES-AND-CARDS.md §4](architecture/SURFACES-AND-CARDS.md)).
-- Git: the remote is `origin`, the private repo `deets-137/DeetsHealth` (2026-10-13). Push
-  only when the owner asks. The old iOS repo of that name is now `deets-137/DeetsHealthiOS`.
-- **Next session starts here** (the owner's order, 2026-09-21): scaffold step 3, the web-ready
-  core crate, then step 4, the Compass shell. Design each on paper first and bring the forks.
-  - The core crate (Decided › Web-ready core) holds the normalizer, the health model and the
-    sealing, with no Tauri dependency. It turns FHIR JSON into the model; it is not all of
-    "getting the data". Sign-in, the key store, the cache and opening a browser sit behind
-    small platform interfaces. **The HTTP fetch lives in the core** (the owner, 2026-09-21):
-    one fetch for desktop and web.
-  - The paper design for step 3 starts with the data structure: the health model types the
-    cards read (`LabResult`, `Medication`, `Allergy`, `Condition`, `Encounter`, the patient),
-    the wrapper type, and the sealed cache's tables. FHIR-SHAPES.md is the input.
-  - **The cache's tables are on paper** in [DATA-MODEL.md](architecture/DATA-MODEL.md):
-    the encounter at the center, one link table for every reference, raw resources kept
-    sealed and normalized at read time. Forks 1–6 decided 2026-09-21. Open: fork 7 (the
-    bundled code-name files) and fork 8 (which columns stay plain, decided at build).
-  - **Step 3 is on paper** in [CORE-CRATE.md](architecture/CORE-CRATE.md): forks 1–7, 9, 10
-    decided 2026-09-21 (the end state is sign-in + fetch + sealed cache on SMART, shown in
-    a Settings › Sites row; `Shielded<T>`; one key and file per site; Windows CNG and
-    SChannel). Forks 8a and 11a, the Sites section (S1–S6) and the build order closed the
-    same day. **Stages 1–7 built** (CORE-CRATE.md §12; sign-in, a full fetch, the index and
-    the links pass live tests against the SMART sandbox; reference docs: SIGN-IN.md, FETCH.md,
-    INDEX-AND-LINKS.md, STORE.md). The card models wait for each
-    card's design (the owner, at stage 6). **Stage 7 (2026-09-24): `ts-rs` and Settings ›
-    Sites (S1–S6), built, desk test open** (CORE-CRATE.md §12, "Stage 7 desk test"). The
-    sign-out erase came with it (S5), a stage early. Before the desk test the owner starts
-    `npm run dev:app` from his own terminal once, so the `deetshealth-dev://` scheme lands in
-    the real registry. **Next: stage 8** (refresh on open, the weekly full refresh), after
-    the desk test.
-  - Step 5, the release path up to (not including) the worker, comes after these two.
-
-## Run
+## Run it
+There is no app to run yet: the conversion is in progress ([CONVERSION.md](CONVERSION.md)).
+What runs today:
 ```
 npm install
-npm run dev:app       # a free port from 1420 up; the dev identifier com.deetshealth.dev
-npm run dev:fresh     # the same, as a first-time user (run it from your own terminal)
-npx tsc --noEmit      # front-end type check
-npm run docs:check    # links, mentions, § pointers, front matter
+npx tsc --noEmit      # front-end type check (it compiles; it does not run in a browser yet)
+npx vite build        # front-end bundle
+npm run docs:check    # links, mentions, § pointers, front matter, the archive rule
 npm run tokens        # regenerate docs/architecture/TOKENS.md after a token change
 npm run types         # regenerate src/model/ (TypeScript) from core/src/payload.rs
-npm run inspect -- --shapes             # dev only: what a site's sealed store holds (ops/DEBUGGING.md §5; run it outside the Claude app)
-node scripts/epic-redirect-check.mjs   # does Epic's sandbox know our redirect URI yet? (EPIC.md §3)
+cargo check --workspace --all-features
 cargo test -p deetshealth-core --features sqlite                  # core tests + compile-fail proofs
-cargo test -p deetshealth --lib                                   # host tests: CNG, DPAPI, the plaintext scan
-cargo test -p deetshealth --lib -- --ignored --nocapture          # live: sign-in (~7 calls) and a full fetch (~165 calls), SMART sandbox
 cargo check -p deetshealth-core --target wasm32-unknown-unknown   # core stays web-ready
 ```
-The dev app is up when its output has `start: DeetsHealth` (read it with `grep -a`).
+The build folder is `target/` at the repo root (it was `src-tauri/target/`).
 
-## Decided (the owner, 2026-09-21)
-1. **Scaffold:** copy DeetsMusic's Tauri skeleton, then strip what does not apply.
-2. **Sign-in return:** ~~a custom deep-link scheme (`deetshealth://callback`)~~. **Replaced
-   2026-10-13 (the owner): a loopback listener, `http://127.0.0.1:<port>/callback`**
-   (RFC 8252 §7.3; SIGN-IN.md §6). Epic's sign-in page blocks a custom scheme in Edge
-   (EPIC.md §3).
-3. **First slice:** labs, meds, allergies for one or two sandbox patients (Camila Lopez first).
-4. **Cache:** SQLite on disk.
-- **Two sandbox sites in one app** (added the same day): Epic's sandbox and SMART Health IT's
-  public sandbox (`launch.smarthealthit.org`). Both go through the same sign-in and the same
-  normalizer. SMART's sandbox needs no registration, so it is the first site sign-in can
-  run against end to end.
-- **Security and privacy** (same day; full text [SECURITY.md](architecture/SECURITY.md)):
-  priority is patient experience, then privacy and security, then the rest. The wall covers
-  PII as well as PHI. Encrypted end to end. The cache is encrypted by our own crate over
-  audited primitives. A wrapper type seals every protected value at parse time. Sign-out
-  and uninstall delete the data. Epic sign-in: test dynamic client registration first.
-- **API probe** (same day): a kept script, `scripts/fhir-probe.mjs`, prints each resource's
-  shape per site. The findings go in `architecture/FHIR-SHAPES.md`, with a full list of the
-  resources Epic documents on open.epic.com.
-
-- **Encryption crate shape** (same day, fork 7a): each protected value is sealed just before
-  it is written to SQLite and unsealed just after it is read back, straight into the
-  wrapper type. AES-GCM per value, with the row's key as associated data. SQLite still shows
-  table names and row counts; sealed columns are sorted in Rust, not SQL. SECURITY.md §4.6.
-- **Labs show the site's own reference range** (same day, 8.2a). Ranges differ between
-  hospitals, so a range belongs to its result, never to a test in general. When a site gives
-  no range, the card shows the value without one. How to fill a missing range is later
-  design work ([ideas](ideas/README.md)).
-- **From `Patient`, keep only name, birth date and sex** (same day, 8.1b). All else is
-  dropped at parse. Age and the like are computed at runtime, never stored.
-- **Scaffold, how** (same day, 6A a): start from an empty Tauri app and bring DeetsMusic
-  files in one at a time, each read and checked against SECURITY.md §4 on the way in. The
-  owner is also open to copy-then-clean, with the same care. What comes across:
-  - **Engine, as is:** `vite.config.ts`, `tsconfig.json`, `scripts/dev-app.mjs`, `tokens.mjs`,
-    `docs-check.mjs`, `docs-move.mjs`; `palette.css`, `themes.css`, `skin.css`, fonts;
-    `theme.ts`, `skin.ts`, `pop.ts`, `toast.ts`, `hint.ts` (drop its `credits` tie), `diag.ts`,
-    `frames.ts` (the card engine imports it), `dropdown`, `context-menu`, `slider`; Rust
-    `lib.rs` shell, single-instance and deep-link plugins, `settings.rs`, `log.rs`,
-    `watchdog.rs`, `dbhealth.rs`. `diag.ts` and `log.rs` get a line-by-line wall check.
-  - **Engine, music taken out:** `layout.ts`, `surface.ts` (no Mini), `card-grow`,
-    `card-swap`, `card-memory`, `collection-card.ts` (imports player, queue, pins, row-drag),
-    `settings-store.ts`, `settings-card.ts`; `cards.ts` and `main.ts` rewritten.
-  - **Never:** every music and social module, `bridge.rs`, `query.rs`, `report.rs`, `cli/`,
-    `extension/`. `apple.rs`, `provider.rs`, `model.rs`, `library.rs` are replaced by the
-    FHIR fetch, the health model and the sealed cache.
-- **No tray** (same day, 6B a). The app is Windows-native for now, but is designed so it
-  can become a web app later (DESIGN.md §6).
-- **Release path scaffolded now** (same day, 6C): the updater plugin, signing and release
-  scripts come across, and stop **before** creating or deploying any worker, so the path
-  can be turned on later. Making the updater's signing key pair is asked for at that step.
-- **Web-ready core** (same day, 6B follow-up): the normalizer, the health model and the
-  sealing live in a Rust crate with no Tauri dependency, so it can also compile to
-  WebAssembly. Platform parts (key store, sign-in return, cache, opening a browser) sit
-  behind small interfaces. If a web version needs a server, a secure cloud provider (Azure,
-  AWS or similar) is acceptable to the owner; that is its own fork when it comes.
-- **Compass shell with the scaffold** (same day, 6D a): places, Settings rows and commands,
-  rebuilt on DeetsHealth's cards (DeetsMusic's `compass.ts` imports ~35 music modules and
-  cannot be copied; `compass-math.ts` comes as is). Search inside the record comes after
-  the first cards. Needle 3 is planned as a later layer on Compass for ambiguous asks
-  (ideas/README.md).
-- **Dose text** (same day, 8.3a): built from the structured parts. The owner has ideas for
-  it; bring them in at build time.
-- **The shell** (same day): DeetsMusic's Midi and Max shapes, with the Patient card where Now
-  Playing is and the Timeline card where the Queue is (pickable in Midi, anchored in Max).
-  Max's fourth default card is a new Conditions card. The title bar has the cog and quick
-  panel. First look: Lilac × Press (light), Moonlight × Glass (dark). SURFACES-AND-CARDS.md.
-
-## Decided (the owner, 2026-10-13: "fresh eyes")
-- **Scope: a true patient portal, read-only, with a model designed for writes later.** Every
-  normalized type keeps what a later write needs (the site, the FHIR id, the version).
-  Messages and appointment requests are later work. Each needs its own scopes and Epic's
-  review.
-- **Shell: Home and hubs.** Home unites the record for one patient. Its tiles drill into hub
-  cards (visits, results, medicines, …), and each hub has levels in DeetsMusic's style (a
-  hero, rows, Back). Paper design: [HOME-AND-HUBS.md](../archive/docs/features/HOME-AND-HUBS.md), forks
-  open.
-- **DeetsEngine: the "D-A + R-A lite + L-A" set.** The sealed SQLite store stays the record
-  on disk (D-A). At open, the core unseals it into an in-memory DeetsEngine tree of globals,
-  which is a derived view rebuilt at each open, so it needs no migration. **R-A lite** (the
-  owner, 2026-10-13, replacing R-A): values are plain strings inside the engine, wiped when
-  they drop; the guards are DeetsHealth's typed wrapper at the boundary (`Shielded` in and
-  out, a new pass) and redacted engine reports (today `NotUnique` carries its values,
-  `DeetsEngine/src/error.rs`). R-A full (a generic value type in the engine) was too large a
-  rework. The tree stays in memory while the app is open (L-A); an idle drop is a later
-  Settings row. **DeetsEngine builds the base layer first, ahead of its stage 1:** a memory
-  store and redacted reports, requested in `../DeetsEngine/docs/ideas/deetshealth-needs.md`.
-  **DeetsHealth's own globals are designed here,** with the owner, once that exists. Until
-  then the cards read the built store. The draft, from Camila's record and the owner's note
-  on panels and microbiology: [GLOBALS.md](architecture/GLOBALS.md) (the owner, 2026-10-13: G1 A, one global per kind; G2 A, one value, one record).
-- **Next: Epic sandbox sign-in**, before card work. The fill-in sheet and the plan:
-  [EPIC.md](integrations/EPIC.md).
-- **Planned, paper only: a Cloudflare identity worker** for tiered access (parent and
-  child, read-only and read-write): [ideas/IDENTITY-WORKER.md](../archive/docs/ideas/IDENTITY-WORKER.md).
-- **Web:** how ready the plan is for a web copy is DESIGN.md §6.4.
+## Ship it
+Nothing ships yet. The deploy is A2: a separate deploy per hospital in our cloud, behind an
+interface (VOICE-AGENT.md §7.2).
 
 ## Open now
-5. **Epic — back on** (2026-10-13). The registration form is filled in, and the owner has a
-   non-production client ID. **E-2 is built** (the Epic sandbox in the Connect menu, from
-   `epic-client.json` at build time; [EPIC.md](integrations/EPIC.md) §5a). Next: the owner
-   writes `epic-client.json`, then runs the E-3 desk test (§5a), which also runs the first
-   Epic fetch. The registration lists both redirect URIs.
-   **E-3, first try (2026-10-13):** the sign-in and consent worked, but Epic's page could not
-   hand the browser to `deetshealth-dev://` (its CSP `form-action *` blocks a custom scheme;
-   EPIC.md §3). **The loopback return is built** (`loopback.rs`; the scheme, its registry
-   writes and the deep-link plugin are gone; SIGN-IN.md §6), not yet desk-tested. The owner
-   added `http://127.0.0.1/callback` to the registration; Epic accepted it at 17:41, but only
-   with no port: **Epic matches the port exactly** (EPIC.md §3). So the app tries ports 80,
-   42813, 46219 in order (`loopback::PORTS`). Port 80 works now; the owner registers the two
-   fallback URIs. **E-3 passed (2026-10-13):** Camila signed in; the first Epic fetch stored 296
-   rows of 12 types in 32 calls. **E-4 tools built** (the call ledger, the fetch summary,
-   `npm run inspect`; ops/DEBUGGING.md). What the fetch showed, and the fixes it points to
-   (CarePlan's categories, Outside Record APIs, 54 missing referenced records):
-   ops/DEBUGGING.md §7. The CarePlan category fallback is built (FETCH.md §5.2); a refused
-   category is "not served", not a failure, which a Refresh has not yet confirmed live. All
-   merged into `main` (2026-10-13). Open from the fetch: why Outside Record data is
-   suppressed although its APIs are selected; the 54 missing referenced records (stage 8).
-6. **Scaffold** — steps 1–2 built and desk-tested. Steps 3–5 to come (State of play).
-9. **App icon** — `app-icon.svg` is a placeholder (a plain card shape). `npx tauri icon
-   app-icon.svg` makes the set; the real icon is the owner's call.
-8. **Computed sex** — parked until the build. Direction set: display `gender`; calculations
-   use a sex computed from several factors at runtime (FHIR-SHAPES.md §5, fork 4).
-10. **The fixes after stage 6 — built, for the owner's desk test** (2026-09-21;
-    CORE-CRATE.md §12 › Fixes after stage 6): padding and schema 2 (STORE.md), the
-    Observation fallback and the `next`-link check (FETCH.md), automatic re-index by version
-    (INDEX-AND-LINKS.md §10), and one `app-error` event with a toast for every failure
-    (ERRORS.md). **Open: the toast wording in ERRORS.md §3 is a draft for the owner** (three
-    more codes since stage 7). Committed in `0061887`.
-11. **Stage 7 — built, for the owner's desk test** (2026-09-24). Choices made inside S1–S6,
-    for the owner to confirm: the Connect pill reads **Choose**; the five counts are
-    results = `Observation`, medicines = `MedicationRequest` + `MedicationStatement`,
-    allergies, conditions, visits = `Encounter`; a kind with 0 is left out of the line;
-    **Sign in** on a dead site renews it in place for the same patient and makes a new site
-    for another patient; Sign out is refused while the site fetches; a success toast after
-    Sign out. Not committed.
+### The conversion (CONVERSION.md §5)
+- **Push the tag** `patient-app-final` from the owner's machine. This session's git proxy
+  refused it (HTTP 403); the branch `archive/patient-app` stands in (CONVERSION.md §5.1).
+- **Step 4, the docs.** Done: DESIGN.md, HANDOFF.md, CLAUDE.md, the archive rule. Open:
+  SECURITY.md (forks first), then SECURITY-BRIEF.md, CORE-CRATE.md, `integrations/EPIC.md`,
+  `ops/DEBUGGING.md`, and LESSONS.md's patient-app lessons.
+- **Step 5, the first feature:** SMART Backend Services against the Epic sandbox. Epic needs a
+  backend app registration.
+- **Held back from the archive**, each moving with the work that replaces it (CONVERSION.md
+  §5.1): `core/src/store/`, `payload.rs` (the pass redesign); `auth.rs`, `sync.rs`, `dev.rs`,
+  `build.rs`, `epic-client.example.json` (Backend Services); the patient-only front-end files
+  (the console's design).
 
-## Gotchas
-- Epic's sandbox data is small and tidy. Real site data is not.
-- A production client ID takes time to reach each health system after registration.
-- Refresh-token lifetime is set per site. Plan for "sign in again".
-- Several Deets* apps run at once on this PC. Never hard-code a dev port.
-- **Registry writes from a Claude desktop session are not real** (DeetsMusic, 2026-09-13).
-  The Claude app is an MSIX package, so its shells and any dev app they start write
-  `HKCU\Software\Classes` into a private hive. Edge cannot see a scheme registered that way.
-  Sign-in no longer uses a scheme (2026-10-13), so this no longer touches it. Check the real
-  registry from a WMI-started process (`../DeetsMusic/docs/ops/DEBUGGING.md` §Sign-in).
-- **A sign-in return must be `http` or `https`.** Epic's sign-in page sets `form-action *`,
-  which blocks a redirect to any custom scheme in Chromium browsers (EPIC.md §3).
-- **No sign-in inside WebView2.** The SMART sign-in opens in the system browser, as
-  DeetsMusic's does. Do not try to move it into an in-app popup.
-- **No inline script.** The CSP (`tauri.conf.json`) allows none, so the theme pre-paint is a
-  file, `public/prepaint.js`. Keep its defaults in step with `theme.ts` and `skin.ts`.
-- **The wall in the engine** (SECURITY.md §4). Hover hints are written hints only (no row
-  hints); the context menu logs a row's place, never its label; diag logs an error's kind,
-  never its message; the Rust panic hook withholds the message; the log cuts every URL's
-  query string. Keep all five when a card fills.
+### His to design or decide
+- **SECURITY.md for a server product** (DESIGN.md §2 G).
+- **The console** (DESIGN.md §2 C, D): what it shows, staff sign-in, which looks it keeps.
+- **The repo layout** (CONVERSION.md §6, a draft).
+- **The agent's words, name and voice** (DESIGN.md §2 B).
+- **Transcript retention**, 30 days by default (a draft value, VOICE-AGENT.md §8.7).
+
+### To find out
+- Epic's sandbox: does it serve `Appointment/$find` and `$book`? (VOICE-AGENT.md §8.4)
+- Which refill and message actions Epic exposes to a backend app (VOICE-AGENT.md §4).
+- Cartesia's multilingual speech-in for Spanish (VOICE-AGENT.md §8.6).
+- Each vendor's BAA and zero-retention terms, in writing (VOICE-AGENT.md §8.2).
+- The cost per call minute (DESIGN.md §2 I).
+
+### Tooling to bring across from DeetsMusic
+- **`npm run check`** (tsc, tests, docs:check, cargo check, cargo test) and the pre-push hook
+  that runs it (`../DeetsMusic/.githooks/pre-push`).
+- **Unit tests on pure logic**: `tests/*.test.ts` on Node's own runner, no test dependency.
+
+## State of play (2026-10-19)
+- **The pivot.** DeetsHealth is now the hospital phone agent (DESIGN.md). Every fork for the
+  product so far is closed (VOICE-AGENT.md §7).
+- **Conversion steps 1–3 are done** (CONVERSION.md §5.1): the Tauri host and the patient-only
+  scripts are in `archive/`; the workspace builds `core` only; the archived docs are in
+  `docs/archive/` with status `archived`.
+- **Built and kept:** the core crate's FHIR client, normalizer, sealing and `Shielded<T>`
+  (CORE-CRATE.md), and the front-end toolkit (tokens, themes, skins, primitives, the card
+  engine).
+- **Nothing of the phone agent is built yet.**
+
+## Known gotchas
+- **A cloud session cannot push a tag** (git proxy, HTTP 403, 2026-10-19). Branches push.
+- **`../DeetsMusic` in a cloud session.** The Tauri DeetsMusic is the repo
+  `deets-137/DeetsMusicWindows` (public). `deets-137/DeetsMusic` is an older Swift app. Clone
+  DeetsMusicWindows and link it as `../DeetsMusic`, or the docs check fails the README link.
+- **`../DeetsEngine` is not in a cloud session**, so `GLOBALS.md`'s two sources fail the docs
+  check there. They pass on the owner's machine.
+- **The front end compiles but does not run in a plain browser**: it still calls Tauri until
+  the console's design untangles it (CONVERSION.md §5.1).
+- **Epic's sandbox data is small and tidy.** Real site data is not.
+- **Several Deets* apps run at once on the owner's PC.** Never hard-code a dev port; Vite takes
+  the next free one from 1420.
+- **The wall in the engine** (SECURITY.md §4): hover hints are written hints only; the context
+  menu logs a row's place, never its label; diag logs an error's kind, never its message. Keep
+  all of them in the console.
+
+## Key decisions (the "why")
+- **The phone agent** (2026-10-19): the owner's call; the research is VOICE-AGENT.md §3–§5.
+- **Every EHR from the start**: the Epic code exists, and the wedge is non-Epic hospitals
+  (VOICE-AGENT.md §7).
+- **A2 deploy, swappable to B**: one way to patch, the isolation a security review asks for
+  (VOICE-AGENT.md §7.2).
+- **Pipecat, our own loop on Media Streams**: Twilio ConversationRelay has no Cartesia, and the
+  caller notices turn-taking first (VOICE-AGENT.md §8.6).
+- **Postgres with our sealing**: it runs under every large cloud's BAA, so the deploy can move
+  (VOICE-AGENT.md §8.7).
+- **The record lives one call long**: no chart cache to protect (VOICE-AGENT.md §8.1).
 
 ## File map
-- `core/` — the web-ready core crate (CORE-CRATE.md): `shielded.rs` (the wrapper and the two
-  passes), `platform.rs` (Cipher, KeyStore, OpenBrowser, SiteKey), `seal.rs` (the sealed
-  format), `store/` (row types; `sqlite.rs`, the sealed SQLite store, feature `sqlite`),
-  `net.rs` (the third pass and the HTTP client), `auth.rs` (SMART sign-in and refresh),
-  `fhir.rs` (type → table, capability, scopes, reading a page), `index.rs` (index columns and
-  references from a raw resource), `sync.rs` (the fetch, link resolution, `reindex`),
-  `error.rs`, and `payload.rs` (`CardPass`; the Sites payloads and the event types, with
-  `ts-rs` under the `ts` feature). The workspace `Cargo.toml` is at the repo root.
-- `src-tauri/src/cng.rs` (AES-256-GCM, random, SHA-256 from Windows CNG) and `keystore.rs`
-  (per-site keys wrapped by DPAPI): every `unsafe` crypto call in the app. `sites.rs`: one
-  store file and one key per site; create, open, list, erase; the `sites_list` and
-  `site_sign_out` commands. `signin.rs`: the waiting sign-in (Connect, or a saved site's
-  Sign in), the returning link, the commands; `browser.rs`: opens https:// in the system browser.
-  `fetch.rs`: runs the fetch off the UI thread after sign-in; `site_refresh`; progress events;
-  `check_sites` at start. `errors.rs`: the one `app-error` event (ERRORS.md); the page side
-  is `src/app-errors.ts`.
-- `src/main.ts` — boot and the title bar. `src/layout.ts` — the slots per surface.
-  `src/surface.ts` — Midi / Max and the resize bands. `src/cards.ts` — the registry.
-  `src/record-cards.ts` — the empty record cards. `src/settings-card.ts` — Settings (Sites
-  first). `src/sites.ts` — the Sites state, commands and events. `src/model/` — generated
-  by `npm run types`; never edit it by hand.
-  `src/quick-panel.ts` — the cog. The rest of `src/` is DeetsMusic's engine, cut to fit.
-- `src-tauri/src/` — `lib.rs` (setup, the scheme, commands), `log.rs` (the rolling log and its
-  wall), `window.rs` (the launch show, the window position), `settings.rs`, `watchdog.rs`.
-- `scripts/` — `dev-app.mjs`, `docs-check.mjs`, `docs-move.mjs`, `tokens.mjs`, and
-  `fhir-probe.mjs` (prints each resource's shape, never a value; `--write` makes
-  `docs/architecture/probes/<site>.md`).
+- `core/` — the core crate (CORE-CRATE.md): `shielded.rs` (the wrapper and its passes),
+  `net.rs` (HTTP to the EHR, `parse_reply`, the call ledger), `fhir.rs` (capability, scopes,
+  one page of a search), `index.rs` (the normalizer: index columns and links), `seal.rs` (the
+  sealed format), `platform.rs` (the `Cipher` trait), `error.rs`. Held back until replaced:
+  `auth.rs`, `sync.rs`, `store/`, `payload.rs`, `dev.rs`, `build.rs`.
+- `src/` — the front-end toolkit for the console: the primitives (`toast`, `hint`,
+  `dropdown`, `slider`, `context-menu`, `pop`), the looks (`theme`, `skin`, `appearance`,
+  `styles/`), settings, and the card engine (`cards`, `layout`, `card-grow`, `card-swap`,
+  `card-memory`, `surface`). `src/model/` is generated by `npm run types`.
+- `scripts/` — `docs-check.mjs`, `docs-move.mjs`, `tokens.mjs`, `types.mjs`, `fhir-probe.mjs`.
+- `archive/` — the patient app's code (`archive/README.md`). `docs/archive/` — its docs.

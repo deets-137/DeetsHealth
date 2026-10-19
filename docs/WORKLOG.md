@@ -10,7 +10,7 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 
 ## 2026-10-19 — the pivot to a hospital phone agent; conversion steps 1–3
 - The owner asked for a voice-agent idea doc, then chose the phone agent run by hospitals:
-  [ideas/VOICE-AGENT.md](ideas/VOICE-AGENT.md). Researched Epic's Emmie and voice roadmap
+  [ideas/VOICE-AGENT.md](architecture/VOICE-AGENT.md). Researched Epic's Emmie and voice roadmap
   (incoming voice AI in 2027), the vendors' BAAs, FHIR booking per EHR, Twilio
   ConversationRelay versus Media Streams, and Pipecat.
 - Decided: phone agent; convert this repo; wedge W1 and W3 but every EHR from the start;
@@ -19,6 +19,9 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   record and replay, no local FHIR server for now.
 - Conversion steps 1–3 ([CONVERSION.md](CONVERSION.md) §5.1). The tag push was refused by
   the session's git proxy (403); the branch `archive/patient-app` stands in for it.
+- Step 4, first pass, with DeetsMusic as the model (`deets-137/DeetsMusicWindows`; the public
+  `deets-137/DeetsMusic` is an older Swift app): DESIGN.md, HANDOFF.md and CLAUDE.md rewritten
+  in its shape; its archive rule ported. SECURITY.md waits for its forks.
 
 ## 2026-10-13 — the globals draft, from Camila's record
 - The owner asked whether Camila's exported record shows the shape of the globals to tune
@@ -51,7 +54,7 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   trait is sync, but WebCrypto is async.
 - New docs: `integrations/EPIC.md` (the sheet he fills in, the plan, forks E0–E3),
   `features/HOME-AND-HUBS.md` (the layout; after review, real forks H3 and H5), `ideas/IDENTITY-WORKER.md` (tiered
-  access over a Cloudflare worker; after review, real forks W2 and W3). New DESIGN.md §6.4 (web readiness).
+  access over a Cloudflare worker; after review, real forks W2 and W3). New PATIENT-APP-DESIGN.md §6.4 (web readiness).
 - No code changed. Stage 7's desk test is still open, and its work is still not committed.
 - The owner asked how many of the 12 layout and worker forks were real. 4 were. He asked for
   the evaluation style in writing: new LESSONS.md §5 (the fork test) and two tie-breaker rows,
@@ -200,7 +203,7 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - Built stage 2: `seal.rs` (format byte; table, row and column in the associated data),
   `cng.rs` (CNG AES-256-GCM, RNG, SHA-256), `keystore.rs` (DPAPI-wrapped key per site).
   19 tests pass, including the GCM specification's vectors and a flipped-bit test per byte.
-- DESIGN.md §6.1–6.3: the owner's rule that every fork weighs every platform (also in
+- PATIENT-APP-DESIGN.md §6.1–6.3: the owner's rule that every fork weighs every platform (also in
   CLAUDE.md), and notes for macOS and iPhone. The one real limit found: a Mac app has no
   uninstaller, so uninstall cannot erase there.
 - Built stage 3: the store (`core/src/store/`, rusqlite 0.32 bundled behind a `sqlite`
@@ -275,14 +278,14 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - The owner closed 7a (per-value sealing, to and from SQLite), 8.2a (the site's own range;
   filling missing ranges goes to ideas), 8.3a (build dose text; his ideas at build time).
   8.1 is re-asked with "keep" defined and a new recommendation (name, birth date, sex).
-- DESIGN.md §1 now says handling messy data well is the app's point of difference.
+- PATIENT-APP-DESIGN.md §1 now says handling messy data well is the app's point of difference.
 - The owner closed 8.1b: keep name, birth date, sex; compute the rest at runtime. Listed
   SMART's Patient extension URLs and identifier types (no values) to name what is dropped.
   New open fork: which field is "sex" (FHIR-SHAPES.md §5.4).
 - Sex parked with a direction: display `gender`, compute a clinical sex from several
   factors at runtime.
 - Fork 6 read against DeetsMusic's imports and closed in part: 6A empty app + one-by-one
-  import, 6B no tray + web-ready design (DESIGN.md §6), 6C release path scaffolded up to
+  import, 6B no tray + web-ready design (PATIENT-APP-DESIGN.md §6), 6C release path scaffolded up to
   the worker. 6D (Compass) re-opened by the owner. `frames.ts` must come with the engine.
 - Cactus Needle 3 read and noted in ideas/README.md.
 - The owner closed the web-ready split (a; a secure cloud provider is acceptable if a web
@@ -309,7 +312,7 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - DOCS-ORG.md: the status table, part markers, the HANDOFF / WORKLOG rule.
 - HANDOFF.md: three sign-in gotchas; a note on dev vs release redirect URIs under fork 5.
 - Not brought over: playback, graphics measurement, release and publishing, workers, the
-  agent / MCP routes (DESIGN.md §3 rules them out until the PHI wall is designed).
+  agent / MCP routes (PATIENT-APP-DESIGN.md §3 rules them out until the PHI wall is designed).
 
 ## 2026-09-21 — the project folder
 - Made `Documents/DeetsHealth` with README, CLAUDE.md and the first docs, and a local git repo

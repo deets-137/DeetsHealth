@@ -4,7 +4,7 @@
 //   2. every mention names a real file  "HANDOFF.md" in prose or `code`, by basename
 //   3. every section pointer resolves   "SECURITY.md §4.3" → a heading numbered 4.3 in SECURITY.md
 //   4. front matter present and valid   the fields and values of DOCS-ORG.md §2
-//  11. nothing in ideas/ is above `idea`
+//  11. nothing in ideas/ is above `idea`; docs/archive/ holds the archived docs and only them
 // DeetsMusic's checks 5 (versions), 18 (generated copies) and 19 (shipped links) come when
 // this repo has releases and generated copies.
 //
@@ -28,13 +28,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const STATUS = ["shipped", "built", "designed", "project", "parked", "idea", "foundation", "sop", "guide"];
+const STATUS = ["shipped", "built", "designed", "project", "parked", "idea", "foundation", "sop", "guide", "archived"];
 const KEYS = ["status", "shipped_in", "desk_test", "sources", "updated", "generated"];
 // A path that starts with one of these points into another repo, and is not ours to check.
 const OTHER_REPO = /^(\.\.\/(?!src|docs|scripts|README|CLAUDE)|Deets[A-Za-z]+\/)/;
 // Another repo named in prose: any Deets* name but this app's own.
 const NAMES_REPO = /\bDeets(?!Health\b)[A-Z][A-Za-z]+|\bdeets\.solutions\b|\bdeets-137\//;
-const PLANS = ["project", "designed", "idea"];
+// An archived doc (DOCS-ORG.md §5) is a record: like a plan, it may name files that are gone.
+const PLANS = ["project", "designed", "idea", "archived"];
 
 const read = (p) => readFileSync(join(ROOT, p), "utf8").replace(/\r\n/g, "\n");
 const tracked = () => execFileSync("git", ["ls-files", "-co", "--exclude-standard"], { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
@@ -123,15 +124,16 @@ export function check() {
     for (const k of Object.keys(fm)) if (!KEYS.includes(k)) fail(4, file, 1, `unknown key "${k}"`);
     if (!STATUS.includes(fm.status)) fail(4, file, 1, `status "${fm.status ?? ""}" is not one of ${STATUS.join(" ")}`);
     if (fm.status === "shipped" && !fm.shipped_in) fail(4, file, 1, "status shipped needs shipped_in");
-    if (fm.shipped_in && fm.status !== "shipped") fail(4, file, 1, `shipped_in with status ${fm.status}`);
+    if (fm.shipped_in && fm.status !== "shipped" && fm.status !== "archived") fail(4, file, 1, `shipped_in with status ${fm.status}`);
     if (!/^(none|open|passed \d{4}-\d{2}-\d{2})$/.test(fm.desk_test ?? "")) fail(4, file, 1, `desk_test "${fm.desk_test ?? ""}" — none, open or passed <date>`);
     if (!fm.generated && !/^\d{4}-\d{2}-\d{2}$/.test(fm.updated ?? "")) fail(4, file, 1, `updated "${fm.updated ?? ""}" is not a date`);
     const src = /^\[(.*)\]$/.exec(fm.sources ?? "");
     if (!src) fail(4, file, 1, "sources is not a [list]");
-    else for (const s of src[1].split(",").map((x) => x.trim()).filter(Boolean)) {
+    else if (fm.status !== "archived") for (const s of src[1].split(",").map((x) => x.trim()).filter(Boolean)) {
       if (!existsSync(join(ROOT, s))) fail(4, file, 1, `source ${s} does not exist`);
     }
     if (file.startsWith("docs/ideas/") && fm.status !== "idea") fail(11, file, 1, `in ideas/ with status ${fm.status} — move it out of ideas/`);
+    if (file.startsWith("docs/archive/") !== (fm.status === "archived")) fail(11, file, 1, `status ${fm.status} — archived docs, and only they, live in docs/archive/`);
   }
 
   return { facts, docs: docs.length };

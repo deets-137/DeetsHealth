@@ -39,7 +39,7 @@ The security path of one value, end to end, is SECURITY.md §8.2.
 Moved to [SIGN-IN.md](SIGN-IN.md) (the flow, the constants, the SMART launcher, the link on
 Windows). The sandbox sites today: SMART Health IT (live) and Epic (on hold). Real sites
 come later from Epic's endpoint directory
-([ENDPOINT-DIRECTORY.md](../../archive/docs/integrations/ENDPOINT-DIRECTORY.md)); every site-specific fact
+([ENDPOINT-DIRECTORY.md](../archive/ENDPOINT-DIRECTORY.md)); every site-specific fact
 comes from the site's `smart-configuration`, never from our code.
 
 ## 3. Tokens

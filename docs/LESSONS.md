@@ -84,7 +84,7 @@ explains a failure.
   and no bare codes. Settings rows follow the label style: verb-first label, pills of three
   words or fewer, one-sentence hint.
 - Privacy is the PHI wall, with no exceptions. Logs carry counts and resource types only.
-- The app shows what the record says. It never adds advice, a diagnosis or alarm (DESIGN.md §5).
+- The app shows what the record says. It never adds advice, a diagnosis or alarm (PATIENT-APP-DESIGN.md §5).
 - Reduced motion means no motion (a snap), not a softer motion.
 
 ### 3.5 Keep what the user already knows
@@ -153,7 +153,7 @@ real forks. Each one cost him time to read and reject.
    because it is more work, more code or a harder design (§3.7).
 
 ### 5.2 Drop an option when
-- it breaks a stop rule (§2), a non-goal (DESIGN.md §5), a decided item (HANDOFF.md ›
+- it breaks a stop rule (§2), a non-goal (PATIENT-APP-DESIGN.md §5), a decided item (HANDOFF.md ›
   Decided) or a working-style rule (CLAUDE.md, for example one load-bearing feature at a time);
 - his own words already choose it. Take the literal reading (§4);
 - the code rules it out. Test it against the code first;
@@ -169,7 +169,7 @@ ask in one line whether the rule still holds. The full text is in the global CLA
 ### 5.3 Then sort what is left
 | What is left | It is | How to show it |
 |---|---|---|
-| Two or more options that pass | **A real fork** | Ask. Your recommendation first, at most three options, each with its cost on each platform (DESIGN.md §6.1). |
+| Two or more options that pass | **A real fork** | Ask. Your recommendation first, at most three options, each with its cost on each platform (PATIENT-APP-DESIGN.md §6.1). |
 | One option | **Not a fork** | Do not ask. One line: what follows and why ("Durable Objects: the engine already runs there"). |
 | A list for him to edit (shelves, tiers, wording) | **A draft** | Show it apart from the forks, as "edit this". |
 | A choice for later work | **Not now** | Keep it in that feature's doc. Ask when that work starts. |

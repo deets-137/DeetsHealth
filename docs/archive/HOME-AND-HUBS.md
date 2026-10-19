@@ -1,5 +1,5 @@
 ---
-status: project
+status: archived
 desk_test: none
 sources: [src/layout.ts, src/cards.ts, src/record-cards.ts]
 updated: 2026-10-13

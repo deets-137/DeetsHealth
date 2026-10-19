@@ -1,17 +1,17 @@
 ---
-status: idea
+status: project
 desk_test: none
 sources: []
 updated: 2026-10-19
 ---
-# Idea — a hospital-run phone agent
+# The hospital phone agent — research, decisions, the stack
 
-> Not built, not designed: forks open (§7). Do not tell a user the app does this.
-> The owner (2026-10-19): a phone agent, "changing scope of deets health entirely. Meant to be
-> implemented and maintained by hospitals with us building and maintaining the tech stack",
-> "dedicated to help schedule and answer direct questions from the chart". **This repo will be
-> converted** (fork F1 B), but not yet: this doc is the idea only. Until the conversion starts,
-> DESIGN.md, SECURITY.md and CLAUDE.md still describe the patient app and still hold.
+> Not built. The record of how the product was chosen: the research, every fork and its
+> answer, the stack. The product intent and the v1 scope are [DESIGN.md](../DESIGN.md); this doc
+> holds the detail it points to. The owner (2026-10-19): a phone agent, "changing scope of deets
+> health entirely. Meant to be implemented and maintained by hospitals with us building and
+> maintaining the tech stack", "dedicated to help schedule and answer direct questions from
+> the chart". This repo is being converted ([CONVERSION.md](../CONVERSION.md)).
 
 ## 1. Terms
 - **Phone agent** — software that answers a patient's phone call (or makes one), speaks, and
@@ -97,7 +97,7 @@ store on the PC, DPAPI keys, the patient's SMART sign-in.
 ## 6. What follows (not forks)
 - **HIPAA binds us.** A BAA with each hospital, and with every vendor of ours that touches PHI:
   the phone carrier, speech to text, the language model, the cloud.
-- **The non-goals of the patient app go** (DESIGN.md §5): a server hears PHI, and booking is a
+- **The non-goals of the patient app go** (PATIENT-APP-DESIGN.md §5): a server hears PHI, and booking is a
   write to the EHR. The conversion rewrites DESIGN.md and SECURITY.md.
 - **The caller's identity is checked before the agent says any PHI.**
 - **A person is always one step away.** Emergency words transfer the call at once. No

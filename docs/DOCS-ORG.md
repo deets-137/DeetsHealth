@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-09-21
+updated: 2026-10-19
 ---
 # DeetsHealth — Docs organization
 
@@ -16,7 +16,8 @@ and that one differ, this file wins for DeetsHealth.
    WORKLOG.md.** A desk test is a record of a day. A gotcha is still true. CLAUDE.md holds
    no state.
 4. Area folders: `architecture/` (the engine), `cards/`, `features/`, `integrations/`,
-   `ops/`, `ideas/` (not built). Make a folder when its first doc arrives.
+   `ops/`, `ideas/` (not built), `archive/` (a record, §5). Make a folder when its first doc
+   arrives.
 5. A new doc gets one line in CLAUDE.md.
 6. Where a doc has an "as built" section, it is the code; the design above it is history.
 7. No real PHI in any doc. Sandbox patient names are fine; they are public fakes.
@@ -45,6 +46,7 @@ updated: 2026-09-21
 | `foundation` | the engine the features run on |
 | `sop` | a standard operating procedure: how the work is done |
 | `guide` | written for the user |
+| `archived` | no longer needed; kept as a record. Everything in `archive/` (§5) |
 
 ## 3. Part markers
 When one doc holds parts in different states, front matter gives the state of the part that
@@ -60,6 +62,22 @@ names the open forks: `> **Part:** project · 2026-09-21 · forks §9.6`. A head
 marker has the doc's own status.
 
 ## 4. Tooling
-`npm run docs:check` (links, § pointers, front matter) and `scripts/docs-move.mjs` (move a
-doc and re-point every link) come across from DeetsMusic with the scaffold. Once they exist:
-run `docs:check` after any doc edit, and never move a doc by hand.
+`npm run docs:check` (links, mentions, § pointers, front matter, the ideas and archive rules)
+and `scripts/docs-move.mjs` (move a doc and re-point every link). Run `docs:check` after any
+doc edit, and never move a doc by hand.
+
+## 5. The archive (DeetsMusic's DOCS-ORG.md §5.3, 2026-10-19)
+A doc that no one needs any more moves to `docs/archive/` with
+`node scripts/docs-move.mjs NAME=archive`, and its status becomes `archived`. Nothing is
+deleted. Before the move, every item in it that is still open goes to its doc or to
+HANDOFF.md › Open now, so the archive holds no open work. The checker treats an archived doc
+as a record: its `sources` and the files it names may be gone. Every doc in `docs/archive/`
+says `archived`, and only they do (check 11).
+
+**Code that is no longer built** goes to `archive/` at the repo root, at its old path
+(`src-tauri/x.rs` → `archive/src-tauri/x.rs`), with `git mv`. The workspace and the checks leave
+it out (`archive/README.md`). This is DeetsHealth's own rule: DeetsMusic has no archived code.
+
+A doc whose name a new doc takes (the patient app's DESIGN.md and HANDOFF.md, 2026-10-19) is
+archived under a prefixed name, `archive/PATIENT-APP-DESIGN.md`, by `git mv`, and its links
+are re-pointed by hand.

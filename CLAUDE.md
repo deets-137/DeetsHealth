@@ -1,95 +1,122 @@
 # DeetsHealth — project guide for Claude
 
-A lightweight patient health-record viewer for Windows 11 (Tauri v2 + WebView2, vanilla TS
-front end, Rust back end). A sibling of `../DeetsMusic`: copy its structure, its docs
-system and its habits unless a doc here says otherwise.
+A phone agent that a hospital runs for its patients: it books visits and answers direct
+questions from the chart (Twilio, Cartesia, Pipecat, the Anthropic API, FHIR; a Rust core; a
+web console). Being converted from a patient health-record viewer for Windows
+(`docs/CONVERSION.md`). **DeetsMusic is the model for the dev process and the docs** (the owner,
+2026-10-19): where this file has no rule, follow `../DeetsMusic/CLAUDE.md`.
 
 ## Start here
-- **`docs/HANDOFF.md`** — cold start: state of play, **Open now**, gotchas. Corrected in place.
-- **`docs/WORKLOG.md`** — one dated `##` per sitting, newest first. Never correct an old entry.
+- **`docs/HANDOFF.md`** — cold start: run, **Open now** (everything not finished), state of
+  play, gotchas, file map. Corrected in place.
+- **`docs/WORKLOG.md`** — the record of each sitting, newest first. Add one dated `##` per
+  sitting; never correct an old entry.
 - **`docs/LESSONS.md`** — what the owner tends to want: the mission, the stop rules, the
-  lessons, the tie-breakers. It shapes the option you RECOMMEND. It never closes a fork.
-  Read `../DeetsMusic/docs/TASTE.md` with it (local only, never quote it in a doc or commit).
-- **`docs/DESIGN.md`** — product intent, the two surfaces, what differs from DeetsMusic.
-- **`docs/DOCS-ORG.md`** — how the docs are organized (a short copy of DeetsMusic's rules).
+  lessons, the tie-breakers, the fork test. It shapes the option you RECOMMEND. It never closes
+  a fork. Read `../DeetsMusic/docs/TASTE.md` with it (local only, never quote it in a doc or
+  commit).
+- **`docs/DESIGN.md`** — product intent, the two surfaces, what is decided, the v1 scope.
+- **`docs/DOCS-ORG.md`** — how the docs are organized (DeetsMusic's rules, short).
 
 ## The docs
 **State lives in each doc, never in this file.** Every doc starts with front matter:
-`status` (shipped · built · designed · project · parked · idea · foundation · sop · guide),
-`shipped_in` (only when shipped), `desk_test`, `sources`, `updated`. A part of a doc with its
-own state carries a part marker under its heading: `> **Part:** designed · 2026-09-21`.
+`status` (shipped · built · designed · project · parked · idea · foundation · sop · guide ·
+archived), `shipped_in` (only when shipped), `desk_test`, `sources`, `updated`. A part of a doc
+with its own state carries a part marker under its heading: `> **Part:** designed · 2026-09-21`.
 Where a doc has an "as built" section, read it first: where it disagrees with the design
 above it, it is the code. A new doc gets front matter (DOCS-ORG.md §2) and one line below.
-Run `npm run docs:check` after any doc edit. Move a doc with `node scripts/docs-move.mjs
-NAME=area`, never by hand.
+- `npm run docs:check` after any doc edit.
+- Move a doc with `node scripts/docs-move.mjs NAME=area`, never by hand. A doc no one needs
+  goes to `docs/archive/` the same way (DOCS-ORG.md §5).
+- Generated docs — edit the source, never the output: `architecture/TOKENS.md` by
+  `npm run tokens`; `architecture/probes/<site>.md` by `node scripts/fhir-probe.mjs`.
 
-**`docs/`** — `DESIGN.md` product intent · `LESSONS.md` the owner's lessons ·
+**`docs/`** — `DESIGN.md` product intent and the v1 scope · `LESSONS.md` the owner's lessons ·
 `HANDOFF.md` · `WORKLOG.md` · `DOCS-ORG.md`.
-- `CONVERSION.md` — the plan to turn this repo into the hospital phone agent: what moves to `archive/`, what carries forward, the steps.
+- `CONVERSION.md` — turning this repo into the phone agent: what moved to `archive/`, what
+  carries forward, the steps; §5.1 is the as-built record.
 
-**`archive/`** — the patient app, not built, not checked (`archive/README.md`): the Tauri host,
-its scripts, and the patient-only docs (`HOME-AND-HUBS.md`, `ENDPOINT-DIRECTORY.md`,
-`IDENTITY-WORKER.md`).
+**`docs/archive/`** — docs no longer needed, kept as a record (`status: archived`).
+`PATIENT-APP-DESIGN.md` and `PATIENT-APP-HANDOFF.md` — the patient app's design and handoff.
+`PATIENT-APP-IDEAS.md` — its idea list. `HOME-AND-HUBS.md` — the patient portal's layout. `ENDPOINT-DIRECTORY.md` — Epic's Brands
+bundle and the worker that re-hosts it. `IDENTITY-WORKER.md` — the patient-sharing worker idea.
+
+**`archive/`** (repo root) — the patient app's code, not built, not checked
+(`archive/README.md`): the Tauri host, its scripts. The whole app is the branch
+`archive/patient-app`.
 
 **`docs/architecture/`** — the engine
-- `DATA-ARCHITECTURE.md` — the map: the path of the data from sign-in to the card, one line per step, each pointing to its doc.
-- `CORE-CRATE.md` — step 3: the core crate's modules, `Shielded<T>`, sealing and keys, sign-in, the fetch.
-- `SIGN-IN.md` — sign-in step by step: every constant and where to change it, the SMART launcher's setup array, the link on Windows, log lines, troubleshooting.
-- `FETCH.md` — the fetch step by step: the plan, every constant, retries and stops, warning codes, events, log lines, measured cost, troubleshooting.
-- `DATA-MODEL.md` — the cache's tables, the encounter at the center, the link table, where every FHIR type goes.
-- `INDEX-AND-LINKS.md` — for card design: the table of each type, the `kind` words, the code field, dates, code systems, every link role, re-index.
-- `GLOBALS.md` — a draft: DeetsHealth's globals in DeetsEngine, from Camila's record; one value, one record; panels and microbiology; G1 A and G2 A decided.
-- `ERRORS.md` — the one `app-error` event: every failure code, where it comes from, and its toast.
-- `STORE.md` — the sealed store: the files on disk, the schema, what the file shows, sealing, the `Store` trait, erase.
-- `SURFACES-AND-CARDS.md` — Midi and Max, the cards, the shell as built, its desk test.
+- `VOICE-AGENT.md` — the phone agent: the research (Epic's Emmie, the vendors, FHIR booking per
+  EHR), every fork and its answer (§7), the stack (§8: the call path, BAAs, the model, the call
+  loop, the store), the test tooling (§9).
+- `CORE-CRATE.md` — the core crate's modules, `Shielded<T>`, sealing and keys, sign-in, the
+  fetch. Written for the patient app; its rewrite is open (HANDOFF.md › Open now).
+- `DATA-MODEL.md` — the normalized model, the encounter at the center, the link table, where
+  every FHIR type goes (its cache tables are the patient app's).
+- `INDEX-AND-LINKS.md` — the table of each type, the `kind` words, the code field, dates, code
+  systems, every link role.
+- `FHIR-SHAPES.md` — what each FHIR resource looks like at each site, from the probe; Epic's 60
+  resource types; the normalizer rules that follow.
+- `probes/<site>.md` — generated by `node scripts/fhir-probe.mjs --site <site> --write`. Edit
+  the script, never the output. The probe prints shapes only, never a value.
+- `SECURITY.md` — the priority order, protected data, the threats, the rules, the wrapper type,
+  keys, the law. Written for the patient app; its rewrite for a server product is open (forks
+  first).
+- `SECURITY-BRIEF.md` — the one-pager for an outside security engineer (the patient app's).
+- `ERRORS.md` — the one `app-error` event and its codes (the patient app's; the pattern
+  carries).
+- `GLOBALS.md` — a draft: DeetsHealth's globals in DeetsEngine, from Camila's record. Waits on
+  the store (Postgres, VOICE-AGENT.md §8.7).
+- `SURFACES-AND-CARDS.md` — the card engine and the shell as built (the console's toolkit).
 - `TOKENS.md` — every token (generated by `npm run tokens`; never edit it by hand).
-- `SECURITY.md` — the priority order, protected data (PHI + PII), the threats, the fixed
-  rules, the wrapper type, keys, deletion, the law.
-- `SECURITY-BRIEF.md` — the one-pager for an outside security engineer: the tour, the ask, the open questions.
-- `FHIR-SHAPES.md` — what each FHIR resource looks like at each site, from the probe;
-  Epic's 60 resource types; the normalizer rules that follow.
-- `probes/<site>.md` — generated by `node scripts/fhir-probe.mjs --site <site> --write`.
-  Edit the script, never the output. The probe prints shapes only, never a value.
+- The patient app's sign-in, fetch, store and data map, kept until their code moves to the
+  archive: `SIGN-IN.md`, `FETCH.md`, `STORE.md`, `DATA-ARCHITECTURE.md`.
 
 **`docs/integrations/`** — outside sources
-- `EPIC.md` — the fhir.epic.com registration sheet the owner fills in, the Epic sandbox, the sign-in plan and its forks.
+- `EPIC.md` — the fhir.epic.com registration sheet, the Epic sandbox, the patient sign-in plan.
+  The backend app registration for the phone agent is open.
 
 **`docs/ops/`** — build, ship, diagnose
-- `DEBUGGING.md` — the call ledger, the fetch summary, `npm run inspect` (the sealed-store inspector: words for any site, full data for a sandbox), recipes, what the first Epic fetch showed.
+- `DEBUGGING.md` — the call ledger, the fetch summary, the sealed-store inspector, recipes,
+  what the first Epic fetch showed (the patient app's; the ledger carries).
 
 **`docs/ideas/`** — not built; never tell a user the app does these.
-- `VOICE-AGENT.md` — a hospital-run phone agent (scheduling, chart questions) that this repo will convert to; Epic's Emmie and voice roadmap; the wedge; forks.
+- `README.md` — the short list of ideas without a doc of their own.
 
 ## Privacy rules (this project only — read before any code)
+SECURITY.md is being rewritten for a server product. Until then these rules hold, and where
+SECURITY.md speaks of the patient's PC, read "the hospital's deploy".
 - **Priority: patient experience first, privacy and security second, everything else after.**
-- **Protected data = PHI + PII.** Any identifier counts, even with no health fact: a name,
-  an MRN, the `Patient` id, the real site's name (SECURITY.md §2).
-- **Sandbox first.** Build against sandbox test patients (SMART Health IT now; Epic on hold).
-  A real record is a later, owner-approved step.
-- **Protected data never leaves the wall** (SECURITY.md §4): not the log, not a diag
-  ring, not a panic message, not a bug report, not an agent / MCP route, not a SQL export,
-  not a toast, not a hover hint, not the window title, not a crash dump.
-- **Encrypted end to end:** TLS in transit, sealed at rest, the wrapper type in memory,
-  plaintext only in the card DOM. Record text reaches the page through `textContent` only.
+- **Protected data = PHI + PII.** Any identifier counts, even with no health fact: a name, an
+  MRN, the `Patient` id, **the caller's phone number, the call's audio, the transcript**
+  (SECURITY.md §2).
+- **Synthetic first.** Build against the SMART and Epic sandboxes and simulated callers. A real
+  record or a real patient's call is a later, owner-approved step, after every vendor's BAA is
+  signed. Dev accounts with Cartesia, Anthropic and Twilio get synthetic data only.
+- **Protected data never leaves the wall** (SECURITY.md §4): not the log, not a diag ring, not
+  a trace or a metric, not a panic message, not a bug report, not an agent / MCP route, not a
+  SQL export, not a toast, not a hover hint, not a crash dump, **not a vendor without a signed
+  BAA**.
+- **Encrypted end to end:** TLS in transit; sealed at rest, field by field, under the
+  hospital's own key; the wrapper type in memory. Plaintext only where a person must hear or
+  read it, or where a BAA covers it: the call's audio, the console's transcript view (each view
+  audited), the request to the Anthropic API.
+- **The record lives one call long.** No chart cache. The store holds settings, the call log,
+  transcripts, the audit trail and, when a rule turns it on, audio (VOICE-AGENT.md §8.7).
 - Crypto: our own crate may wrap audited primitives; it never holds our own cipher.
 - Never paste real record content into a doc, a commit or this chat.
 
 ## How to verify your work
-- **The owner runs the app and tests your changes** and gives feedback. Do NOT build
-  throwaway test harnesses, mock pages or one-off tooling to verify UI behavior. Make the
-  change, check that it compiles, then hand it over with the desk test written into the doc.
-- Cheap checks worth running: `npm run types` (after a change to `core/src/payload.rs`),
-  `npx tsc --noEmit`, `npx vite build`, `cargo check`.
+- **The owner runs it and tests your changes** and gives feedback. Do NOT build throwaway test
+  harnesses, mock pages or one-off tooling to verify UI behavior. Make the change, check that
+  it compiles, then hand it over with the desk test written into the doc.
+- **Kept test tooling is not a harness** (LESSONS.md §3.11): the layers in VOICE-AGENT.md §9
+  (record and replay, the text call harness, simulated callers, the fake Twilio) are built to
+  stay. Use them once they exist.
+- Cheap checks worth running: `npx tsc --noEmit`, `npx vite build`, `cargo check --workspace`,
+  `cargo test -p deetshealth-core --features sqlite`, `npm run types` (after a change to
+  `core/src/payload.rs`), `npm run docs:check`.
 - If something cannot be reasoned through and the owner is away, ask him to test.
-- **Registry writes from this session are not real.** The Claude desktop app is an MSIX
-  package: your shells, and a dev app you launch, write `HKCU\Software\Classes` into a
-  private hive that Edge and other programs cannot see. Sign-in no longer registers a scheme
-  (a loopback return since 2026-10-13), so it is safe from this. Check or write the real
-  registry through a WMI-started process
-  (`../DeetsMusic/docs/ops/DEBUGGING.md` §Sign-in has the command).
-- **Knowing the dev app is up** (once it exists): wait for the app's own start log line with
-  `grep -a`. Never match `Running .*deetshealth`: cargo's color codes sit right after
-  "Running", so that pattern never matches.
 
 ## Working style (the owner directs the architecture)
 - For non-trivial features, **design on paper first**, bring the real forks (he responds
@@ -109,22 +136,24 @@ its scripts, and the patient-only docs (`HOME-AND-HUBS.md`, `ENDPOINT-DIRECTORY.
     left = not a fork: state it in one line. Lists are drafts, and later choices wait for
     their work. Open with the count: "N real forks; M things follow".
     On 2026-10-13, 8 of 12 forks failed this test.
-- **Every fork weighs every platform** (the owner, 2026-09-21): Windows now; web, macOS and
-  iPhone may follow. Each option names what it costs, or rules out, on each platform.
-  Platform facts go behind the core's platform traits. DESIGN.md §6.
+  - **Push back** where a choice costs more than it gives (the owner's own ask).
+- **Every fork weighs every place it runs** (was "every platform", 2026-10-19): the call (any
+  phone), the console (a web browser), the deploy targets (A2 in our cloud; B in the hospital's
+  own cloud account), and each EHR (Epic first, then others). Each option names what it costs,
+  or rules out, in each. Deploy facts go behind the deploy interface; EHR facts behind the EHR
+  adapter.
 - **One load-bearing feature in flight.** Hand it over, he desk-tests it, then the next one
   starts. Two small features at once is fine; two that both touch the schema, the PHI wall
   or a shared primitive is not.
-- **Everything is token-based**: no raw color, px, font or motion value in a component.
-  Color → theme role; geometry, type, spacing, motion → skin token.
-- **Before you build a new panel, row, button or card** (once the scaffold exists), walk
-  DeetsMusic's list (its CLAUDE.md › Working style) with two changes for this project:
-  1. Motion, tokens, design language (name the control family), scrollbars (`app-scroll`),
-     `enterRows` / `.pop`: as DeetsMusic.
-  2. Hints, toasts and log lines: as DeetsMusic, **and none of them may carry protected data (PHI or PII).** A hint
-     or toast names a kind of thing ("3 lab results"), never a value from the record.
+- **Everything in the console is token-based**: no raw color, px, font or motion value in a
+  component. Color → theme role; geometry, type, spacing, motion → skin token.
+- **Before you build a new console panel, row, button or card**, walk DeetsMusic's list (its
+  CLAUDE.md › Working style) with one change for this project: hints, toasts and log lines
+  **may never carry protected data (PHI or PII)**. A hint or toast names a kind of thing
+  ("3 calls handed off"), never a value from a record or a call.
 - He values polish and good stewardship: keep calls to each health system's FHIR server
-  low, and quote a cost before a fetch-heavy approach.
+  low, and quote a cost before a fetch-heavy or minute-heavy approach (FHIR calls, Twilio,
+  Cartesia and Claude minutes).
 - **Do not delegate to subagents** (the `Agent` tool). Explore, read and edit yourself.
   Only exception: he asks for one.
 
@@ -134,16 +163,18 @@ its scripts, and the patient-only docs (`HOME-AND-HUBS.md`, `ENDPOINT-DIRECTORY.
 - Name the exact control or gesture. Define the terms once, at the start.
 - Test each option against the code BEFORE you show it to me. Discard the options that the
   code already rules out. Show the real forks only.
-- A question about the UI needs the front-end state, not only the Rust.
+- A question about the console needs the front-end state, not only the Rust.
+
+## Run
+See HANDOFF.md › Run it. Nothing runs end to end yet; the checks do.
 
 ## Conventions
-- The front end only ever sees the normalized model (`LabResult`, `Medication`, …), never
-  raw FHIR. Normalization lives in Rust.
-- **A synchronous `#[tauri::command]` runs on the UI thread.** Never let one reach blocking
-  I/O: make it `async fn` + `tauri::async_runtime::spawn_blocking`.
-- Sign-in runs in the system browser, never in a WebView2 popup (DeetsMusic learned this).
-- Never hard-code a dev-server port. Probe for a free one from the default up, as
-  DeetsMusic's `scripts/dev-app.mjs` does.
+- The console only ever sees the normalized model (`LabResult`, `Medication`, …), never raw
+  FHIR. Normalization lives in Rust.
+- **The EHR adapters, sealing and the store live in Rust.** The Pipecat call loop (Python)
+  calls the Rust service for every chart read, booking and write; it never opens the database
+  (VOICE-AGENT.md §8.7).
+- Never hard-code a dev-server port. Vite takes the next free one from 1420.
 
 ## Repo
 The remote is `origin`: the **private** GitHub repo `deets-137/DeetsHealth` (since

@@ -172,7 +172,7 @@ The log is `%APPDATA%\com.deetshealth.dev\deetshealth.log` (debug) or
   `smart-configuration` is read at sign-in, so no endpoint is hard-coded.
 - **SMART v2 scopes** (`patient/*.rs`): change `SCOPES` per site, when a site asks for them.
 - **macOS:** the same return listener works as is. **iPhone:** `ASWebAuthenticationSession`
-  instead of `ShellExecute` (DESIGN.md §6.3); it catches the return itself, and whether Epic's
+  instead of `ShellExecute` (PATIENT-APP-DESIGN.md §6.3); it catches the return itself, and whether Epic's
   `form-action` affects it is a check for that time. **Web:** the site redirects back to the
   web app's own `https://…/callback`, which `form-action *` allows.
 

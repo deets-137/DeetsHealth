@@ -2,118 +2,152 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-10-13
+updated: 2026-10-19
 ---
-# DeetsHealth — Design
+# DeetsHealth — Design Doc
 
-## 1. Intent
-Give a patient a better way to read and use their own health record than a portal page.
-The record comes from their health system through the SMART on FHIR patient API that US
-law requires (21st Century Cures Act). The app reads it; it does not change it.
+> The product intent and the v1 scope of the hospital phone agent (2026-10-19). The research
+> and the reason for each decision are [architecture/VOICE-AGENT.md](architecture/VOICE-AGENT.md);
+> the move from the patient app is [CONVERSION.md](CONVERSION.md); the state of play is
+> [HANDOFF.md](HANDOFF.md). The patient app's design is
+> [archive/PATIENT-APP-DESIGN.md](archive/PATIENT-APP-DESIGN.md).
+> Status legend: ✅ decided · 🔵 proposed (awaiting the owner's call) · ⬜ not yet discussed
 
-Real records are messy: missing ranges, missing reactions, no dose text, one code system
-spelled two ways. The owner has seen this data from the Epic side. **Working through that
-mess well, and not hiding it, is what sets this app apart from other patient chart apps**
-(the owner, 2026-09-21). A missing value is a designed state, never an error.
+---
 
-Priority (the owner, 2026-09-21): patient experience first, privacy and security second,
-everything else after. See [SECURITY.md](architecture/SECURITY.md).
+## 0. What it is
 
-## 2. Who it is for
-One patient, on their own PC, looking at their own record. Proxy access (a parent, a
-caregiver) is a later idea, not the first build.
+A phone agent that a hospital runs for its patients. A patient calls the hospital's number;
+the agent books, moves and cancels visits, and answers direct questions from the patient's
+chart. We build and maintain the stack; each hospital sets it up and runs it for its own
+patients. The repo keeps the name DeetsHealth, and may hold other health products later (the
+owner, 2026-10-19).
 
-## 3. Same as DeetsMusic, and what differs
-| Area | DeetsMusic | DeetsHealth |
+**Two surfaces:**
+- **The call** — the patient's side. A phone call, so it is the same on every phone. The agent
+  speaks, listens, and hands off to a person at any time.
+- **The console** — the hospital's side. A web app where hospital staff set the agent up,
+  watch its calls and read what it did. It is built from the patient app's UI toolkit
+  (tokens, themes, skins, primitives, the card engine).
+
+**Who it is for, in order:** the patient on the phone first (LESSONS.md §5.1), the hospital's
+staff second, us third.
+
+---
+
+## 1. Decided so far ✅
+
+| Area | Decision |
+|---|---|
+| Product | A hospital-run phone agent: scheduling and chart questions (VOICE-AGENT.md §2) |
+| Customer | The hospital (a covered entity); we are its business associate, under a BAA |
+| Wedge | Hospitals not on Epic, and a better call than the rest; every EHR from the start, Epic's adapter first because the code exists (VOICE-AGENT.md §7) |
+| Calls | Inbound first; outbound (reminders, confirmations) later |
+| Chart answers | Visits, medicines, refill state and results; results with guards (VOICE-AGENT.md §7.1) |
+| EHR access | FHIR R4 reads through the kept core; booking through one interface with an adapter per EHR; SMART Backend Services sign-in (a system, not a patient) |
+| Phone | Twilio Programmable Voice and Media Streams |
+| Voice | Cartesia: Ink in, Sonic out |
+| Language model | The Anthropic API (Messages API, tools, streaming); which model is a measure (VOICE-AGENT.md §8.3) |
+| Call loop | Pipecat with Pipecat Flows, run by us, open to heavy tuning (VOICE-AGENT.md §8.6) |
+| Store | Postgres, one per hospital, every protected field sealed under the hospital's own key (VOICE-AGENT.md §8.7) |
+| Call audio | Not stored by default; on by rule or by a hospital admin (VOICE-AGENT.md §8.7) |
+| Deploy | A separate deploy per hospital in our cloud (A2), behind an interface so a hospital's own cloud account (B) can follow |
+| The record | Never stored: held in memory for one call only |
+| Testing | Local first: the SMART and Epic sandboxes through record and replay, a fake scheduler, the call layers of VOICE-AGENT.md §9 |
+| Process | As DeetsMusic: design on paper first, the owner decides every fork, one load-bearing feature in flight |
+
+### Open technical risks
+- **Latency.** The target is under about 800 ms from the end of the caller's speech to the
+  first sound back. Not measured yet (VOICE-AGENT.md §8.1).
+- **Epic's booking on the sandbox.** `$find` and `$book` are STU3 and need Cadence rules; their
+  support on Epic's sandbox is not confirmed (VOICE-AGENT.md §8.4).
+- **Spanish.** Cartesia's Ink-2 is English only; a Spanish path is not chosen (VOICE-AGENT.md
+  §8.6).
+- **BAAs.** Every vendor's BAA and zero-retention terms are from public pages, not signed
+  (VOICE-AGENT.md §8.2).
+
+---
+
+## 2. Decision agenda (one at a time)
+
+- **A. v1 feature scope** — ✅ inbound calls; scheduling and chart answers (§A below)
+- **B. The call design** — ✅ the Flows node map (VOICE-AGENT.md §8.1); 🔵 the words the agent
+  says, its name and its voice
+- **C. The console** — ⬜ what it shows, its layout, staff sign-in
+- **D. Visual identity of the console** — ⬜ the patient app's tokens, themes and skins carry
+  over; which of them a hospital console keeps
+- **E. Data model** — ✅ Postgres with sealing, what it holds (VOICE-AGENT.md §8.7); ⬜ the
+  schema
+- **F. Technical architecture** — ✅ the stack (§1); 🔵 the repo layout (CONVERSION.md §6, a
+  draft)
+- **G. Security and compliance** — 🔵 SECURITY.md, rewritten for a server product, forks first
+- **H. Vendors and credentials** — ⬜ the accounts, the BAAs, the Epic backend app
+  registration
+- **I. Cost** — ⬜ the cost per call minute, quoted before the first build
+
+---
+
+## A. v1 feature scope ✅
+
+**Nucleus: one inbound call that books a visit.** We grow outward feature by feature, the
+owner directing priority.
+
+### Feature backlog
+
+Status: ✅ done · 🔵 designing · ⬜ todo · ❄️ deferred to later
+
+**The call**
+| # | Feature | Status |
 |---|---|---|
-| Shell | Tauri v2 + WebView2 | same |
-| Front end | vanilla TS, Vite | same |
-| Back end | Rust, normalizes Apple JSON | Rust, normalizes FHIR JSON |
-| Tokens | palette → theme → skin | same |
-| Surfaces | Mini, Midi, Max | **Midi and Max only** |
-| Cards | collection-card engine, slots | same engine; health cards |
-| Docs | front matter, HANDOFF/WORKLOG, area folders | same |
-| Sign-in | MusicKit token via DeetsSupport | SMART on FHIR, PKCE, public client |
-| Servers | one Apple API | one FHIR base URL per health system |
-| Agent / MCP / SQL export | yes | **no, until the PHI wall is designed** |
-| Telemetry, reports, diag | rich | PHI-free by rule (DATA-ARCHITECTURE.md §5) |
-| Playback, queue, AirPlay, rooms | yes | not applicable |
+| C1 | Answer and greet; the recording notice when any rule can record | ⬜ |
+| C2 | Verify the caller: date of birth and the calling number | ⬜ |
+| C3 | Verify more for results: a one-time code by text to the number on file | ⬜ |
+| C4 | Hand off to a person, from any node | ⬜ |
+| C5 | Emergency words transfer at once | ⬜ |
+| C6 | Turn-taking and barge-in | ⬜ |
+| C7 | Filler speech while a slow EHR call runs | ⬜ |
+| C8 | Spanish | ❄️ (the Spanish path is an open risk, §1) |
 
-## 4. First cards (ideas, not decided)
-- **Labs** — results over time, with the reference range.
-- **Medications** — active list, with the prescriber and dates.
-- **Allergies** — substance, reaction, severity.
-- **Timeline** — encounters in date order.
-
-## 5. Non-goals
-- No diagnosis or medical advice. The app shows what the record says.
-- No writes back to the health system.
-- No cloud copy of the record.
-
-## 6. Web-ready (the owner, 2026-09-21)
-The app is Windows-native for now. The owner expects most people would use a web version,
-so every design assumes the app may become a web app later.
-- A web version keeps the same promise: **no server holds a record.** The browser does the
-  sign-in, the fetch and the sealed store; the host serves only static files.
-- What differs per platform goes behind a small interface: the key store (DPAPI / WebCrypto
-  non-extractable keys), the sign-in return (a loopback listener / web redirect), the cache (SQLite /
-  IndexedDB), opening a browser.
-- Decided: the normalizer, the model and the sealing live in a Rust crate with no Tauri
-  dependency, so it can also compile to WebAssembly.
-- If a web version needs a server, the owner accepts a secure cloud provider (Azure, AWS or
-  similar). A server that holds records changes SECURITY.md §4.1 and §6 (a provider
-  agreement, breach duties), so it is a fork of its own at that time.
-- A web version adds one risk the desktop app does not have: the code is served fresh on
-  each visit, so a changed host could serve changed code. That is a later design question.
-
-### 6.1 Every platform, from here on (the owner, 2026-09-21)
-Windows is the only build today. A web version, a macOS app and an iPhone app may follow.
-**Every fork from now on weighs every platform:** an option names what it costs, or rules
-out, on each. Platform facts go behind the core's platform traits (CORE-CRATE.md §3); a
-rule that holds on one platform only says so.
-
-### 6.2 macOS (notes, 2026-09-21)
-| Area | Windows today | macOS |
+**Scheduling**
+| # | Feature | Status |
 |---|---|---|
-| Crypto (`Cipher`) | CNG, FIPS 140-validated | Apple's validated module (corecrypto). Its AES-GCM is in CryptoKit, Swift only: a small Swift bridge, or a validated library such as `aws-lc-rs` in FIPS mode |
-| Keys (`KeyStore`) | DPAPI blob in a file | The Keychain. Stronger: the key never sits in our folder |
-| TLS | SChannel | Apple's Security framework, through the same `native-tls` |
-| Sign-in return | A listener on 127.0.0.1 (`loopback.rs`) | The same listener works as is |
-| **Uninstall erase** | The uninstaller deletes data and keys (SECURITY.md §4.7) | **A Mac app has no uninstaller.** The Trash leaves the data folder and Keychain items. It needs an in-app "Delete all data", and the rule becomes: sign-out erases; uninstall cannot |
-| Web view | WebView2 (Chromium) | WKWebView (Safari engine): small CSS and script differences; every skin, and Glass's blur cost, need a look |
-| Window and keys | Our title bar; Ctrl shortcuts | Traffic-light buttons; Cmd shortcuts. Design forks |
-| Windows-only code | the `windows` crate, WebView2 key blocking, `cng.rs`, `keystore.rs` | Needs `cfg(windows)` gates; today these are unconditional |
-| Release | Signed installer, updater | An Apple Developer account, code signing and notarization; built on a Mac |
+| S1 | Find open slots for a visit type | ⬜ |
+| S2 | Book | ⬜ |
+| S3 | Move | ⬜ |
+| S4 | Cancel | ⬜ |
+| S5 | "When is my next visit?" | ⬜ |
 
-### 6.3 iPhone (notes, 2026-09-21)
-- Tauri v2 builds for iOS, and the core crate compiles for it. The Keychain (with the Secure
-  Enclave) is the key store; crypto as on macOS.
-- Sign-in uses `ASWebAuthenticationSession`, iOS's system browser sheet, which keeps the
-  rule "never an in-app web view" (SECURITY.md §4.4).
-- Midi and Max are desktop shapes. A phone needs its own surface: a design of its own.
-- iOS limits background work, so the fetch runs while the app is open.
-- **An option unique to iOS:** Apple Health's Health Records already pulls FHIR records
-  from many health systems. With the user's permission, HealthKit gives an app those records
-  as FHIR JSON (`HKClinicalRecord`), with no sign-in of our own. A fork for that time.
-- App Store review has rules for apps that hold health data.
-
-### 6.4 How ready the plan is for a web copy (checked against the code, 2026-10-13)
-The owner asked how well the plan supports a move to the web, or a second copy on the web.
-"Ready" means the code or the decided design already covers it.
-
-| Part | State | What the web needs |
+**Chart answers**
+| # | Feature | Status |
 |---|---|---|
-| The core crate | **Ready.** No Tauri; `cargo check --target wasm32-unknown-unknown` passes (HANDOFF.md › Run). `reqwest` uses the browser's fetch on wasm. | Nothing |
-| The front end | **Mostly ready.** Vanilla TS and Vite. DeetsMusic's web demo runs its real `src/` in a browser through a shim (`../DeetsMusic/docs/features/WEB-DEMO.md`). | A host module: 11 `invoke` calls in `src/` go through one file that calls Tauri on the desktop and the wasm core on the web |
-| The record in memory (DeetsEngine, Decided 2026-10-13) | **Helps.** The globals are built in memory at open, so the core's sync `Store` trait never waits on IndexedDB, which is async. | The sealed rows in IndexedDB: one bulk read at open, one bulk write after a fetch |
-| `Cipher` (AES-GCM) | **Gap.** The trait is sync (`core/src/platform.rs`). WebCrypto is async. | A fork for that time: make the trait async, or use an audited Rust AES-GCM in wasm, with its key wrapped by a non-extractable WebCrypto key at rest |
-| `KeyStore` | **Designed** (§6): WebCrypto non-extractable keys | Build it |
-| Sign-in return | **Designed** (§6): a web redirect | A third redirect URI on the Epic registration (`https://…/callback`). Whether each site allows a browser to call its token and FHIR endpoints (CORS) needs a check per site, Epic first |
-| Hosting | Static files only, no record on a server | Cloudflare (the identity worker's host, ideas/IDENTITY-WORKER.md §8) |
-| A second copy beside the desktop | Two copies keep two stores; neither knows the other | Only the identity worker joins them (device linking). Without it, each copy signs in and fetches on its own: twice the calls to the site |
-| Code served fresh on each visit | **Open risk** (§6) | A design of its own before a web launch |
+| R1 | Visits, past and coming | ⬜ |
+| R2 | Medicines | ⬜ |
+| R3 | Refill state | ⬜ (what Epic exposes to a backend app is not confirmed) |
+| R4 | Results: released to the portal only, sensitive results never, the value, range and flag only (VOICE-AGENT.md §7.1) | ⬜ |
 
-**In short:** the data path (the core, the seal, the store, the fetch) was built for the web
-from the start, and the in-memory engine removes the hardest web problem (sync code over an
-async store). The real work is the async `Cipher`, the IndexedDB store, the host module, and
-the per-site CORS check.
+**The console**
+| # | Feature | Status |
+|---|---|---|
+| K1 | Staff sign-in | ⬜ (a fork, §2 C) |
+| K2 | The hospital's settings: hours, visit types, transfer numbers, the sensitive-results list | ⬜ |
+| K3 | The call log and the latency of each step | ⬜ |
+| K4 | Read a transcript (each view is audited) | ⬜ |
+| K5 | Recording rules and retention | ⬜ |
+
+**Cross-cutting (not screens, but real work)**
+| # | Feature | Status |
+|---|---|---|
+| X1 | The EHR interface and the Epic adapter | ⬜ |
+| X2 | SMART Backend Services sign-in | ⬜ (step 5 of the conversion) |
+| X3 | The store, sealing and the KMS key | ⬜ |
+| X4 | The deploy interface, A2 first | ⬜ |
+| X5 | The test layers: record and replay, the text harness, simulated callers, the fake Twilio | ⬜ |
+| X6 | PHI-free logging and the call timeline | ⬜ |
+| X7 | The audit trail | ⬜ |
+
+### Not goals
+- **No medical advice, no triage.** The agent says what the chart says, and nothing about
+  what it means. A question about meaning goes to the care team.
+- **No chart cache.** The record lives in memory for one call.
+- **No call audio by default.**
+- **No outbound calls in v1.** They come after inbound works.

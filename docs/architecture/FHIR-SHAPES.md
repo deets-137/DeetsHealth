@@ -24,7 +24,7 @@ updated: 2026-09-21
 ## 2. What each site offers
 ### 2.1 Epic sandbox — 60 resource types
 Every type supports read and search. Some also support create or update; **the app never
-uses them** (DESIGN.md §5). Which types a patient-facing app may read is set at app
+uses them** (PATIENT-APP-DESIGN.md §5). Which types a patient-facing app may read is set at app
 registration, and that is not known until Epic comes back.
 
 | Use to us | Types |
@@ -81,7 +81,7 @@ sign-in. `_count=100` and `link[rel=next]` paging both work.
 
 ### 3.5 Allergies — `AllergyIntolerance`
 - Very even: code, `criticality`, clinical and verification status, `type`, `category`: 100%.
-- **No `reaction[]` at all**, so no reaction and no severity. DESIGN.md §4 plans "substance,
+- **No `reaction[]` at all**, so no reaction and no severity. PATIENT-APP-DESIGN.md §4 plans "substance,
   reaction, severity". The card must work with the substance and criticality only.
 - The patient link is `patient.reference`, not `subject.reference` (as in Immunization).
 
