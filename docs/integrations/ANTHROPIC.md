@@ -49,6 +49,29 @@ the same recorded test calls. The owner picks from the numbers.
 - **Streaming** with fine-grained tool input streaming, so a short tool call does not wait.
 - **One Flow node, one small tool set** (PIPECAT.md): fewer tools, faster and more accurate.
 
+### 4.1 How caching works here
+- **The API keeps no conversation.** Each turn of a call sends everything again: the system
+  prompt, the tool definitions, and every turn so far. Caching lets Anthropic skip the work on
+  the part it has already read.
+- **What a cache holds:** the model's internal state for a prefix of the request (the key and
+  value vectors attention needs for each earlier token). It is found by an exact match on the
+  prefix: one changed byte, and everything after it is read again.
+- **Two layers in a call:**
+  1. **The hospital's prefix** (system prompt, tool definitions, the Flow node's instructions):
+     the same for every call at that hospital. Written once, read by every call while it stays
+     warm. No patient data in it.
+  2. **The call's own history:** each turn extends it, so the next turn reads the earlier turns
+     from the cache. This part holds the call's protected data, under the BAA, and expires with
+     the cache's lifetime (5 minutes, or 1 hour).
+- **Patient data never goes in the prefix.** It arrives through tool results inside the call's
+  own messages (SECURITY.md §4.9). This keeps the shared prefix the same for every caller, and it
+  keeps one caller's data out of every other call's request.
+- **A prefix that is too short is not cached.** Each model has a minimum (512 to 4,096 tokens);
+  check `usage.cache_read_input_tokens` on the test calls.
+- **Isolation:** caches are kept apart between organizations. One API workspace and key per
+  hospital deploy keeps hospitals apart on our side too (to confirm: whether caches are also
+  kept apart per workspace).
+
 ## 5. Cost
 Per call: tokens per turn × turns, with most of the prompt read from the cache. To be measured on
 the test calls and quoted with the cost per minute (DESIGN.md §2 I).

@@ -6,7 +6,7 @@ updated: 2026-10-19
 ---
 # The cloud — where each hospital's deploy runs
 
-> Not chosen. The deploy is A2: a separate account per hospital in our cloud, behind an interface
+> **Chosen 2026-10-19: AWS `us-east-1`** (fork C1 A, the owner: "C1A is fine"). The deploy is A2: a separate account per hospital in our cloud, behind an interface
 > so a hospital's own cloud account (B) can follow (VOICE-AGENT.md §7.2). This doc holds the open
 > fork for our own cloud (§4). Comparisons below are from secondary sources whose numbers
 > disagree; check each provider's own HIPAA-eligible list.
@@ -35,7 +35,8 @@ Only services on the provider's HIPAA-eligible list may hold PHI.
 | Hospitals' own clouds (for B later) | common | **common where Microsoft or Epic already runs** | less common |
 | HIPAA-eligible services | the broadest list | broad | broad |
 
-## 4. The fork (for the owner, when the deploy work starts)
+## 4. The fork
+Decided 2026-10-19: **A**.
 - **C1. Our cloud for A2:** A **AWS `us-east-1`** (recommended: the broadest HIPAA list, next to
   Twilio's media edge, Cartesia on one bill, Claude Platform on AWS if we want Claude inside the
   same cloud) · B **Azure East US** (the cloud many hospitals already run; staff single sign-on

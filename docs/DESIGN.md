@@ -52,6 +52,7 @@ staff second, us third.
 | Store | Postgres, one per hospital, every protected field sealed under the hospital's own key (VOICE-AGENT.md §8.7) |
 | Call audio | Not stored by default; on by rule or by a hospital admin (VOICE-AGENT.md §8.7) |
 | Deploy | A separate deploy per hospital in our cloud (A2), behind an interface so a hospital's own cloud account (B) can follow |
+| Cloud | AWS `us-east-1`, next to Twilio's US1 media edge ([CLOUD.md](integrations/CLOUD.md)) |
 | The record | Never stored: held in memory for one call only |
 | Testing | Local first: the SMART and Epic sandboxes through record and replay, a fake scheduler, the call layers of VOICE-AGENT.md §9 |
 | Process | As DeetsMusic: design on paper first, the owner decides every fork, one load-bearing feature in flight |

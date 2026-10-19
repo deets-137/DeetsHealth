@@ -83,7 +83,7 @@ bundle and the worker that re-hosts it. `IDENTITY-WORKER.md` — the patient-sha
   and what to find out: `TWILIO.md` (the phone line, Media Streams, `clear` and `mark`),
   `CARTESIA.md` (Ink and Sonic, ZDR, the pronunciation dictionary; ElevenLabs as the fallback),
   `ANTHROPIC.md` (HIPAA readiness, the models and prices, caching for voice), `PIPECAT.md` (the
-  call loop; known issues to test first), `CLOUD.md` (what a deploy needs; fork C1, our cloud),
+  call loop; known issues to test first), `CLOUD.md` (what a deploy needs; C1 decided: AWS `us-east-1`),
   `OTHER-EHRS.md` (Oracle Health, athenahealth, MEDITECH).
 
 **`docs/ops/`** — build, ship, diagnose
