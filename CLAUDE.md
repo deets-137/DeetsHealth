@@ -35,6 +35,8 @@ above it, it is the code. A new doc gets front matter (DOCS-ORG.md §2) and one 
 `HANDOFF.md` · `WORKLOG.md` · `DOCS-ORG.md`.
 - `CONVERSION.md` — turning this repo into the phone agent: what moved to `archive/`, what
   carries forward, the steps; §5.1 is the as-built record.
+- `BUILD-ORDER.md` — the phases from nothing to the first hospital, each with its desk test;
+  Phase 0's checklist and the fork of what goes first.
 
 **`docs/archive/`** — docs no longer needed, kept as a record (`status: archived`).
 `PATIENT-APP-DESIGN.md` and `PATIENT-APP-HANDOFF.md` — the patient app's design and handoff.

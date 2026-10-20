@@ -2,11 +2,21 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 # DeetsHealth — Work log
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
+
+## 2026-10-20 — the build order
+- The owner asked for the build process and where to start. Wrote [BUILD-ORDER.md](BUILD-ORDER.md):
+  six phases, each with a desk test; Phase 0 (paper) is in flight; one fork open, what goes
+  first while the Epic registration waits (§3 there). Pointed to from CLAUDE.md and HANDOFF.md.
+- The owner decided the fork: the typed, Epic-free call (Phase 1, the text slice) is built
+  first; the Epic Backend Services sign-in (Phase 2) follows once the registration lands.
+  Phase 1 starts 2026-10-21. HANDOFF.md › Open now carries the six phases.
+- His working rule, recorded: always say what an option is when it comes up again; never a
+  bare letter.
 
 ## 2026-10-19 — the tag pushed, from the owner's machine
 - The owner's local `main` held one unpushed commit, the record view (`05e7584`). By his

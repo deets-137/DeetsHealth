@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 # DeetsHealth — Handoff
 
@@ -32,13 +32,37 @@ Nothing ships yet. The deploy is A2: a separate deploy per hospital in our cloud
 interface (VOICE-AGENT.md §7.2).
 
 ## Open now
+### The build (BUILD-ORDER.md)
+The product is built in six phases, each ending in a desk test (BUILD-ORDER.md §2):
+0. **Paper** — the cost quote, the repo layout, the Epic registration, the dev accounts,
+   `npm run check`. *In flight.*
+1. **The text slice** — the call's shape with no audio and no Epic: the Pipecat Flow (greet,
+   verify, menu, schedule, hand off), the verify gate, a fake in-memory scheduler, fake
+   patients, the typed harness, the PHI-free log processor. Desk test: type a call, book a visit.
+2. **The EHR** — Backend Services sign-in to Epic's sandbox, the chart reads through record and
+   replay, the Rust `ehr` service. Desk test: the typed call answers "when is my next visit?"
+3. **Voice** — the fake Twilio, Cartesia in and out, barge-in, fillers, the laptop microphone;
+   measure latency and pick the model. Desk test: speak and book a visit.
+4. **The store and the console** — Postgres with sealing, the call log, transcripts, the audit
+   trail; then the console once the owner designs it.
+5. **The real network** — a Twilio number, booking on Epic's sandbox, results with guards, refills.
+6. **Ship** — the deploy interface, the BAAs, the compliance paperwork, the first hospital.
+
+- **Decided 2026-10-20: the text slice (Phase 1) goes first; Backend Services (Phase 2) follows
+  when the Epic registration lands.** The owner starts Phase 1 on 2026-10-21. Phase 0's paper
+  items run beside it; none of them blocks it except an Anthropic dev key.
+- **Phase 0, open:** the cost per call minute (Claude); the repo layout, a draft for the owner
+  (CONVERSION.md §6; Phase 1 needs only `agent/`); the Epic registration E-1 (the owner, EPIC.md
+  §2); dev accounts with Twilio, Cartesia and Anthropic, synthetic data only (the owner);
+  `npm run check` from DeetsMusic (Claude).
+
 ### The conversion (CONVERSION.md §5)
 - **Step 4, the docs.** Done: DESIGN, HANDOFF, CLAUDE.md, SECURITY, SECURITY-BRIEF, EPIC,
   DEBUGGING, a header on CORE-CRATE (its sections change with their code), the archive rule,
   and a draft of `ops/PROTOCOLS.md`. Open: LESSONS.md's patient-app lessons.
 - **Epic backend registration** (EPIC.md §2, step E-1): the owner fills in the sheet.
-- **Step 5, the first feature:** SMART Backend Services against the Epic sandbox. Epic needs a
-  backend app registration.
+- **Step 5, Backend Services against the Epic sandbox,** is now Phase 2 of the build: it
+  follows the text slice and waits for the registration (BUILD-ORDER.md §3).
 - **Held back from the archive**, each moving with the work that replaces it (CONVERSION.md
   §5.1): `core/src/store/`, `payload.rs` (the pass redesign); `auth.rs`, `sync.rs`, `dev.rs`,
   `build.rs`, `epic-client.example.json` (Backend Services); the patient-only front-end files
@@ -109,6 +133,9 @@ interface (VOICE-AGENT.md §7.2).
 - **Postgres with our sealing**: it runs under every large cloud's BAA, so the deploy can move
   (VOICE-AGENT.md §8.7).
 - **The record lives one call long**: no chart cache to protect (VOICE-AGENT.md §8.1).
+- **The typed, Epic-free call is built before the Epic sign-in** (2026-10-20): the patient
+  feels the call's shape first, text proves the Flow for Claude tokens only, and the Epic
+  registration was not in yet (BUILD-ORDER.md §3).
 
 ## File map
 - `core/` — the core crate (CORE-CRATE.md): `shielded.rs` (the wrapper and its passes),
