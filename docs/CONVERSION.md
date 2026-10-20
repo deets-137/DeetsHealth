@@ -114,11 +114,14 @@ Each step is one commit; the tree builds after each one.
 ### 5.1 As built (2026-10-19)
 > **Part:** built · 2026-10-19
 
-- **Step 1:** `docs/voice-agent-idea` merged into `main` (fast-forward, `073b9b3`). The tag
-  `patient-app-final` exists locally only: this session's git proxy refused the tag push
-  (HTTP 403). The branch `archive/patient-app` points at the same commit and is pushed. The
-  owner pushes the tag from his own machine:
-  `git tag -a patient-app-final 073b9b3 -m "The last patient-app commit" && git push origin patient-app-final`.
+- **Step 1:** `docs/voice-agent-idea` merged into `main` (fast-forward, `073b9b3`). A cloud
+  session's git proxy refused the tag push (HTTP 403), so the tag waited for the owner's
+  machine.
+- **The tag, pushed (2026-10-19):** `patient-app-final` is on `ee35b9d`, one commit past
+  `073b9b3`: the record view (DeetsHealth's globals in DeetsEngine, `core/src/tree/`, the
+  wiping allocator), which was built on the owner's machine and not pushed before the pivot.
+  The branch `archive/patient-app` points at the same commit. That work is in the tag and the
+  branch only, not in `archive/` on this branch.
 - **Step 2, smaller than planned.** The code is more tangled than §3 assumed, so only the
   clean cuts moved: all of `src-tauri/`, `app-icon.svg`, `scripts/dev-app.mjs`,
   `scripts/epic-redirect-check.mjs`, `features/HOME-AND-HUBS.md`,

@@ -33,8 +33,6 @@ interface (VOICE-AGENT.md §7.2).
 
 ## Open now
 ### The conversion (CONVERSION.md §5)
-- **Push the tag** `patient-app-final` from the owner's machine. This session's git proxy
-  refused it (HTTP 403); the branch `archive/patient-app` stands in (CONVERSION.md §5.1).
 - **Step 4, the docs.** Done: DESIGN, HANDOFF, CLAUDE.md, SECURITY, SECURITY-BRIEF, EPIC,
   DEBUGGING, a header on CORE-CRATE (its sections change with their code), the archive rule,
   and a draft of `ops/PROTOCOLS.md`. Open: LESSONS.md's patient-app lessons.
@@ -76,6 +74,9 @@ interface (VOICE-AGENT.md §7.2).
 - **Conversion steps 1–3 are done** (CONVERSION.md §5.1): the Tauri host and the patient-only
   scripts are in `archive/`; the workspace builds `core` only; the archived docs are in
   `docs/archive/` with status `archived`.
+- **The way back is pushed:** the tag `patient-app-final` (`ee35b9d`) and the branch
+  `archive/patient-app`. They also hold the record view (`core/src/tree/`, GLOBALS.md's
+  build), which `archive/` here does not (CONVERSION.md §5.1).
 - **Built and kept:** the core crate's FHIR client, normalizer, sealing and `Shielded<T>`
   (CORE-CRATE.md), and the front-end toolkit (tokens, themes, skins, primitives, the card
   engine).

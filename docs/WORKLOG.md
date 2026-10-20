@@ -8,6 +8,13 @@ updated: 2026-10-19
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-10-19 — the tag pushed, from the owner's machine
+- The owner's local `main` held one unpushed commit, the record view (`05e7584`). By his
+  choice it went to `archive/patient-app` (`ee35b9d`, cargo check passes), not to the
+  conversion. Local `main` reset to `origin/main`.
+- Tagged `patient-app-final` on `ee35b9d` and pushed the branch and the tag. Corrected
+  HANDOFF.md and CONVERSION.md §5.1.
+
 ## 2026-10-19 — the pivot to a hospital phone agent; conversion steps 1–3
 - The owner asked for a voice-agent idea doc, then chose the phone agent run by hospitals:
   [ideas/VOICE-AGENT.md](architecture/VOICE-AGENT.md). Researched Epic's Emmie and voice roadmap
