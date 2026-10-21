@@ -49,6 +49,14 @@ No code. Everything the first slice needs to exist first.
 Pipecat Flows with the node map of VOICE-AGENT.md §8.1, in `agent/`. Features C1, C2, C4, S1,
 S2 and S5 against the fake scheduler and fake patients. C3's second factor is a fake code. The
 text harness (layer 3), the call timeline and the PHI-free log processor are built here.
+- **The model (decided 2026-10-20, the owner):** Claude through the Anthropic Messages API
+  from the first day, on a dev Console workspace (synthetic data only). Every Claude reply is
+  recorded and replayed, keyed by its prompt: a rerun with no change costs nothing and needs
+  no network. Not chosen: a local model (llama.cpp) first. It runs Pipecat's OpenAI path, not
+  the Anthropic one, and its tool calls and wording do not predict Claude's.
+- **The verify gate is tested with no model:** a scripted stub drives the Flow and asserts
+  which tools each node offers. The chart tools must not exist before the check passes.
+
 **Desk test:** the owner types a call and books a visit.
 
 ### Phase 2 — the EHR ⬜
