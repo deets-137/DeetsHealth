@@ -101,6 +101,17 @@ pub fn slot(token: &Token, slot: &Slot) -> pb::Slot {
     }
 }
 
+/// The one reveal for a visit the caller already has.
+pub fn visit(slot: &Slot) -> pb::Visit {
+    let pass = WirePass::issue();
+    pb::Visit {
+        starts_at: slot.starts_at.reveal(&pass).clone(),
+        minutes: slot.minutes,
+        clinician: slot.clinician.reveal(&pass).clone(),
+        place: slot.place.reveal(&pass).clone(),
+    }
+}
+
 /// YYYY-MM-DD with a month 01 to 12 and a day 01 to 31.
 fn is_day(s: &str) -> bool {
     let b = s.as_bytes();

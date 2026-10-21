@@ -123,8 +123,9 @@ is ignored. So nothing past the edge sees a wire type.
 - **`ehr/`** is a member of the Cargo workspace (`deetshealth-ehr`), with `tonic` and `prost`
   0.14. The binary is `deetshealth-ehr` (`--bind`, default 127.0.0.1; `--port`, default 0, so
   the OS picks and the first stdout line names it; `--certs`, default `dev-certs`).
-- **The contract** has seven calls: `OpenCall`, `CloseCall`, `Identify`, `ResendCode`,
-  `CheckCode`, `FindSlots`, `Book`. There is no separate `SendCode`: `Identify` sends the first
+- **The contract** has eight calls: `OpenCall`, `CloseCall`, `Identify`, `ResendCode`,
+  `CheckCode`, `FindSlots`, `Book`, `NextVisit` (S5: the soonest visit, from fixed fake visits
+  and this run's bookings). There is no separate `SendCode`: `Identify` sends the first
   code when one patient matches. No test or flag can mark a session verified; every test
   walks `Identify` and `CheckCode`.
 - **Verification** (`verify.rs`): the `Patients` trait returns candidates; the match is ours
@@ -172,8 +173,9 @@ is ignored. So nothing past the edge sees a wire type.
 - **The fake scheduler:** six fixed slots, 2026-11-02 to 2026-11-06, two synthetic clinicians
   at one synthetic clinic. No clock. It filters by day with `Shielded`'s comparison, without a
   reveal.
-- **Not built yet:** the Python side (`agent/`), tracing, a constant-time code comparison (the
-  agent is the only client, behind mTLS).
+- **The Python side** is built: AGENT.md.
+- **Not built yet:** tracing, a constant-time code comparison (the agent is the only client,
+  behind mTLS).
 
 ## 7. Tracing and tests
 - **The call timeline:** the OpenTelemetry trace context rides in gRPC metadata, so one call is

@@ -32,3 +32,10 @@ dev-dumps/
 .idea
 .DS_Store
 dev-certs/
+
+# The agent (Python): its venv and the code generated from ehr.proto
+agent/.venv/
+agent/deets_agent/proto/deets/
+__pycache__/
+.pytest_cache/
+.ruff_cache/

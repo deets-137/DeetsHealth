@@ -58,7 +58,17 @@ pub trait Scheduler: Send + Sync + 'static {
         patient: &PatientKey,
         slot: &SlotId,
     ) -> impl Future<Output = Result<BookResult, SchedulerDown>> + Send;
+
+    /// The patient's soonest visit still to come, if any (DESIGN.md S5).
+    fn next_visit(
+        &self,
+        patient: &PatientKey,
+    ) -> impl Future<Output = Result<Option<Slot>, SchedulerDown>> + Send;
 }
+
+/// Visits the fake patients already have: (patient, start, minutes, clinician).
+const FAKE_VISITS: &[(&str, &str, u32, &str)] =
+    &[("fake-patient-1", "2026-11-10T10:00", 30, "Dr. Sam Okafor")];
 
 /// The fake's fixed slots: synthetic clinicians at a synthetic clinic.
 const FAKE_SLOTS: &[(&str, &str, &str, u32, &str)] = &[
@@ -76,6 +86,8 @@ const FAKE_PLACE: &str = "Main Street Clinic";
 #[derive(Default)]
 pub struct FakeScheduler {
     taken: Mutex<HashSet<String>>,
+    /// Bookings made on this run, by patient.
+    booked: Mutex<Vec<(PatientKey, Slot)>>,
 }
 
 impl FakeScheduler {
@@ -107,13 +119,36 @@ impl Scheduler for FakeScheduler {
             .collect())
     }
 
-    async fn book(&self, _: &PatientKey, slot: &SlotId) -> Result<BookResult, SchedulerDown> {
+    async fn book(&self, patient: &PatientKey, slot: &SlotId) -> Result<BookResult, SchedulerDown> {
         let Some(i) = FAKE_SLOTS.iter().position(|s| s.0 == slot.0) else {
             return Ok(BookResult::Taken);
         };
         if !self.taken.lock().unwrap().insert(slot.0.clone()) {
             return Ok(BookResult::Taken);
         }
-        Ok(BookResult::Booked(self.slot(i)))
+        let booked = self.slot(i);
+        self.booked.lock().unwrap().push((patient.clone(), booked.clone()));
+        Ok(BookResult::Booked(booked))
+    }
+
+    async fn next_visit(&self, patient: &PatientKey) -> Result<Option<Slot>, SchedulerDown> {
+        let fixed = FAKE_VISITS.iter().map(|&(id, starts_at, minutes, clinician)| {
+            let key = PatientKey(Shielded::new(id.to_string()));
+            let visit = Slot {
+                id: SlotId(format!("visit-{id}")),
+                starts_at: Shielded::new(starts_at.to_string()),
+                minutes,
+                clinician: Shielded::new(clinician.to_string()),
+                place: Shielded::new(FAKE_PLACE.to_string()),
+            };
+            (key, visit)
+        });
+        let booked = self.booked.lock().unwrap().clone();
+        // Shielded compares without revealing: the patient, and which start comes first.
+        Ok(fixed
+            .chain(booked)
+            .filter(|(key, _)| key == patient)
+            .map(|(_, visit)| visit)
+            .min_by(|a, b| a.starts_at.cmp(&b.starts_at)))
     }
 }

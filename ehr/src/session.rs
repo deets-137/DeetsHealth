@@ -56,9 +56,8 @@ impl Drop for Token {
 }
 
 /// The verified patient, as the EHR knows them. Set only by verification, never from the wire.
-#[derive(Clone)]
-// The fake scheduler books for anyone; the Epic adapter (Phase 2) reads it.
-#[allow(dead_code)]
+/// Compares without revealing (`Shielded`'s comparison).
+#[derive(Clone, PartialEq, Eq)]
 pub struct PatientKey(pub(crate) Shielded<String>);
 
 /// How far the caller has come.

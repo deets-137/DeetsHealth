@@ -39,6 +39,8 @@ service Ehr {
   rpc FindSlots(FindSlotsRequest) returns (FindSlotsReply);
   // Books one slot from the last FindSlots. A retry with the same key gets the same answer.
   rpc Book(BookRequest) returns (BookReply);
+  // The verified caller's next visit (DESIGN.md S5). Refused before both factors pass.
+  rpc NextVisit(NextVisitRequest) returns (NextVisitReply);
 }
 
 message OpenCallRequest {}
@@ -135,4 +137,21 @@ message BookReply {
   BookOutcome outcome = 1;
   // Set when the outcome is BOOKED.
   Slot booked = 2;
+}
+
+message NextVisitRequest {
+  string handle = 1 [(secret) = true];
+}
+
+message Visit {
+  // The start, local time at the place, YYYY-MM-DDTHH:MM.
+  string starts_at = 1 [(phi) = true];
+  uint32 minutes = 2;
+  string clinician = 3 [(phi) = true];
+  string place = 4 [(phi) = true];
+}
+
+message NextVisitReply {
+  // Unset when the caller has no visit coming.
+  Visit visit = 1;
 }

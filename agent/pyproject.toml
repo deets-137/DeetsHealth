@@ -1,0 +1,36 @@
+[project]
+name = "deets-agent"
+version = "0.1.0"
+description = "DeetsHealth's phone agent: the Pipecat call loop and Flow. Every chart read and booking goes to the ehr service (docs/architecture/EHR-SERVICE.md)."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # The call loop and the Flow (VOICE-AGENT.md §8.1). Voice extras come in Phase 3.
+    "pipecat-ai[anthropic]>=1.13,<2",
+    # The wire to ehr. The deploy image builds grpcio from source against a FIPS OpenSSL
+    # (EHR-SERVICE.md §6); on dev, the wheel.
+    "grpcio>=1.84,<2",
+    # Pipecat pins protobuf below 7.
+    "protobuf>=6,<7",
+    # The Anthropic key from the git-ignored .env at the repo root.
+    "python-dotenv>=1",
+]
+
+[dependency-groups]
+dev = [
+    "grpcio-tools>=1.70,<2",
+    "pytest>=8",
+    "pytest-asyncio>=1",
+    "ruff>=0.14",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["deets_agent/proto"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

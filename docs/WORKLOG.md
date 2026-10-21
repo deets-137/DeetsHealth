@@ -30,6 +30,15 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   cannot cut it off; `rustls` on AWS-LC, TLS 1.3, mTLS, a `fips` feature and a refusal to start
   in a deploy without it; the dev certificate example; a transport test against the real
   server. 26 `ehr` tests and 43 core tests pass; clippy is clean.
+- Committed (`56fb877`). Built `agent/` (AGENT.md): Pipecat 1.13 with its built-in Flows (the
+  separate package stopped at Pipecat 1.4); a client that drops Pipecat's beta flag and calls
+  the GA endpoint, with the replay cache; the Flow (greet, verify, menu, schedule, goodbye,
+  hand off); the gRPC client with mTLS and deadlines; the Python `Shielded` and the log
+  processor that withholds all library log text; the typed harness, which starts `ehr` on a
+  free port. Added `NextVisit` to the contract for S5 (29 `ehr` tests).
+- The first live typed call on Haiku 5.5: 15 requests, well under one cent; it booked a visit
+  and read back the next one. Replayed, it costs nothing. 15 agent tests pass, replay only.
+  Found: the model does not always read the `say` template as written (AGENT.md §4).
 
 ## 2026-10-20 — the build order
 - The owner asked for the build process and where to start. Wrote [BUILD-ORDER.md](BUILD-ORDER.md):

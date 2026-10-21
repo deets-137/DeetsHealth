@@ -45,7 +45,11 @@ No code. Everything the first slice needs to exist first.
 | P0.5 | `npm run check` and the pre-push hook from `../DeetsMusic` | Claude | ⬜ |
 | P0.6 | The fork §3 decided: the text slice goes first, Backend Services follows E-1 | the owner | ✅ 2026-10-20 |
 
-### Phase 1 — the text slice ⬜ (starts 2026-10-21)
+### Phase 1 — the text slice 🔵 (started 2026-10-21)
+> **Part:** built · 2026-10-21 · `ehr/` and `agent/` built; a scripted call books a visit end to
+> end (EHR-SERVICE.md §6a, AGENT.md). Waiting on the owner's desk test. Not built yet: the call
+> timeline.
+
 Pipecat Flows with the node map of VOICE-AGENT.md §8.1, in `agent/`. Features C1, C2, C4, S1,
 S2 and S5 against the fake scheduler and fake patients. C3's second factor is a fake code. The
 text harness (layer 3), the call timeline and the PHI-free log processor are built here.

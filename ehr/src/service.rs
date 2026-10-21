@@ -226,6 +226,17 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let reply = task.await.map_err(|_| Status::internal("the booking stopped"))??;
         Ok(Response::new(reply))
     }
+
+    async fn next_visit(
+        &self,
+        req: Request<pb::NextVisitRequest>,
+    ) -> Result<Response<pb::NextVisitReply>, Status> {
+        let handle = edge::handle(&req.get_ref().handle)?;
+        let session = self.sessions.get(&handle).await.map_err(refused)?;
+        let patient = session.lock().await.patient().map_err(refused)?;
+        let visit = self.scheduler.next_visit(&patient).await.map_err(scheduler_down)?;
+        Ok(Response::new(pb::NextVisitReply { visit: visit.as_ref().map(edge::visit) }))
+    }
 }
 
 #[cfg(test)]
@@ -477,6 +488,40 @@ mod tests {
         assert_eq!(err.code(), Code::FailedPrecondition);
     }
 
+    // ---- the next visit ----
+
+    async fn next(s: &Svc, h: &str) -> Result<Option<pb::Visit>, Status> {
+        s.next_visit(Request::new(pb::NextVisitRequest { handle: h.into() }))
+            .await
+            .map(|r| r.into_inner().visit)
+    }
+
+    #[tokio::test]
+    async fn no_next_visit_before_verification() {
+        let s = svc();
+        let h = open(&s).await;
+        assert_eq!(next(&s, &h).await.unwrap_err().code(), Code::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn the_next_visit_is_the_soonest_including_a_new_booking() {
+        let s = svc();
+        let h = verified(&s).await;
+        assert_eq!(next(&s, &h).await.unwrap().unwrap().starts_at, "2026-11-10T10:00");
+        let slot = find(&s, &h, "").await.remove(0);
+        s.book(book_req(&h, &slot.token, "key-0000000000000001")).await.unwrap();
+        assert_eq!(next(&s, &h).await.unwrap().unwrap().starts_at, "2026-11-02T09:00");
+    }
+
+    #[tokio::test]
+    async fn another_patient_has_no_visit() {
+        let s = svc();
+        let h = open(&s).await;
+        identify(&s, &h, "Priya", "Raman", "1971-11-30").await;
+        check(&s, &h, FAKE_CODE).await;
+        assert!(next(&s, &h).await.unwrap().is_none());
+    }
+
     #[test]
     fn every_marked_field_is_listed() {
         // The contract marks these; a change to ehr.proto changes this list on purpose.
@@ -499,6 +544,10 @@ mod tests {
             ("Slot", "place"),
             ("BookRequest", "handle"),
             ("BookRequest", "slot_token"),
+            ("NextVisitRequest", "handle"),
+            ("Visit", "starts_at"),
+            ("Visit", "clinician"),
+            ("Visit", "place"),
         ];
         assert_eq!(pb::MARKED_FIELDS, want);
     }

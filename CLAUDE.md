@@ -67,6 +67,8 @@ bundle and the worker that re-hosts it. `IDENTITY-WORKER.md` — the patient-sha
 - `SECURITY.md` — the phone agent's: the priority order, protected data, the threats, the
   rules (end to end, the wrapper type, the console, caller verification, logs, keys,
   retention, the model, staff access), vendors and BAAs, the law. S1 and S2 decided.
+- `AGENT.md` — the agent (`agent/`) as built: run it, the parts, the GA-only LLM client and the
+  replay cache, the decisions made while building, the known gaps.
 - `EHR-SERVICE.md` — the Rust `ehr` service and its gRPC wire to the agent: the handle, the
   calls, the PHI tag in the contract, the edge, mTLS, tracing and tests.
 - `SECURITY-BRIEF.md` — the one-pager for an outside security engineer: the stack, the threats,

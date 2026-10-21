@@ -27,6 +27,8 @@ cargo test -p deetshealth-ehr                                     # the ehr serv
 cargo run -p deetshealth-ehr --example dev_certs                  # once: the dev CA and certificates into dev-certs/
 cargo run -p deetshealth-ehr                                      # ehr on a free port (first line names it), Phase 1 fakes
 cargo check -p deetshealth-core --target wasm32-unknown-unknown   # core stays web-ready
+cd agent && uv run python harness/typed_call.py                    # the typed call (Phase 1 desk test); see AGENT.md §1
+cd agent && uv run pytest                                          # the agent's tests, replay only: no tokens
 ```
 The build folder is `target/` at the repo root (it was `src-tauri/target/`).
 
@@ -61,10 +63,18 @@ The product is built in six phases, each ending in a desk test (BUILD-ORDER.md �
 - **Phase 1, in flight (2026-10-21).** Decided: Claude through a replay cache, cheapest model
   first (Haiku), a hard $100-a-month API budget; the Rust `ehr` service from the first call;
   gRPC between the agent and `ehr`; mTLS with FIPS crypto at both ends; the caller identified
-  by name and date of birth, then the code. Built: `ehr/` whole for Phase 1 — the contract
-  (seven calls), verification, the gate, the fake scheduler, the PHI marks, mTLS on a free
-  port, 26 tests (EHR-SERVICE.md §6a). Next: `agent/` (Pipecat, the replay cache, the gRPC
-  client, the typed harness).
+  by name and date of birth, then the code. Built: `ehr/` for Phase 1 — the contract (eight
+  calls, `NextVisit` for S5), verification, the gate, the fake scheduler, the PHI marks, mTLS
+  on a free port, 29 tests (EHR-SERVICE.md §6a). `agent/` — the Flow, the typed harness, the
+  GA-only LLM client with the replay cache, the PHI-free logs, 15 tests (AGENT.md). A scripted
+  call books a visit end to end. **Waiting on the owner's desk test: type a call.** Next in
+  Phase 1: the call timeline.
+- **Next sitting (the owner, 2026-10-21): start with a full rundown** before building more:
+  every library we use and how we use it (Rust: tonic, prost, rustls/AWS-LC, tokio, rcgen,
+  zeroize, getrandom; Python: Pipecat 1.13 and its Flows, the Anthropic SDK, grpcio, protobuf,
+  loguru, uv, ruff, pytest), what exists in each that we do not use yet, the levers each
+  gives (useful or not, e.g. Pipecat's evals and simulated callers, its observers, turn
+  strategies, context strategies, Anthropic effort and caching), and links to each one's docs.
 
 ### The conversion (CONVERSION.md §5)
 - **Step 4, the docs.** Done: DESIGN, HANDOFF, CLAUDE.md, SECURITY, SECURITY-BRIEF, EPIC,
