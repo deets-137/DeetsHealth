@@ -1,0 +1,152 @@
+//! Each call's session, named by an opaque handle (EHR-SERVICE.md §1).
+//!
+//! The map of sessions has one lock; each session has its own, so a slow booking on one call
+//! never holds up another. Nothing here has `Debug`: a handle is a credential, and a session
+//! holds the verified patient.
+
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
+use deetshealth_core::Shielded;
+use tokio::sync::Mutex;
+use zeroize::Zeroize;
+
+use crate::scheduler::{BookResult, SlotId};
+
+/// The most sessions held at once. A flood of OpenCall cannot grow memory without end.
+const MAX_SESSIONS: usize = 10_000;
+/// A session the agent never closed is wiped after this long. No phone call lasts it.
+const MAX_AGE: Duration = Duration::from_secs(3 * 60 * 60);
+
+/// 128 random bits from the OS: a call's handle, or a slot token. Wiped on drop.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct Token([u8; 16]);
+
+impl Token {
+    pub fn random() -> Self {
+        let mut b = [0u8; 16];
+        getrandom::fill(&mut b).expect("the OS random source");
+        Self(b)
+    }
+
+    /// 32 lowercase hex characters, or nothing.
+    pub fn parse(s: &str) -> Option<Self> {
+        if s.len() != 32 || !s.bytes().all(|c| matches!(c, b'0'..=b'9' | b'a'..=b'f')) {
+            return None;
+        }
+        let mut b = [0u8; 16];
+        for (i, byte) in b.iter_mut().enumerate() {
+            *byte = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok()?;
+        }
+        Some(Self(b))
+    }
+
+    pub(crate) fn to_hex(&self) -> String {
+        self.0.iter().map(|b| format!("{b:02x}")).collect()
+    }
+}
+
+impl Drop for Token {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+/// The verified patient, as the EHR knows them. Set only by verification, never from the wire.
+#[derive(Clone)]
+// The fake scheduler books for anyone; the Epic adapter (Phase 2) reads it.
+#[allow(dead_code)]
+pub struct PatientKey(pub(crate) Shielded<String>);
+
+/// How far the caller has come.
+pub enum Stage {
+    /// Both factors have not passed. Chart and booking calls are refused. `Some` once a name
+    /// and date of birth matched one patient and a code went out.
+    Unverified(Option<Pending>),
+    /// Both factors passed (SECURITY.md §4.4).
+    Verified(PatientKey),
+    /// Too many wrong codes: the chart path is closed for this call. Offer a person.
+    Locked,
+}
+
+/// The patient a name and date of birth matched, and the code sent to them.
+pub struct Pending {
+    pub patient: PatientKey,
+    pub phone: Shielded<String>,
+    pub code: Shielded<String>,
+    pub issued: Instant,
+}
+
+pub struct Session {
+    pub stage: Stage,
+    /// How many times the caller gave a name and date of birth.
+    pub identifies: u32,
+    /// How many times a code was sent again.
+    pub resends: u32,
+    /// How many wrong codes.
+    pub code_failures: u32,
+    /// The slots of the last FindSlots, by the token the agent got for each.
+    pub offered: HashMap<Token, SlotId>,
+    /// Each booking's answer, by its idempotency key, with the slot token it was for.
+    pub booked: HashMap<String, (Token, BookResult)>,
+    opened: Instant,
+}
+
+/// Why a session cannot be used. Each maps to one gRPC code (service.rs).
+pub enum Refusal {
+    /// No session has this handle: never opened, closed or expired.
+    NoSession,
+    /// Both factors have not passed.
+    NotVerified,
+    /// The service holds the most sessions it may.
+    Full,
+}
+
+#[derive(Default)]
+pub struct Sessions {
+    map: Mutex<HashMap<Token, Arc<Mutex<Session>>>>,
+}
+
+impl Sessions {
+    pub async fn open(&self) -> Result<Token, Refusal> {
+        let mut map = self.map.lock().await;
+        // Wipe sessions the agent never closed. A held lock means the session is in use.
+        map.retain(|_, s| s.try_lock().map_or(true, |s| s.opened.elapsed() < MAX_AGE));
+        if map.len() >= MAX_SESSIONS {
+            return Err(Refusal::Full);
+        }
+        let handle = Token::random();
+        let session = Session {
+            stage: Stage::Unverified(None),
+            identifies: 0,
+            resends: 0,
+            code_failures: 0,
+            offered: HashMap::new(),
+            booked: HashMap::new(),
+            opened: Instant::now(),
+        };
+        map.insert(handle.clone(), Arc::new(Mutex::new(session)));
+        Ok(handle)
+    }
+
+    /// Ends the session. Closing twice is not an error.
+    pub async fn close(&self, handle: &Token) {
+        self.map.lock().await.remove(handle);
+    }
+
+    pub async fn get(&self, handle: &Token) -> Result<Arc<Mutex<Session>>, Refusal> {
+        self.map.lock().await.get(handle).cloned().ok_or(Refusal::NoSession)
+    }
+}
+
+impl Session {
+    pub fn patient(&self) -> Result<PatientKey, Refusal> {
+        match &self.stage {
+            Stage::Verified(p) => Ok(p.clone()),
+            Stage::Unverified(_) | Stage::Locked => Err(Refusal::NotVerified),
+        }
+    }
+}

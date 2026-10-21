@@ -39,7 +39,7 @@ No code. Everything the first slice needs to exist first.
 | # | Item | Who | State |
 |---|---|---|---|
 | P0.1 | The cost per call minute, quoted (DESIGN.md §I, VOICE-AGENT.md §8.5) | Claude | ⬜ |
-| P0.2 | The repo layout approved (CONVERSION.md §6, a draft): `agent/`, `ehr/`, `console/`, `deploy/` | the owner | ⬜ |
+| P0.2 | The repo layout approved (CONVERSION.md §6, a draft): `agent/`, `ehr/`, `console/`, `deploy/`. Each folder is born with the phase that needs it; `ehr/` in Phase 1 | the owner | ✅ 2026-10-21 |
 | P0.3 | E-1: the Epic backend app registration (EPIC.md §2) | the owner | ⬜ |
 | P0.4 | Dev accounts: Twilio (trial), Cartesia (standard), Anthropic (a separate workspace). Synthetic data only; no BAA needed for that | the owner | ⬜ |
 | P0.5 | `npm run check` and the pre-push hook from `../DeetsMusic` | Claude | ⬜ |
@@ -62,6 +62,15 @@ text harness (layer 3), the call timeline and the PHI-free log processor are bui
   only when a test shows it must** (the owner, 2026-10-20; VOICE-AGENT.md §8.3). This holds for
   the agent and for the test-only roles (the simulated callers of layer 4). The key lives in the git-ignored `.env` (`.env.example`
   shows its shape); `.claude/settings.json` denies Claude any read of it.
+- **The Rust `ehr` service is born here (decided 2026-10-21, the owner).** From the first
+  typed call it holds the verify state, binds every tool call to the verified patient and runs
+  the fake scheduler (SECURITY.md §4.9). The Python agent only asks it; Pipecat Flows decides
+  which tools each node offers. Phase 2 swaps the fake scheduler for Epic behind the same
+  interface. Not chosen: Python fakes first, which would move the patient binding from Python
+  to Rust in Phase 2, the retrofit §1 rules out.
+- **The wire is gRPC with mTLS (decided 2026-10-21, the owner):** deadlines and cancels reach
+  Rust, and the PHI tag lives in the contract. Not chosen: HTTP with JSON. The design is
+  [architecture/EHR-SERVICE.md](architecture/EHR-SERVICE.md).
 - **The verify gate is tested with no model:** a scripted stub drives the Flow and asserts
   which tools each node offers. The chart tools must not exist before the check passes.
 
@@ -69,7 +78,7 @@ text harness (layer 3), the call timeline and the PHI-free log processor are bui
 
 ### Phase 2 — the EHR ⬜
 E-2: Backend Services sign-in replaces `core/src/auth.rs`. E-3: the reads R1 and R2 through
-record and replay. The Rust `ehr` service is born here; its wire protocol is this phase's fork.
+record and replay, behind the `ehr` service that Phase 1 built.
 The pass redesign lands and `core/src/store/` and `payload.rs` move to `archive/`
 (CONVERSION.md §5.1). Simulated callers (layer 4) become the test suite.
 **Desk test:** the text harness answers "when is my next visit?" from the Epic sandbox's
@@ -113,7 +122,6 @@ were designed.
   time, and the call's shape, which the patient feels first, waits.
 
 ## 4. Choices that wait for their phase
-- The `ehr` service's wire protocol (Phase 2).
 - The console's layout, staff sign-in and which looks it keeps (Phase 4; DESIGN.md §C, §D).
 - The agent's words, name and voice (Phase 3 at the latest; DESIGN.md §B).
 - Transcript retention, 30 days as a draft (Phase 4; VOICE-AGENT.md §8.7).

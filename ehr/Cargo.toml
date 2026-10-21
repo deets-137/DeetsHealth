@@ -1,0 +1,46 @@
+[package]
+name = "deetshealth-ehr"
+version = "0.1.0"
+description = "DeetsHealth's ehr service: the verify state, the patient binding and the scheduler, behind a gRPC wire to the agent."
+authors = ["Aditya Sundaram"]
+edition = "2021"
+
+# docs/architecture/EHR-SERVICE.md.
+[dependencies]
+# Shielded<T> and the wire edge's pass (core/src/wire.rs).
+deetshealth-core = { path = "../core" }
+# The gRPC server and the generated code. `tls-connect-info` lets tonic serve our own TLS
+# streams; tonic builds no TLS config of its own (transport.rs does).
+tonic = { version = "0.14", default-features = false, features = ["codegen", "router", "transport", "tls-connect-info"] }
+tonic-prost = "0.14"
+tonic-health = "0.14"
+prost = "0.14"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time"] }
+tokio-stream = "0.1"
+# mTLS, TLS 1.3 only, on AWS-LC. The `fips` feature below turns on its FIPS module
+# (EHR-SERVICE.md §6; the owner, 2026-10-21).
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs"] }
+rustls-pki-types = { version = "1", features = ["std"] }
+# Handles and slot tokens: 128 bits from the OS's random source.
+getrandom = "0.3"
+# Wipes a session's secrets when it closes.
+zeroize = "1"
+
+[features]
+# The deploy build. Needs CMake and Go to build AWS-LC's FIPS module; not used on Windows dev.
+fips = ["rustls/fips"]
+
+[build-dependencies]
+# build.rs: protoc without an install, the generated code, the walk over the descriptors.
+protoc-bin-vendored = "3"
+tonic-prost-build = "0.14"
+prost = "0.14"
+prost-types = "0.14"
+
+[dev-dependencies]
+# examples/dev_certs.rs: the dev CA and the two certificates. Never in the service build.
+rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "pem"] }
+# tests/transport.rs: a real mTLS client against the real server.
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tonic = { version = "0.14", default-features = false, features = ["tls-aws-lc", "transport"] }

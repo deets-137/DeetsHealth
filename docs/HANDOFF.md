@@ -21,8 +21,11 @@ npx vite build        # front-end bundle
 npm run docs:check    # links, mentions, § pointers, front matter, the archive rule
 npm run tokens        # regenerate docs/architecture/TOKENS.md after a token change
 npm run types         # regenerate src/model/ (TypeScript) from core/src/payload.rs
-cargo check --workspace --all-features
+cargo check --workspace --features deetshealth-core/dev,deetshealth-core/ts   # not --all-features: ehr's `fips` needs CMake and Go
 cargo test -p deetshealth-core --features sqlite                  # core tests + compile-fail proofs
+cargo test -p deetshealth-ehr                                     # the ehr service: verify, gate, booking, PHI marks, mTLS
+cargo run -p deetshealth-ehr --example dev_certs                  # once: the dev CA and certificates into dev-certs/
+cargo run -p deetshealth-ehr                                      # ehr on a free port (first line names it), Phase 1 fakes
 cargo check -p deetshealth-core --target wasm32-unknown-unknown   # core stays web-ready
 ```
 The build folder is `target/` at the repo root (it was `src-tauri/target/`).
@@ -40,7 +43,7 @@ The product is built in six phases, each ending in a desk test (BUILD-ORDER.md �
    verify, menu, schedule, hand off), the verify gate, a fake in-memory scheduler, fake
    patients, the typed harness, the PHI-free log processor. Desk test: type a call, book a visit.
 2. **The EHR** — Backend Services sign-in to Epic's sandbox, the chart reads through record and
-   replay, the Rust `ehr` service. Desk test: the typed call answers "when is my next visit?"
+   replay, behind the `ehr` service that Phase 1 builds. Desk test: the typed call answers "when is my next visit?"
 3. **Voice** — the fake Twilio, Cartesia in and out, barge-in, fillers, the laptop microphone;
    measure latency and pick the model. Desk test: speak and book a visit.
 4. **The store and the console** — Postgres with sealing, the call log, transcripts, the audit
@@ -51,10 +54,17 @@ The product is built in six phases, each ending in a desk test (BUILD-ORDER.md �
 - **Decided 2026-10-20: the text slice (Phase 1) goes first; Backend Services (Phase 2) follows
   when the Epic registration lands.** The owner starts Phase 1 on 2026-10-21. Phase 0's paper
   items run beside it; none of them blocks it except an Anthropic dev key.
-- **Phase 0, open:** the cost per call minute (Claude); the repo layout, a draft for the owner
-  (CONVERSION.md §6; Phase 1 needs only `agent/`); the Epic registration E-1 (the owner, EPIC.md
-  §2); dev accounts with Twilio, Cartesia and Anthropic, synthetic data only (the owner);
-  `npm run check` from DeetsMusic (Claude).
+- **Phase 0, open:** the cost per call minute (Claude); the Epic registration E-1 (the owner,
+  EPIC.md §2); dev accounts with Twilio and Cartesia, synthetic data only (the owner);
+  `npm run check` from DeetsMusic (Claude). Done: the repo layout (2026-10-21) and the
+  Anthropic dev workspace, "DeetsHealth Dev", key in the git-ignored `.env` (2026-10-20).
+- **Phase 1, in flight (2026-10-21).** Decided: Claude through a replay cache, cheapest model
+  first (Haiku), a hard $100-a-month API budget; the Rust `ehr` service from the first call;
+  gRPC between the agent and `ehr`; mTLS with FIPS crypto at both ends; the caller identified
+  by name and date of birth, then the code. Built: `ehr/` whole for Phase 1 — the contract
+  (seven calls), verification, the gate, the fake scheduler, the PHI marks, mTLS on a free
+  port, 26 tests (EHR-SERVICE.md §6a). Next: `agent/` (Pipecat, the replay cache, the gRPC
+  client, the typed harness).
 
 ### The conversion (CONVERSION.md §5)
 - **Step 4, the docs.** Done: DESIGN, HANDOFF, CLAUDE.md, SECURITY, SECURITY-BRIEF, EPIC,

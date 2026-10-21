@@ -2,11 +2,13 @@
 //!
 //! `Shielded<T>` has no `Debug`, `Display`, `Serialize` or `ToString`, so a log line, a panic
 //! message or a JSON reply that tries to carry one does not compile. The plaintext comes out
-//! only through [`Shielded::reveal`], which needs a [`Pass`]. Exactly three pass types exist,
-//! and this file names all three: [`crate::store::CachePass`] (the sealed cache writer),
-//! [`crate::payload::CardPass`] (the card payload) and [`crate::net::SitePass`] (a request
-//! to the site the value came from, and the parse of its reply; the owner, 2026-09-21). Each
-//! is built only inside its own module. The value is wiped from memory when it drops.
+//! only through [`Shielded::reveal`], which needs a [`Pass`]. Exactly four pass types exist,
+//! and this file names all four: [`crate::store::CachePass`] (the sealed cache writer),
+//! [`crate::payload::CardPass`] (the card payload), [`crate::net::SitePass`] (a request
+//! to the site the value came from, and the parse of its reply; the owner, 2026-09-21) and
+//! [`crate::wire::WirePass`] (the `ehr` service's reply to the agent; 2026-10-21). The first
+//! three are built only inside their own modules; the fourth only in `ehr/src/edge.rs`, which
+//! a test in `ehr` enforces. The value is wiped from memory when it drops.
 //!
 //! A log line cannot print one:
 //! ```compile_fail
@@ -74,13 +76,47 @@ impl<T: Zeroize + Ord> Ord for Shielded<T> {
     }
 }
 
+impl Shielded<String> {
+    /// "Is this the same name, allowing for a slip?" Like the comparisons above, it answers
+    /// yes or no and never reveals either value. Case, spaces and punctuation are ignored;
+    /// a name of 5 letters or more may differ by one letter (speech-to-text spells names
+    /// loosely; the owner's identification rule, SECURITY.md §4.4). A shorter one must match.
+    pub fn same_name(&self, other: &Self) -> bool {
+        let norm = |s: &str| -> Vec<char> {
+            s.chars().filter(|c| c.is_alphabetic()).flat_map(char::to_lowercase).collect()
+        };
+        let (a, b) = (norm(&self.0), norm(&other.0));
+        if a.is_empty() || b.is_empty() {
+            return false;
+        }
+        if a == b {
+            return true;
+        }
+        a.len().min(b.len()) >= 5 && within_one_edit(&a, &b)
+    }
+}
+
+/// True when one insertion, deletion or substitution turns `a` into `b`.
+fn within_one_edit(a: &[char], b: &[char]) -> bool {
+    let (short, long) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    if long.len() - short.len() > 1 {
+        return false;
+    }
+    let first_diff = short.iter().zip(long).position(|(x, y)| x != y).unwrap_or(short.len());
+    if short.len() == long.len() {
+        short[first_diff + 1..] == long[first_diff + 1..]
+    } else {
+        short[first_diff..] == long[first_diff + 1..]
+    }
+}
+
 mod sealed {
     /// Only this file can implement it, so only this file decides who holds a pass.
     pub trait Sealed {}
 }
 
-/// Proof that the caller may read plaintext. Implemented for exactly three types, below, and a
-/// fourth, `dev::DevPass`, only in a build with the `dev` feature (never a release).
+/// Proof that the caller may read plaintext. Implemented for exactly four types, below, and a
+/// fifth, `dev::DevPass`, only in a build with the `dev` feature (never a release).
 pub trait Pass: sealed::Sealed {}
 
 impl sealed::Sealed for crate::store::CachePass {}
@@ -89,6 +125,9 @@ impl sealed::Sealed for crate::payload::CardPass {}
 impl Pass for crate::payload::CardPass {}
 impl sealed::Sealed for crate::net::SitePass {}
 impl Pass for crate::net::SitePass {}
+// The fourth: the `ehr` service's wire edge (the owner, 2026-10-21; EHR-SERVICE.md §5).
+impl sealed::Sealed for crate::wire::WirePass {}
+impl Pass for crate::wire::WirePass {}
 #[cfg(feature = "dev")]
 impl sealed::Sealed for crate::dev::DevPass {}
 #[cfg(feature = "dev")]
@@ -112,6 +151,18 @@ mod tests {
         let pass = CachePass::for_tests();
         let order: Vec<u32> = v.iter().map(|s| *s.reveal(&pass)).collect();
         assert_eq!(order, [1, 2, 3]);
+    }
+
+    #[test]
+    fn same_name_allows_one_slip_in_a_long_name_only() {
+        let n = |s: &str| Shielded::new(s.to_string());
+        assert!(n("Jordan").same_name(&n("jordan")));
+        assert!(n("O'Brien").same_name(&n("obrien")));
+        assert!(n("Jordan").same_name(&n("Jordon")));
+        assert!(n("Raman").same_name(&n("Ramann")));
+        assert!(!n("Jordan").same_name(&n("Jardon")), "two slips");
+        assert!(!n("Lee").same_name(&n("Lea")), "short names must match");
+        assert!(!n("").same_name(&n("")), "empty never matches");
     }
 
     #[test]

@@ -5,9 +5,10 @@
 //! in [`platform`]; the Tauri host (`src-tauri`) fills them on Windows.
 //!
 //! Every protected value (PHI and PII, SECURITY.md §2) lives in [`Shielded`] from the moment
-//! it is parsed. Only three modules can read one: [`store`] (the cache writer), [`payload`]
-//! (the card payload) and [`net`] (a request to the value's own site). Another reader is a
-//! change to `shielded.rs`, on purpose.
+//! it is parsed. Only four places can read one: [`store`] (the cache writer), [`payload`]
+//! (the card payload), [`net`] (a request to the value's own site) and the `ehr` service's
+//! wire edge, through [`wire::WirePass`]. Another reader is a change to `shielded.rs`, on
+//! purpose.
 //!
 //! Build stages (CORE-CRATE.md §2): 1 skeleton ✓ · 2 seal ✓ · 3 store ✓ · 4 auth ✓ ·
 //! 5 fhir + sync ✓ · 6 index and links ✓ · 7 the Sites payloads and events ✓ · 8 refresh.
@@ -27,6 +28,7 @@ pub mod seal;
 pub mod shielded;
 pub mod store;
 pub mod sync;
+pub mod wire;
 
 pub use error::CoreError;
 pub use shielded::{Pass, Shielded};

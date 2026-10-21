@@ -1,0 +1,138 @@
+// The contract between the agent (Python) and `ehr` (Rust): docs/architecture/EHR-SERVICE.md.
+//
+// Rules for this file:
+// - Every chart and booking call takes a handle, never a patient id. No message has a patient
+//   field (SECURITY.md §4.9).
+// - Mark each field that can carry protected data `(phi) = true`, and each field that is a
+//   credential `(secret) = true`. Both marks keep the value out of every log and debug print
+//   (EHR-SERVICE.md §4). When in doubt, mark it.
+// - A breaking change gets a new package (v2). A field number is never reused.
+// - No oneof in a message with a marked field (build.rs refuses it).
+
+syntax = "proto3";
+
+package deets.ehr.v1;
+
+import "google/protobuf/descriptor.proto";
+
+// 50000 to 99999 is the range protobuf leaves for in-house options.
+extend google.protobuf.FieldOptions {
+  // The field can carry PHI or PII (SECURITY.md §2).
+  bool phi = 50001;
+  // The field is a credential: a handle or a token. Not PHI, but it opens PHI.
+  bool secret = 50002;
+}
+
+service Ehr {
+  // Starts one call's session. Every other call names it by the handle in the reply.
+  rpc OpenCall(OpenCallRequest) returns (OpenCallReply);
+  // Ends the session and wipes it. Safe to call twice.
+  rpc CloseCall(CloseCallRequest) returns (CloseCallReply);
+  // The caller's name and date of birth (SECURITY.md §4.4). If exactly one patient matches,
+  // a code goes to the number on file. The reply is the same whether or not one matched.
+  rpc Identify(IdentifyRequest) returns (IdentifyReply);
+  // Sends the code again, to the same number. The reply never says whether a code went out.
+  rpc ResendCode(ResendCodeRequest) returns (ResendCodeReply);
+  // The code the caller read back. PASS opens the chart and booking calls.
+  rpc CheckCode(CheckCodeRequest) returns (CheckCodeReply);
+  // Open slots for the verified caller. Refused before both factors pass.
+  rpc FindSlots(FindSlotsRequest) returns (FindSlotsReply);
+  // Books one slot from the last FindSlots. A retry with the same key gets the same answer.
+  rpc Book(BookRequest) returns (BookReply);
+}
+
+message OpenCallRequest {}
+
+message OpenCallReply {
+  string handle = 1 [(secret) = true];
+}
+
+message CloseCallRequest {
+  string handle = 1 [(secret) = true];
+}
+
+message CloseCallReply {}
+
+message IdentifyRequest {
+  string handle = 1 [(secret) = true];
+  string given_name = 2 [(phi) = true];
+  string family_name = 3 [(phi) = true];
+  // YYYY-MM-DD.
+  string birth_date = 4 [(phi) = true];
+}
+
+message IdentifyReply {
+  // How many more times the caller may give a name and date of birth on this call.
+  uint32 tries_left = 1;
+}
+
+message ResendCodeRequest {
+  string handle = 1 [(secret) = true];
+}
+
+message ResendCodeReply {
+  uint32 resends_left = 1;
+}
+
+message CheckCodeRequest {
+  string handle = 1 [(secret) = true];
+  // Six digits.
+  string code = 2 [(secret) = true];
+}
+
+enum CheckOutcome {
+  CHECK_OUTCOME_UNSPECIFIED = 0;
+  // Both factors passed. The chart and booking calls are open.
+  CHECK_OUTCOME_PASS = 1;
+  // Wrong, expired, or no code was sent. The caller may try again.
+  CHECK_OUTCOME_FAIL = 2;
+  // Three failures: the chart path is closed for this call. Offer a person.
+  CHECK_OUTCOME_LOCKED = 3;
+}
+
+message CheckCodeReply {
+  CheckOutcome outcome = 1;
+  uint32 tries_left = 2;
+}
+
+message FindSlotsRequest {
+  string handle = 1 [(secret) = true];
+  // What the visit is for, in the caller's words.
+  string reason = 2 [(phi) = true];
+  // The earliest day the caller can come, YYYY-MM-DD. Empty: from the next open day.
+  string earliest_day = 3 [(phi) = true];
+}
+
+message FindSlotsReply {
+  repeated Slot slots = 1;
+}
+
+message Slot {
+  // Valid for this call's handle only, until the next FindSlots.
+  string token = 1 [(secret) = true];
+  // The start, local time at the place, YYYY-MM-DDTHH:MM.
+  string starts_at = 2 [(phi) = true];
+  uint32 minutes = 3;
+  string clinician = 4 [(phi) = true];
+  string place = 5 [(phi) = true];
+}
+
+message BookRequest {
+  string handle = 1 [(secret) = true];
+  string slot_token = 2 [(secret) = true];
+  // Made by the agent, random, one per booking the caller asks for. A retry reuses it.
+  string idempotency_key = 3;
+}
+
+enum BookOutcome {
+  BOOK_OUTCOME_UNSPECIFIED = 0;
+  BOOK_OUTCOME_BOOKED = 1;
+  // Someone else took the slot between FindSlots and Book. Offer the others.
+  BOOK_OUTCOME_SLOT_TAKEN = 2;
+}
+
+message BookReply {
+  BookOutcome outcome = 1;
+  // Set when the outcome is BOOKED.
+  Slot booked = 2;
+}

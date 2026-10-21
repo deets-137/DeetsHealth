@@ -8,6 +8,29 @@ updated: 2026-10-20
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-10-21 — Phase 1 begins: the ehr service and its contract
+- Late on 2026-10-20 the owner decided Phase 1's model: Claude through a replay cache, not a
+  local model first. The API budget is the Max plan's $100 a month of credit, a hard ceiling;
+  every test starts on the cheapest model (Haiku) and moves up only when a test shows it must.
+  The key is in the git-ignored `.env`; `.claude/settings.json` denies Claude any read of it.
+- The owner approved the repo layout (P0.2): each folder is born with its phase. He chose a
+  Rust `ehr` service from the first call over Python fakes, so the patient binding is never
+  retrofitted, and gRPC over HTTP with JSON as its wire (deadlines and cancels reach Rust; the
+  PHI tag lives in the contract). New: [architecture/EHR-SERVICE.md](architecture/EHR-SERVICE.md).
+- Installed `uv` 0.13.4 with winget. Built `ehr/`: the contract (four calls), the `(phi)` and
+  `(secret)` marks with redacted debug prints made by `build.rs`, the edge, the sessions, the
+  fake scheduler. Added `WirePass`, the fourth pass, to core. 15 tests pass; core's 42 still do.
+- Two forks found and brought to the owner: the TLS library (the FIPS standard against what
+  `tonic` and `grpcio` ship) and how the caller is identified before the two factors. He
+  chose FIPS crypto at both ends (the standard still holds) and name and date of birth, then
+  the code (not the calling number first). Recorded in EHR-SERVICE.md §6 and SECURITY.md §4.4.
+- Built the rest of `ehr/` for Phase 1: `Identify`, `ResendCode`, `CheckCode` with the limits
+  of SECURITY.md §4.4; `Shielded::same_name` in core (one slip in a name of 5 letters or more);
+  four fake patients and the fixed code `246810`; booking in its own task so a dropped request
+  cannot cut it off; `rustls` on AWS-LC, TLS 1.3, mTLS, a `fips` feature and a refusal to start
+  in a deploy without it; the dev certificate example; a transport test against the real
+  server. 26 `ehr` tests and 43 core tests pass; clippy is clean.
+
 ## 2026-10-20 — the build order
 - The owner asked for the build process and where to start. Wrote [BUILD-ORDER.md](BUILD-ORDER.md):
   six phases, each with a desk test; Phase 0 (paper) is in flight; one fork open, what goes

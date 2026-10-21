@@ -31,3 +31,4 @@ dev-dumps/
 !.vscode/extensions.json
 .idea
 .DS_Store
+dev-certs/

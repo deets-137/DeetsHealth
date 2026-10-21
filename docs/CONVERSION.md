@@ -153,7 +153,11 @@ Each step is one commit; the tree builds after each one.
   `archive/docs/` to `docs/archive/`; VOICE-AGENT.md moved to `architecture/`. Open:
   SECURITY.md and the docs that follow it (HANDOFF.md › Open now).
 
-## 6. The new layout (a draft for the owner to edit)
+## 6. The new layout
+> **Part:** project · 2026-10-21. Approved by the owner (BUILD-ORDER.md P0.2). Each folder is
+> born with the phase that needs it: `agent/` and `ehr/` in Phase 1, `console/` (today's `src/`
+> moves) in Phase 4, `deploy/` in Phase 6.
+
 ```
 core/       Rust: the kept core (§4.1) — the FHIR client, normalizer, sealing, Shielded<T>
 ehr/        Rust: a small internal service over core; the agent's tools call it (new)
