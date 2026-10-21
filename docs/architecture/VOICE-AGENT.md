@@ -217,10 +217,12 @@ third-party summaries; confirm each with the vendor in writing.
 ### 8.3 The language model
 - The Messages API with our own tools (find slots, book, read visits, read medicines, verify
   caller, hand off to a person), streaming, prompt caching on the fixed system prompt.
-- **Which model is a measure, not a fork now:** voice needs a fast first token. Start with
-  Claude Opus 5.5 at `low` effort (its thinking cannot be turned off), and measure the time to
-  first token and the tool accuracy against Claude Sonnet 5.5 and Claude Haiku 5.5 on the same
-  recorded test calls. The owner picks from the numbers.
+- **Which model is a measure, not a fork now:** voice needs a fast first token. **Start with
+  the cheapest model, Claude Haiku 5.5, and move up only when a test shows it falls short**
+  (the owner, 2026-10-20; the $100-a-month API budget, BUILD-ORDER.md Phase 1). The next steps
+  up are Claude Sonnet 5.5, then Claude Opus 5.5 at `low` effort (its thinking cannot be
+  turned off). Each step up names the test call that failed. Measure the time to first token
+  and the tool accuracy on the same recorded test calls; the owner picks from the numbers.
 - Server-side refusal fallbacks are a beta feature: check whether the BAA covers them before
   turning them on.
 

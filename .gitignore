@@ -11,6 +11,7 @@ archive/src-tauri/target/
 
 # Secrets and PHI — never commit
 .env*
+!.env.example
 epic-client.json
 tokens/
 dev-dumps/

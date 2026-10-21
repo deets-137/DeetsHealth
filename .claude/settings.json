@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Edit(./.env)",
+      "Write(./.env)",
+      "Bash(cat .env*)",
+      "Bash(type .env*)",
+      "Bash(head .env*)",
+      "Bash(tail .env*)",
+      "Bash(more .env*)",
+      "Bash(less .env*)",
+      "PowerShell(Get-Content .env*)",
+      "PowerShell(cat .env*)",
+      "PowerShell(type .env*)"
+    ]
+  }
+}

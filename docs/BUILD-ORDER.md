@@ -54,6 +54,14 @@ text harness (layer 3), the call timeline and the PHI-free log processor are bui
   recorded and replayed, keyed by its prompt: a rerun with no change costs nothing and needs
   no network. Not chosen: a local model (llama.cpp) first. It runs Pipecat's OpenAI path, not
   the Anthropic one, and its tool calls and wording do not predict Claude's.
+- **The budget (the owner, 2026-10-20): the Max plan's $100 of API credit a month, a hard
+  ceiling.** The credit lands in the Deets.Solutions Console organization; the work runs in its
+  "DeetsHealth Dev" workspace. No purchased credit and no auto-reload. Every design choice
+  counts tokens: the replay cache, prompt caching on the fixed system prompt, a `max_tokens`
+  cap on each reply. **Every test starts on the cheapest model (Claude Haiku 5.5) and moves up
+  only when a test shows it must** (the owner, 2026-10-20; VOICE-AGENT.md §8.3). This holds for
+  the agent and for the test-only roles (the simulated callers of layer 4). The key lives in the git-ignored `.env` (`.env.example`
+  shows its shape); `.claude/settings.json` denies Claude any read of it.
 - **The verify gate is tested with no model:** a scripted stub drives the Flow and asserts
   which tools each node offers. The chart tools must not exist before the check passes.
 
