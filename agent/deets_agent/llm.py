@@ -16,6 +16,13 @@ The client does two jobs, at the one place every request passes:
    Recordings come from typed or simulated calls against ehr's fake patients only; they live in
    tests/replays/ and are committed, so a fresh clone replays for free.
 
+3. **Thinking blocks that no longer fit are dropped.** A thinking block is bound to the tool
+   list it was made with, and each Flow node has its own tools. Sent back after a node change,
+   the block is refused (400, "the `tools` list differs"), and the call dies. The client keeps
+   each block's signature with the tool list of the request that made it, and drops a block
+   whose tool list differs from the request's. Anthropic's fix for this is a beta header,
+   which the GA rule above rules out.
+
 Every live request logs its token counts (never its content), so the spend is visible.
 """
 
@@ -62,42 +69,130 @@ def _clean(params: dict[str, Any]) -> dict[str, Any]:
     return {k: v for k, v in params.items() if not isinstance(v, (NotGiven, Omit))}
 
 
+def tools_key(params: dict[str, Any]) -> str:
+    """The hash of a request's tool list: what a thinking block is bound to."""
+    canon = json.dumps(params.get("tools") or [], sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canon.encode()).hexdigest()[:16]
+
+
+def drop_stale_thinking(params: dict[str, Any], bound: dict[str, str]) -> tuple[dict[str, Any], int]:
+    """The request without the thinking blocks made under another tool list. `bound` maps a
+    block's signature to the tool list it was made with. A block with an unknown signature is
+    kept. Returns the request and the number of blocks dropped."""
+    here = tools_key(params)
+    dropped = 0
+    messages = []
+    for m in params.get("messages", []):
+        content = m.get("content")
+        if m.get("role") != "assistant" or not isinstance(content, list):
+            messages.append(m)
+            continue
+        kept = []
+        for block in content:
+            sig = block.get("signature") if isinstance(block, dict) else None
+            if isinstance(block, dict) and block.get("type") == "thinking" and bound.get(sig, here) != here:
+                dropped += 1
+                continue
+            kept.append(block)
+        if kept:
+            messages.append({**m, "content": kept})
+        # A message that held only stale thinking goes with it.
+    if not dropped:
+        return params, 0
+    return {**params, "messages": messages}, dropped
+
+
+class _Signatures:
+    """Collects the signature of each thinking block in a reply, as its events pass."""
+
+    def __init__(self, bound: dict[str, str], tools: str) -> None:
+        self._bound = bound
+        self._tools = tools
+        self._open: dict[int, str] = {}
+
+    def see(self, event) -> None:
+        kind = getattr(event, "type", None)
+        if kind == "content_block_start" and getattr(event.content_block, "type", None) == "thinking":
+            self._open[event.index] = getattr(event.content_block, "signature", "") or ""
+        elif kind == "content_block_delta" and getattr(event.delta, "type", None) == "signature_delta":
+            self._open[event.index] = self._open.get(event.index, "") + event.delta.signature
+        elif kind == "content_block_stop" and event.index in self._open:
+            sig = self._open.pop(event.index)
+            if sig:
+                self._bound[sig] = self._tools
+
+    def see_message(self, message: Message) -> None:
+        for block in message.content:
+            if block.type == "thinking" and block.signature:
+                self._bound[block.signature] = self._tools
+
+
 class _Replay:
     """A recorded stream, played back as the SDK's own event objects."""
 
-    def __init__(self, events: list[dict]) -> None:
+    def __init__(self, events: list[dict], sigs: _Signatures | None = None, trace=None) -> None:
         self._events = [_EVENT.validate_python(e) for e in events]
+        self._sigs = sigs
+        self._trace = trace
 
     def __aiter__(self):
         return self._gen()
 
     async def _gen(self):
         for e in self._events:
+            if self._sigs is not None:
+                self._sigs.see(e)
             yield e
+        if self._trace is not None:
+            self._trace.done(_usage_of(self._events), replayed=True)
+
+
+def _usage_of(events) -> dict[str, int]:
+    usage: dict[str, int] = {}
+    for event in events:
+        u = getattr(getattr(event, "message", None), "usage", None) or getattr(event, "usage", None)
+        if u is not None:
+            for name in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
+                if getattr(u, name, None) is not None:
+                    usage[name] = getattr(u, name)
+    return usage
 
 
 class _Recording:
     """A live stream, passed through. Kept on disk only when it ran to its end."""
 
-    def __init__(self, stream, path: Path | None, key: str) -> None:
+    def __init__(
+        self, stream, path: Path | None, key: str, sigs: _Signatures | None = None, trace=None, on_failure=None
+    ) -> None:
         self._stream = stream
         self._path = path
         self._key = key
+        self._sigs = sigs
+        self._trace = trace
+        self._on_failure = on_failure
 
     def __aiter__(self):
         return self._gen()
 
     async def _gen(self):
         events: list[dict] = []
-        usage: dict[str, int] = {}
-        async for event in self._stream:
-            events.append(event.model_dump(mode="json"))
-            u = getattr(getattr(event, "message", None), "usage", None) or getattr(event, "usage", None)
-            if u is not None:
-                for name in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
-                    if getattr(u, name, None) is not None:
-                        usage[name] = getattr(u, name)
-            yield event
+        seen = []
+        try:
+            async for event in self._stream:
+                if not seen and self._trace is not None:
+                    self._trace.first_event()
+                events.append(event.model_dump(mode="json"))
+                seen.append(event)
+                if self._sigs is not None:
+                    self._sigs.see(event)
+                yield event
+        except Exception as e:
+            if self._trace is not None:
+                self._trace.failed(e)
+            if self._on_failure is not None:
+                self._on_failure(e)
+            raise
+        usage = _usage_of(seen)
         logger.info(
             "claude live request {} tokens: in={} out={} cache_read={} cache_write={}",
             self._key[:8],
@@ -106,6 +201,8 @@ class _Recording:
             usage.get("cache_read_input_tokens", 0),
             usage.get("cache_creation_input_tokens", 0),
         )
+        if self._trace is not None:
+            self._trace.done(usage, replayed=False)
         if self._path is not None:
             _write(self._path, {"stream": True, "events": events})
 
@@ -120,22 +217,55 @@ class _Messages:
         self._real = real
         self._mode = mode
         self._replays = replays
+        # Signature of each thinking block seen on this call → the tool list it was made with.
+        self._bound: dict[str, str] = {}
+        # The dev call record (call_record.py), set by the typed harness only; None otherwise.
+        self.record = None
+        # Called with the exception when a request fails, so the call ends at once (call.py).
+        self.on_failure = None
+
+    def _failed(self, e: BaseException, trace) -> None:
+        if trace is not None:
+            trace.failed(e)
+        if self.on_failure is not None:
+            self.on_failure(e)
 
     async def create(self, **params: Any):
-        params = _clean(params)
+        params, dropped = drop_stale_thinking(_clean(params), self._bound)
+        if dropped:
+            logger.info("dropped {} thinking blocks made under another tool list", dropped)
         key = request_key(params)
         path = self._replays / f"{key}.json"
         stream = bool(params.get("stream"))
+        sigs = _Signatures(self._bound, tools_key(params))
+        hit = self._mode is not Mode.LIVE and path.exists()
+        trace = self.record.llm_request(key, params, hit=hit, dropped=dropped) if self.record else None
 
-        if self._mode is not Mode.LIVE and path.exists():
+        if hit:
             body = json.loads(path.read_text(encoding="utf-8"))
-            return _Replay(body["events"]) if stream else Message.model_validate(body["message"])
+            if stream:
+                return _Replay(body["events"], sigs, trace)
+            message = Message.model_validate(body["message"])
+            sigs.see_message(message)
+            if trace is not None:
+                trace.done(_usage_of([SimpleNamespace(usage=message.usage)]), replayed=True)
+            return message
         if self._mode is Mode.REPLAY or self._real is None:
-            raise ReplayMiss(f"no recording for request {key}; run the typed harness to record it")
+            err = ReplayMiss(f"no recording for request {key}; run the typed harness to record it")
+            self._failed(err, trace)
+            raise err
 
-        reply = await self._real.messages.create(**params)
+        try:
+            reply = await self._real.messages.create(**params)
+        except Exception as e:
+            self._failed(e, trace)
+            raise
         if stream:
-            return _Recording(reply, path if self._mode is Mode.RECORD else None, key)
+            path = path if self._mode is Mode.RECORD else None
+            return _Recording(reply, path, key, sigs, trace, lambda e: self._failed(e, None))
+        sigs.see_message(reply)
+        if trace is not None:
+            trace.done(_usage_of([SimpleNamespace(usage=reply.usage)]), replayed=False)
         if self._mode is Mode.RECORD:
             _write(path, {"stream": False, "message": reply.model_dump(mode="json")})
         return reply

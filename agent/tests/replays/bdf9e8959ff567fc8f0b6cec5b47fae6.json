@@ -5,7 +5,7 @@
     "container": null,
     "content": [],
     "diagnostics": null,
-    "id": "msg_011CgF8GrRDZGntTRsEY2Nut",
+    "id": "msg_011CgwqPvXuKzzjTCAJLMeJ3",
     "model": "claude-haiku-5-5",
     "role": "assistant",
     "stop_details": null,
@@ -15,13 +15,13 @@
     "usage": {
      "cache_creation": {
       "ephemeral_1h_input_tokens": 0,
-      "ephemeral_5m_input_tokens": 1680
+      "ephemeral_5m_input_tokens": 1679
      },
-     "cache_creation_input_tokens": 1680,
+     "cache_creation_input_tokens": 1679,
      "cache_read_input_tokens": 0,
      "inference_geo": "global",
      "input_tokens": 4,
-     "output_tokens": 6,
+     "output_tokens": 16,
      "output_tokens_details": null,
      "server_tool_use": null,
      "service_tier": "standard",
@@ -32,81 +32,46 @@
   },
   {
    "content_block": {
-    "citations": null,
-    "text": "",
-    "type": "text"
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01A4qMivLjGL9P5cYZ87NLcG",
+    "input": {},
+    "name": "check_code",
+    "toolset_name": null,
+    "type": "tool_use"
    },
    "index": 0,
    "type": "content_block_start"
   },
   {
    "delta": {
-    "text": "Thank you, you",
-    "type": "text_delta"
+    "partial_json": "",
+    "type": "input_json_delta"
    },
    "index": 0,
    "type": "content_block_delta"
   },
   {
    "delta": {
-    "text": "'re verified,",
-    "type": "text_delta"
+    "partial_json": "{\"code\"",
+    "type": "input_json_delta"
    },
    "index": 0,
    "type": "content_block_delta"
   },
   {
    "delta": {
-    "text": " Jordan. Would you",
-    "type": "text_delta"
+    "partial_json": ": \"2468",
+    "type": "input_json_delta"
    },
    "index": 0,
    "type": "content_block_delta"
   },
   {
    "delta": {
-    "text": " like me",
-    "type": "text_delta"
-   },
-   "index": 0,
-   "type": "content_block_delta"
-  },
-  {
-   "delta": {
-    "text": " to find",
-    "type": "text_delta"
-   },
-   "index": 0,
-   "type": "content_block_delta"
-  },
-  {
-   "delta": {
-    "text": " an",
-    "type": "text_delta"
-   },
-   "index": 0,
-   "type": "content_block_delta"
-  },
-  {
-   "delta": {
-    "text": " open time",
-    "type": "text_delta"
-   },
-   "index": 0,
-   "type": "content_block_delta"
-  },
-  {
-   "delta": {
-    "text": " for your",
-    "type": "text_delta"
-   },
-   "index": 0,
-   "type": "content_block_delta"
-  },
-  {
-   "delta": {
-    "text": " check-up?",
-    "type": "text_delta"
+    "partial_json": "10\"}",
+    "type": "input_json_delta"
    },
    "index": 0,
    "type": "content_block_delta"
@@ -119,15 +84,15 @@
    "delta": {
     "container": null,
     "stop_details": null,
-    "stop_reason": "end_turn",
+    "stop_reason": "tool_use",
     "stop_sequence": null
    },
    "type": "message_delta",
    "usage": {
-    "cache_creation_input_tokens": 1680,
+    "cache_creation_input_tokens": 1679,
     "cache_read_input_tokens": 0,
     "input_tokens": 4,
-    "output_tokens": 33,
+    "output_tokens": 48,
     "output_tokens_details": {
      "thinking_tokens": 0
     },

@@ -161,7 +161,9 @@ call loop; the sealed store.
 - **The model never checks a verification answer** and never decides whether a result may be
   read; the service does (§4.4).
 - **The words that carry a value are a template filled from the record**; the model picks the
-  template. It cannot say a number the chart does not hold.
+  template. It cannot say a number the chart does not hold. As built (2026-11-11, the owner's
+  fork 1A): the code speaks the filled template to the caller word for word, and the model only
+  learns what was said (AGENT.md §3).
 - **The Anthropic API under "HIPAA readiness" with a signed BAA**, US-only inference, generally
   available features only in the PHI path (VOICE-AGENT.md §8.2).
 

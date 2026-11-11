@@ -87,7 +87,9 @@ One mark, read in three places:
 Protobuf has no required fields: a missing value arrives as `""` or `0`, and an unknown field
 is ignored. So nothing past the edge sees a wire type.
 - **Rust:** each request converts by `TryFrom` into a domain type. An empty handle, a bad
-  date, an empty code: rejected with `INVALID_ARGUMENT` before any logic runs. Tagged fields go
+  date, an empty code: rejected with `INVALID_ARGUMENT` before any logic runs. A birth date
+  must be a real calendar day, from 1900 to tomorrow in UTC; it is refused here, before the
+  session counts one of the caller's three tries (2026-11-11). Tagged fields go
   straight into `Shielded<T>`. `Shielded<T>` has no `Serialize`, so each reply that carries a
   protected value reveals it in one named function, easy to review.
 - **Python:** each reply converts into the agent's own dataclasses. Tagged fields become a

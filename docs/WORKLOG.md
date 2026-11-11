@@ -8,6 +8,34 @@ updated: 2026-10-20
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-11 — the first desk test; the thinking-block crash; the dev call record
+- The owner ran two typed calls: one genuine, one to break the agent. Both crashed right after
+  `identify`. In the break call the agent stayed in scope, would not name its technology, and
+  asked again about a birth year in the future.
+- The cause, reproduced live: Haiku thought before calling `identify`; the next request, under
+  the verify node's tools, sent that thinking block back, and the API refused it (400, the
+  block is bound to another tool list). Pipecat's LLM service stopped and the harness timed out
+  after 60 seconds. A scripted run passed only because Haiku did not think there. Fixed in our
+  client (stale blocks dropped; the beta header fix is ruled out by the GA rule), with a test.
+  A failed request now ends the call at once.
+- The owner asked for a log of both sides and any telemetry to trace errors. Built the dev
+  call record (AGENT.md §1): one JSON Lines file per typed call in `agent/calls/`, git-ignored,
+  synthetic only, and `harness/show_call.py` to read it. The full text of library errors goes
+  there, not to the console.
+- Found while testing (AGENT.md §4): the agent rewrites `say` after `identify`; an impossible
+  date of birth uses a try; the model fills a missing last name and once spoke of a
+  "placeholder".
+- The owner chose fork 1A: the code speaks each fixed line word for word, not the model.
+  Built with `TTSSpeakFrame` (the voice path's own frame); every fixed line now ends in a
+  question so the model does not speak after it (it repeated one in a test run). Also built:
+  an impossible date of birth refused by the Flow and by `ehr`'s edge before a try counts; the
+  name rule in the prompt; "today" set per call, pinned to the fakes' day in typed calls.
+  The booking script was recorded again (the prompt changed).
+- The owner asked whether to rebuild Pipecat in Rust. Answer: no, not now (the reasons are in
+  this sitting's chat; the measure that would reopen it is Phase 3's latency per step).
+- Spend: about two cents on Haiku in all. 18 agent tests and 32 `ehr` tests pass. The new
+  recordings in `tests/replays/` are not committed; the older ones no longer match the prompt.
+
 ## 2026-10-21 — Phase 1 begins: the ehr service and its contract
 - Late on 2026-10-20 the owner decided Phase 1's model: Claude through a replay cache, not a
   local model first. The API budget is the Max plan's $100 a month of credit, a hard ceiling;

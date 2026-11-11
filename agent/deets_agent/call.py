@@ -12,6 +12,7 @@ and no new response starts within a short grace.
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 
 from pipecat.flows import FlowManager
 from pipecat.frames.frames import (
@@ -23,6 +24,7 @@ from pipecat.frames.frames import (
     LLMFullResponseStartFrame,
     LLMMessagesAppendFrame,
     LLMTextFrame,
+    TTSSpeakFrame,
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.worker import PipelineParams, PipelineWorker
@@ -33,7 +35,7 @@ from pipecat.services.anthropic.llm import AnthropicLLMService
 from pipecat.workers.runner import WorkerRunner
 
 from deets_agent.ehr_client import EhrClient
-from deets_agent.flow import CallFlow
+from deets_agent.flow import FAKE_TODAY, CallFlow
 
 # After a response ends, how long to wait for a tool call or a new response before the turn
 # counts as over. Tool calls to ehr take milliseconds; this only covers frame ordering.
@@ -44,6 +46,11 @@ TURN_LIMIT_S = 60.0
 ENDED = object()
 
 
+class CallFailed(Exception):
+    """Claude's request failed, so the call cannot go on. The message is the error's type only;
+    the full error is in the dev call record."""
+
+
 class TurnCollector(FrameProcessor):
     """Collects the bot's words for one turn and reports when the turn is over."""
 
@@ -51,9 +58,13 @@ class TurnCollector(FrameProcessor):
         super().__init__()
         self.turns: asyncio.Queue = asyncio.Queue()
         self._words: list[str] = []
+        self._last_whole = False
         self._pending_calls = 0
         self._in_response = False
         self._settle: asyncio.Task | None = None
+        # The dev call record and the Flow manager, set by TypedCall when a record is open.
+        self.record = None
+        self.manager: FlowManager | None = None
 
     async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
         await super().process_frame(frame, direction)
@@ -61,13 +72,28 @@ class TurnCollector(FrameProcessor):
             if isinstance(frame, LLMFullResponseStartFrame):
                 self._in_response = True
                 self._cancel_settle()
+                if self.record is not None and self.manager is not None:
+                    self.record.node(self.manager.current_node)
             elif isinstance(frame, LLMTextFrame):
-                self._words.append(frame.text)
+                self._add(frame.text)
+            elif isinstance(frame, TTSSpeakFrame):
+                # A fixed line the Flow speaks itself (flow.py `_say`). If the model goes on, its
+                # response starts within the grace and joins this turn; if not, the turn ends.
+                self._add(frame.text, whole=True)
+                self._cancel_settle()
+                self._settle = asyncio.create_task(self._settle_turn())
             elif isinstance(frame, FunctionCallsStartedFrame):
                 self._pending_calls += len(frame.function_calls)
                 self._cancel_settle()
+                if self.record is not None:
+                    for fc in frame.function_calls:
+                        self.record.tool_call(fc.tool_call_id, fc.function_name, dict(fc.arguments))
             elif isinstance(frame, FunctionCallResultFrame):
                 self._pending_calls = max(0, self._pending_calls - 1)
+                if self.record is not None:
+                    self.record.tool_result(
+                        frame.tool_call_id, frame.function_name, frame.result, getattr(frame, "error", None)
+                    )
             elif isinstance(frame, LLMFullResponseEndFrame):
                 self._in_response = False
                 self._cancel_settle()
@@ -77,6 +103,14 @@ class TurnCollector(FrameProcessor):
                 self._flush()
                 await self.turns.put(ENDED)
         await self.push_frame(frame, direction)
+
+    def _add(self, text: str, whole: bool = False) -> None:
+        """Add words to the turn. A whole line (spoken by the Flow) is set apart by a space from
+        the model's stream on either side of it."""
+        if (whole or self._last_whole) and self._words and not self._words[-1].endswith((" ", "\n")):
+            self._words.append(" ")
+        self._words.append(text)
+        self._last_whole = whole
 
     def _cancel_settle(self) -> None:
         if self._settle is not None:
@@ -91,6 +125,7 @@ class TurnCollector(FrameProcessor):
     def _flush(self) -> None:
         text = "".join(self._words).strip()
         self._words.clear()
+        self._last_whole = False
         if text:
             self.turns.put_nowait(text)
 
@@ -99,10 +134,13 @@ class TypedCall:
     """A call driven by text. `start()` returns the greeting; `say()` returns each reply, or
     None once the call has ended."""
 
-    def __init__(self, ehr: EhrClient, llm: AnthropicLLMService) -> None:
-        self.flow = CallFlow(ehr)
+    def __init__(self, ehr: EhrClient, llm: AnthropicLLMService, record=None, today: date = FAKE_TODAY) -> None:
+        # A typed call pins "today" to the day ehr's fake slots are built around (flow.py).
+        self.flow = CallFlow(ehr, today=today)
         self._llm = llm
         self._collector = TurnCollector()
+        # The dev call record (call_record.py): the typed harness passes one; tests do not.
+        self.record = record
         context = LLMContext()
         self._aggregators = LLMContextAggregatorPair(context)
         pipeline = Pipeline(
@@ -120,6 +158,17 @@ class TypedCall:
         self._runner = WorkerRunner()
         self._run_task: asyncio.Task | None = None
         self.ended = False
+        client = getattr(llm, "_client", None)
+        messages = getattr(client, "messages", None)
+        if messages is not None and hasattr(messages, "on_failure"):
+            # A failed request kills Pipecat's LLM service; end the turn now, not after the limit.
+            messages.on_failure = lambda e: self._collector.turns.put_nowait(CallFailed(type(e).__name__))
+        if record is not None:
+            self._collector.record = record
+            self._collector.manager = self._manager
+            ehr.record = record
+            if messages is not None and hasattr(messages, "record"):
+                messages.record = record
 
     async def start(self) -> str | None:
         started = asyncio.Event()
@@ -138,6 +187,8 @@ class TypedCall:
     async def say(self, text: str) -> str | None:
         if self.ended:
             return None
+        if self.record is not None:
+            self.record.caller(text)
         await self._worker.queue_frame(
             LLMMessagesAppendFrame(messages=[{"role": "user", "content": text}], run_llm=True)
         )
@@ -145,6 +196,10 @@ class TypedCall:
 
     async def _next_turn(self) -> str | None:
         turn = await asyncio.wait_for(self._collector.turns.get(), timeout=TURN_LIMIT_S)
+        if isinstance(turn, CallFailed):
+            raise turn
+        if self.record is not None and turn is not ENDED:
+            self.record.agent(turn)
         if turn is ENDED:
             await self._ended()
             return None

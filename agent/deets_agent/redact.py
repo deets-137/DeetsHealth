@@ -52,8 +52,19 @@ def redacted_text(message: Message) -> str:
     return f"{message.DESCRIPTOR.name}({', '.join(parts)})"
 
 
+# The dev call record's tap (call_record.py), set by the typed harness only: it gets each
+# warning and error as written, before the wall withholds it, for a synthetic call's record.
+# None in every other process.
+dev_tap = None
+
+
 def _patch(record) -> None:
     exc = record["exception"]
+    if dev_tap is not None and record["level"].no >= 30:
+        detail = f"{exc.type.__name__}: {exc.value}" if exc is not None and exc.type is not None else None
+        name = record["extra"].get("lib_name") or record["name"] or ""
+        text = record["extra"].get("lib_text") or record["message"]
+        dev_tap(record["level"].name, f"{name}:{record['function']}:{record['line']}", text, detail)
     kind = record["extra"].get("exc_kind", "")
     if exc is not None and exc.type is not None:
         kind = exc.type.__name__
@@ -77,7 +88,10 @@ class _StdlibToLoguru(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         kind = record.exc_info[0].__name__ if record.exc_info and record.exc_info[0] else ""
         level = record.levelname if record.levelname in _LEVELS else "INFO"
-        logger.bind(lib_name=record.name, exc_kind=kind).log(level, "")
+        extra = {"lib_name": record.name, "exc_kind": kind}
+        if dev_tap is not None:
+            extra["lib_text"] = record.getMessage()
+        logger.bind(**extra).log(level, "")
 
 
 def install(level: str = "INFO") -> None:

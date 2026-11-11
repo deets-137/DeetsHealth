@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-10-19
+updated: 2026-11-11
 ---
 # DeetsHealth — Debugging (the phone agent)
 
@@ -28,7 +28,7 @@ updated: 2026-10-19
 | The call log | Which calls ended how; which Flow node each one left from | ⬜ |
 | The call timeline | Where the time went in one call; the 800 ms target per turn | ⬜ (Jaeger in Docker, locally) |
 | The EHR ledger | Each EHR call: what, status, size, time, outcome | ⬜ (the patient app's ledger carries, §3) |
-| The transcript | What was said. Synthetic calls only in dev; a real one only through the console, audited | ⬜ |
+| The transcript | What was said. Synthetic calls only in dev; a real one only through the console, audited | 🟡 typed calls: the dev call record (AGENT.md §1) |
 | Recordings | The audio, when a rule kept it (VOICE-AGENT.md §8.7) | ⬜ |
 | Record and replay | Re-run a call's EHR replies, STT results and Claude replies with no network | ⬜ (VOICE-AGENT.md §9) |
 

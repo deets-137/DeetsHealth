@@ -5,7 +5,7 @@
     "container": null,
     "content": [],
     "diagnostics": null,
-    "id": "msg_011CgF8Gcc1ycUh4CYxaDTWD",
+    "id": "msg_011CgwqPpHrY2WbddnFhMUij",
     "model": "claude-haiku-5-5",
     "role": "assistant",
     "stop_details": null,
@@ -15,13 +15,13 @@
     "usage": {
      "cache_creation": {
       "ephemeral_1h_input_tokens": 0,
-      "ephemeral_5m_input_tokens": 62
+      "ephemeral_5m_input_tokens": 44
      },
-     "cache_creation_input_tokens": 62,
-     "cache_read_input_tokens": 1130,
+     "cache_creation_input_tokens": 44,
+     "cache_read_input_tokens": 1242,
      "inference_geo": "global",
      "input_tokens": 4,
-     "output_tokens": 16,
+     "output_tokens": 9,
      "output_tokens_details": null,
      "server_tool_use": null,
      "service_tier": "standard",
@@ -32,16 +32,45 @@
   },
   {
    "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQS3gUKEAgTGAI4AUIIdGhpbmtpbmcSDOzb51aG42FJXbNBBBoMj9VjhfG4F+Zc1+MZIjDiHnesMrBZR3WwyvhcR6Ju8I/1pcmQfuViodEw6eDlY/0uwLCsnJQ1uha+fVmHfSUq+wRVyfvjRi7Wm6VxJCW+hOgskh6w2N07EWjhPk8twTIkcU3lMBXTJsBVbH7GnJBjwxDTUTPucTZlY9uar7teGtMUcP8TBwkCxhJN6UQZCggzSe6OmDelizAytD5PZI2t0PEw9H6TKHYsCNHp6RWjMkxcJuUppgYe41mODHnLaTMvbw37OhXGmWHHBAT5/SbwzdfHiWiL89Y4CFTtJmNVLY7j5ZSctPqaAsWW9NRm9MayfB6WNHDbQ83mqQ90rpT2dft9OxrRqRJb5GFfwp4wRlUd7BzOdTrJ4jgRpXnnUoqL82tUop/Ol03/00OjYxO9NbyqWodr3PXihrw0MFl5WZFocbiOAU7uTkjGlQoirHhLbKGs5gHDy0R9PLdCRqkShktlHXxjwLYtv/duwkjjKyQXAT1Jg/cAcyGmyEYFQcLCBz+1BlMoQWYzFp1/Bo11sYdKWVDYA2d0Gnxhl7vaASAVrm8Yuf64wS4YHQQjGsJXPQZWz0k0r9ajv4RNiTrCnivoaIIiEYLtvJZbjmtvoK6N8gfrUHPvn9fW2Q4NRBp8iEXn3un7l6Afv4GszXEfSlC0LMqGMvfD2eUFMgH1hQ55oE1190ihNg3jyADeO5HhMKiCjLRya8DTyK6kSA06fvzsO/m9O+5n72WvaSn5GJlujrL2enTgoTdlIfrbIIdY6HiVxpC8jxjczEmPh5jgiRQGyIm6MhFbG1dOawkTdxge6/2GPUE/6GRj476Gu64gci3L0VXQJjoJmvvnpUKyaXY4+szew4twtFyCkh+S0j/7X5gXurmAegkuJ/y+vUh43VwF7yvC4GN/1Ny3sFFs1mW6KDGqRqrT2/e8+xgB",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
     "caller": {
      "type": "direct"
     },
-    "id": "toolu_01VaXeMSL9JdxktNVGXZQL6i",
+    "id": "toolu_01Khhy1BDJJ1AkVARfZXuSVV",
     "input": {},
     "name": "identify",
     "toolset_name": null,
     "type": "tool_use"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_start"
   },
   {
@@ -49,7 +78,7 @@
     "partial_json": "",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
@@ -57,7 +86,7 @@
     "partial_json": "{\"given",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
@@ -65,7 +94,7 @@
     "partial_json": "_name\":",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
@@ -73,7 +102,7 @@
     "partial_json": " \"Jorda",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
@@ -81,7 +110,7 @@
     "partial_json": "n\"",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
@@ -89,7 +118,7 @@
     "partial_json": ", \"fami",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
@@ -97,7 +126,7 @@
     "partial_json": "ly_name",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
@@ -105,7 +134,7 @@
     "partial_json": "\": \"Ell",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
@@ -113,7 +142,7 @@
     "partial_json": "is\"",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
@@ -121,7 +150,7 @@
     "partial_json": ", \"birt",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
@@ -129,7 +158,7 @@
     "partial_json": "h_date\"",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
@@ -137,7 +166,7 @@
     "partial_json": ": \"1984",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
@@ -145,11 +174,11 @@
     "partial_json": "-03-12\"}",
     "type": "input_json_delta"
    },
-   "index": 0,
+   "index": 1,
    "type": "content_block_delta"
   },
   {
-   "index": 0,
+   "index": 1,
    "type": "content_block_stop"
   },
   {
@@ -161,12 +190,12 @@
    },
    "type": "message_delta",
    "usage": {
-    "cache_creation_input_tokens": 62,
-    "cache_read_input_tokens": 1130,
+    "cache_creation_input_tokens": 44,
+    "cache_read_input_tokens": 1242,
     "input_tokens": 4,
-    "output_tokens": 106,
+    "output_tokens": 158,
     "output_tokens_details": {
-     "thinking_tokens": 0
+     "thinking_tokens": 51
     },
     "server_tool_use": null
    }

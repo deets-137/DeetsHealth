@@ -40,6 +40,11 @@ pub fn identify(mut req: pb::IdentifyRequest) -> Result<(Token, Claimed), Status
     if !is_day(&birth_date) {
         return Err(Status::invalid_argument("birth_date: not YYYY-MM-DD"));
     }
+    // Checked here, before the session counts a try: a slip of the tongue ("2056") must not
+    // cost the caller one of their three (2026-11-11 desk test).
+    if !is_possible_birth(&birth_date, &utc_day(1)) {
+        return Err(Status::invalid_argument("birth_date: not a possible birth date"));
+    }
     Ok((
         handle,
         Claimed {
@@ -119,9 +124,49 @@ fn is_day(s: &str) -> bool {
     if b.len() != 10 || b[4] != b'-' || b[7] != b'-' || !digits(0..4) || !digits(5..7) || !digits(8..10) {
         return false;
     }
+    let year: u32 = s[0..4].parse().unwrap_or(0);
     let month: u8 = s[5..7].parse().unwrap_or(0);
     let day: u8 = s[8..10].parse().unwrap_or(0);
-    (1..=12).contains(&month) && (1..=31).contains(&day)
+    (1..=12).contains(&month) && day >= 1 && day <= days_in_month(year, month)
+}
+
+fn days_in_month(year: u32, month: u8) -> u8 {
+    match month {
+        2 if (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400) => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
+/// A birth date no later than `latest` and no earlier than 1900. Both are `is_day` strings, so
+/// the order of the text is the order of the days.
+fn is_possible_birth(birth: &str, latest: &str) -> bool {
+    birth >= "1900-01-01" && birth <= latest
+}
+
+/// The UTC day `ahead` days from now, as YYYY-MM-DD. One day ahead covers every time zone's
+/// "today", so a baby born this evening in Hawaii still passes.
+fn utc_day(ahead: i64) -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    civil_day(secs.div_euclid(86_400) + ahead)
+}
+
+/// Days since 1970-01-01 to YYYY-MM-DD (Howard Hinnant's `civil_from_days`).
+fn civil_day(days: i64) -> String {
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02}")
 }
 
 #[cfg(test)]
@@ -155,9 +200,42 @@ mod tests {
     #[test]
     fn days_are_checked() {
         assert!(is_day("2026-11-02"));
-        for bad in ["2026-13-01", "2026-11-00", "26-11-02", "2026/11/02", "2026-11-2x"] {
+        assert!(is_day("2024-02-29"), "a leap day");
+        for bad in [
+            "2026-13-01", "2026-11-00", "26-11-02", "2026/11/02", "2026-11-2x", "2026-02-29", "2026-04-31",
+            "1900-02-29",
+        ] {
             assert!(!is_day(bad), "{bad}");
         }
+    }
+
+    #[test]
+    fn a_birth_date_must_be_possible() {
+        assert!(is_possible_birth("1984-03-12", "2026-11-12"));
+        assert!(is_possible_birth("2026-11-12", "2026-11-12"), "born today, somewhere");
+        assert!(!is_possible_birth("2056-02-27", "2026-11-12"), "the 2026-11-11 desk test");
+        assert!(!is_possible_birth("1899-12-31", "2026-11-12"));
+    }
+
+    #[test]
+    fn the_clock_turns_days_into_dates() {
+        assert_eq!(civil_day(0), "1970-01-01");
+        assert_eq!(civil_day(19_723), "2024-01-01");
+        assert_eq!(civil_day(20_403), "2025-11-11");
+        assert!(utc_day(1).as_str() > "2026-01-01");
+    }
+
+    #[test]
+    fn a_future_birth_date_is_refused_before_a_try_is_counted() {
+        let req = pb::IdentifyRequest {
+            handle: Token::random().to_hex(),
+            given_name: "Billy".into(),
+            family_name: "Bob".into(),
+            birth_date: "2056-02-27".into(),
+        };
+        let err = identify(req).err().unwrap();
+        assert_eq!(err.code(), tonic::Code::InvalidArgument);
+        assert!(!err.message().contains("2056"), "a refusal never carries the value");
     }
 
     #[test]

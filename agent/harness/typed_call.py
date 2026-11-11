@@ -11,6 +11,10 @@ the agent's replies.
 - `--script FILE`: one caller line per line of the file, instead of typing. A script run twice
   costs tokens once.
 - Type `/quit` to hang up.
+- Each call writes a dev call record to agent/calls/ (call_record.py): both sides, each tool
+  call and result, each Claude request with its time and tokens, each ehr call, and library
+  errors in full. Synthetic callers only. `--no-record` turns it off. Read one with
+  `uv run python harness/show_call.py` (the newest) or `... show_call.py FILE`.
 
 Fake callers (ehr/src/verify.rs): Jordan Ellis, born 1984-03-12, has a visit on November 10.
 Priya Raman, born 1971-11-30, has none. The text code is always 246810.
@@ -21,14 +25,17 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from deets_agent import config, redact
-from deets_agent.call import TypedCall
+from deets_agent.call import CallFailed, TypedCall
+from deets_agent.call_record import CallRecord
 from deets_agent.ehr_client import EhrClient
 from deets_agent.ehr_process import running_ehr
+from deets_agent.flow import FAKE_TODAY
 from deets_agent.llm import Mode, build_llm
 
 
@@ -50,12 +57,24 @@ async def main() -> int:
     parser.add_argument("--mode", choices=[m.value for m in Mode], default=Mode.RECORD.value)
     parser.add_argument("--script", type=Path)
     parser.add_argument("--log", default="WARNING", help="log level (the logs carry no PHI)")
+    parser.add_argument("--no-record", action="store_true", help="write no dev call record")
+    parser.add_argument(
+        "--today",
+        default=FAKE_TODAY.isoformat(),
+        help="the agent's today, YYYY-MM-DD or 'real' (default: the day ehr's fake slots follow)",
+    )
     args = parser.parse_args()
+    today = date.today() if args.today == "real" else date.fromisoformat(args.today)
+    record = None if args.no_record else CallRecord(args.mode, config.MODEL)
+    if record is not None:
+        redact.dev_tap = record.log
     redact.install(args.log)
 
+    reason = "hung up"
+    code = 0
     async with running_ehr() as target:
         ehr = await EhrClient.connect(target, config.CERTS)
-        call = TypedCall(ehr, build_llm(Mode(args.mode)))
+        call = TypedCall(ehr, build_llm(Mode(args.mode)), record, today=today)
         try:
             greeting = await call.start()
             print(f"agent > {greeting}")
@@ -67,11 +86,31 @@ async def main() -> int:
                     print(f"agent > {reply}")
                 if call.ended:
                     print("(the call ended)")
+                    reason = "the agent ended it"
                     break
+        except CallFailed as e:
+            reason, code = f"Claude's request failed ({e})", 1
+            print(f"(the call failed: Claude's request failed, {e})")
+        except (EOFError, KeyboardInterrupt):
+            reason = "the harness was stopped"
+        except BaseException as e:
+            reason, code = f"the harness failed ({type(e).__name__})", 1
+            if record is not None:
+                record.event("error", type=type(e).__name__, message=str(e))
+            raise
         finally:
-            await call.hang_up()
+            try:
+                await call.hang_up()
+            except Exception as e:  # noqa: BLE001 - a failed call may not stop cleanly; the record must still close
+                if record is not None:
+                    record.event("error", type=type(e).__name__, message="hang-up did not finish cleanly")
             await ehr.close()
-    return 0
+            if record is not None:
+                record.close(reason)
+                redact.dev_tap = None
+                print(f"(record: {record.path})")
+                print(f"({record.summary()})")
+    return code
 
 
 if __name__ == "__main__":

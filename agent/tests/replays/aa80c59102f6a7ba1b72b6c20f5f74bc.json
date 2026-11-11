@@ -5,7 +5,7 @@
     "container": null,
     "content": [],
     "diagnostics": null,
-    "id": "msg_011CgF8HHhFKYmz95a6NR1T9",
+    "id": "msg_011CgwqWDGe78rpnqo5Hs1qa",
     "model": "claude-haiku-5-5",
     "role": "assistant",
     "stop_details": null,
@@ -15,10 +15,10 @@
     "usage": {
      "cache_creation": {
       "ephemeral_1h_input_tokens": 0,
-      "ephemeral_5m_input_tokens": 72
+      "ephemeral_5m_input_tokens": 951
      },
-     "cache_creation_input_tokens": 72,
-     "cache_read_input_tokens": 2363,
+     "cache_creation_input_tokens": 951,
+     "cache_read_input_tokens": 1129,
      "inference_geo": "global",
      "input_tokens": 4,
      "output_tokens": 16,
@@ -35,9 +35,9 @@
     "caller": {
      "type": "direct"
     },
-    "id": "toolu_01LxXUaMEAuNvy9MCv8RAsjh",
+    "id": "toolu_01LjG7EiL54JDxqnHkHCW879",
     "input": {},
-    "name": "next_visit",
+    "name": "book",
     "toolset_name": null,
     "type": "tool_use"
    },
@@ -47,6 +47,22 @@
   {
    "delta": {
     "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"optio",
+    "type": "input_json_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "n\": 1}",
     "type": "input_json_delta"
    },
    "index": 0,
@@ -65,10 +81,10 @@
    },
    "type": "message_delta",
    "usage": {
-    "cache_creation_input_tokens": 72,
-    "cache_read_input_tokens": 2363,
+    "cache_creation_input_tokens": 951,
+    "cache_read_input_tokens": 1129,
     "input_tokens": 4,
-    "output_tokens": 27,
+    "output_tokens": 45,
     "output_tokens_details": {
      "thinking_tokens": 0
     },

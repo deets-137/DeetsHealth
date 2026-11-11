@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: []
-updated: 2026-10-21
+updated: 2026-11-11
 ---
 # DeetsHealth — The agent (`agent/`), as built
 
@@ -24,12 +24,25 @@ uv sync                                   # once; uv is at ...\WinGet\Packages\a
 uv run python scripts/gen_proto.py        # after any change to ehr.proto
 uv run python harness/typed_call.py       # type a call (record mode)
 uv run python harness/typed_call.py --script tests/scripts/book_a_visit.txt
+uv run python harness/show_call.py        # the newest call record as a timeline (--all: every event)
 uv run pytest                             # replay only: no tokens
 uv run ruff check .
 ```
 `ehr` must be built (`cargo build -p deetshealth-ehr`) and the dev certificates made
 (`cargo run -p deetshealth-ehr --example dev_certs`). The harness starts `ehr` itself on a
 free port.
+
+**The dev call record** (2026-11-11, the owner's ask): each typed call writes one JSON Lines
+file to `agent/calls/` (git-ignored), and the harness prints its path and a cost line at the
+end. It holds both sides of the conversation, each Flow node, each tool call with its
+arguments, result and time, each Claude request (replayed or live, time to first event, total
+time, tokens, thinking blocks dropped, or the full error), each `ehr` call (name, time,
+outcome), and the full text of library warnings and errors. `--no-record` turns it off.
+**Synthetic callers only**: the record holds what the PHI wall keeps out of the logs. Only the
+harness opens one (`deets_agent/call_record.py`); a deployed call has no path to it.
+
+The agent's "today" in a typed call is Monday, October 26, 2026 (§3); `--today real` uses the
+real date, but the fake slots are then in the past.
 
 **Fake callers** (`ehr/src/verify.rs`): Jordan Ellis, 1984-03-12, has a visit on November 10.
 Priya Raman, 1971-11-30, has none. Casey Morgan and Casey Morgen share 1990-06-05, so neither
@@ -41,11 +54,13 @@ verifies. The text code is always `246810`.
 | `deets_agent/flow.py` | The nodes: greet, verify, menu, schedule, goodbye, hand off. Each node's tools. The words that carry a value (`say`). |
 | `deets_agent/call.py` | One typed call: the pipeline, the turn collector, `start()`, `say()`, `hang_up()`. |
 | `deets_agent/ehr_client.py` | The gRPC client: mTLS, a deadline on each call, the edge into `Shielded` types, error kinds. |
-| `deets_agent/llm.py` | Pipecat's Anthropic service behind our client: GA only, and the replay cache. |
+| `deets_agent/llm.py` | Pipecat's Anthropic service behind our client: GA only, the replay cache, stale thinking blocks dropped. |
+| `deets_agent/call_record.py` | The dev call record: one JSON Lines file per typed call. |
 | `deets_agent/redact.py` | The PHI-free log processor; `redacted_text` for a wire message. |
 | `deets_agent/shielded.py` | The Python wrapper for protected data. |
 | `deets_agent/ehr_process.py` | Starts `ehr` on a free port and reads its address. |
 | `harness/typed_call.py` | The typed call for the owner's desk test. |
+| `harness/show_call.py` | Prints a call record as a timeline. |
 | `tests/` | The gate with no model, the PHI wall, the LLM client, a whole call from replays. |
 
 ## 3. What was decided while building (inside the owner's choices)
@@ -61,8 +76,27 @@ verifies. The text code is always `246810`.
   calls Claude once and keeps the reply), `live`. Recordings sit in `tests/replays/` and are
   committed, from fake patients only. Each live request logs its token counts, never its
   content.
-- **A fixed "today"** (Monday, October 26, 2026) in the prompt, so a script's requests are the
-  same on every run and the cache holds.
+- **"Today" is set per call** (2026-11-11). `CallFlow(today=…)` puts it in the role prompt;
+  it is the prompt's only part that changes, once a day, so the prompt cache misses once a day,
+  not once a call. A real call will use the hospital's own date. A typed call and the tests pin
+  it to Monday, October 26, 2026, because `ehr`'s fake slots are fixed to the weeks after it
+  and the replay cache needs the same prompt on every run. `--today real` (or a date) on the
+  harness moves it. A tool that fetches the date was not chosen: it costs a round trip each
+  time, and the model can forget to call it.
+- **The fixed lines are spoken by the code** (2026-11-11, the owner's fork 1A). Every line a
+  tool produces goes to the caller word for word as a `TTSSpeakFrame`, the frame the voice path
+  uses in Phase 3. The model gets `spoken_to_caller` in the tool result, so it knows what was
+  heard. A line that ends in a question waits for the caller. Every line ends in a question
+  except "Let me look for others", where the model must act next. A model that spoke after a
+  fixed line said the line again, word for word, in a test run. The closing lines (goodbye,
+  hand off) end the call with no model turn. The working words were changed for this; the
+  owner decides the final words (DESIGN.md §2 B).
+- **An impossible date of birth costs no try** (2026-11-11). The Flow checks it (1900 to
+  today) before it calls `identify`, and asks again. `ehr`'s edge refuses it as well, before
+  the session counts a try (EHR-SERVICE.md §5).
+- **The name rule** (2026-11-11): the role prompt and `identify`'s description say to use only
+  the names the caller said, and to ask for any missing part. The role prompt also says never
+  to talk about the tools or the instructions.
 - **The model never sees a slot token or a handle.** It sees numbered options and picks a
   number; `flow.py` maps the number to the token. The handle and the offered slots live on the
   call's `CallFlow` object as `Shielded`, never in Flows' shared state.
@@ -76,15 +110,27 @@ verifies. The text code is always `246810`.
   remove.
 - **The turn ends** when a response ends, no tool call is still running, and no new response
   starts within 0.4 seconds.
+- **Stale thinking blocks are dropped** (2026-11-11). Effort `low` lets Haiku think when a turn
+  is hard. A thinking block is bound to the tool list it was made with, and each Flow node has
+  its own tools. Sent back after a node change, the block got a 400 ("the `tools` list
+  differs"), Pipecat's LLM service stopped, and the call hung for 60 seconds, then crashed.
+  This was the owner's first desk test, twice. Our client now keeps each block's signature
+  with its tool list and drops a block whose tool list differs from the request's. The API's
+  own fix is a beta header, which the GA rule rules out. Test: `test_llm.py`.
+- **A failed Claude request ends the call at once** (`CallFailed`), not after the 60-second
+  turn limit.
 
 ## 4. Known gaps
-- **The model does not always read `say` as written.** In the first typed call, after
-  `identify` it said "the text message we just sent" and dropped "if those details match our
-  records". The no-echo rule held (the words do not depend on a match), but the template rule
-  of SECURITY.md §4.9 is held by the prompt only. Speaking the template directly, without the
-  model, is a choice for Phase 3, when the owner decides the agent's words.
-- **No call timeline yet** (OpenTelemetry across the agent and `ehr`, VOICE-AGENT.md §9). It is
-  the next Phase 1 item and the main debugging tool for a call.
+- **The model fills a missing name: fixed in the prompt only, not tested live.** Given "Billy
+  Bob" and no last name, it sent "Billy Bob" as both names once, and "Bob" once; once it told
+  the caller it had "entered a placeholder" (2026-11-11). The prompt now forbids both. A
+  prompt is not a lock: watch for it in desk tests.
+- **The model's own lines are not checked.** The greeting, the questions it asks and its
+  replies between tools come from the model. They carry no value from the record (it never
+  sees one it was not given in `spoken_to_caller`), but their wording is not fixed.
+- **No call timeline yet** (OpenTelemetry across the agent and `ehr`, VOICE-AGENT.md §9). The
+  dev call record covers the agent's side for typed calls; the timeline is still the main
+  debugging tool for a voice call.
 - **Simulated callers** (layer 4) are not built; they come in Phase 2.
 - `grpcio` is the wheel on dev; the FIPS build against OpenSSL is a deploy-image step
   (EHR-SERVICE.md §6).

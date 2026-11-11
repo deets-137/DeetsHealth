@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-10-20
+updated: 2026-11-11
 ---
 # DeetsHealth — Handoff
 
@@ -67,8 +67,12 @@ The product is built in six phases, each ending in a desk test (BUILD-ORDER.md �
   calls, `NextVisit` for S5), verification, the gate, the fake scheduler, the PHI marks, mTLS
   on a free port, 29 tests (EHR-SERVICE.md §6a). `agent/` — the Flow, the typed harness, the
   GA-only LLM client with the replay cache, the PHI-free logs, 15 tests (AGENT.md). A scripted
-  call books a visit end to end. **Waiting on the owner's desk test: type a call.** Next in
-  Phase 1: the call timeline.
+  call books a visit end to end. **Desk test, 2026-11-11:** both of the owner's typed calls
+  crashed after `identify` (stale thinking blocks, AGENT.md §3). Fixed, and each typed call now
+  writes a dev call record (AGENT.md §1). From the test, built the same day: the code speaks
+  each fixed line word for word (fork 1A), an impossible date of birth costs no try, a name
+  rule in the prompt, and "today" set per call (AGENT.md §3). **Waiting on the owner's second
+  desk test.** Next in Phase 1: the call timeline.
 - **Next sitting (the owner, 2026-10-21): start with a full rundown** before building more:
   every library we use and how we use it (Rust: tonic, prost, rustls/AWS-LC, tokio, rcgen,
   zeroize, getrandom; Python: Pipecat 1.13 and its Flows, the Anthropic SDK, grpcio, protobuf,

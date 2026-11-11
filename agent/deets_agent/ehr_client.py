@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import enum
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -94,6 +95,9 @@ class EhrClient:
     def __init__(self, channel: grpc.aio.Channel) -> None:
         self._channel = channel
         self._stub = pb_grpc.EhrStub(channel)
+        # The dev call record (call_record.py), set by the typed harness only. It gets each
+        # call's name, time and outcome; never a value.
+        self.record = None
 
     @classmethod
     async def connect(cls, target: str, certs: Path, ready_s: float = 5.0) -> EhrClient:
@@ -117,10 +121,16 @@ class EhrClient:
         await self._channel.close()
 
     async def _call(self, name: str, request, deadline: float = DEADLINE_S):
+        start = time.perf_counter()
+        outcome = "ok"
         try:
             return await getattr(self._stub, name)(request, timeout=deadline)
         except grpc.aio.AioRpcError as e:
+            outcome = e.code().name
             raise EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), name) from None
+        finally:
+            if self.record is not None:
+                self.record.ehr(name, round((time.perf_counter() - start) * 1000), outcome)
 
     # ---- the calls ----
 
