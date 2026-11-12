@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
 | Theme (color roles) | themes.css | 27 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 77 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 78 tokens · overrides:  |
 
 ## Theme roles
 
@@ -77,6 +77,7 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 |---|---|---|---|
 | `--topbar` | `40px` | — | the top bar's height |
 | `--nav-width` | `168px` | — |  |
+| `--subnav-width` | `var(--nav-width)` | — | the Analytics nav, inside its panel: as wide as the big nav |
 | `--stage-share` | `2fr` | — | the stage's share of a page's width... |
 | `--rail-share` | `1fr` | — | ...and the rail's: the rail is a third |
 | `--rail-min` | `300px` | — | the rail never gets narrower than this |

@@ -8,6 +8,15 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-12 (Windows, night) — The Analytics page, the recovered sketches
+- The owner asked for a blank page beside Settings to sketch on, then whether his design
+  screenshots were saved. Only the Chat sketch was. Four more came back from the session
+  transcripts (his pasted images only, no terminal or portal shots) into
+  `docs/architecture/images/`, linked from CONSOLE.md §6 and CHAT.md §8.
+- He narrated the Analytics page over his sketch: a nav stacked in the panel that works like
+  the big one; Home first, Flags last. Built: ANALYTICS.md (desk test open), each view empty
+  till he designs it.
+
 ## 2026-11-12 (Windows, night) — The API surface, the annotation gate, the drift checks
 - The owner asked for the API surface, front end and back end, then for the annotate gap and
   the state of the docs; then "go ahead with all recommended fixes, ensure to account for

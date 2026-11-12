@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: passed 2026-11-11
-sources: [scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts]
+sources: [scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
 updated: 2026-11-12
 ---
 # DeetsHealth — The console
@@ -73,8 +73,8 @@ web app cannot do.
   themes with a swatch each and a dot on the current one. Keys: ↓ opens it, → enters the
   themes, ↑ and ↓ move, ← and Esc go back. There are no window buttons: the browser owns the
   window.
-- **The nav** (168 px, `--nav-width`): text items. **Chat** is at the top; **Settings** is at
-  the foot. One accent pill slides to the selected item (280 ms). ↑ and ↓ move between pages.
+- **The nav** (168 px, `--nav-width`): text items. **Chat**, then **Analytics**, at the top;
+  **Settings** is at the foot. One accent pill slides to the selected item (280 ms). ↑ and ↓ move between pages.
   The old page fades out (120 ms), then the new one fades in (220 ms). With reduced motion,
   both are instant. The last page is reopened on the next visit (`localStorage`,
   `deets.console.page`).
@@ -88,6 +88,8 @@ web app cannot do.
   owner).
 - **Settings** (`pages/settings.ts`): one panel, the title and "No settings yet.", that fills
   the page (the owner, 2026-11-11: no eyebrow over the title).
+- **Analytics** (`pages/analytics.ts`): one panel with its own nav inside it
+  ([ANALYTICS.md](ANALYTICS.md)).
 - **The page title** is the fixed text "DeetsHealth" (SECURITY.md §4.3).
 
 ### The look (fork 2A, the owner, 2026-11-11)
@@ -156,6 +158,9 @@ patient app's cards (CONVERSION.md §5.1).
 **Passed, 2026-11-11** (the owner, in Edge). His notes, built the same day: no eyebrow over
 Settings, its panel fills the page; the icon; a Timeline panel at the top of the rail and a
 wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
+
+![His note, 2026-11-11: remove the eyebrow over Settings](images/console-settings-note-2026-11-11.png)
+![His sketch, 2026-11-11: a wider rail (the red line marks its new left edge)](images/console-rail-sketch-2026-11-11.png)
 1. `npm run dev`, then open the address in Edge. The page shows the top bar, the nav with Chat
    at the top and Settings at the foot, and Chat's stage with three panels on its right.
 2. Click **DeetsHealth** in the top bar, point at **Theme**, and pick each theme. The colors

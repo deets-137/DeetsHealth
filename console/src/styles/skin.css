@@ -21,6 +21,7 @@
   /* ---------- layout ---------- */
   --topbar: 40px; /* the top bar's height */
   --nav-width: 168px;
+  --subnav-width: var(--nav-width); /* the Analytics nav, inside its panel: as wide as the big nav */
   --stage-share: 2fr; /* the stage's share of a page's width... */
   --rail-share: 1fr; /* ...and the rail's: the rail is a third */
   --rail-min: 300px; /* the rail never gets narrower than this */

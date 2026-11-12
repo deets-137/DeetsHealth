@@ -106,6 +106,8 @@ the branch `archive/patient-app`.
 - `CHAT.md` — the Chat page (built, wired to the agent's dev server): the owner's sketch (`images/`), the canvas, the
   bubbles and their line facts, the PHI / Test / Demo toggle, the text box, the connection, the
   catalog of calls, the rail's sandbox patients and the code button (§8); its forks.
+- `ANALYTICS.md` — the Analytics page: the owner's sketch, its own nav inside the panel (Home,
+  Outcome, Cost, Logs, Speed, Flags), each view empty till he designs it.
 - `TEXTS.md` — the code by text: the random code, Twilio's Messages request from `ehr`, the
   settings, `TextPass`, the fake Twilio in the dev server, the sandbox fixture, the tests, the
   Phase 5 steps.

@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png]
+sources: [console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png]
 updated: 2026-11-12
 ---
 # DeetsHealth — The Chat page
@@ -239,6 +239,9 @@ dimension, an "unknown" answer, calibrate model graders against human ones).
 > **Part:** built · 2026-11-12 — the owner's choices: fork A (the fake Twilio now, Twilio itself
 > in Phase 5); "build as close to end product as reasonable during dev"; the layout from his two
 > screenshots of 2026-11-12.
+
+![His first screenshot, 2026-11-12: the help button's place, boxed in blue](images/chat-sandbox-box-2026-11-12.png)
+![His second screenshot, 2026-11-12: the split button, the code (left) and send (right)](images/chat-code-button-2026-11-12.png)
 
 **His words (2026-11-12).** The "Sandbox patients" box moves to the rail, in Test and in Demo
 ("while we replay a test log"), with patient data only: name, date of birth, and a collapsible
