@@ -19,6 +19,23 @@ use crate::{
 const MAX_REASON: usize = 500;
 /// The longest given or family name.
 const MAX_NAME: usize = 100;
+/// The longest call id (a record's file name): `20261112-143222-test`, with room for a suffix.
+const MAX_CALL_ID: usize = 64;
+
+/// One line of a FileCall stream: the call id, checked (letters, digits and `-` only, so it is a
+/// safe file and row name), and the line, which must be one JSON object. The line holds the
+/// call's words, so it goes no further than the store, which seals it.
+pub fn file_call_line(req: pb::FileCallLine) -> Result<(String, String), Status> {
+    let id = req.call_id;
+    if id.is_empty() || id.len() > MAX_CALL_ID || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err(Status::invalid_argument("call_id: not a record id"));
+    }
+    let line = req.line;
+    if !line.trim_start().starts_with('{') {
+        return Err(Status::invalid_argument("line: not a JSON event"));
+    }
+    Ok((id, line))
+}
 
 pub fn handle(wire: &str) -> Result<Token, Status> {
     Token::parse(wire).ok_or_else(|| Status::invalid_argument("handle: not a handle"))
@@ -172,6 +189,16 @@ fn civil_day(days: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_file_call_line_needs_a_record_id_and_a_json_event() {
+        let line = |id: &str, line: &str| file_call_line(pb::FileCallLine { call_id: id.into(), line: line.into() });
+        assert!(line("20261112-143222-test", r#"{"t_ms": 0}"#).is_ok());
+        for bad_id in ["", "../../etc/passwd", "a b", "x".repeat(65).as_str()] {
+            assert!(line(bad_id, "{}").is_err(), "a call id must be letters, digits and - only");
+        }
+        assert!(line("20261112-143222-test", "not json").is_err());
+    }
 
     /// The wire pass is issued in this file only (core/src/wire.rs).
     #[test]

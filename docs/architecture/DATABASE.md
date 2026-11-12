@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: open
-sources: [scripts/postgres.mjs, scripts/dev.mjs, agent/deets_agent/catalog.py, ehr/src/store.rs, ehr/src/seal_key.rs, ehr/migrations/0001_calls.sql, ehr/tests/store.rs]
+sources: [scripts/postgres.mjs, scripts/dev.mjs, agent/deets_agent/catalog.py, ehr/src/store.rs, ehr/src/seal_key.rs, ehr/src/service.rs, ehr/migrations/0001_calls.sql, ehr/tests/store.rs, agent/deets_agent/ehr_client.py, agent/deets_agent/ehr_process.py, agent/deets_agent/dev_server.py]
 updated: 2026-11-12
 ---
 # The database — dev today, shaped for production
@@ -124,8 +124,37 @@ Plain columns hold no protected data; sealed columns are bytes under `seal.rs`.
   `DEETS_EHR_BIN` points `db:ingest` at another build for the same reason.
 - **First run, 2026-11-12 (Postgres 18.7 on the PC):** 128 calls, 1,505 transcript lines,
   4,664 events, 25 staff flags and 46 annotation lines filed in 3.4 s; a second run filed none.
-- **Not yet:** the live path (the agent sends events over gRPC as the call runs); the read API
+- **The live path (built 2026-11-12):** when a call ends, the agent streams its record to `ehr`
+  line by line (`FileCall` in `ehr.proto`; `file_call` in `ehr/src/service.rs` and in
+  `agent/deets_agent/ehr_client.py`), and `ehr` files it at once. The dev server does this for
+  every Chat-page test call (`_file` in `dev_server.py`); the typed harness for every typed call.
+  `ehr` opens the store at start when it has the settings: `npm run dev` passes them; a typed
+  call run by hand reads `.pg/ehr.env`, which `scripts/postgres.mjs` rewrites at each start.
+  The tests' `ehr` runs without a store (`running_ehr(store=False)`), so a test never writes
+  the dev database. If the store is missing or down, the call is still served; it is filed by
+  the next `ehr ingest`.
+- **One hash for both paths:** the hash is over the record's canonical form (non-empty lines,
+  no `\r`), so a record read from disk with Windows line ends and the same record streamed over
+  `FileCall` are one record. The ingest skips what the live path filed.
+- **Not yet:** each event filed as it happens (today the whole record at the end); the read API
   for the console; the audit rows; TLS to the database (the cloud adds it).
+
+### 4b. Working on the Mac (or any new machine)
+The call store **adds to the database; it never deletes it or rebuilds it.** Each call is filed
+once, when it ends, and `npm run dev` files only what is new or changed since the last run.
+- **First time:** `brew install postgresql@18` (the pinned major, `PG_MAJOR` in
+  `scripts/postgres.mjs`), then `npm run dev`. It makes the repo's cluster in `.pg/`, the
+  database, the dev password and the sealing key, and files every record in `agent/calls/`.
+- **Each machine has its own database and its own sealing key** (`.pg/` is git-ignored). The
+  call records in `agent/calls/` are committed and shared; each machine files them into its own
+  database. A call made on the PC reaches the Mac's database after a pull and an `npm run dev`.
+- **Never copy `.pg/` between machines.** The key in it opens the sealed columns; a copy is a
+  second key to guard.
+- **To start over** (not needed day to day): `npm run db:stop`, delete `.pg/`, `npm run dev`.
+  The records rebuild everything, because the records, not the database, are the dev source.
+- **Not the same thing: the Chat page's catalog** (`agent/calls/catalog.db`, SQLite, CHAT.md §7)
+  is still rebuilt from the records when the dev server starts. It retires when the Chat page
+  reads the store through `ehr` (§6).
 
 ## 5. To be demo ready (synthetic data in the cloud)
 It is more than Docker and a cloud account. In order:

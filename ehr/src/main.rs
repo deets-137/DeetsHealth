@@ -110,16 +110,49 @@ async fn run() -> Result<(), String> {
     println!("ehr listening on {addr}");
 
     let config = Arc::new(config);
+    let store = open_store().await;
     match texts {
-        Some(codes) => serve(listener, config, codes).await,
-        None => serve(listener, config, FakeCodes).await,
+        Some(codes) => serve(listener, config, codes, store).await,
+        None => serve(listener, config, FakeCodes, store).await,
     }
 }
 
-async fn serve<C: Codes>(listener: TcpListener, config: Arc<ServerConfig>, codes: C) -> Result<(), String> {
+/// The call store, when its settings are set (DATABASE.md). Without them, or when Postgres is
+/// down, ehr serves calls without a store and says so once on stderr: FileCall is refused and
+/// the next `ehr ingest` files the records it missed.
+async fn open_store() -> Option<Arc<Store>> {
+    let (Ok(url), Ok(key_file)) = (std::env::var("DEETS_DATABASE_URL"), std::env::var("DEETS_SEAL_KEY_FILE")) else {
+        return None;
+    };
+    let key = match SealKey::from_dev_file(&PathBuf::from(key_file)) {
+        Ok(key) => key,
+        Err(e) => {
+            eprintln!("ehr: no call store: {e}");
+            return None;
+        }
+    };
+    match Store::connect(&url, key).await {
+        Ok(store) => Some(Arc::new(store)),
+        Err(e) => {
+            eprintln!("ehr: no call store: {e}");
+            None
+        }
+    }
+}
+
+async fn serve<C: Codes>(
+    listener: TcpListener,
+    config: Arc<ServerConfig>,
+    codes: C,
+    store: Option<Arc<Store>>,
+) -> Result<(), String> {
     let (health, health_service) = tonic_health::server::health_reporter();
     health.set_serving::<EhrServer<EhrService<FakeScheduler, FakePatients, C>>>().await;
-    let ehr = EhrServer::new(EhrService::new(FakeScheduler::default(), FakePatients, codes))
+    let mut service = EhrService::new(FakeScheduler::default(), FakePatients, codes);
+    if let Some(store) = store {
+        service = service.with_store(store);
+    }
+    let ehr = EhrServer::new(service)
         .max_decoding_message_size(MESSAGE_LIMIT)
         .max_encoding_message_size(MESSAGE_LIMIT);
 

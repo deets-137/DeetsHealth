@@ -15,14 +15,37 @@ from deets_agent import config
 _LISTENING = re.compile(r"^ehr listening on (\S+)$")
 
 
+_STORE_KEYS = ("DEETS_DATABASE_URL", "DEETS_SEAL_KEY_FILE")
+
+
+def store_env() -> dict[str, str]:
+    """The call store's settings for ehr (DATABASE.md §4a). `npm run dev` sets them; a typed call
+    run by hand reads the ones scripts/postgres.mjs left in the git-ignored `.pg/ehr.env`."""
+    if all(os.environ.get(k) for k in _STORE_KEYS):
+        return {k: os.environ[k] for k in _STORE_KEYS}
+    path = config.REPO / ".pg" / "ehr.env"
+    if not path.exists():
+        return {}
+    found = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        key, _, value = line.partition("=")
+        if key in _STORE_KEYS and value:
+            found[key] = value
+    return found if len(found) == len(_STORE_KEYS) else {}
+
+
 @asynccontextmanager
 async def running_ehr(
     binary: Path = config.EHR_BINARY,
     certs: Path = config.CERTS,
     env: dict[str, str] | None = None,
+    store: bool = False,
 ):
     """Yields ehr's address (host:port). Stops ehr on exit. `env` adds settings to ehr's
-    environment (the dev server's fake Twilio, ehr/src/texts.rs)."""
+    environment (the dev server's fake Twilio, ehr/src/texts.rs). `store` gives ehr the call
+    store, so each ended call is filed (FileCall); the tests run without one."""
+    env = {**(store_env() if store else {}), **(env or {})}
+    base = {k: v for k, v in os.environ.items() if store or k not in _STORE_KEYS}
     if not binary.exists():
         raise FileNotFoundError("ehr is not built. Run: cargo build -p deetshealth-ehr")
     if not (certs / "agent.pem").exists():
@@ -35,7 +58,7 @@ async def running_ehr(
         "0",
         "--certs",
         str(certs),
-        env={**os.environ, **env} if env else None,
+        env={**base, **env},
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )

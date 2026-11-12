@@ -142,7 +142,16 @@ export async function ensurePostgres() {
     if (made.status !== 0) return { error: `could not make the database: ${made.stderr.trim()}` };
   }
   const url = `postgresql://${ROLE}:${password}@127.0.0.1:${port}/${DATABASE}`;
-  return { port, started, url, env: { DEETS_DATABASE_URL: url, DEETS_SEAL_KEY_FILE: sealKeyFile } };
+  const storeEnv = { DEETS_DATABASE_URL: url, DEETS_SEAL_KEY_FILE: sealKeyFile };
+  // For ehr when it is not started by `npm run dev` (a typed call run by hand): the agent reads
+  // this git-ignored file (agent/deets_agent/ehr_process.py `store_env`). Rewritten at each start,
+  // so a new port is always in it.
+  writeFileSync(
+    join(home, "ehr.env"),
+    Object.entries(storeEnv).map(([k, v]) => `${k}=${v}`).join("\n") + "\n",
+    { mode: 0o600 },
+  );
+  return { port, started, url, env: storeEnv };
 }
 
 /** File the dev call records into the store with the built ehr (store.rs). Idempotent. */

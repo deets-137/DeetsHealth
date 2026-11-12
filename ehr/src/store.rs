@@ -153,6 +153,8 @@ impl Store {
     pub async fn connect(url: &str, key: SealKey) -> Result<Self, String> {
         let pool = PgPoolOptions::new()
             .max_connections(4)
+            // A stopped dev database fails fast, so ehr starts without a store, not after 30 s.
+            .acquire_timeout(std::time::Duration::from_secs(3))
             .connect(url)
             .await
             .map_err(|e| db("connect", e))?;
@@ -197,7 +199,16 @@ impl Store {
 
     /// File one record. Returns false when the same record is already filed.
     pub async fn file_record(&self, id: &str, bytes: &[u8]) -> Result<bool, String> {
-        let sha = hex(&AwsLc.sha256(bytes).map_err(|_| "hashing failed")?);
+        // The hash is over the record's canonical form: its non-empty lines, each without a
+        // trailing \r and ending in \n. A record read from disk on Windows (\r\n) and the same
+        // record sent line by line over FileCall then hash the same (2026-11-12).
+        let raw = String::from_utf8_lossy(bytes);
+        let mut canonical = String::with_capacity(raw.len());
+        for line in raw.lines().map(|l| l.trim_end_matches('\r')).filter(|l| !l.trim().is_empty()) {
+            canonical.push_str(line);
+            canonical.push('\n');
+        }
+        let sha = hex(&AwsLc.sha256(canonical.as_bytes()).map_err(|_| "hashing failed")?);
         let known: Option<String> = sqlx::query_scalar("SELECT record_sha256 FROM calls WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.pool)
@@ -207,10 +218,7 @@ impl Store {
             return Ok(false);
         }
         let mut events = Vec::new();
-        for (n, line) in String::from_utf8_lossy(bytes).lines().enumerate() {
-            if line.trim().is_empty() {
-                continue;
-            }
+        for (n, line) in canonical.lines().enumerate() {
             events.push(serde_json::from_str::<Value>(line).map_err(|_| format!("record {id}: line {} is not JSON", n + 1))?);
         }
         let s = summarize(&events);

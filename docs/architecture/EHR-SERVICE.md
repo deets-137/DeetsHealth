@@ -78,6 +78,7 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `FindSlots` | `find_slots` | `find_slots` |
 | `Book` | `book` | `book` |
 | `NextVisit` | `next_visit` | `next_visit` |
+| `FileCall` | `file_call` | `file_call` |
 
 ## 4. The PHI tag
 ```proto

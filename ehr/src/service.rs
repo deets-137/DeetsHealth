@@ -12,8 +12,10 @@ use crate::{
     proto::v1::{self as pb, ehr_server::Ehr},
     scheduler::{BookResult, Scheduler, SchedulerDown},
     session::{Pending, Refusal, Sessions, Stage, Token},
+    store::Store,
     verify::{one_match, Codes, Down, Patients},
 };
+use zeroize::Zeroizing;
 
 /// How many times a caller may give a name and date of birth on one call.
 pub const MAX_IDENTIFIES: u32 = 3;
@@ -29,13 +31,25 @@ pub struct EhrService<S, P, C> {
     scheduler: Arc<S>,
     patients: P,
     codes: C,
+    /// The call store (DATABASE.md), when ehr has one: `FileCall` files each ended call.
+    store: Option<Arc<Store>>,
 }
 
 impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
     pub fn new(scheduler: S, patients: P, codes: C) -> Self {
-        Self { sessions: Sessions::default(), scheduler: Arc::new(scheduler), patients, codes }
+        Self { sessions: Sessions::default(), scheduler: Arc::new(scheduler), patients, codes, store: None }
+    }
+
+    /// Files each ended call into `store` (FileCall).
+    pub fn with_store(mut self, store: Arc<Store>) -> Self {
+        self.store = Some(store);
+        self
     }
 }
+
+/// The longest record FileCall takes, in lines and in bytes. A half-hour call is far below both.
+pub const MAX_RECORD_LINES: usize = 20_000;
+pub const MAX_RECORD_BYTES: usize = 16 * 1024 * 1024;
 
 fn refused(r: Refusal) -> Status {
     match r {
@@ -242,6 +256,37 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let patient = session.lock().await.patient().map_err(refused)?;
         let visit = self.scheduler.next_visit(&patient).await.map_err(scheduler_down)?;
         Ok(Response::new(pb::NextVisitReply { visit: visit.as_ref().map(edge::visit) }))
+    }
+
+    async fn file_call(
+        &self,
+        req: Request<tonic::Streaming<pb::FileCallLine>>,
+    ) -> Result<Response<pb::FileCallReply>, Status> {
+        // The stream is checked first, so a bad request is refused the same way with or without
+        // a store.
+        let mut stream = req.into_inner();
+        let mut id: Option<String> = None;
+        // The record holds the call's words: wiped when it drops.
+        let mut record = Zeroizing::new(Vec::new());
+        let mut lines = 0usize;
+        while let Some(message) = stream.message().await? {
+            let (call_id, line) = edge::file_call_line(message)?;
+            match &id {
+                None => id = Some(call_id),
+                Some(first) if *first != call_id => return Err(Status::invalid_argument("call_id: changed within one record")),
+                Some(_) => {}
+            }
+            lines += 1;
+            if lines > MAX_RECORD_LINES || record.len() + line.len() + 1 > MAX_RECORD_BYTES {
+                return Err(Status::resource_exhausted("the record is too long"));
+            }
+            record.extend_from_slice(line.as_bytes());
+            record.push(b'\n');
+        }
+        let id = id.ok_or_else(|| Status::invalid_argument("an empty record"))?;
+        let store = self.store.as_ref().ok_or_else(|| Status::failed_precondition("ehr runs without a store"))?;
+        let filed = store.file_record(&id, &record).await.map_err(|_| Status::internal("the store could not file the call"))?;
+        Ok(Response::new(pb::FileCallReply { filed }))
     }
 }
 
@@ -532,6 +577,7 @@ mod tests {
     fn every_marked_field_is_listed() {
         // The contract marks these; a change to ehr.proto changes this list on purpose.
         let want = [
+            ("FileCallLine", "line"),
             ("OpenCallReply", "handle"),
             ("CloseCallRequest", "handle"),
             ("IdentifyRequest", "handle"),

@@ -25,6 +25,8 @@ from deets_agent.shielded import Shielded
 # The longest the agent waits for one ehr call. A slow EHR must not hold the caller in silence
 # (EHR-SERVICE.md §2); ehr stops its work when this passes.
 DEADLINE_S = 3.0
+# Filing a whole record after the call: no caller waits on it, so a longer deadline.
+FILE_DEADLINE_S = 15.0
 # A booking may take longer at a real EHR. It runs to its end in ehr even if this passes.
 BOOK_DEADLINE_S = 8.0
 
@@ -155,6 +157,25 @@ class EhrClient:
 
     async def close_call(self, handle: Shielded[str]) -> None:
         await self._call("CloseCall", pb.CloseCallRequest(handle=handle.reveal()))
+
+    async def file_call(self, call_id: str, record: Path) -> bool | None:
+        """File one ended call's record into the call store (DATABASE.md §4a), one line per
+        message. True when filed, False when the same record was filed before, None when ehr
+        runs without a store (the next `ehr ingest` files it). The record is closed by now, so
+        this is not written to it."""
+
+        async def lines():
+            for line in record.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    yield pb.FileCallLine(call_id=call_id, line=line)
+
+        try:
+            reply = await self._stub.FileCall(lines(), timeout=FILE_DEADLINE_S)
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.FAILED_PRECONDITION:
+                return None
+            raise EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), "FileCall") from None
+        return reply.filed
 
     async def identify(
         self,

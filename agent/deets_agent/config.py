@@ -11,7 +11,11 @@ AGENT = Path(__file__).resolve().parents[1]
 REPO = AGENT.parent
 CERTS = REPO / "dev-certs"
 REPLAYS = AGENT / "tests" / "replays"
-EHR_BINARY = REPO / "target" / "debug" / ("deetshealth-ehr.exe" if os.name == "nt" else "deetshealth-ehr")
+# DEETS_EHR_BIN points at another build, for when a running dev server holds this one (Windows
+# locks a running .exe; scripts/postgres.mjs reads the same setting).
+EHR_BINARY = Path(os.environ["DEETS_EHR_BIN"]) if os.environ.get("DEETS_EHR_BIN") else (
+    REPO / "target" / "debug" / ("deetshealth-ehr.exe" if os.name == "nt" else "deetshealth-ehr")
+)
 
 # The cheapest model first; move up only when a named test call shows it falls short
 # (VOICE-AGENT.md §8.3; the owner, 2026-10-20).

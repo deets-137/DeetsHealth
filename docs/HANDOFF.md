@@ -22,8 +22,9 @@ at the pinned major version once (`PG_MAJOR` in `scripts/postgres.mjs`): on Wind
 installer from postgresql.org (winget's download of it failed, 2026-11-12); on the Mac,
 `brew install postgresql@<major>`. `npm run dev` then starts the repo's own cluster in
 `.pg/` if it is not up, on a free port from 5433, and files the call records into it
-(`ehr ingest`). `npm run db:status` / `db:stop` / `db:ingest` / `db:test`. Without Postgres,
-`npm run dev` says how to install it and goes on.
+(`ehr ingest`). Each call is also filed as it ends (`FileCall`). **The database is added to,
+never deleted or rebuilt** (DATABASE.md §4b). `npm run db:status` / `db:stop` / `db:ingest` /
+`db:test`. Without Postgres, `npm run dev` says how to install it and goes on.
 
 **The single check command** (`scripts/check.mjs`) runs only the checks that your changes need.
 "Changes" means the commits since the upstream branch (else `origin/main`) plus the working
@@ -75,8 +76,13 @@ and the pre-push hook is plain `sh`. What a fresh clone needs, in order:
 5. **The sibling repos** for the docs check: `../DeetsMusic` (clone `deets-137/DeetsMusicWindows`
    under that name) and `../DeetsEngine`, or the docs check (and so the pre-push hook) fails on
    their links (Known gotchas).
-6. `npm run check:all` proves the machine. Then `npm run dev` for the console.
-7. **Claude's own setup is per machine.** The owner's global `~/.claude/CLAUDE.md` (the writing
+6. **Postgres:** `brew install postgresql@18` (the pinned major, `PG_MAJOR` in
+   `scripts/postgres.mjs`). The first `npm run dev` makes the Mac's own cluster, password and
+   sealing key in `.pg/` and files every committed record in `agent/calls/` into it. From then
+   on it only adds: each call when it ends, and any record a pull brought in. Never copy `.pg/`
+   between machines (DATABASE.md §4b).
+7. `npm run check:all` proves the machine. Then `npm run dev` for the console.
+8. **Claude's own setup is per machine.** The owner's global `~/.claude/CLAUDE.md` (the writing
    rules, the fork test, the end-of-turn box) and this project's memory folder under
    `~/.claude/projects/` live on the PC. Copy both to the Mac, or a session there starts
    without them.

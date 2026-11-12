@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deets_agent import config, redact
 from deets_agent.call import CallFailed, TypedCall
 from deets_agent.call_record import CallRecord
-from deets_agent.ehr_client import EhrClient
+from deets_agent.ehr_client import EhrClient, EhrError
 from deets_agent.ehr_process import running_ehr
 from deets_agent.flow import FAKE_TODAY
 from deets_agent.llm import Mode, build_llm
@@ -83,7 +83,7 @@ async def main() -> int:
 
     reason = "hung up"
     code = 0
-    async with running_ehr() as target:
+    async with running_ehr(store=record is not None) as target:
         ehr = await EhrClient.connect(target, config.CERTS)
         call = TypedCall(ehr, build_llm(Mode(args.mode)), record, today=today)
         try:
@@ -116,12 +116,18 @@ async def main() -> int:
             except Exception as e:  # noqa: BLE001 - a failed call may not stop cleanly; the record must still close
                 if record is not None:
                     record.event("error", type=type(e).__name__, message="hang-up did not finish cleanly")
-            await ehr.close()
             if record is not None:
                 record.close(reason)
                 redact.dev_tap = None
                 print(f"(record: {record.path})")
                 print(f"({record.summary()})")
+                # File the ended call into the call store (DATABASE.md §4a). Never fails the run.
+                try:
+                    filed = await ehr.file_call(record.call_id, record.path)
+                    print({True: "(filed)", False: "(already filed)", None: "(not filed: no store)"}[filed])
+                except EhrError as e:
+                    print(f"(not filed: {e.kind.value}; the next ingest files it)")
+            await ehr.close()
     return code
 
 

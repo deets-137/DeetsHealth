@@ -41,6 +41,22 @@ service Ehr {
   rpc Book(BookRequest) returns (BookReply);
   // The verified caller's next visit (DESIGN.md S5). Refused before both factors pass.
   rpc NextVisit(NextVisitRequest) returns (NextVisitReply);
+  // Files one ended call's record into the call store (DATABASE.md), one line per message, so a
+  // long call never meets the message limit. Keyed by the record's call id, not a handle: the
+  // session is closed by then. FAILED_PRECONDITION when ehr runs without a store.
+  rpc FileCall(stream FileCallLine) returns (FileCallReply);
+}
+
+message FileCallLine {
+  // The record's id (its file name, without .jsonl). The same in every message of one stream.
+  string call_id = 1;
+  // One line of the record: a JSON event. The dev record keeps the call's words in full.
+  string line = 2 [(phi) = true];
+}
+
+message FileCallReply {
+  // False when the same record was already filed (the ingest is idempotent).
+  bool filed = 1;
 }
 
 message OpenCallRequest {}

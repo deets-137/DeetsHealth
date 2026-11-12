@@ -206,6 +206,16 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   passed against Postgres 18.7 (it builds into `target/store-test`, because a running dev server
   holds `target/debug`'s ehr). First ingest: 128 calls and 46 annotation lines in 3.4 s; the
   second filed nothing new.
+- The live path (the owner: "calls file as they end"). Built: `FileCall` in the contract (a
+  client stream, one record line per message, `(phi)`); `file_call` in ehr (checks the stream
+  first, then files through the store) and in the agent's client; the dev server and the typed
+  harness file each call when its record closes; ehr opens the store at start from the
+  settings `npm run dev` passes, or `.pg/ehr.env` for a typed call by hand; the tests' ehr has
+  no store. Found: Python writes records with `\r\n` on Windows, so the live path and the ingest
+  hashed one call two ways and filed it twice; the hash is now over the canonical form, and
+  the store test covers it. Checked live: a typed call filed at its end, and the next ingest
+  skipped it. 41 ehr unit tests, the store test, and 99 agent tests pass. Mac notes in
+  DATABASE.md §4b and HANDOFF › Run it.
 
 ## 2026-11-12 — The Mac set up; the Chat page wired to the agent; the catalog of calls
 - On the Mac: `npm install`, `uv` (Homebrew), the `wasm32` target, `uv sync`, `ehr` built, the

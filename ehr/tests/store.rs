@@ -38,6 +38,9 @@ async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
     let store = Store::connect(&test_url, key()).await.unwrap();
     assert!(store.file_record("call-a", RECORD.as_bytes()).await.unwrap(), "filed");
     assert!(!store.file_record("call-a", RECORD.as_bytes()).await.unwrap(), "unchanged: skipped");
+    // The same record with Windows line ends (as Python writes it there) is the same record.
+    let crlf = RECORD.replace('\n', "\r\n");
+    assert!(!store.file_record("call-a", crlf.as_bytes()).await.unwrap(), "\\r\\n is the same record");
 
     let (outcome, turns): (String, i32) = sqlx::query_as("SELECT outcome, turns FROM calls WHERE id = 'call-a'")
         .fetch_one(store.pool())

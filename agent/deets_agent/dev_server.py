@@ -56,7 +56,7 @@ from deets_agent.catalog import (
     Catalog,
     read_events,
 )
-from deets_agent.ehr_client import EhrClient
+from deets_agent.ehr_client import EhrClient, EhrError
 from deets_agent.ehr_process import running_ehr
 from deets_agent.fake_twilio import FakeTwilio
 from deets_agent.llm import Mode, build_llm
@@ -101,7 +101,8 @@ def build_app(state: State) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # ehr sends its texts to the fake Twilio below, with this launch's fake account.
-        async with running_ehr(env=state.twilio.ehr_env()) as target:
+        # With the call store, so each test call is filed as it ends (DATABASE.md §4a).
+        async with running_ehr(env=state.twilio.ehr_env(), store=True) as target:
             state.ehr = await EhrClient.connect(target, config.CERTS)
             try:
                 yield
@@ -263,11 +264,26 @@ def build_app(state: State) -> FastAPI:
         finally:
             record.close(reason)
             redact.dev_tap = None
+            await _file(state.ehr, record)
             state.live = None
             state.catalog.refresh(record.call_id)
             state.broadcast({"type": "ended", "call": record.call_id})
 
     return app
+
+
+async def _file(ehr: EhrClient, record: CallRecord) -> None:
+    """File the ended call into the call store through ehr (DATABASE.md §4a). A failure never
+    stops the server: the next `ehr ingest` files what was missed. Prints the outcome only."""
+    try:
+        filed = await ehr.file_call(record.call_id, record.path)
+    except EhrError as e:
+        print(f"call not filed ({e.kind.value}); the next ingest files it", file=sys.stderr, flush=True)
+        return
+    print(
+        {True: "call filed", False: "call already filed", None: "call not filed: ehr has no store"}[filed],
+        flush=True,
+    )
 
 
 async def _drain(ws: WebSocket, q: asyncio.Queue) -> None:
