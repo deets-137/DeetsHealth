@@ -1,0 +1,26 @@
+#!/bin/sh
+# Before a push: the single check command, on what this push adds (HANDOFF.md › Run it).
+# `npm install` points git here (the `prepare` script). To push past it once:
+#   git push --no-verify
+# Git passes one line per ref: <local ref> <local sha> <remote ref> <remote sha>.
+zero=0000000000000000000000000000000000000000
+base=""
+pushing=""
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue          # a deleted branch: nothing to check
+  pushing=1
+  if [ -z "$base" ] && [ "$remote_sha" != "$zero" ]; then
+    base="$remote_sha"                              # what the remote already has
+  fi
+done
+[ -z "$pushing" ] && exit 0
+
+echo "pre-push: npm run check (commits only)"
+if [ -n "$base" ]; then
+  node scripts/check.mjs --no-worktree --base "$base"
+else
+  node scripts/check.mjs --no-worktree              # a new branch: compare with origin/main
+fi || {
+  echo "pre-push: the check failed. Nothing was pushed."
+  exit 1
+}

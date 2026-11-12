@@ -13,7 +13,25 @@ updated: 2026-11-11
 
 ## Run it
 There is no app to run yet: the conversion is in progress ([CONVERSION.md](CONVERSION.md)).
-What runs today:
+
+**The single check command** (`scripts/check.mjs`) runs only the checks that your changes need.
+"Changes" means the commits since the upstream branch (else `origin/main`) plus the working
+tree. It runs the docs check every time, and stops at the first failure with the tail of that
+step's output.
+```
+npm run check                       # the checks the changes need
+npm run check -- ehr agent          # named scopes only: docs web core ehr agent keys
+npm run check -- --list             # say what would run and why; run nothing
+npm run check:all                   # every scope plus the slow extras (vite build, ehr clippy)
+```
+The scopes: `web` (front-end type check), `core` (tests and the WebAssembly build), `ehr` (tests),
+`agent` (ruff and pytest, replay only, against a fresh `ehr` build), `keys` (the key-set Worker
+build), `docs`. A change to core also runs `ehr`, and a change to `ehr` also runs `agent`.
+`agent/calls/` (the dev call records) runs nothing. The pre-push hook (`.githooks/pre-push`)
+runs it on the commits being pushed; `npm install` turns the hook on. To skip the hook once:
+`git push --no-verify`. All 12 steps took 50 s on 2026-11-11, and the agent tests are 28 s of that.
+
+Each check by hand:
 ```
 npm install
 npx tsc --noEmit      # front-end type check (it compiles; it does not run in a browser yet)
@@ -50,7 +68,7 @@ and the console starts; each next step follows from what the console needs (the 
 
 Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-ORDER.md §3.4).
 
-- **Next:** the single check command (Claude), then the console's design on paper (the owner,
+- **Next:** the console's design on paper (the owner,
   with Claude). Polish from every desk test is always on (BUILD-ORDER.md §2; AGENT.md §4).
 - **Paper, done:** the repo layout; the Anthropic dev workspace, "DeetsHealth Dev", key in the
   git-ignored `.env`; the Epic registration (2026-11-11: the patient app's registration became
@@ -120,8 +138,6 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
 - The cost per call minute (DESIGN.md §2 I).
 
 ### Tooling to bring across from DeetsMusic
-- **`npm run check`** (tsc, tests, docs:check, cargo check, cargo test) and the pre-push hook
-  that runs it (`../DeetsMusic/.githooks/pre-push`).
 - **Unit tests on pure logic**: `tests/*.test.ts` on Node's own runner, no test dependency.
 
 ## State of play (2026-11-11)

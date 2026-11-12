@@ -140,9 +140,9 @@ The full rules are SECURITY.md (the phone agent's, 2026-10-19). In short:
 - **Kept test tooling is not a harness** (LESSONS.md §3.11): the layers in VOICE-AGENT.md §9
   (record and replay, the text call harness, simulated callers, the fake Twilio) are built to
   stay. Use them once they exist.
-- Cheap checks worth running: `npx tsc --noEmit`, `npx vite build`, `cargo check --workspace`,
-  `cargo test -p deetshealth-core --features sqlite`, `npm run types` (after a change to
-  `core/src/payload.rs`), `npm run docs:check`.
+- **`npm run check`** after a change: it runs the checks the changed files need (HANDOFF.md ›
+  Run it). `npm run check:all` runs everything. Also `npm run types` after a change to
+  `core/src/payload.rs`.
 - If something cannot be reasoned through and the owner is away, ask him to test.
 
 ## Working style (the owner directs the architecture)

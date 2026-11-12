@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "tokens": "node scripts/tokens.mjs",
     "types": "node scripts/types.mjs",
-    "docs:check": "node scripts/docs-check.mjs"
+    "docs:check": "node scripts/docs-check.mjs",
+    "check": "node scripts/check.mjs",
+    "check:all": "node scripts/check.mjs --all --full",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@tauri-apps/api": "^2"

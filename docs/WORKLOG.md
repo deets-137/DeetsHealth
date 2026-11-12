@@ -41,6 +41,14 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   settings grow one at a time. Then going live. BUILD-ORDER.md is rewritten; its §5 maps the
   old phase names, which older docs and this log still use. Next: the single check command,
   then the console's design on paper.
+- **The single check command, built** (the owner asked for it with parameters, fast for what
+  changed). `scripts/check.mjs`: six scopes (docs, web, core, ehr, agent, keys); by default it
+  runs the scopes that the changed files need, against the upstream branch plus the working
+  tree; named scopes, `--all`, `--full`, `--list`, `--base`, `--keep-going`. A change to core
+  also runs `ehr`, and a change to `ehr` also runs `agent`, because the agent's tests run
+  against a real `ehr`. The pre-push hook runs it on the commits being pushed. `--all --full`:
+  12 steps, 50 s, all pass (clippy on `ehr` with warnings as errors included). Fixed on the
+  way: one import order in the agent's tests (ruff).
 
 ## 2026-11-11 (evening) — the third desk test: an emergency in the middle of a booking
 - The repo is confirmed private. On the owner's word, the dev call records in `agent/calls/` are

@@ -3,7 +3,7 @@ start-up with a message that says what to fix, never in the middle of a call."""
 
 import pytest
 
-from deets_agent.prompts import PLACEHOLDERS, PromptFileError, SECTIONS, check, parse
+from deets_agent.prompts import PLACEHOLDERS, SECTIONS, PromptFileError, check, parse
 
 
 def test_the_file_has_every_section_the_code_needs():

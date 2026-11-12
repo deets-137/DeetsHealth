@@ -37,8 +37,8 @@ updated: 2026-11-11
   ([ideas/README.md](ideas/README.md)).
 
 ## 2. Next
-1. **The single check command** (Claude): `npm run check` and the pre-push hook from
-   `../DeetsMusic`. One command runs every test and check.
+1. **The single check command: done 2026-11-11.** `npm run check` runs the checks the changes
+   need; a pre-push hook runs it before every push (HANDOFF.md › Run it).
 2. **The console's design, on paper** (the owner, with Claude): what it shows, how staff sign
    in, the look ([DESIGN.md](DESIGN.md) §C, §D). The console track starts here.
 3. **Polish, always on.** Every desk test, on any track, feeds fixes back into the call. The
