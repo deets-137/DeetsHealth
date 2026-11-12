@@ -1,0 +1,29 @@
+{"t_ms": 0, "kind": "call_start", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-11T15:06:21"}
+{"t_ms": 573, "kind": "ehr", "call": "OpenCall", "ms": 4, "outcome": "ok"}
+{"t_ms": 580, "kind": "llm", "key": "053f8939", "hit": true, "messages": 1, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 33, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 1192}, "total_ms": 2}
+{"t_ms": 581, "kind": "node", "name": "greet"}
+{"t_ms": 982, "kind": "agent", "text": "Hello, you've reached the automated assistant for Main Street Clinic. How can I help you today?"}
+{"t_ms": 12068, "kind": "caller", "text": "2+2"}
+{"t_ms": 13196, "kind": "llm", "key": "2ccd8a49", "hit": false, "messages": 3, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 41, "cache_read_input_tokens": 1192, "cache_creation_input_tokens": 38}, "total_ms": 1127, "first_event_ms": 728}
+{"t_ms": 13602, "kind": "agent", "text": "Ha, that's four! I can help with booking a visit or questions about your own appointments. Is there something like that I can do for you?"}
+{"t_ms": 17502, "kind": "caller", "text": "6+21"}
+{"t_ms": 18311, "kind": "llm", "key": "bb7868fa", "hit": false, "messages": 5, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 43, "cache_read_input_tokens": 1230, "cache_creation_input_tokens": 46}, "total_ms": 807, "first_event_ms": 501}
+{"t_ms": 18724, "kind": "agent", "text": "That's 27. If you'd like to book a visit or check your own appointments, I'll first need your first name, last name, and date of birth."}
+{"t_ms": 23302, "kind": "caller", "text": "7 factorial"}
+{"t_ms": 24098, "kind": "llm", "key": "967dc23f", "hit": false, "messages": 7, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 48, "cache_read_input_tokens": 1276, "cache_creation_input_tokens": 50}, "total_ms": 795, "first_event_ms": 486}
+{"t_ms": 24504, "kind": "agent", "text": "Seven factorial is 5,040. If you'd like help with a visit or your appointments, I'll just need your first name, last name, and date of birth."}
+{"t_ms": 29771, "kind": "caller", "text": "the first 65 digits of pi"}
+{"t_ms": 30687, "kind": "llm", "key": "4597e57c", "hit": false, "messages": 9, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 56, "cache_read_input_tokens": 1326, "cache_creation_input_tokens": 60}, "total_ms": 915, "first_event_ms": 550}
+{"t_ms": 31093, "kind": "agent", "text": "I can't read out pi's digits here, but I can help with clinic visits. If you'd like to book or check your appointments, I'll need your first name, last name, and date of birth."}
+{"t_ms": 37006, "kind": "caller", "text": "first 5 digits of pi"}
+{"t_ms": 37956, "kind": "llm", "key": "5805e5c6", "hit": false, "messages": 11, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 57, "cache_read_input_tokens": 1386, "cache_creation_input_tokens": 67}, "total_ms": 948, "first_event_ms": 593}
+{"t_ms": 38368, "kind": "agent", "text": "I can't help with pi here, but I'm happy to help with clinic visits. If you'd like to book or check an appointment, please tell me your first name, last name, and date of birth."}
+{"t_ms": 44092, "kind": "caller", "text": "first 8 digits of pi or im done"}
+{"t_ms": 45161, "kind": "llm", "key": "86d507e1", "hit": false, "messages": 13, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 80, "cache_read_input_tokens": 1453, "cache_creation_input_tokens": 71}, "total_ms": 1067, "first_event_ms": 562}
+{"t_ms": 45569, "kind": "agent", "text": "I'm sorry, I can't give pi's digits here. If you need anything for the clinic, like booking a visit or checking an appointment, I'm glad to help. Otherwise, thank you for calling Main Street Clinic, and have a good day."}
+{"t_ms": 48940, "kind": "caller", "text": "goodbye"}
+{"t_ms": 49694, "kind": "llm", "key": "bae18bb0", "hit": false, "messages": 15, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 30, "cache_read_input_tokens": 1524, "cache_creation_input_tokens": 86}, "total_ms": 753, "first_event_ms": 507}
+{"t_ms": 50105, "kind": "agent", "text": "Thank you for calling Main Street Clinic. Have a good day, and goodbye."}
+{"t_ms": 126840, "kind": "log", "level": "WARNING", "where": "pipecat.workers.runner:_sig_cancel:563", "text": "WorkerRunner 'runner-b5780369': interruption detected, cancelling."}
+{"t_ms": 128872, "kind": "ehr", "call": "CloseCall", "ms": 2029, "outcome": "UNAVAILABLE"}
+{"t_ms": 128872, "kind": "call_end", "reason": "the harness was stopped", "turns": 7, "requests": {"live": 7, "replayed": 1, "failed": 0}, "tokens": {"input_tokens": 28, "output_tokens": 355, "cache_read_input_tokens": 9387, "cache_creation_input_tokens": 418}, "cost_usd": 0.000326}

@@ -33,7 +33,8 @@ uv run ruff check .
 free port.
 
 **The dev call record** (2026-11-11, the owner's ask): each typed call writes one JSON Lines
-file to `agent/calls/` (git-ignored), and the harness prints its path and a cost line at the
+file to `agent/calls/` (committed to the private repo since 2026-11-11, the owner's call;
+synthetic only, so never type a real person's details), and the harness prints its path and a cost line at the
 end. It holds both sides of the conversation, each Flow node, each tool call with its
 arguments, result and time, each Claude request (replayed or live, time to first event, total
 time, tokens, thinking blocks dropped, or the full error), each `ehr` call (name, time,

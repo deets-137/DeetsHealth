@@ -1,0 +1,28 @@
+{"t_ms": 0, "kind": "call_start", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-11T12:51:33"}
+{"t_ms": 851, "kind": "ehr", "call": "OpenCall", "ms": 4, "outcome": "ok"}
+{"t_ms": 859, "kind": "llm", "key": "3428bbe8", "hit": true, "messages": 1, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 33, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 1080}, "total_ms": 1}
+{"t_ms": 859, "kind": "node", "name": "greet"}
+{"t_ms": 1266, "kind": "agent", "text": "Hello, you've reached the automated assistant at Main Street Clinic. How can I help you today?"}
+{"t_ms": 1278, "kind": "caller", "text": "fine book me a visit. tomorrow at 9 pm"}
+{"t_ms": 2487, "kind": "llm", "key": "97e5ebf6", "hit": false, "messages": 3, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 39, "cache_read_input_tokens": 1134, "cache_creation_input_tokens": 0}, "total_ms": 1207, "first_event_ms": 917}
+{"t_ms": 2888, "kind": "agent", "text": "I can help with that. First I need to confirm who you are. Could you please tell me your first name, last name, and date of birth?"}
+{"t_ms": 2889, "kind": "caller", "text": "i am billy bob, born february 27th 2056"}
+{"t_ms": 4385, "kind": "llm", "key": "5ee9895c", "hit": false, "messages": 5, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 173, "cache_read_input_tokens": 1134, "cache_creation_input_tokens": 56}, "total_ms": 1495, "first_event_ms": 477}
+{"t_ms": 4789, "kind": "agent", "text": "Thanks, Billy Bob. I want to make sure I have your birth date right. Could you repeat the year you were born?"}
+{"t_ms": 4790, "kind": "caller", "text": "yes, february 27 2056 is right"}
+{"t_ms": 5744, "kind": "llm", "key": "be822f76", "hit": false, "messages": 7, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 107, "cache_read_input_tokens": 1190, "cache_creation_input_tokens": 189}, "total_ms": 952, "first_event_ms": 554}
+{"t_ms": 5746, "kind": "tool_call", "name": "identify", "arguments": {"given_name": "Billy Bob", "family_name": "Bob", "birth_date": "2056-02-27"}}
+{"t_ms": 5749, "kind": "ehr", "call": "Identify", "ms": 2, "outcome": "ok"}
+{"t_ms": 5749, "kind": "tool_result", "name": "identify", "result": {"say": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}, "ms": 3}
+{"t_ms": 5752, "kind": "node", "name": "verify"}
+{"t_ms": 7733, "kind": "llm", "key": "a9023492", "hit": false, "messages": 9, "tools": ["hand_off", "check_code", "resend_code", "identify"], "thinking_dropped": 1, "usage": {"input_tokens": 4, "output_tokens": 268, "cache_read_input_tokens": 1085, "cache_creation_input_tokens": 540}, "total_ms": 1983, "first_event_ms": 482}
+{"t_ms": 8146, "kind": "agent", "text": "Please read me the 6-digit code from the text message."}
+{"t_ms": 8146, "kind": "caller", "text": "246810"}
+{"t_ms": 8935, "kind": "llm", "key": "782e1f6d", "hit": false, "messages": 11, "tools": ["hand_off", "check_code", "resend_code", "identify"], "thinking_dropped": 1, "usage": {"input_tokens": 4, "output_tokens": 48, "cache_read_input_tokens": 1625, "cache_creation_input_tokens": 274}, "total_ms": 787, "first_event_ms": 519}
+{"t_ms": 8938, "kind": "tool_call", "name": "check_code", "arguments": {"code": "246810"}}
+{"t_ms": 8940, "kind": "ehr", "call": "CheckCode", "ms": 2, "outcome": "ok"}
+{"t_ms": 8941, "kind": "tool_result", "name": "check_code", "result": {"say": "That code didn't match. If no text came, the details may not match our records.", "tries_left": 2}, "ms": 3}
+{"t_ms": 9674, "kind": "llm", "key": "e8148e66", "hit": false, "messages": 13, "tools": ["hand_off", "check_code", "resend_code", "identify"], "thinking_dropped": 1, "usage": {"input_tokens": 2, "output_tokens": 44, "cache_read_input_tokens": 1899, "cache_creation_input_tokens": 90}, "total_ms": 732, "first_event_ms": 480}
+{"t_ms": 10084, "kind": "agent", "text": "That code didn't match. Could you check the text message and read me the 6-digit code again? If you didn't get a text, I can send a new one."}
+{"t_ms": 10091, "kind": "ehr", "call": "CloseCall", "ms": 3, "outcome": "ok"}
+{"t_ms": 10091, "kind": "call_end", "reason": "hung up", "turns": 4, "requests": {"live": 6, "replayed": 1, "failed": 0}, "tokens": {"input_tokens": 22, "output_tokens": 679, "cache_read_input_tokens": 8067, "cache_creation_input_tokens": 1149}, "cost_usd": 0.000566}

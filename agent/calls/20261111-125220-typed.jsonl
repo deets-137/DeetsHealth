@@ -1,0 +1,11 @@
+{"t_ms": 0, "kind": "call_start", "mode": "replay", "model": "claude-haiku-5-5", "started": "2026-11-11T12:52:20"}
+{"t_ms": 532, "kind": "ehr", "call": "OpenCall", "ms": 3, "outcome": "ok"}
+{"t_ms": 537, "kind": "llm", "key": "3428bbe8", "hit": true, "messages": 1, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 33, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 1080}, "total_ms": 1}
+{"t_ms": 538, "kind": "node", "name": "greet"}
+{"t_ms": 942, "kind": "agent", "text": "Hello, you've reached the automated assistant at Main Street Clinic. How can I help you today?"}
+{"t_ms": 942, "kind": "caller", "text": "a line with no recording"}
+{"t_ms": 943, "kind": "llm", "key": "8512c737", "hit": false, "messages": 3, "tools": ["hand_off", "identify"], "thinking_dropped": 0, "total_ms": 0, "error": {"type": "ReplayMiss", "message": "no recording for request 8512c73795740f2c50590b8c94c80523; run the typed harness to record it"}}
+{"t_ms": 945, "kind": "log", "level": "ERROR", "where": "pipecat.processors.frame_processor:push_error_frame:1023", "text": "AnthropicLLMService#0 exception (C:\\Users\\Aditya Sundaram\\Documents\\DeetsHealth\\agent\\deets_agent\\llm.py:256): Unknown error occurred: no recording for request 8512c73795740f2c50590b8c94c80523; run the typed harness to record it"}
+{"t_ms": 945, "kind": "log", "level": "WARNING", "where": "pipecat.pipeline.worker:_source_push_frame:1622", "text": "PipelineWorker#0: Something went wrong: ErrorFrame#0(error: Unknown error occurred: no recording for request 8512c73795740f2c50590b8c94c80523; run the typed harness to record it, fatal: False)"}
+{"t_ms": 949, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 949, "kind": "call_end", "reason": "Claude's request failed (ReplayMiss)", "turns": 1, "requests": {"live": 0, "replayed": 1, "failed": 1}, "tokens": {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}, "cost_usd": 0.0}

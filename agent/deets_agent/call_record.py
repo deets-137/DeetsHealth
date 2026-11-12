@@ -5,7 +5,8 @@
 record holds what the PHI wall keeps out of the logs: both sides of the conversation, each tool
 call with its arguments and its result, and the full text of library errors. That is safe only
 because every caller here is synthetic. No real call may ever open one: the deploy has no path
-to `CallRecord`, and the files are git-ignored (`agent/calls/`).
+to `CallRecord`. The files in `agent/calls/` are committed to the private repo (the owner,
+2026-11-11), so they must stay synthetic: never type a real person's details into a typed call.
 
 Each line is one event: `t_ms` (from the call's start), `kind`, and its fields.
 - `call_start`, `call_end` — the mode, the model, the totals and the estimated cost.

@@ -30,14 +30,13 @@ dev-dumps/
 .vscode/*
 !.vscode/extensions.json
 .idea
+.obsidian/
 .DS_Store
 dev-certs/
 
 # The agent (Python): its venv and the code generated from ehr.proto
 agent/.venv/
 agent/deets_agent/proto/deets/
-# The dev call records (agent/deets_agent/call_record.py): synthetic calls, never committed
-agent/calls/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
