@@ -115,8 +115,8 @@ Status: ✅ done · 🔵 designing · ⬜ todo · ❄️ deferred to later
 |---|---|---|
 | S1 | Find open slots for a visit type | ⬜ |
 | S2 | Book | ⬜ |
-| S3 | Move | ⬜ |
-| S4 | Cancel | ⬜ |
+| S3 | Move | ⬜ (Epic has no API for it: hands off to staff for now, EPIC.md §2.2) |
+| S4 | Cancel | ⬜ (Epic has no API for it: hands off to staff for now, EPIC.md §2.2) |
 | S5 | "When is my next visit?" | ⬜ |
 
 **Chart answers**
@@ -124,7 +124,7 @@ Status: ✅ done · 🔵 designing · ⬜ todo · ❄️ deferred to later
 |---|---|---|
 | R1 | Visits, past and coming | ⬜ |
 | R2 | Medicines | ⬜ |
-| R3 | Refill state | ⬜ (what Epic exposes to a backend app is not confirmed) |
+| R3 | Refill state | ⬜ (`MedicationDispense (Fill Status)` serves it to a backend app, EPIC.md §2.2) |
 | R4 | Results: released to the portal only, sensitive results never, the value, range and flag only (VOICE-AGENT.md §7.1) | ⬜ |
 
 **The console**

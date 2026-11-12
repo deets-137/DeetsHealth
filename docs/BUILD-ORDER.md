@@ -40,8 +40,8 @@ No code. Everything the first slice needs to exist first.
 |---|---|---|---|
 | P0.1 | The cost per call minute, quoted (DESIGN.md §I, VOICE-AGENT.md §8.5) | Claude | ⬜ |
 | P0.2 | The repo layout approved (CONVERSION.md §6, a draft): `agent/`, `ehr/`, `console/`, `deploy/`. Each folder is born with the phase that needs it; `ehr/` in Phase 1 | the owner | ✅ 2026-10-21 |
-| P0.3 | E-1: the Epic backend app registration (EPIC.md §2) | the owner | ⬜ |
-| P0.4 | Dev accounts: Twilio (trial), Cartesia (standard), Anthropic (a separate workspace). Synthetic data only; no BAA needed for that | the owner | ⬜ |
+| P0.3 | E-1: the Epic backend app registration (EPIC.md §2): the patient app's registration converted to Backend Systems, the APIs checked against Epic's live catalog, the key made and the JWK Set URL live | the owner, Claude | 🔵 2026-11-11 (the owner saves the form with the URL) |
+| P0.4 | Dev accounts: Anthropic (a separate workspace) ✅ 2026-10-20. Twilio (trial) and Cartesia (standard) move to Phase 3, the first phase that uses them. Synthetic data only; no BAA needed for that | the owner | 🔵 |
 | P0.5 | `npm run check` and the pre-push hook from `../DeetsMusic` | Claude | ⬜ |
 | P0.6 | The fork §3 decided: the text slice goes first, Backend Services follows E-1 | the owner | ✅ 2026-10-20 |
 

@@ -1,0 +1,17 @@
+{
+	"name": "deetshealth-keys",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"make-key": "node scripts/make-key.mjs",
+		"dev": "cf dev",
+		"build": "cf build",
+		"deploy": "cf deploy"
+	},
+	"devDependencies": {
+		"@cloudflare/vite-plugin": "2.0.0-beta.v.15",
+		"cf": "1.0.0-beta.19",
+		"typescript": "7.0.2",
+		"vite": "8.3.8"
+	}
+}

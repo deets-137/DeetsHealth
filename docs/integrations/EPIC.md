@@ -2,12 +2,14 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-10-19
+updated: 2026-11-11
 ---
 # DeetsHealth — Epic: the backend app registration and the sandbox
 
-> Not registered yet. The phone agent reaches Epic as a system, not as a patient: SMART Backend
-> Services. This doc is the sheet the owner fills in on fhir.epic.com, what the sandbox can
+> **Registered 2026-11-11** by converting the patient app's registration (the owner retired the
+> patient app; the client IDs did not change, so `epic-client.json` still holds the right
+> non-production ID). A future patient-facing part needs its own app with the Patients audience.
+> The phone agent reaches Epic as a system, not as a patient: SMART Backend Services. This doc is the sheet the owner fills in on fhir.epic.com, what the sandbox can
 > prove, and what each hospital must do. Epic's form and rules change: check each row on the
 > form itself. The patient app's registration and its sandbox findings are
 > [archive/PATIENT-APP-EPIC.md](../archive/PATIENT-APP-EPIC.md).
@@ -35,25 +37,80 @@ chat. The private key never leaves the secret manager (SECURITY.md §4.6).
 | 0 | Application Name | `DeetsHealth` | |
 | 1 | Application Audience | **Backend Systems** | A system with no person present. |
 | 2 | Incoming APIs | The list in §2.1. **Read, search and the booking operations only.** | Minimum necessary (SECURITY.md §4.9). |
-| 3 | Public key | **A JWKS URL** (recommended; follows: a key per deploy, rotation with no form change). A pasted public key works for the first sandbox test if the URL is not up yet. | Epic checks our JWT against it. |
+| 3 | Non-Production JWK Set URL | **`https://health-keys.deets.solutions/nonprod/jwks.json`** (live 2026-11-11). The form takes a URL only for this audience; there is no field for a pasted key. | Epic checks our JWT against it. §2.3. |
+| 3b | Production JWK Set URL | Blank. It joins with the deploy (§4: one key per hospital's deploy). | |
 | 4 | SMART on FHIR version | **R4** | |
 | 5 | SMART scope version | Tell me **v1 or v2**. | Sets the scope words (`system/*.read` or `system/*.rs`). |
 | 6 | Non-production client ID | Copy it to `epic-client.json`. | The sandbox. |
 | 7 | Production client ID | Copy it to `epic-client.json`, unused until the first real hospital. | §4. |
 | 8 | Public documentation, privacy policy, terms | Blank if the form allows. Needed before production. | |
 
-### 2.1 The APIs to pick
-| What the call needs | API (names as Epic lists them; check the form) |
-|---|---|
-| Find the caller | `Patient.Search (R4)` (birth date with phone, name), `Patient.Read (R4)`, and `Patient.$match` if offered |
-| Visits | `Appointment.Read`, `Appointment.Search (R4)`, `Encounter.Read`, `Encounter.Search (R4)` |
-| Booking | `Appointment.$find (STU3)`, `Appointment.$book (STU3)`, and the cancel and reschedule operations Epic offers |
-| Medicines and refills | `MedicationRequest.Read`, `MedicationRequest.Search (R4)`, `Medication.Read` |
-| Results | `Observation.Read`, `Observation.Search (R4)` (labs), `DiagnosticReport.Read`, `DiagnosticReport.Search (R4)` |
-| Who and where | `Practitioner.Read`, `Location.Read`, `Organization.Read` |
-| The verification text, second factor | None: the text and the call back go through Twilio to the number on file (SECURITY.md §4.4) |
+### 2.1 The APIs selected
+> **Part:** built · 2026-11-11 · selected on the form by the owner; checked against Epic's live
+> catalog the same day (§2.2).
 
-Skip every other write, DSTU2, and **(Premium Billing)** APIs (Epic charges for them).
+Names are exactly as the form lists them. Every one allows the Backend Systems audience in
+Epic's catalog. **Core** is what the v1 call uses. **Held** is selected now, by the owner's
+choice, and gets a use as we build; nothing calls it yet.
+
+| What the call needs | API | Set |
+|---|---|---|
+| Find the caller | `Patient.$match (Patient Match) (R4)` (Epic recommends it for a backend app that must find one patient), `Patient.Read (Demographics) (R4)`, `Patient.Search (Demographics) (R4)` | Core |
+| Visits | `Appointment.Read (Appointments) (R4)`, `Appointment.Search (Appointments) (R4)`, `Encounter.Read (Patient Chart) (R4)`, `Encounter.Search (Patient Chart) (R4)` | Core |
+| Booking (S1, S2) | `Appointment.$find (STU3)`, `Appointment.$book (STU3)`, `Slot.Read (STU3)`, `Schedule.Read (STU3)` | Core |
+| Medicines and their schedule | `MedicationRequest.Read (Signed Medication Order) (R4)`, `MedicationRequest.Search (Signed Medication Order) (R4)` (the dose instructions hold the timing), `Medication.Read (Organization Med List) (R4)`, `Medication.Search (Organization Med List) (R4)` | Core |
+| Refill state (R3) | `MedicationDispense.Read (Fill Status) (R4)`, `MedicationDispense.Search (Fill Status) (R4)` | Core |
+| Lab results (R4) | `Observation.Read (Labs) (R4)`, `Observation.Search (Labs) (R4)`, `DiagnosticReport.Read (Results) (R4)`, `DiagnosticReport.Search (Results) (R4)` | Core |
+| Who and where | `Practitioner.Read (Organizational Directory) (R4)`, `PractitionerRole.Read (Organizational Directory) (R4)`, `Location.Read (Organizational Directory) (R4)`, `Organization.Read (Organizational Directory) (R4)` | Core |
+| A note filed to the chart (the emergency flag's chart note, FUTURE-SETTINGS.md §1; a check-in summary) | `DocumentReference.Create (Clinical Notes) (R4)` — **a write** | Held |
+| The full medicine list, with outside and patient-reported ones | `MedicationStatement.Read (STU3)`, `MedicationStatement.Search (STU3)` | Held |
+| Labs ordered with no result yet | `ServiceRequest.Read (Orders) (R4)`, `ServiceRequest.Search (Orders) (R4)` | Held |
+| Surgeries | `Appointment.Read (Scheduled Surgeries) (R4)`, `Appointment.Search (Scheduled Surgeries) (R4)` | Held |
+| Vitals | `Observation.Read (Vital Signs) (R4)`, `Observation.Search (Vital Signs) (R4)` | Held |
+| The verification text, second factor | None: the text and the call back go through Twilio to the number on file (SECURITY.md §4.4) | — |
+
+**Outgoing APIs: none.** The form offers four: `_AssignChatIntegration` (a phone system assigns
+an incoming chat to an agent), `CDS Hooks Framework` (clinician users only),
+`_PayerFhirImportClinicalOutgoing` and `MyChart Mobile BLE Wayfinding`. None fits.
+
+Not selected: every other write, DSTU2, **(Premium Billing)** (Epic charges for it),
+**(Outside Record)**, **(Prior Auth)**, and `MedicationRequest (Order Template Medication)` (an
+oncology plan's template, not the patient's own medicine).
+
+### 2.2 What Epic's catalog says (2026-11-11)
+Read from the feed behind fhir.epic.com › Specifications (`/Specifications/Selections` lists
+every API; `/Specifications/Api?id=N` gives one API's allowed audiences, its URL and its notes).
+- **No API cancels or moves a visit.** The catalog has `$find` and `$book` only. S3 (move) and
+  S4 (cancel) hand off to staff until a hospital or Epic gives us one (the owner, 2026-11-11).
+- **`$find` and `$book` need the hospital's Cadence build first,** and allow Backend Systems and
+  clinician users only, not patients.
+- **`MedicationDispense (Fill Status)` answers R3,** which was "not confirmed": whether a
+  medicine was filled, with its dose, route and quantity.
+- **`MedicationAdministration` is not for us:** the catalog says it serves the Dutch MedMij
+  profile only.
+- **The form and the catalog disagree on Flowsheets.** The catalog allows
+  `Observation (Flowsheets) (R4)` for Backend Systems; the form removed it when the audience
+  changed. Lab results do not need it.
+- **CTI:** `StoreCallID` (Backend Systems) belongs to Epic's Computer-Telephony Integration
+  group. Not selected; worth a look when the hand-off to staff is designed (Phase 3).
+
+### 2.3 The key and the JWK Set URL
+> **Part:** built · 2026-11-11 · the owner chose Cloudflare for the non-production URL.
+
+- **The Worker:** `ehr/jwks-worker/` (the `cf` CLI), named `deetshealth-keys`, on the custom
+  domain `health-keys.deets.solutions`. It serves `GET /nonprod/jwks.json` and a 404 for any
+  other path, with a five-minute cache so a retired key leaves Epic's view fast. Deploy:
+  `cd ehr/jwks-worker && npm install && npx cf deploy`.
+- **The key:** P-384 for ES384 (Epic accepts RS384 or ES384; FIPS allows both). `kid` is the
+  key's RFC 7638 thumbprint. `npm run make-key` in the Worker made it: the private key is in
+  `dev-certs/epic-nonprod-es384.key` (git-ignored, never printed), the public set in
+  `src/nonprod.jwks.json` (committed). The script refuses to replace a key.
+- **Rotation, by hand:** add the new public key to the set and deploy; move the `ehr` service to
+  the new key; drop the old key and deploy again.
+- **The risk is write access, not reading.** The set is public. Whoever can deploy this Worker
+  can add a key that Epic trusts. So the Cloudflare account keeps MFA and few members.
+- **Production** moves to AWS with the deploy (C1, CLOUD.md); the sandbox key never signs for
+  a real hospital.
 
 ## 3. The sandbox: what it can prove
 - Base URL: `https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4/`; the token endpoint is
@@ -82,8 +139,8 @@ Skip every other write, DSTU2, and **(Premium Billing)** APIs (Epic charges for 
 - Each hospital's deploy has its own key; the JWKS URL lists each deploy's public key.
 
 ## 5. The plan
-1. **E-1.** The owner registers the app (§2). We make the key pair in the secret manager and
-   publish the JWKS URL.
+1. **E-1.** The owner registers the app (§2). We make the key pair and publish the JWK Set URL.
+   **Done 2026-11-11** (§2.1, §2.3), once the owner saves the form with the URL.
 2. **E-2.** Backend Services sign-in against the sandbox: the JWT, the token, one `metadata`
    read, one `Patient` read. This is conversion step 5 (CONVERSION.md §5) and replaces
    `core/src/auth.rs`.

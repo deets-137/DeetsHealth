@@ -8,6 +8,26 @@ updated: 2026-11-11
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-11 (night) — Phase 0 again: the Epic registration, the APIs, the JWK Set URL
+- The owner asked where Phase 0 stands and whether the patient app's Epic registration carries
+  over. It was a Patients-audience app. I said the audience could not change; it can. The
+  owner changed it to Backend Systems and retired the patient app's registration. The client
+  IDs did not change. A future patient-facing part needs its own Patients app.
+- The form dropped `Observation (Flowsheets)` for the new audience; Epic's catalog says Backend
+  Systems may use it. Lab results do not need it.
+- Read Epic's live catalog through the feed behind fhir.epic.com › Specifications: each API's
+  allowed audiences and notes. Found: no API cancels or moves a visit (S3 and S4 hand off,
+  the owner's choice); `MedicationDispense (Fill Status)` answers R3; `MedicationAdministration`
+  is Dutch-only; `Patient.$match` is Epic's pick for a backend app; no outgoing API fits.
+- The owner selected the core list and four held sets (a chart note, the full medicine list,
+  pending lab orders, surgeries and vitals): "we can find uses for them later". All are in
+  EPIC.md §2.1. He wants medication check-ins both ways: inbound now, outbound later
+  (ideas/README.md).
+- The owner chose Cloudflare for the non-production JWK Set URL. Built `ehr/jwks-worker/` with
+  the `cf` CLI, made a P-384 key (ES384; the private key in git-ignored `dev-certs/`), deployed
+  `https://health-keys.deets.solutions/nonprod/jwks.json` and checked it live (EPIC.md §2.3).
+  Twilio and Cartesia accounts move to Phase 3. No API spend.
+
 ## 2026-11-11 (evening) — the third desk test: an emergency in the middle of a booking
 - The repo is confirmed private. On the owner's word, the dev call records in `agent/calls/` are
   now committed (all synthetic; every caller line checked first). `.obsidian/` is ignored.

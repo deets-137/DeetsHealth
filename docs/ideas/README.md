@@ -12,6 +12,11 @@ hospital or a patient that the agent can do any of these things. The patient app
 
 - **Outbound calls** (decided for after inbound, VOICE-AGENT.md §7): reminders, confirmations,
   check-in calls after discharge. Epic reports outbound answer rates of about 15–30 percent.
+  **Medication check-ins** (the owner, 2026-11-11: inbound first, then outbound): the agent
+  calls on a schedule and asks whether the patient took their medicines. Needs its own design on
+  paper first: consent, call times, who sees the answers, and where they are filed (the held
+  `DocumentReference.Create (Clinical Notes)` API, EPIC.md §2.1). Inbound, the caller asks
+  "when do I take my pills?" and the agent reads `MedicationRequest`'s dose instructions.
 - **Spanish and other languages.** Cartesia's Ink-2 is English only (VOICE-AGENT.md §8.6).
 - **Running on Epic's Agent Factory** once Epic opens external connectors (VOICE-AGENT.md §5).
 - **Other health products in this repo** (the owner, 2026-10-19: "if we ever get more health
