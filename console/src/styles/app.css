@@ -536,14 +536,24 @@ p {
   line-height: var(--line-height-tight);
 }
 
-/* Narrow windows: the rail drops under the stage. 1100px is --narrow in skin.css. */
+/* Narrow windows: the rail drops under the stage. 1100px is --narrow in skin.css. The stage
+   keeps 70 % of the window's height (--stage-narrow). The rail's panels sit side by side, as
+   many in a row as fit at --rail-min each; a row is as tall as its tallest panel. */
 @media (max-width: 1100px) {
   .split-page {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(var(--stage-min), 1fr) auto;
+    grid-template-rows: max(var(--stage-min), var(--stage-narrow)) auto;
   }
 
   .rail {
     overflow: visible;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(var(--rail-min), 100%), 1fr));
+    align-items: stretch;
+  }
+
+  /* The Review panel, the 5th, takes a row of its own. */
+  .rail > .panel-review {
+    grid-column: 1 / -1;
   }
 }

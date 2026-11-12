@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
 | Theme (color roles) | themes.css | 27 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 78 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 79 tokens · overrides:  |
 
 ## Theme roles
 
@@ -84,6 +84,7 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--gap` | `12px` | — | between panels, and the page's outer margin |
 | `--narrow` | `1100px` | — | below this the rail drops under the stage (a media query repeats it: CSS cannot read a token there) |
 | `--stage-min` | `320px` | — | the stage's least height when the rail is under it |
+| `--stage-narrow` | `70svh` | — | the stage's height when the rail is under it: 70 % of the window (the owner's sketch, 2026-11-12) |
 
 ### shape
 

@@ -83,7 +83,10 @@ web app cannot do.
   of four panels. The rail takes a third of the page's width (`--stage-share` 2fr,
   `--rail-share` 1fr), and never less than 300 px (`--rail-min`) (the owner, 2026-11-11: a
   wider rail for the Timeline). The last rail panel fills to the stage's bottom edge. Below
-  1100 px the rail moves under the stage. The panels are empty. The stage is *Chat*; the rail
+  1100 px the rail moves under the stage. There the stage keeps 70 % of the window's height
+  (`--stage-narrow`), and the rail's panels sit side by side, as many in a row as fit at
+  `--rail-min` each; the Review panel takes a row of its own (the owner's sketch, 2026-11-12).
+  The panels are empty. The stage is *Chat*; the rail
   is *Timeline* (the owner's, at the top), then *Caller*, *Step* and *Tools* (a draft for the
   owner).
 - **Settings** (`pages/settings.ts`): one panel, the title and "No settings yet.", that fills
@@ -167,7 +170,9 @@ wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
    change at once, the dot moves, and a reload keeps the theme.
 3. Click **Settings**, then **Chat**. The pill slides, and the pages fade. Reload: the last page
    opens.
-4. Make the window narrower than 1100 px. The three panels move under the stage.
+4. Make the window narrower than 1100 px. The panels move under the stage. The stage fills
+   70 % of the window's height. The panels sit two to a row (Timeline beside Sandbox patients,
+   Step beside Tools); narrower still, one to a row. When a call ends, Review takes its own row.
 5. In Edge, use the install button in the address bar (or … › Apps › Install). The console
    opens in its own window, with the top bar as the title bar: drag it, and the window moves.
 6. Turn off Windows' Transparency effects. The panels go solid.

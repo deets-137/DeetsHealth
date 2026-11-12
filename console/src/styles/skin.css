@@ -28,6 +28,7 @@
   --gap: 12px; /* between panels, and the page's outer margin */
   --narrow: 1100px; /* below this the rail drops under the stage (a media query repeats it: CSS cannot read a token there) */
   --stage-min: 320px; /* the stage's least height when the rail is under it */
+  --stage-narrow: 70svh; /* the stage's height when the rail is under it: 70 % of the window (the owner's sketch, 2026-11-12) */
 
   /* ---------- shape ---------- */
   --radius: 16px; /* a panel */
