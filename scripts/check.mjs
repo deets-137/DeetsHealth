@@ -37,9 +37,9 @@ const SCOPES = {
 	},
 	web: {
 		about: "the console's front end: type check",
-		match: [/^src\//, /^index\.html$/, /^tsconfig\.json$/, /^vite\.config\.ts$/, /^package(-lock)?\.json$/, /^scripts\/(types|tokens)\.mjs$/],
-		steps: [["front-end type check", "node", ["node_modules/typescript/bin/tsc", "--noEmit"]]],
-		full: [["front-end bundle", "node", ["node_modules/vite/bin/vite.js", "build"]]],
+		match: [/^console\//, /^package(-lock)?\.json$/, /^scripts\/tokens\.mjs$/],
+		steps: [["front-end type check", "node", ["node_modules/typescript/bin/tsc", "-p", "console", "--noEmit"]]],
+		full: [["front-end bundle", "node", ["node_modules/vite/bin/vite.js", "build", "console"]]],
 	},
 	core: {
 		about: "the core crate: tests and the WebAssembly build",

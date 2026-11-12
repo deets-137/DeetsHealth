@@ -1,0 +1,19 @@
+/* Liberation Serif 2.1.5 (SIL OFL 1.1, fonts/NOTICE.txt). Regular and Bold are bundled,
+   and the body sets `font-synthesis: none`, so the browser never fakes a bold or an italic.
+   `block`: the first paint waits for the face (main.ts waits for it too). */
+
+@font-face {
+  font-family: "Liberation Serif";
+  src: url("./fonts/LiberationSerif-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Liberation Serif";
+  src: url("./fonts/LiberationSerif-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}

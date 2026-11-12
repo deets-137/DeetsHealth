@@ -4,18 +4,15 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
+    "dev": "vite console",
+    "build": "tsc -p console && vite build console",
+    "preview": "vite preview console",
     "tokens": "node scripts/tokens.mjs",
     "types": "node scripts/types.mjs",
     "docs:check": "node scripts/docs-check.mjs",
     "check": "node scripts/check.mjs",
     "check:all": "node scripts/check.mjs --all --full",
     "prepare": "git config core.hooksPath .githooks"
-  },
-  "dependencies": {
-    "@tauri-apps/api": "^2"
   },
   "devDependencies": {
     "vite": "^6.0.3",

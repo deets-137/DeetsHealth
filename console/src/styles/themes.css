@@ -1,0 +1,100 @@
+/* The three themes: every color role, per theme. DeetsMotion's themes (its themes.css,
+   2026-10-29), less the roles a browser page has no use for (the window buttons, the 3D
+   scene). `:root` holds Dark, with the meaning of each role; each theme block below sets
+   its own values. Pick a theme with <html data-theme>.
+
+   `npm run tokens` lists these in docs/architecture/TOKENS.md. */
+
+:root {
+  --bg: var(--paint-black); /* the page's base color, under the backdrop */
+  --text: var(--paint-white); /* body text */
+  --text-2: rgba(255, 255, 255, 0.72); /* secondary text */
+  --text-3: rgba(255, 255, 255, 0.56); /* hints and empty states; still 4.5:1 or more on a panel */
+  --accent: var(--paint-silver); /* the nav pill, the focus ring */
+  --on-accent: var(--paint-black); /* text on the accent */
+  --title: var(--paint-white); /* the app name in the top bar */
+  --error: var(--paint-red); /* an error line */
+
+  --shape-1: rgba(255, 255, 255, 0.13); /* the backdrop's three soft light shapes */
+  --shape-2: rgba(196, 204, 222, 0.1);
+  --shape-3: rgba(255, 255, 255, 0.08);
+
+  --glass-fill: rgba(255, 255, 255, 0.055); /* a panel's fill */
+  --glass-fill-strong: rgba(24, 24, 24, 0.72); /* the fill of a menu, which floats over other glass */
+  --glass-edge: rgba(255, 255, 255, 0.13); /* a panel's 1 px edge */
+  --glass-highlight: rgba(255, 255, 255, 0.22); /* a panel's brighter top edge */
+  --glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); /* a panel's shadow */
+  --menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.5); /* a menu's shadow */
+
+  --hover: rgba(255, 255, 255, 0.07); /* the wash under the pointer */
+  --press: rgba(255, 255, 255, 0.12); /* the wash while pressed */
+  --line: rgba(255, 255, 255, 0.1); /* a hairline inside a panel */
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: var(--paint-solar-base3);
+  --text: var(--paint-coffee);
+  --text-2: rgba(59, 36, 22, 0.78);
+  --text-3: rgba(59, 36, 22, 0.64);
+  --accent: var(--paint-solar-orange);
+  --on-accent: var(--paint-solar-base3);
+  --title: var(--paint-coffee);
+
+  /* Warm whites and a faint yellow and orange: they read without darkening the page. */
+  --shape-1: rgba(255, 255, 255, 0.9);
+  --shape-2: rgba(181, 137, 0, 0.1);
+  --shape-3: rgba(203, 75, 22, 0.07);
+
+  --glass-fill: rgba(238, 232, 213, 0.62);
+  --glass-fill-strong: rgba(238, 232, 213, 0.92);
+  --glass-edge: rgba(59, 36, 22, 0.1);
+  --glass-highlight: rgba(255, 255, 255, 0.85);
+  --glass-shadow: 0 8px 26px rgba(88, 62, 30, 0.12);
+  --menu-shadow: 0 8px 24px rgba(88, 62, 30, 0.18);
+
+  --hover: rgba(59, 36, 22, 0.06);
+  --press: rgba(59, 36, 22, 0.1);
+  --line: rgba(59, 36, 22, 0.12);
+
+  color-scheme: light;
+}
+
+[data-theme="moonlight"] {
+  --bg: var(--paint-navy);
+  --text: var(--paint-white);
+  --text-2: rgba(255, 255, 255, 0.76);
+  --text-3: rgba(232, 240, 252, 0.6);
+  --accent: var(--paint-moon);
+  --on-accent: var(--paint-navy);
+  --title: var(--paint-white);
+
+  --shape-1: rgba(191, 211, 242, 0.18);
+  --shape-2: rgba(120, 156, 222, 0.14);
+  --shape-3: rgba(232, 240, 252, 0.09);
+
+  --glass-fill: rgba(191, 211, 242, 0.07);
+  --glass-fill-strong: rgba(16, 34, 64, 0.8);
+  --glass-edge: rgba(191, 211, 242, 0.16);
+  --glass-highlight: rgba(232, 240, 252, 0.26);
+  --glass-shadow: 0 10px 30px rgba(2, 8, 20, 0.45);
+  --menu-shadow: 0 8px 24px rgba(2, 8, 20, 0.5);
+
+  --hover: rgba(191, 211, 242, 0.08);
+  --press: rgba(191, 211, 242, 0.14);
+  --line: rgba(191, 211, 242, 0.13);
+
+  color-scheme: dark;
+}
+
+/* Windows "Transparency effects" off (and macOS "Reduce transparency"): the panels go
+   solid, with no blur. A remote desktop with no GPU is where this matters most. */
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  [data-theme] {
+    --glass-fill: var(--glass-fill-strong);
+  }
+}

@@ -1,0 +1,28 @@
+/* The paints: every solid color the console uses, by name. themes.css maps them to roles;
+   nothing else reads a paint, except the theme swatches in the menu (each swatch shows its
+   own theme's colors, whatever theme is on). Translucent colors live in themes.css, beside
+   the role they serve. From DeetsMotion's themes.css (2026-10-29).
+
+   `npm run tokens` lists these in docs/architecture/TOKENS.md. */
+
+:root {
+  /* Dark */
+  --paint-black: #000000;
+  --paint-white: #ffffff;
+  --paint-silver: #e8e8e8;
+  --paint-near-black: #181818;
+
+  /* Light: Solarized base3 and base2, its orange, and a dark coffee for the text. */
+  --paint-solar-base3: #fdf6e3;
+  --paint-solar-base2: #eee8d5;
+  --paint-solar-orange: #cb4b16;
+  --paint-coffee: #3b2416;
+
+  /* Moonlight */
+  --paint-navy: #0b1a33;
+  --paint-moon: #bfd3f2;
+  --paint-deep-navy: #102240;
+
+  /* Shared */
+  --paint-red: #e5534b;
+}

@@ -1,7 +1,7 @@
 ---
-status: built
+status: archived
 desk_test: passed 2026-09-21
-sources: [src/surface.ts, src/layout.ts, src/cards.ts, src/record-cards.ts, src/card-grow.ts, index.html]
+sources: [archive/src/surface.ts, archive/src/layout.ts, archive/src/cards.ts, archive/src/record-cards.ts, archive/src/card-grow.ts, archive/index.html]
 updated: 2026-09-21
 ---
 # DeetsHealth — Surfaces and cards

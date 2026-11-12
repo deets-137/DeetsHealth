@@ -8,6 +8,31 @@ updated: 2026-11-11
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-11 (late night) — The console's skeleton
+- The owner asked for the console's skeleton in DeetsMotion's style: the look, the nav, the
+  panels. Chat at the top of the nav, with a large panel and a rail of three, as in
+  DeetsMotion's Visualizer; Settings at the foot, blank. He asked about OS compatibility first.
+- Two forks. **1A, a browser only** (not a Tauri desktop app as well). He asked for a way to
+  get a desktop feel on the hospital's own managed Edge or Chrome, as Epic does at its sites.
+  The answer built: an installable web app with the window-controls overlay, which hospital IT
+  can push with the `WebAppInstallForceList` policy. A native shell stays a later choice.
+  **2A:** DeetsMotion's three themes and its glass look; the old themes, skins and card engine
+  go to the archive.
+- Built `console/` (CONSOLE.md): the top bar and its Theme menu, the nav with the sliding pill,
+  the Chat stage and its three empty panels (draft names: Caller, Step, Tools), a blank
+  Settings page, the three tiers of tokens, the manifest. The old front end moved to
+  `archive/src/`, the primitives with it, because they import patient-only files and use the
+  old tokens. `SURFACES-AND-CARDS.md` moved to `docs/archive/`.
+- Checks: the type check, the bundle and the docs check pass. Not opened in a browser by me:
+  the desk test is the owner's (CONSOLE.md §6). No API spend.
+- **Desk test passed** (steps 1–4, in Edge). His notes, built: no "CONSOLE" eyebrow, the
+  Settings panel fills the page; a Timeline panel at the top of Chat's rail, and the rail is now
+  a third of the width. The icon: two rounds of trials on DeetsMusic's art. He moved the head to
+  his standing sprite's (no headphones) and picked a dark fill with a smooth ring;
+  `scripts/icons.py` builds it.
+- He asked whether we are ready to run the typed call in the console's Chat panel. He will
+  lead its design.
+
 ## 2026-11-11 (night) — Phase 0 done, the text run closed, the plan reframed
 - The owner asked where Phase 0 stands and whether the patient app's Epic registration carries
   over. It was a Patients-audience app. I said the audience could not change; it can. The

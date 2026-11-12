@@ -85,6 +85,10 @@ Stays and moves into the console: the primitives (`toast`, `hint`, `dropdown`, `
 `app-errors`, `surface`, `theme`) is swapped for its web form when the console is built; the
 files keep their names and history.
 
+> **Changed 2026-11-11 (the owner, fork 2A):** the console took DeetsMotion's look and shell
+> instead. All of the list above moved to `archive/src/`; each piece comes back, in the new
+> tokens, with the first feature that needs it ([CONSOLE.md](architecture/CONSOLE.md) §4).
+
 ### 4.3 Scripts
 `docs-check.mjs`, `docs-move.mjs`, `tokens.mjs`, `types.mjs`, `fhir-probe.mjs` (it probes a new
 EHR's shapes, values never printed).
@@ -152,6 +156,11 @@ Each step is one commit; the tree builds after each one.
   added to DOCS-ORG.md §5 and to `docs-check.mjs`; the three archived docs moved from
   `archive/docs/` to `docs/archive/`; VOICE-AGENT.md moved to `architecture/`. Open:
   SECURITY.md and the docs that follow it (HANDOFF.md › Open now).
+- **The front end, 2026-11-11.** `src/`, `index.html` and `public/prepaint.js` moved to
+  `archive/` (`git mv`). `console/` was born with a new shell in DeetsMotion's look;
+  `vite.config.ts` and `tsconfig.json` moved into it. `@tauri-apps/api` left `package.json`.
+  `docs/architecture/SURFACES-AND-CARDS.md` moved to `docs/archive/`. The record is
+  [CONSOLE.md](architecture/CONSOLE.md) §4.
 
 ## 6. The new layout
 > **Part:** project · 2026-10-21. Approved by the owner (BUILD-ORDER.md P0.2). Each folder is

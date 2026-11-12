@@ -1,0 +1,76 @@
+/* The skin: every value that is not a color — type, geometry, spacing, blur, motion.
+   One skin for now, Glass (DeetsMotion's look, 2026-10-29), so the base block below IS
+   Glass. A second skin would be a [data-skin="name"] block that overrides some of these.
+   Components read these tokens and never a raw px, font or duration.
+
+   `npm run tokens` lists these in docs/architecture/TOKENS.md. */
+
+[data-skin] {
+  /* ---------- type ---------- */
+  --font: "Liberation Serif", "Times New Roman", serif; /* the one face: 400 and 700 are bundled */
+  --text-size: 16px; /* body text */
+  --text-small: 14px; /* the floor: nothing smaller */
+  --text-title: 20px; /* the app name in the top bar */
+  --text-page: 24px; /* a page or stage heading */
+  --text-panel: 16px; /* a panel's heading */
+  --line-height: 1.5;
+  --line-height-tight: 1.2; /* headings */
+  --weight-regular: 400;
+  --weight-bold: 700;
+
+  /* ---------- layout ---------- */
+  --topbar: 40px; /* the top bar's height */
+  --nav-width: 168px;
+  --stage-share: 2fr; /* the stage's share of a page's width... */
+  --rail-share: 1fr; /* ...and the rail's: the rail is a third */
+  --rail-min: 300px; /* the rail never gets narrower than this */
+  --gap: 12px; /* between panels, and the page's outer margin */
+  --narrow: 1100px; /* below this the rail drops under the stage (a media query repeats it: CSS cannot read a token there) */
+  --stage-min: 320px; /* the stage's least height when the rail is under it */
+
+  /* ---------- shape ---------- */
+  --radius: 16px; /* a panel */
+  --radius-small: 10px; /* a menu */
+  --radius-item: 11px; /* a nav item and its pill */
+  --radius-control: 6px; /* a menu row, the app-name button */
+  --edge: 1px; /* a panel's edge and a hairline */
+  --focus-ring: 2px;
+  --swatch: 14px; /* a theme swatch in the menu */
+  --menu-min: 180px;
+
+  /* ---------- spacing ---------- */
+  --pad-panel: 16px 20px; /* inside a panel */
+  --pad-nav: 10px; /* inside the nav */
+  --pad-item: 9px 12px; /* a nav item */
+  --pad-menu: 4px; /* inside a menu */
+  --pad-row: 5px 8px; /* a menu row */
+  --pad-title: 4px 8px; /* the app-name button */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 8px;
+  --space-4: 12px;
+
+  /* ---------- glass ---------- */
+  --blur: 28px; /* the panels' backdrop blur */
+  --saturate: 1.2; /* the panels' backdrop saturation */
+
+  /* ---------- motion ---------- */
+  --dur-hover: 140ms; /* a hover wash */
+  --dur-text: 220ms; /* a nav label's color */
+  --dur-theme: 400ms; /* a theme change */
+  --dur-pill: 280ms; /* the nav pill's slide */
+  --dur-leave: 120ms; /* the old page fades out (nav.ts reads this) */
+  --dur-enter: 220ms; /* the new page fades in */
+  --ease: ease;
+  --ease-pill: cubic-bezier(0.3, 0.7, 0.2, 1);
+  --drift-1: 46s; /* the backdrop shapes' slow drift */
+  --drift-2: 58s;
+  --drift-3: 64s;
+}
+
+/* Windows "Transparency effects" off, or macOS "Reduce transparency": no blur. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-skin] {
+    --blur: 0px;
+  }
+}

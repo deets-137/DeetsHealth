@@ -74,9 +74,13 @@ staff second, us third.
 - **A. v1 feature scope** — ✅ inbound calls; scheduling and chart answers (§A below)
 - **B. The call design** — ✅ the Flows node map (VOICE-AGENT.md §8.1); 🔵 the words the agent
   says, its name and its voice
-- **C. The console** — ⬜ what it shows, its layout, staff sign-in
-- **D. Visual identity of the console** — ⬜ the patient app's tokens, themes and skins carry
-  over; which of them a hospital console keeps
+- **C. The console** — ✅ where it runs: a browser only, installable as a web app (the owner,
+  2026-11-11, fork 1A); ✅ the shell: DeetsMotion's top bar, nav and pages, with Chat at the
+  top and Settings at the foot ([CONSOLE.md](architecture/CONSOLE.md)); ⬜ what Chat and
+  Settings show, staff sign-in
+- **D. Visual identity of the console** — ✅ DeetsMotion's look: three themes (Dark, Light,
+  Moonlight) and one skin, Glass; the patient app's six themes, other skins and card engine
+  are archived (the owner, 2026-11-11, fork 2A; CONSOLE.md §3, §4)
 - **E. Data model** — ✅ Postgres with sealing, what it holds (VOICE-AGENT.md §8.7); ⬜ the
   schema
 - **F. Technical architecture** — ✅ the stack (§1); 🔵 the repo layout (CONVERSION.md §6, a

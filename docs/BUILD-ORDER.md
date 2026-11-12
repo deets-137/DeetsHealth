@@ -52,9 +52,10 @@ Each item says its state in words: **done**, **next**, or **later**.
 
 ### 3.1 The console (it leads)
 The staff web page: settings, calls, transcripts.
-- **Next:** the design on paper (§2).
-- **Later:** free the front end from the old Windows host (Tauri), so it runs in a browser
-  ([CONVERSION.md](CONVERSION.md) §5.1).
+- **Done, desk test open (2026-11-11):** the skeleton. The front end is free of Tauri and runs
+  in a browser, in DeetsMotion's look, with an empty Chat page and a blank Settings page
+  ([architecture/CONSOLE.md](architecture/CONSOLE.md)).
+- **Next:** what Chat and Settings hold, on paper (§2).
 - **Later:** the settings pages, from what the agent already has: what follows the emergency
   line, the medical-question line, the emergency phrase list
   ([architecture/FUTURE-SETTINGS.md](architecture/FUTURE-SETTINGS.md)). The agent reads its

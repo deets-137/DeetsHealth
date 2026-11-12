@@ -1,0 +1,549 @@
+/* The console's layout, glass and components: DeetsMotion's shell (its app.css,
+   2026-10-29) in this project's tokens. Colors come only from themes.css; every size,
+   space, font and duration from skin.css. The raw values left here are not looks: 0, 1,
+   100%, 50%, z-indexes, and the backdrop shapes' place and drift (in vmax, so they follow
+   the window).
+
+   Crisp text (DeetsMotion's rules):
+   - a panel's blur and fill live on its ::before layer; its text is never inside a
+     blurred or filtered element;
+   - panels are never transformed or scaled;
+   - 16 px body, 14 px floor. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--text-size);
+  font-weight: var(--weight-regular);
+  line-height: var(--line-height);
+  font-kerning: normal;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  transition: background-color var(--dur-theme) var(--ease), color var(--dur-theme) var(--ease);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+:focus-visible {
+  outline: var(--focus-ring) solid var(--accent);
+  outline-offset: var(--focus-ring);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ------------------------------------------------------------ backdrop */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Soft radial light with no filter: a gradient moved by transform costs almost nothing. */
+.shape {
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.shape-1 {
+  left: -18vmax;
+  top: -24vmax;
+  background: radial-gradient(closest-side, var(--shape-1), transparent);
+  animation: drift-1 var(--drift-1) var(--ease) infinite alternate;
+}
+
+.shape-2 {
+  right: -26vmax;
+  top: 6vmax;
+  background: radial-gradient(closest-side, var(--shape-2), transparent);
+  animation: drift-2 var(--drift-2) var(--ease) infinite alternate;
+}
+
+.shape-3 {
+  left: 12vmax;
+  bottom: -38vmax;
+  background: radial-gradient(closest-side, var(--shape-3), transparent);
+  animation: drift-3 var(--drift-3) var(--ease) infinite alternate;
+}
+
+@keyframes drift-1 {
+  to {
+    transform: translate3d(16vmax, 12vmax, 0) scale(1.12);
+  }
+}
+
+@keyframes drift-2 {
+  to {
+    transform: translate3d(-20vmax, 14vmax, 0) scale(0.9);
+  }
+}
+
+@keyframes drift-3 {
+  to {
+    transform: translate3d(14vmax, -16vmax, 0) scale(1.08);
+  }
+}
+
+/* The shapes stop when motion is reduced, and while the tab is hidden (main.ts sets
+   data-idle), so a background tab costs nothing. */
+@media (prefers-reduced-motion: reduce) {
+  .shape {
+    animation: none;
+  }
+}
+
+[data-idle] .shape {
+  animation-play-state: paused;
+}
+
+/* --------------------------------------------------------------- glass */
+
+.glass {
+  position: relative;
+  z-index: 0; /* its own stacking context, so ::before sits under the content */
+  border-radius: var(--radius);
+}
+
+.glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--glass-fill);
+  border: var(--edge) solid var(--glass-edge);
+  box-shadow: inset 0 var(--edge) 0 var(--glass-highlight), var(--glass-shadow);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--saturate));
+  backdrop-filter: blur(var(--blur)) saturate(var(--saturate));
+  pointer-events: none;
+}
+
+/* ----------------------------------------------------------------- app */
+
+.app {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: grid;
+  grid-template-columns: var(--nav-width) minmax(0, 1fr);
+  grid-template-rows: var(--topbar) minmax(0, 1fr);
+  gap: 0 var(--gap);
+  padding: 0 var(--gap) var(--gap);
+}
+
+/* ------------------------------------------------------------- top bar */
+
+/* DeetsMotion's title bar without the window buttons: in a browser tab the browser owns
+   the window. The app name is the menu button. */
+.topbar {
+  grid-column: 1 / -1;
+  position: relative;
+  z-index: 20; /* the menu hangs over the panels below */
+  height: var(--topbar);
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.title-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  margin-left: calc(-1 * var(--space-3)); /* the name's text lines up with the panels' edge */
+}
+
+.app-title {
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+  line-height: var(--line-height-tight);
+  color: var(--title);
+  background: none;
+  border: none;
+  margin: 0;
+  padding: var(--pad-title);
+  border-radius: var(--radius-control);
+  transition: background-color var(--dur-hover) var(--ease);
+}
+
+.app-title:hover,
+.app-title[aria-expanded="true"] {
+  background: var(--hover);
+}
+
+/* Installed as an app with the window-controls overlay (Edge and Chrome): the top bar is
+   the window's title bar. It drags the window; the controls stay clickable. The OS's own
+   buttons sit inside the window, at the right on Windows and at the left on macOS. */
+@media (display-mode: window-controls-overlay) {
+  .topbar {
+    -webkit-app-region: drag;
+    app-region: drag;
+    margin-left: env(titlebar-area-x, 0);
+    width: env(titlebar-area-width, 100%);
+  }
+
+  .topbar button,
+  .menu {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+}
+
+/* ---------------------------------------------------------------- menu */
+
+/* DeetsMusic's menu and flyout, frosted like the panels but denser. */
+.menu,
+.flyout {
+  min-width: var(--menu-min);
+  padding: var(--pad-menu);
+  border-radius: var(--radius-small);
+  position: absolute;
+  z-index: 0;
+}
+
+.menu::before,
+.flyout::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--glass-fill-strong);
+  border: var(--edge) solid var(--glass-edge);
+  box-shadow: inset 0 var(--edge) 0 var(--glass-highlight), var(--menu-shadow);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(var(--saturate));
+  backdrop-filter: blur(var(--blur)) saturate(var(--saturate));
+}
+
+.menu {
+  top: 100%;
+  left: 0;
+  margin-top: var(--space-1);
+}
+
+.menu-row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--pad-row);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.menu-row:hover,
+.menu-row:focus-visible,
+.menu-row[aria-expanded="true"] {
+  background: var(--hover);
+  outline: none;
+}
+
+.menu-chev {
+  color: var(--text-3);
+}
+
+/* It hangs off the row's right edge and touches the menu, so there is no hover gap. */
+.flyout {
+  top: calc(-1 * var(--pad-menu));
+  left: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.swatch {
+  width: var(--swatch);
+  height: var(--swatch);
+  border-radius: 50%;
+  flex: none;
+  box-shadow: inset 0 0 0 var(--edge) var(--line);
+}
+
+/* Each swatch shows its own theme, whatever theme is on, so it reads paints, not roles. */
+.swatch--dark {
+  background: linear-gradient(135deg, var(--paint-black) 50%, var(--paint-silver) 50%);
+}
+
+.swatch--light {
+  background: linear-gradient(135deg, var(--paint-solar-base3) 50%, var(--paint-solar-orange) 50%);
+}
+
+.swatch--moonlight {
+  background: linear-gradient(135deg, var(--paint-navy) 50%, var(--paint-moon) 50%);
+}
+
+.menu-name {
+  flex: 1;
+}
+
+/* The right gutter; the dot shows on the current theme. */
+.menu-dot {
+  width: 0.9em;
+  text-align: center;
+  line-height: 1;
+  color: var(--title);
+}
+
+.menu-row[aria-checked="true"] .menu-dot::after {
+  content: "•";
+}
+
+/* ----------------------------------------------------------------- nav */
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  padding: var(--pad-nav);
+  min-height: 0;
+}
+
+.nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.nav-list-bottom {
+  margin-top: auto;
+}
+
+/* The selection: one accent pill that slides to the chosen item. nav.ts sets its
+   whole-pixel place and size. It holds no text; the labels sit above it. */
+.nav-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: var(--radius-item);
+  background: var(--accent);
+  pointer-events: none;
+  transition: transform var(--dur-pill) var(--ease-pill), height var(--dur-pill) var(--ease-pill),
+    background-color var(--dur-theme) var(--ease);
+}
+
+.nav-highlight.no-anim {
+  transition: none;
+}
+
+.nav-item {
+  position: relative;
+  z-index: 1; /* above the sliding pill */
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: var(--pad-item);
+  border: 0;
+  border-radius: var(--radius-item);
+  background: transparent;
+  color: var(--text-2);
+  text-align: left;
+  font-size: var(--text-size);
+  transition: background-color var(--dur-hover) var(--ease), color var(--dur-text) var(--ease);
+}
+
+.nav-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.nav-item[aria-current="page"],
+.nav-item[aria-current="page"]:hover {
+  background: transparent;
+  color: var(--on-accent);
+}
+
+/* ---------------------------------------------------------------- page */
+
+.page-host {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+/* The page swap: the old page fades out, then the new one fades in. */
+.page-host.leaving {
+  opacity: 0;
+  transition: opacity var(--dur-leave) var(--ease);
+}
+
+.page {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  overflow-y: auto;
+  /* The scroll box reaches into the gutters, so panel shadows are not cut at the edge. */
+  margin: 0 calc(-1 * var(--gap)) calc(-1 * var(--gap));
+  padding: 0 var(--gap) var(--gap);
+  /* Not "both": a held animation keeps the layer composited. */
+  animation: page-in var(--dur-enter) var(--ease) backwards;
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-highlight,
+  .page-host.leaving {
+    transition: none;
+  }
+
+  .page {
+    animation: none;
+  }
+}
+
+/* A page's panel: the title, one line on what the page is for. While it is the page's only
+   panel, it fills the page. */
+.page-head {
+  padding: var(--pad-panel);
+}
+
+.page-head:only-child {
+  flex: 1;
+}
+
+.page-head h1,
+.stage-head h1 {
+  font-size: var(--text-page);
+  font-weight: var(--weight-regular);
+  line-height: var(--line-height-tight);
+}
+
+.page-head p,
+.stage-head p {
+  color: var(--text-2);
+}
+
+.empty {
+  color: var(--text-3);
+}
+
+/* ---------------------------------------------------- stage and rail */
+
+/* DeetsMotion's Visualizer layout: a large stage and a rail of panels beside it. */
+.split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, var(--stage-share)) minmax(var(--rail-min), var(--rail-share));
+  gap: var(--gap);
+}
+
+.stage {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.stage-head {
+  padding: var(--pad-panel);
+}
+
+.stage-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--pad-panel);
+}
+
+.stage-body .empty {
+  margin: auto;
+  text-align: center;
+}
+
+.rail {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  /* Room for the panels' shadows inside the scroll box. */
+  margin: calc(-1 * var(--gap));
+  padding: var(--gap);
+}
+
+/* The last panel takes what is left, so the rail ends on the stage's bottom edge. */
+.rail > :last-child {
+  flex: 1 0 auto;
+}
+
+.panel {
+  padding: var(--pad-panel);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.panel h2 {
+  font-size: var(--text-panel);
+  font-weight: var(--weight-bold);
+  line-height: var(--line-height-tight);
+}
+
+/* Narrow windows: the rail drops under the stage. 1100px is --narrow in skin.css. */
+@media (max-width: 1100px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(var(--stage-min), 1fr) auto;
+  }
+
+  .rail {
+    overflow: visible;
+  }
+}

@@ -12,7 +12,9 @@ updated: 2026-11-11
 > is [archive/PATIENT-APP-HANDOFF.md](archive/PATIENT-APP-HANDOFF.md).
 
 ## Run it
-There is no app to run yet: the conversion is in progress ([CONVERSION.md](CONVERSION.md)).
+**The console** (a skeleton, [architecture/CONSOLE.md](architecture/CONSOLE.md)): `npm run dev`,
+then open the address Vite prints (1420 or the next free port) in a browser. **The typed call**:
+see AGENT.md §1. Nothing else runs end to end yet.
 
 **The single check command** (`scripts/check.mjs`) runs only the checks that your changes need.
 "Changes" means the commits since the upstream branch (else `origin/main`) plus the working
@@ -68,8 +70,11 @@ and the console starts; each next step follows from what the console needs (the 
 
 Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-ORDER.md §3.4).
 
-- **Next:** the console's design on paper (the owner,
-  with Claude). Polish from every desk test is always on (BUILD-ORDER.md §2; AGENT.md §4).
+- **In flight: the console's skeleton, built 2026-11-11, desk test open** (CONSOLE.md §6). The
+  owner chose a browser only (1A) and DeetsMotion's look, with the old looks and the card
+  engine archived (2A). **The Chat panels' names are a draft** for him: Chat, Caller, Step,
+  Tools (CONSOLE.md §3). **Next:** what Chat and Settings hold, on paper. Polish from every desk
+  test is always on (BUILD-ORDER.md §2; AGENT.md §4).
 - **Paper, done:** the repo layout; the Anthropic dev workspace, "DeetsHealth Dev", key in the
   git-ignored `.env`; the Epic registration (2026-11-11: the patient app's registration became
   the backend app with the same client IDs; the APIs checked against Epic's live catalog; SMART
@@ -115,15 +120,16 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   track (BUILD-ORDER.md §3.2).
 - **Held back from the archive**, each moving with the work that replaces it (CONVERSION.md
   §5.1): `core/src/store/`, `payload.rs` (the pass redesign); `auth.rs`, `sync.rs`, `dev.rs`,
-  `build.rs`, `epic-client.example.json` (Backend Services); the patient-only front-end files
-  (the console's design).
+  `build.rs`, `epic-client.example.json` (Backend Services). The front end moved on
+  2026-11-11 (CONSOLE.md §4).
 
 ### His to design or decide
 - **PROTOCOLS.md** (a draft, §10 there): branch names, who merges, issues or HANDOFF,
   an agents file at the root.
 - **SECURITY.md's drafts** (§7): the roles, the retention values, the list of verification
   questions that reveal nothing, how a hospital approves our emergency support access.
-- **The console** (DESIGN.md §2 C, D): what it shows, staff sign-in, which looks it keeps.
+- **The console** (DESIGN.md §2 C): what Chat and Settings show, staff sign-in. The look is
+  decided (DESIGN.md §2 D).
 - **The repo layout** (CONVERSION.md §6, a draft).
 - **The agent's words, name and voice** (DESIGN.md §2 B).
 - **Transcript retention**, 30 days by default (a draft value, VOICE-AGENT.md §8.7).
@@ -150,11 +156,15 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   `archive/patient-app`. They also hold the record view (`core/src/tree/`, GLOBALS.md's
   build), which `archive/` here does not (CONVERSION.md §5.1).
 - **Built and kept:** the core crate's FHIR client, normalizer, sealing and `Shielded<T>`
-  (CORE-CRATE.md), and the front-end toolkit (tokens, themes, skins, primitives, the card
-  engine).
+  (CORE-CRATE.md).
 - **The phone agent's text run is built and closed (2026-11-11):** `agent/` and `ehr/`, a typed
   call that verifies and books against fakes (AGENT.md, EHR-SERVICE.md). No voice, no Epic
-  reads, no store, no console yet.
+  reads, no store.
+- **The console's skeleton is built (2026-11-11), desk test open:** `console/`, a browser page
+  in DeetsMotion's look: the top bar and its Theme menu, the nav (Chat, Settings), Chat's
+  stage and three-panel rail, all empty; installable as a web app (CONSOLE.md). The old
+  front-end toolkit (six themes, five skins, the card engine, the primitives) is in
+  `archive/src/` (CONSOLE.md §4).
 
 ## Known gotchas
 - **A cloud session cannot push a tag** (git proxy, HTTP 403, 2026-10-19). Branches push.
@@ -163,8 +173,6 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   DeetsMusicWindows and link it as `../DeetsMusic`, or the docs check fails the README link.
 - **`../DeetsEngine` is not in a cloud session**, so `GLOBALS.md`'s two sources fail the docs
   check there. They pass on the owner's machine.
-- **The front end compiles but does not run in a plain browser**: it still calls Tauri until
-  the console's design untangles it (CONVERSION.md §5.1).
 - **Epic's sandbox data is small and tidy.** Real site data is not.
 - **Several Deets* apps run at once on the owner's PC.** Never hard-code a dev port; Vite takes
   the next free one from 1420.
@@ -195,10 +203,11 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   one page of a search), `index.rs` (the normalizer: index columns and links), `seal.rs` (the
   sealed format), `platform.rs` (the `Cipher` trait), `error.rs`. Held back until replaced:
   `auth.rs`, `sync.rs`, `store/`, `payload.rs`, `dev.rs`, `build.rs`.
-- `src/` — the front-end toolkit for the console: the primitives (`toast`, `hint`,
-  `dropdown`, `slider`, `context-menu`, `pop`), the looks (`theme`, `skin`, `appearance`,
-  `styles/`), settings, and the card engine (`cards`, `layout`, `card-grow`, `card-swap`,
-  `card-memory`, `surface`). `src/model/` is generated by `npm run types`.
+- `console/` — the web console (CONSOLE.md): `index.html`, `vite.config.ts`, `src/main.ts`
+  (boot), `nav.ts`, `theme.ts`, `pages/` (one file per page), `styles/` (`palette`,
+  `themes`, `skin`, `app`), `public/` (`prepaint.js`, the web-app manifest, the icons).
+- `archive/src/` — the patient app's front end and the old toolkit (CONSOLE.md §4).
+  `archive/src/model/` is generated by `npm run types`.
 - `ehr/jwks-worker/` — the Cloudflare Worker that serves the Epic sandbox's public key set
   (EPIC.md §2.3).
 - `scripts/` — `docs-check.mjs`, `docs-move.mjs`, `tokens.mjs`, `types.mjs`, `fhir-probe.mjs`.

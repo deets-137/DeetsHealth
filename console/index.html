@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-skin="glass">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- theme.ts sets this to the theme's base color: the installed app's title bar. -->
+    <meta name="theme-color" content="#000000" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png" />
+    <!-- The theme before the first paint (a file, not inline: see the file). -->
+    <script src="/prepaint.js"></script>
+    <link rel="stylesheet" href="/src/styles/index.css" />
+    <!-- The page title is fixed app text: never a patient's name, a caller or a site
+         (SECURITY.md §4.3). -->
+    <title>DeetsHealth</title>
+    <script type="module" src="/src/main.ts"></script>
+  </head>
+  <body>
+    <!-- The backdrop: soft light shapes drifting on the theme's base color. -->
+    <div class="backdrop" aria-hidden="true">
+      <div class="shape shape-1"></div>
+      <div class="shape shape-2"></div>
+      <div class="shape shape-3"></div>
+    </div>
+
+    <div class="app">
+      <!-- The top bar: the app name is the menu button. Installed as an app, this bar is
+           the window's title bar (app.css › window-controls overlay). -->
+      <header class="topbar">
+        <div class="title-menu">
+          <button class="app-title" id="app-title" type="button" aria-haspopup="menu" aria-expanded="false"
+            aria-controls="app-menu" title="Opens the menu: theme">DeetsHealth</button>
+          <div class="menu" id="app-menu" role="menu" aria-label="DeetsHealth" hidden></div>
+        </div>
+      </header>
+
+      <nav class="nav glass" aria-label="Pages">
+        <span class="nav-highlight" id="nav-highlight" aria-hidden="true"></span>
+        <ul class="nav-list" id="nav-list"></ul>
+        <ul class="nav-list nav-list-bottom" id="nav-list-bottom"></ul>
+      </nav>
+
+      <main class="page-host" id="page-host"></main>
+    </div>
+  </body>
+</html>

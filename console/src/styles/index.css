@@ -1,0 +1,7 @@
+/* The one stylesheet, linked from index.html's <head>, so the first paint is styled.
+   The order is the tiers: paints, then the color roles, then the skin, then the parts. */
+@import "./fonts.css";
+@import "./palette.css";
+@import "./themes.css";
+@import "./skin.css";
+@import "./app.css";

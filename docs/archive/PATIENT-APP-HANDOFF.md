@@ -39,7 +39,7 @@ updated: 2026-10-19
 - **The empty shell is built** (scaffold steps 1–2): the Tauri app, the title bar (title menu,
   cog and quick panel, window buttons), all themes and skins, Midi and Max, the card slots,
   swap, grow, memory, the Settings card, and six empty record cards. No record data, no
-  sign-in. Desk test passed 2026-09-21 ([SURFACES-AND-CARDS.md §4](../architecture/SURFACES-AND-CARDS.md)).
+  sign-in. Desk test passed 2026-09-21 ([SURFACES-AND-CARDS.md §4](SURFACES-AND-CARDS.md)).
 - Git: the remote is `origin`, the private repo `deets-137/DeetsHealth` (2026-10-13). Push
   only when the owner asks. The old iOS repo of that name is now `deets-137/DeetsHealthiOS`.
 - **Next session starts here** (the owner's order, 2026-09-21): scaffold step 3, the web-ready
