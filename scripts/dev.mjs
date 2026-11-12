@@ -69,7 +69,10 @@ await new Promise((ok, fail) => {
   stop(1);
 });
 
-const vite = spawn("npx", ["vite", "console", "--port", String(webPort), "--strictPort"], {
+// Run Vite's own script with this Node, not `npx`: on Windows `npx` is a .cmd file, which
+// spawn() cannot start without a shell (ENOENT).
+const viteBin = join(root, "node_modules", "vite", "bin", "vite.js");
+const vite = spawn(process.execPath, [viteBin, "console", "--port", String(webPort), "--strictPort"], {
   cwd: root,
   env: { ...process.env, DEETS_AGENT_PORT: String(agentPort), DEETS_AGENT_TOKEN: token },
   stdio: "inherit",
