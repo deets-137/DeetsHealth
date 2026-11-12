@@ -44,6 +44,10 @@ hospital or a patient that the agent can do any of these things. The patient app
 - **Access levels by role** (the owner, 2026-11-12): [ACCESS-ROLES.md](ACCESS-ROLES.md).
   Open ended; the owner designs and builds it. Each role is custom: a hospital creates and
   names it, built from levers that become clear as we build. The doc collects the levers.
+- **Staff sign-in and access control** (the owner, 2026-11-12: "keep it in ideas/ until we
+  build it out"): [STAFF-SIGN-IN.md](STAFF-SIGN-IN.md). Sign-in through the hospital's IdP,
+  what each standard asks of staff access, the modules, and the work with a hospital's
+  security team.
 - **Spanish and other languages.** Cartesia's Ink-2 is English only (VOICE-AGENT.md §8.6).
 - **Running on Epic's Agent Factory** once Epic opens external connectors (VOICE-AGENT.md §5).
 - **Other health products in this repo** (the owner, 2026-10-19: "if we ever get more health

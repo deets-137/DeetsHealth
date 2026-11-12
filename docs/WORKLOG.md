@@ -8,6 +8,17 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-12 (Windows, night) — Staff sign-in, on paper
+- The owner asked how to set up role-based access with a hospital's security team when the
+  hospital runs Active Directory. The answer: sign-in through its IdP (Entra ID), never the
+  on-site directory; its groups decide who has a role, our levers decide what a role can do.
+- He asked for it in ideas/ until it is built: ideas/STAFF-SIGN-IN.md. It maps HIPAA, the
+  Joint Commission, ISO 27001, SOC 2, HITRUST, NIST and state rules to eight modules, and the
+  steps with a hospital's security team. Facts not checked are marked *confirm*.
+- Forks: F1 A (a recent sign-in with MFA before protected data), configurable by the hospital;
+  F2 C (a reason for access is a hospital setting, restricted calls only by default). Both on
+  FUTURE-SETTINGS.md's index, with the idle logoff. Six levers added to ACCESS-ROLES.md §3.
+
 ## 2026-11-12 (Windows, evening) — Per-tool latency, an API
 - The owner asked whether a call's record keeps how long each tool took. It does: his 12:58
   test call showed the model is most of every trigger (527–1497 ms), each tool's run took

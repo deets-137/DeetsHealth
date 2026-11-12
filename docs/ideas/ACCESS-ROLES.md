@@ -32,3 +32,9 @@ refuse, with a link to where it appears.
 - Change the settings, and the recording rules (FUTURE-SETTINGS.md).
 - Read the audit trail (SECURITY.md §4.10).
 - The tools of the CLI and the MCP server (ideas/CONSOLE-MCP.md §5.2).
+- Map the IdP's groups or app roles to roles; change the IdP settings (STAFF-SIGN-IN.md §5,
+  M1 and M3).
+- Approve our support access; hold the local emergency account (STAFF-SIGN-IN.md §5, M6).
+- Export the audit trail; read the access review (STAFF-SIGN-IN.md §5, M5 and M7).
+- Open a restricted call (STAFF-SIGN-IN.md §7, F2).
+- Approve a change to what callers hear (STAFF-SIGN-IN.md §5, M8).

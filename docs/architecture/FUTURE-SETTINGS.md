@@ -67,6 +67,14 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
   §4.6).
 - Emergency support access for our staff, which the hospital approves. How it approves is
   open. Not built (SECURITY.md §4.10, §7).
+- How recent a staff sign-in must be before a transcript, a recording or an export (the
+  owner, F1 A, 2026-11-12). The default and any ceiling are open. Not built
+  (ideas/STAFF-SIGN-IN.md §7).
+- When staff type a reason to open a transcript: only for restricted calls (the default) or on
+  every open (the owner, F2 C, 2026-11-12). Every open is audited under both. Not built
+  (ideas/STAFF-SIGN-IN.md §7).
+- The idle logoff for console sessions. The default is open. Not built
+  (ideas/STAFF-SIGN-IN.md §5, M2).
 
 **Ideas only** (not planned; see ideas/README.md)
 - Protected data through MCP, for one client the hospital's BAA covers. Off by default

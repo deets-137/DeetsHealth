@@ -133,7 +133,8 @@ the branch `archive/patient-app`.
 - `STAFF-SIGN-IN.md` — staff sign-in through the hospital's IdP (Entra ID, Okta): what HIPAA,
   the Joint Commission, ISO 27001, SOC 2, HITRUST and NIST ask of staff access; the modules
   (sign-in, roles, provisioning, audit, emergency access, reviews, change control); the work
-  with a hospital's security team; forks F1 and F2.
+  with a hospital's security team; F1 and F2 decided (step-up and reason for access, both
+  hospital settings).
 
 ## Privacy rules (this project only — read before any code)
 The full rules are SECURITY.md (the phone agent's, 2026-10-19). In short:
