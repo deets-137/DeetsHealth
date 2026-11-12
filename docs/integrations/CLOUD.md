@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-10-19
+updated: 2026-11-12
 ---
 # The cloud — where each hospital's deploy runs
 
@@ -46,7 +46,66 @@ Decided 2026-10-19: **A**.
   - Whichever we pick, the Anthropic API stays the direct API under its own BAA unless the owner
     chooses a cloud's Claude (ANTHROPIC.md §2).
 
-## 5. Sources
+## 5. Running the parts: Kubernetes, ECS with Fargate, or plain virtual machines
+> **Part:** idea · 2026-11-12 — a choice for the deploy work (BUILD-ORDER.md §3.4), not now.
+> The owner asked what Kubernetes is and how it relates; these are the notes. It comes back as
+> a fork, with costs, when the deploy work starts.
+
+**The parts to run in each hospital's deploy:** the Pipecat agent workers (Python), the Rust
+`ehr` service, Postgres (managed), the console, and later the queue for the watch stream
+(CHAT.md §5). Something must start them, connect them, scale them and update them.
+
+**The constraint that shapes every option: a call is a long connection.** A phone call holds a
+WebSocket from Twilio for minutes. Whatever removes a worker (scaling down, an update) must
+first stop new calls going to it, then wait for its calls to end. Done wrong, a patient is cut
+off mid-call. The idea is called *draining*.
+
+**Kubernetes** (EKS on AWS, AKS on Azure, GKE on Google). A system that runs containers across
+a cluster of servers: we declare what should run (4 agent workers, 2 `ehr`), and it starts
+them, restarts a crashed one, adds copies under load and replaces old versions a few at a time.
+- For: **deploy B.** The same deploy files run on every large cloud, so moving a hospital to
+  its own cloud account could be mostly "point them at the hospital's cluster". The strongest
+  reason for it. Also scaling by load and updates with no downtime.
+- Against: much to learn and to secure (pods, services, ingress, network policies, Helm, the
+  cluster's own access control and secrets), all configured correctly under the BAA. On AWS
+  each EKS cluster costs about $73 a month before any servers; A2 (an account per hospital)
+  means a cluster per hospital, each one to patch. One shared cluster costs less but isolates
+  less, and a security review weighs that. Draining needs a deliberate setup (a long
+  termination grace period and a hook that stops new calls first).
+- Not needed for mTLS: we do mTLS between the agent and `ehr` ourselves, so a service mesh adds
+  nothing there.
+
+**ECS with Fargate** (AWS). AWS runs the containers; there is no cluster to manage. HIPAA
+eligible; less to learn; scales by rules (CPU, a schedule) with draining built in (a task
+stops taking new work and gets a grace period). Against: AWS only, so deploy B needs a second
+set of deploy files behind the deploy interface.
+
+**Plain virtual machines (EC2).** The simplest to understand and the most manual.
+- **Do they scale up and down on their own, like Cloudflare Workers? No, not by default.** A
+  plain VM runs, and is billed by the second, until someone stops it. Scaling is added with an
+  **Auto Scaling group**: it adds or removes whole VMs by a rule (CPU, a custom count such as
+  live calls, or a schedule).
+- **It is slow compared with Workers.** A Worker starts in milliseconds, per request, and costs
+  nothing at rest. A new VM takes about one to three minutes to boot and get ready, so the
+  group must add VMs before they are needed, never after a call arrives. A call cannot wait
+  minutes, so a call worker never scales to zero: some VMs always run.
+- **Scaling in must drain** (a lifecycle hook that holds a VM until its calls end).
+- **Why not Workers themselves:** they are short-lived and limited in CPU, and they cannot run
+  our Python Pipecat process, the Rust `ehr` service with its mTLS, or Postgres. They stay
+  right for small edge jobs such as the key-set Worker (EPIC.md §2.3).
+
+**What we know about load (not measured yet).** A call worker mostly waits on the network
+(Twilio, Cartesia, Claude), so one VM or container should hold many calls at once; the number
+per vCPU is to be measured with the voice work (BUILD-ORDER.md §3.3). A hospital's call volume
+follows its office hours, so a schedule (more workers from 8 am, fewer at night) covers most of
+it before any load rule.
+
+**The lean, for when the fork comes:** decide by how soon deploy B is real. A hospital that will
+soon want DeetsHealth in its own cloud account: Kubernetes earns its cost. A2 for the first
+hospitals: ECS with Fargate is simpler and safer to start, and the deploy interface (VOICE-AGENT.md
+§7.2) lets us move to Kubernetes later.
+
+## 6. Sources
 - [Saga IT — AWS vs Azure vs GCP for healthcare (2026)](https://saga-it.com/blog/healthcare-cloud-migration-guide)
 - [Taction — HIPAA cloud architecture: AWS, Azure, GCP](https://www.tactionsoft.com/blog/hipaa-compliant-cloud-architecture-aws-azure-gcp/)
 - [Nirmitee — Healthcare cloud architecture 2026](https://nirmitee.io/blog/healthcare-cloud-architecture-aws-azure-gcp-comparison-2026/)

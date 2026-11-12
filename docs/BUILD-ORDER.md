@@ -147,5 +147,7 @@ Older docs and the work log name phases. They map to this order:
 - The console's layout, staff sign-in and its looks (§3.1; DESIGN.md §C, §D).
 - The agent's words, name and voice (§3.3 at the latest; DESIGN.md §B).
 - Transcript retention, 30 days as a draft (§3.2; VOICE-AGENT.md §8.7).
+- How each deploy runs its parts: Kubernetes, ECS with Fargate, or plain virtual machines
+  (§3.4; the notes are integrations/CLOUD.md §5).
 - The Spanish path (after §3.3; VOICE-AGENT.md §8.6).
 - Outbound calls, medication check-ins among them (after inbound; ideas/README.md).
