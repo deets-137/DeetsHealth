@@ -8,7 +8,7 @@ use std::{collections::HashSet, future::Future, sync::Mutex};
 
 use deetshealth_core::Shielded;
 
-use crate::session::PatientKey;
+use crate::{sandbox::sandbox, session::PatientKey};
 
 /// The EHR's own id for a slot. It never leaves this service: the agent gets a token.
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -66,10 +66,6 @@ pub trait Scheduler: Send + Sync + 'static {
     ) -> impl Future<Output = Result<Option<Slot>, SchedulerDown>> + Send;
 }
 
-/// Visits the fake patients already have: (patient, start, minutes, clinician).
-const FAKE_VISITS: &[(&str, &str, u32, &str)] =
-    &[("fake-patient-1", "2026-11-10T10:00", 30, "Dr. Sam Okafor")];
-
 /// The fake's fixed slots: synthetic clinicians at a synthetic clinic.
 const FAKE_SLOTS: &[(&str, &str, &str, u32, &str)] = &[
     // (id, day, time, minutes, clinician)
@@ -80,7 +76,6 @@ const FAKE_SLOTS: &[(&str, &str, &str, u32, &str)] = &[
     ("slot-05", "2026-11-05", "11:00", 30, "Dr. Sam Okafor"),
     ("slot-06", "2026-11-06", "15:00", 20, "Dr. Avery Lin"),
 ];
-const FAKE_PLACE: &str = "Main Street Clinic";
 
 /// The in-memory scheduler for tests and the text harness (VOICE-AGENT.md §9).
 #[derive(Default)]
@@ -98,7 +93,7 @@ impl FakeScheduler {
             starts_at: Shielded::new(format!("{day}T{time}")),
             minutes,
             clinician: Shielded::new(clinician.to_string()),
-            place: Shielded::new(FAKE_PLACE.to_string()),
+            place: Shielded::new(sandbox().place.clone()),
         }
     }
 }
@@ -132,14 +127,16 @@ impl Scheduler for FakeScheduler {
     }
 
     async fn next_visit(&self, patient: &PatientKey) -> Result<Option<Slot>, SchedulerDown> {
-        let fixed = FAKE_VISITS.iter().map(|&(id, starts_at, minutes, clinician)| {
-            let key = PatientKey(Shielded::new(id.to_string()));
+        // The visits the sandbox patients already have (`ehr/fixtures/sandbox.json`).
+        let sandbox = sandbox();
+        let fixed = sandbox.visits.iter().map(|v| {
+            let key = PatientKey(Shielded::new(v.patient.clone()));
             let visit = Slot {
-                id: SlotId(format!("visit-{id}")),
-                starts_at: Shielded::new(starts_at.to_string()),
-                minutes,
-                clinician: Shielded::new(clinician.to_string()),
-                place: Shielded::new(FAKE_PLACE.to_string()),
+                id: SlotId(format!("visit-{}", v.patient)),
+                starts_at: Shielded::new(v.starts_at.clone()),
+                minutes: v.minutes,
+                clinician: Shielded::new(v.clinician.clone()),
+                place: Shielded::new(sandbox.place.clone()),
             };
             (key, visit)
         });

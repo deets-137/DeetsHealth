@@ -59,7 +59,10 @@
   --bubble-pad-x: 14px; /* a bubble's side padding; the line facts under it start where its text does */
   --bubble-pad: 10px var(--bubble-pad-x);
   --radius-bubble: 14px;
-  --help-width: 320px; /* the open help box */
+  --help-width: 320px; /* the open text card above the code button */
+  --code-tracking: 0.08em; /* the six digits on the code button, a little apart */
+  --chevron: 14px; /* the open-and-close arrow on a rail list (a patient's visits) */
+  --tools-min: 240px; /* the Tools panel's least height; past it, its list scrolls inside it */
   --toggle-tracking: 0.04em; /* the mode toggle's word */
   --flip-depth: 400px; /* the perspective the toggle's word turns in */
 

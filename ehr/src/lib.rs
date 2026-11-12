@@ -11,14 +11,18 @@
 //! - [`session`]: the sessions and their stages.
 //! - [`scheduler`]: the `Scheduler` trait and the in-memory fake (Phase 1).
 //! - [`service`]: the gRPC service.
+//! - [`sandbox`]: the synthetic patients and visits the fakes serve.
+//! - [`texts`]: the code by text, through Twilio's Messages API (the fake Twilio in dev).
 //!
 //! Build state (BUILD-ORDER.md, Phase 1): the contract, the sessions, the fake scheduler ✓ ·
 //! verification (waits on the identification fork, §8) · the transport (waits on its fork, §6).
 
 mod edge;
 pub mod proto;
+pub mod sandbox;
 pub mod scheduler;
 pub mod service;
 pub mod session;
+pub mod texts;
 pub mod transport;
 pub mod verify;

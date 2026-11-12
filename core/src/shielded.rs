@@ -6,9 +6,10 @@
 //! and this file names all four: [`crate::store::CachePass`] (the sealed cache writer),
 //! [`crate::payload::CardPass`] (the card payload), [`crate::net::SitePass`] (a request
 //! to the site the value came from, and the parse of its reply; the owner, 2026-09-21) and
-//! [`crate::wire::WirePass`] (the `ehr` service's reply to the agent; 2026-10-21). The first
-//! three are built only inside their own modules; the fourth only in `ehr/src/edge.rs`, which
-//! a test in `ehr` enforces. The value is wiped from memory when it drops.
+//! [`crate::wire::WirePass`] (the `ehr` service's reply to the agent; 2026-10-21). A fifth,
+//! [`crate::text::TextPass`], is the `ehr` service's text message: the code to the number on
+//! file (2026-11-12). The first three are built only inside their own modules; the fourth only
+//! in `ehr/src/edge.rs` and the fifth only in `ehr/src/texts.rs`, which tests in `ehr` enforce. The value is wiped from memory when it drops.
 //!
 //! A log line cannot print one:
 //! ```compile_fail
@@ -126,8 +127,8 @@ mod sealed {
     pub trait Sealed {}
 }
 
-/// Proof that the caller may read plaintext. Implemented for exactly four types, below, and a
-/// fifth, `dev::DevPass`, only in a build with the `dev` feature (never a release).
+/// Proof that the caller may read plaintext. Implemented for exactly five types, below, and a
+/// sixth, `dev::DevPass`, only in a build with the `dev` feature (never a release).
 pub trait Pass: sealed::Sealed {}
 
 impl sealed::Sealed for crate::store::CachePass {}
@@ -139,6 +140,9 @@ impl Pass for crate::net::SitePass {}
 // The fourth: the `ehr` service's wire edge (the owner, 2026-10-21; EHR-SERVICE.md §5).
 impl sealed::Sealed for crate::wire::WirePass {}
 impl Pass for crate::wire::WirePass {}
+// The `ehr` service's text message: the code to the number on file (2026-11-12; CHAT.md §8).
+impl sealed::Sealed for crate::text::TextPass {}
+impl Pass for crate::text::TextPass {}
 #[cfg(feature = "dev")]
 impl sealed::Sealed for crate::dev::DevPass {}
 #[cfg(feature = "dev")]

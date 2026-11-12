@@ -399,11 +399,10 @@
 
 /* ------------------------------------------------------------- what each mode shows */
 
-/* PHI watches: no controls, no bar. Test: the help box, Start | End, the text bar.
-   Demo: Play | Stop, the player bar. */
+/* PHI watches: no controls, no bar. Test: Start | End, the text bar. Demo: Play | Stop, the
+   player bar. The code button shows in Test and Demo once a text has come (chat.ts). */
 .chat[data-mode="phi"] .chat-controls,
 .chat[data-mode="phi"] .chat-bar,
-.chat:not([data-mode="test"]) .help,
 .chat:not([data-mode="test"]) .split-call,
 .chat:not([data-mode="test"]) .bar-test,
 .chat:not([data-mode="demo"]) .split-play,
@@ -445,26 +444,17 @@
   }
 }
 
-/* With no help box (Demo), the split still sits at the right. */
+/* With no code button, the split still sits at the right. */
 .chat-controls > .split {
   margin-left: auto;
 }
 
 /* ------------------------------------------------------------ the narrow canvas */
 
-/* The owner, 2026-11-12 (two desk tests in a narrow window): the help button's label wrapped
-   onto two lines, and the split ran out of the canvas. Now the help button keeps its own
-   width, and the split takes the room that is left, up to its full size: its two halves stay
-   equal (flex), so "Confirm?" never moves anything, and they never grow past
-   `--split-half` or shrink below their longest word. */
-.help-short {
-  display: none;
-}
-
-#chat-help-button {
-  white-space: nowrap;
-}
-
+/* The owner, 2026-11-12 (two desk tests in a narrow window): the split ran out of the canvas.
+   The code button keeps its own width, and the split takes the room that is left, up to its
+   full size: its two halves stay equal (flex), so "Confirm?" never moves anything, and they
+   never grow past `--split-half` or shrink below their longest word. */
 .chat-controls > .split {
   flex: 0 1 calc(2 * var(--split-half));
   min-width: 0;
@@ -477,13 +467,251 @@
   padding: 0 var(--space-3);
 }
 
-/* In a narrow canvas the help button says "Help" (its accessible name stays "Sandbox
-   patients"). The width is raw because a container query cannot read a token (as in app.css). */
-@container canvas (max-width: 480px) {
-  .help-long {
-    display: none;
+/* ------------------------------------------------------------ the code by text */
+
+/* The code button (CHAT.md §8): where the help button was, once a text has come. The left
+   half shows the six digits and opens the text above it (the help box's card and motion);
+   the right half sends the code as the caller's line, in the send button's green. */
+.code[hidden] {
+  display: none;
+}
+
+.split-code {
+  flex: none;
+}
+
+.split-code > .code-show {
+  width: auto;
+  padding: 0 var(--space-4);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--code-tracking);
+}
+
+.split-code > .code-show[aria-expanded="true"] {
+  background: var(--press);
+}
+
+.split-code > .code-send {
+  width: var(--send-size);
+  background: var(--go);
+  color: var(--on-call-button);
+}
+
+.code-send svg {
+  width: 50%;
+  height: 50%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* A new text: the button rises in like one step of the wave. */
+.code.arrive .split-code {
+  animation: wave-in var(--dur-wave-in) var(--ease-wave);
+}
+
+.text-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.text-card + .text-card {
+  padding-top: var(--space-3);
+  border-top: var(--edge) solid var(--line);
+}
+
+.text-meta {
+  color: var(--text-3);
+}
+
+.text-body {
+  color: var(--text);
+}
+
+.text-card.replaced .text-body {
+  color: var(--text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code.arrive .split-code {
+    animation: none;
   }
-  .help-short {
-    display: inline;
+}
+
+/* ------------------------------------------------------------- the Tools panel */
+
+/* The last panel: it fills what the rail has left and scrolls inside itself, so a long call
+   never pushes the other panels away (CHAT.md §9). */
+.rail > .panel-tools {
+  flex: 1 1 0;
+  min-height: var(--tools-min);
+}
+
+.tools-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  user-select: text;
+}
+
+.tools-log[hidden] {
+  display: none;
+}
+
+.tools-log .empty {
+  margin: 0;
+}
+
+.tool {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* The main line: the tool's name in bold, its arguments muted after it. */
+.tool-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.tool-name {
+  font-weight: var(--weight-bold);
+}
+
+.tool-args {
+  color: var(--text-2);
+}
+
+/* The facts under it: one bullet each, small and muted, the label a step fainter. */
+.tool-facts {
+  margin: 0;
+  padding-left: var(--space-4);
+  font-size: var(--text-small);
+  color: var(--text-2);
+}
+
+.tool-label {
+  color: var(--text-3);
+}
+
+/* The caller's line stays on one line, cut with an ellipsis. */
+.tool-said {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------- the rail's panels */
+
+/* The second panel: the sandbox patients in Test and Demo, the caller in PHI. */
+.split-page[data-mode="phi"] .panel-sandbox,
+.split-page:not([data-mode="phi"]) .panel-caller {
+  display: none;
+}
+
+.sandbox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  user-select: text;
+}
+
+.patient {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.patient-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.patient-name {
+  font-weight: var(--weight-bold);
+}
+
+.patient-born,
+.visits-none {
+  font-size: var(--text-small);
+  color: var(--text-2);
+}
+
+/* The visits: one press opens the list, the next closes it (the help box's motion). */
+.visits-toggle {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  margin-left: calc(-1 * var(--space-3));
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text-2);
+  font-size: var(--text-small);
+  transition: background-color var(--dur-hover) var(--ease);
+}
+
+.visits-toggle:hover {
+  background: var(--press);
+}
+
+.visits-toggle svg {
+  width: var(--chevron);
+  height: var(--chevron);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--dur-collapse) var(--ease);
+}
+
+.patient.open .visits-toggle svg {
+  transform: rotate(180deg);
+}
+
+.visits {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows var(--dur-collapse) var(--ease), opacity var(--dur-collapse) var(--ease);
+}
+
+.patient.open .visits {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.visits-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.visits ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-small);
+  color: var(--text-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visits,
+  .visits-toggle svg {
+    transition: none;
   }
 }

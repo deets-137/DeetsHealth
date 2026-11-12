@@ -1,12 +1,13 @@
 // `npm run dev`: the console and the agent's dev server together (CHAT.md §5; the owner,
 // 2026-11-12, fork 2A). Never a fixed port: several Deets apps run on one machine at once.
+// 0. Build ehr (only what changed), so the agent never starts an old one.
 // 1. Pick a free port for Vite (from 1420 up) and one for the agent (from 8790 up).
 // 2. Make a fresh token for this launch. The agent refuses every request without it.
 // 3. Start the agent with the token and the console's origin; wait for its first line.
 // 4. Start Vite on its port. Its proxy sends /agent/* to the agent and adds the token, so the
 //    page never holds it (console/vite.config.ts).
 // Ctrl+C stops both. `npm run dev:web` starts the console alone (no agent).
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
@@ -33,9 +34,28 @@ const agentPort = await freePort(8790);
 const token = randomBytes(32).toString("hex");
 const origins = [`http://localhost:${webPort}`, `http://127.0.0.1:${webPort}`];
 
+// Build ehr first: the agent starts target/debug's binary, and an old one ignores the fake
+// Twilio's settings, so a test call would send no text (CHAT.md §8). Cargo builds only what
+// changed. It fails while an old ehr still runs, because Windows locks a running .exe.
+const built = spawnSync("cargo", ["build", "-p", "deetshealth-ehr", "--quiet"], { cwd: root, stdio: "inherit" });
+if (built.status !== 0) {
+  console.error(
+    "[dev] ehr did not build. If the error says the file is in use, an older dev server or an " +
+      "ehr it left behind is still running: stop it (Task Manager › deetshealth-ehr.exe) and run npm run dev again.",
+  );
+  process.exit(1);
+}
+
 const children = [];
 const stop = (code = 0) => {
-  for (const c of children) if (c.exitCode === null) c.kill("SIGTERM");
+  for (const c of children) {
+    if (c.exitCode !== null) continue;
+    // On Windows a kill reaches the child only (here `uv`), not the Python under it or the ehr
+    // under that; an ehr left behind holds the binary and blocks the next build. So end the
+    // whole tree.
+    if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(c.pid), "/T", "/F"], { stdio: "ignore" });
+    else c.kill("SIGTERM");
+  }
   process.exit(code);
 };
 process.on("SIGINT", () => stop(0));

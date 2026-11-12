@@ -26,6 +26,13 @@ rustls-pki-types = { version = "1", features = ["std"] }
 getrandom = "0.3"
 # Wipes a session's secrets when it closes.
 zeroize = "1"
+# The sandbox fixture (ehr/fixtures/sandbox.json).
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The text message (texts.rs): Twilio's Messages API over rustls on the same AWS-LC provider
+# as the wire, with Mozilla's roots. No provider of reqwest's own, so no ring.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots-no-provider"] }
+webpki-roots = "1"
 
 [features]
 # The deploy build. Needs CMake and Go to build AWS-LC's FIPS module; not used on Windows dev.

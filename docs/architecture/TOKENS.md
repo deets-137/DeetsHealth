@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
 | Theme (color roles) | themes.css | 27 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 68 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 71 tokens · overrides:  |
 
 ## Theme roles
 
@@ -124,7 +124,10 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--bubble-pad-x` | `14px` | — | a bubble's side padding; the line facts under it start where its text does |
 | `--bubble-pad` | `10px var(--bubble-pad-x)` | — |  |
 | `--radius-bubble` | `14px` | — |  |
-| `--help-width` | `320px` | — | the open help box |
+| `--help-width` | `320px` | — | the open text card above the code button |
+| `--code-tracking` | `0.08em` | — | the six digits on the code button, a little apart |
+| `--chevron` | `14px` | — | the open-and-close arrow on a rail list (a patient's visits) |
+| `--tools-min` | `240px` | — | the Tools panel's least height; past it, its list scrolls inside it |
 | `--toggle-tracking` | `0.04em` | — | the mode toggle's word |
 | `--flip-depth` | `400px` | — | the perspective the toggle's word turns in |
 

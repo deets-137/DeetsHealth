@@ -4,14 +4,15 @@
 //! Two traits, so each EHR and each text service gets its own adapter:
 //! - [`Patients`] finds the candidates for a name and date of birth. The match itself is ours,
 //!   in [`one_match`], the same for every EHR.
-//! - [`Codes`] makes a code and sends it. Phase 1 has the fake only; the text message comes
-//!   with the real phone network (BUILD-ORDER.md, Phase 5).
+//! - [`Codes`] makes a code and sends it. [`FakeCodes`] (always 246810, nothing sent) serves the
+//!   typed harness and the tests; `texts::TwilioCodes` sends a real Twilio request, to the fake
+//!   Twilio in dev and to Twilio itself from Phase 5 (BUILD-ORDER.md).
 
 use std::future::Future;
 
 use deetshealth_core::Shielded;
 
-use crate::session::PatientKey;
+use crate::{sandbox::sandbox, session::PatientKey};
 
 /// What the caller said.
 pub struct Claimed {
@@ -65,31 +66,23 @@ pub fn one_match(claimed: &Claimed, found: Vec<Candidate>) -> Option<Candidate> 
     hits.next().is_none().then_some(first)
 }
 
-/// Synthetic patients for tests and the text harness. The numbers are in 555-0100 to 555-0199,
-/// which no real phone uses.
-const FAKE_PATIENTS: &[(&str, &str, &str, &str, &str)] = &[
-    // (id, given, family, birth date, phone)
-    ("fake-patient-1", "Jordan", "Ellis", "1984-03-12", "+15555550101"),
-    ("fake-patient-2", "Priya", "Raman", "1971-11-30", "+15555550102"),
-    // Two near-identical names on one date: the match must refuse both.
-    ("fake-patient-3", "Casey", "Morgan", "1990-06-05", "+15555550103"),
-    ("fake-patient-4", "Casey", "Morgen", "1990-06-05", "+15555550104"),
-];
-
-/// The fake EHR: every patient with the claimed date of birth, as a real search by date would.
+/// The fake EHR: every sandbox patient with the claimed date of birth, as a real search by
+/// date would (`ehr/fixtures/sandbox.json`). Casey Morgan and Casey Morgen share a date: the
+/// match must refuse both.
 #[derive(Default)]
 pub struct FakePatients;
 
 impl Patients for FakePatients {
     async fn candidates(&self, claimed: &Claimed) -> Result<Vec<Candidate>, Down> {
-        Ok(FAKE_PATIENTS
+        Ok(sandbox()
+            .patients
             .iter()
-            .map(|&(id, given, family, dob, phone)| Candidate {
-                patient: PatientKey(Shielded::new(id.to_string())),
-                given: Shielded::new(given.to_string()),
-                family: Shielded::new(family.to_string()),
-                birth_date: Shielded::new(dob.to_string()),
-                phone: Shielded::new(phone.to_string()),
+            .map(|p| Candidate {
+                patient: PatientKey(Shielded::new(p.id.clone())),
+                given: Shielded::new(p.given.clone()),
+                family: Shielded::new(p.family.clone()),
+                birth_date: Shielded::new(p.birth_date.clone()),
+                phone: Shielded::new(p.phone.clone()),
             })
             .filter(|c| c.birth_date == claimed.birth_date)
             .collect())

@@ -138,7 +138,16 @@ is ignored. So nothing past the edge sees a wire type.
   drops the old code.
 - **The fakes:** four synthetic patients (two of them near-identical on one date, to prove the
   refusal), phone numbers in the 555-01xx range no real phone uses, and the fixed code
-  `246810`, so a typed call can use it and the replay cache stays valid. Nothing is sent.
+  `246810`, so a typed call can use it and the replay cache stays valid. Nothing is sent. The
+  patients and their visits are in `ehr/fixtures/sandbox.json` (`sandbox.rs`), which the
+  Chat page shows too (CHAT.md §8).
+- **The code by text** (`texts.rs`, 2026-11-12): when `DEETS_TWILIO_ACCOUNT_SID` and its
+  partners are set, `ehr` makes a random code and sends it with Twilio's Messages API request
+  (rustls on the wire's AWS-LC provider, Mozilla's roots, 5 s). In dev it goes to the fake
+  Twilio in the agent's dev server; from Phase 5 to Twilio itself. The text's words are
+  AGENT-PROMPT.md › `text.code`. Only `texts.rs` holds a `TextPass` (core/src/text.rs), the
+  pass that reveals the number and the code for the request; a test enforces it. The whole
+  path: TEXTS.md.
 - **Booking runs in its own task.** A dropped request (the caller interrupts, a deadline
   passes) cannot cut it off half-way; the answer is kept under its key for the retry.
 - **The transport** (`transport.rs`): `rustls` 0.23 on AWS-LC, TLS 1.3 only, ALPN `h2`; the

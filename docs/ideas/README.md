@@ -17,6 +17,14 @@ hospital or a patient that the agent can do any of these things. The patient app
   paper first: consent, call times, who sees the answers, and where they are filed (the held
   `DocumentReference.Create (Clinical Notes)` API, EPIC.md §2.1). Inbound, the caller asks
   "when do I take my pills?" and the agent reads `MedicationRequest`'s dose instructions.
+- **The Analytics tab** (the owner, 2026-11-12: "doc it when we eventually build out the
+  analytics tab of DeetsHealth, we can build for this"). A console tab for analyzing calls
+  across many calls. Its first source is already built: per-tool latency, `GET
+  /agent/latency` (CHAT.md §10), a summary per tool and model (p50, p90, max of six spans) and
+  one row per tool call, with names and numbers only. What the tab needs before it is built:
+  its design on paper (where it sits in the nav, the charts, the filters: source, model, date
+  range, exact only); the per-turn spans for turns with no tool (the 800 ms target per turn,
+  DEBUGGING.md); and in production, the same rows in the store's call log, behind roles.
 - **A live demo for a hospital's analyst team** (the owner, 2026-11-11: "doc this idea for
   later, can plan to utilize a cloudflare tunnel"). The owner is the caller in the Chat box on
   his own PC; each analyst watches the same call from their own PC. The plan: a Cloudflare

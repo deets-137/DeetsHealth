@@ -6,7 +6,9 @@
 //!   first line on stdout names it (`ehr listening on 127.0.0.1:PORT`). Never a fixed port.
 //! - `--certs` defaults to `dev-certs` (made by `cargo run -p deetshealth-ehr --example
 //!   dev_certs`).
-//! - Phase 1 runs the fakes only. A deploy (`DEETS_REQUIRE_FIPS=1`) refuses to start until
+//! - The code by text goes through Twilio's Messages API when `DEETS_TWILIO_ACCOUNT_SID` and
+//!   its partners are set (texts.rs; in dev, the fake Twilio). Otherwise the fake code, 246810.
+//! - Phase 1 runs the fake EHR only. A deploy (`DEETS_REQUIRE_FIPS=1`) refuses to start until
 //!   the real adapters exist, and refuses TLS that is not in FIPS mode.
 //!
 //! Output names ports, paths and fixed error strings. Never a request or a value.
@@ -17,9 +19,11 @@ use deetshealth_ehr::{
     proto::v1::ehr_server::EhrServer,
     scheduler::FakeScheduler,
     service::EhrService,
+    texts::{TwilioCodes, TwilioConfig},
     transport,
-    verify::{FakeCodes, FakePatients},
+    verify::{Codes, FakeCodes, FakePatients},
 };
+use rustls::ServerConfig;
 use tokio::net::TcpListener;
 use tonic::transport::Server;
 
@@ -62,14 +66,26 @@ async fn run() -> Result<(), String> {
         return Err("DEETS_REQUIRE_FIPS=1, but this build has the fake adapters only".into());
     }
 
+    // The code by text: Twilio's Messages API when its settings are set (the fake Twilio in
+    // dev), else the fake code. Read before the port is bound, so a bad setting stops ehr
+    // before its first line.
+    let texts = TwilioConfig::from_env()?.map(TwilioCodes::new).transpose()?;
+
     let listener = TcpListener::bind((bind, port)).await.map_err(|_| "cannot bind the port")?;
     let addr = listener.local_addr().map_err(|_| "cannot read the bound port")?;
     println!("ehr listening on {addr}");
 
+    let config = Arc::new(config);
+    match texts {
+        Some(codes) => serve(listener, config, codes).await,
+        None => serve(listener, config, FakeCodes).await,
+    }
+}
+
+async fn serve<C: Codes>(listener: TcpListener, config: Arc<ServerConfig>, codes: C) -> Result<(), String> {
     let (health, health_service) = tonic_health::server::health_reporter();
-    type Phase1 = EhrService<FakeScheduler, FakePatients, FakeCodes>;
-    health.set_serving::<EhrServer<Phase1>>().await;
-    let ehr = EhrServer::new(EhrService::new(FakeScheduler::default(), FakePatients, FakeCodes))
+    health.set_serving::<EhrServer<EhrService<FakeScheduler, FakePatients, C>>>().await;
+    let ehr = EhrServer::new(EhrService::new(FakeScheduler::default(), FakePatients, codes))
         .max_decoding_message_size(MESSAGE_LIMIT)
         .max_encoding_message_size(MESSAGE_LIMIT);
 
@@ -78,7 +94,7 @@ async fn run() -> Result<(), String> {
         .concurrency_limit_per_connection(64)
         .add_service(health_service)
         .add_service(ehr)
-        .serve_with_incoming(transport::incoming(listener, Arc::new(config)))
+        .serve_with_incoming(transport::incoming(listener, config))
         .await
         .map_err(|_| "the server stopped".into())
 }

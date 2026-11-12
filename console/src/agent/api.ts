@@ -57,6 +57,12 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const health = () => get<{ key: boolean; live: string | null }>("/agent/health");
+
+/** The sandbox (ehr/fixtures/sandbox.json): synthetic patients and their visits. */
+export type SandboxPatient = { id: string; given: string; family: string; birth_date: string; phone: string };
+export type SandboxVisit = { patient: string; starts_at: string; minutes: number; clinician: string };
+export type Sandbox = { place: string; patients: SandboxPatient[]; visits: SandboxVisit[] };
+export const sandbox = () => get<Sandbox>("/agent/sandbox");
 export const catalog = () => get<Catalog>("/agent/catalog");
 export const callEvents = (id: string) =>
   get<{ id: string; events: CallEvent[] }>(`/agent/calls/${encodeURIComponent(id)}`).then((r) => r.events);

@@ -1,8 +1,8 @@
 ---
 status: project
 desk_test: none
-sources: []
-updated: 2026-10-19
+sources: [ehr/src/texts.rs, agent/deets_agent/fake_twilio.py]
+updated: 2026-11-12
 ---
 # Twilio — the phone line
 
@@ -19,7 +19,17 @@ updated: 2026-10-19
   call back to the number on file (SECURITY.md §4.4).
 - **Transfer** (`<Dial>`) to a person at the hospital.
 - Not used: ConversationRelay (no Cartesia), Twilio's recording and transcription (we keep our
-  own, sealed, only when a rule says so).
+  own, sealed, only when a rule says so). Not Twilio Verify either: `ehr` makes and checks its
+  own code, in constant time, so the code never sits with a second vendor.
+
+**As built (2026-11-12):** the code by text is `ehr/src/texts.rs`: `POST
+/2010-04-01/Accounts/{AccountSid}/Messages.json` with Basic auth and `To`,
+`MessagingServiceSid`, `Body`. In dev it goes to a fake Twilio in the agent's dev server
+(`agent/deets_agent/fake_twilio.py`), which shows the text on the Chat page (CHAT.md §8). To
+send real texts, set `DEETS_TWILIO_API` (default `https://api.twilio.com`),
+`DEETS_TWILIO_ACCOUNT_SID`, `DEETS_TWILIO_AUTH_TOKEN` and `DEETS_TWILIO_MESSAGING_SERVICE` for
+`ehr`. The words fit one segment (a test holds them there). The whole path, the settings, the
+fake and the Phase 5 steps: [TEXTS.md](../architecture/TEXTS.md).
 
 ## 2. Account and BAA
 - Twilio signs a BAA on its **Security or Enterprise Edition**. Only products on its
@@ -67,7 +77,12 @@ updated: 2026-10-19
 ## 6. To find out
 - The edition and price of the BAA tier for a small first customer.
 - Whether a hospital forwards its main number to ours, or moves a number into our subaccount.
-- Twilio's minimum log retention for a HIPAA account.
+- Twilio's minimum log retention for a HIPAA account. Twilio keeps each message's body in its
+  logs, and the body holds the code: set message body redaction or the shortest retention.
+- **Sender registration:** US carriers block texts from an unregistered sender. A toll-free
+  number needs Twilio's toll-free verification; a 10-digit number needs A2P 10DLC brand and
+  campaign registration. Either can take days to weeks: start it before Phase 5. Carriers also
+  want the sender's brand in the text, so `text.code` will need the clinic's name.
 
 ## 7. Sources
 - [Twilio — Core latency in AI voice agents](https://www.twilio.com/en-us/blog/developers/best-practices/guide-core-latency-ai-voice-agents)

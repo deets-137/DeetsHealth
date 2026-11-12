@@ -1,14 +1,16 @@
 ---
 status: built
 desk_test: open
-sources: [console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png]
+sources: [console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png]
 updated: 2026-11-12
 ---
 # DeetsHealth — The Chat page
 
 > The console's Chat page: one call in a chat view, in three modes. The owner's design,
 > narrated 2026-11-11 over his sketch. The shell it sits in is [CONSOLE.md](CONSOLE.md). The
-> connection is the hybrid (§5), built 2026-11-12 (§6); the catalog of calls is §7.
+> connection is the hybrid (§5), built 2026-11-12 (§6); the catalog of calls is §7; the
+> sandbox patients in the rail and the code button are §8 (the text path itself is
+> [TEXTS.md](TEXTS.md)); the Tools panel is §9; per-tool latency across calls (an API) is §10.
 
 ![The owner's sketch of the Chat page, 2026-11-11](images/chat-sketch-2026-11-11.png)
 
@@ -76,10 +78,8 @@ the roles in `themes.css`, the six call paints in `palette.css`.
 - **A test call:** Start calls the agent (§6). The greeting comes in, the text box opens, and
   each line you send comes back as a caller bubble, then the agent's answer. End call, then
   Confirm?, hangs up; when the agent ends the call, the canvas says why.
-- **The help box:** "Sandbox patients": Jordan Ellis, Priya Raman, Casey Morgan (with the
-  Morgen twin), the code 246810. It opens over the lines with a row-height and fade
-  transition (`--dur-collapse`, 220 ms). The list is in `chat.ts`, kept in step with
-  `ehr/src/verify.rs` until the dev server sends it.
+- **The help box:** replaced on 2026-11-12 (§8). The sandbox patients moved to the rail; the
+  code button now sits at the bottom left and opens the text with the same card and motion.
 - **Demo:** the picker lists every call in the catalog (§7), starred first, then newest: a
   call's label, or its time, outcome and scenario. Play fetches its events and draws each one
   at its own time, divided by the speed (1× or 2×); Stop ends it.
@@ -179,13 +179,12 @@ which fits the evals (§7) and test layer 4 (VOICE-AGENT.md §9).
 
 **Desk test:**
 1. `npm run dev`; open the address Vite prints, in Safari.
-2. Test: Start. The greeting shows. Type as a sandbox patient (the Help box) and book a
-   visit. Each answer shows "text n.n s" under it (a live request: about $0.0003 a line), and
-   the call ends with the goodbye line.
+2. Test: Start. The greeting shows. Type as a sandbox patient (the rail's Sandbox patients
+   panel) and book a visit. Each answer shows "text n.n s" under it (a live request: about
+   $0.0003 a line), and the call ends with the goodbye line. The code by text is §8.
 3. Check the edges: the text box starts at the canvas's left edge and the send button ends
    at its right edge; the two are the same height. The facts under a bubble start where its text starts. Narrow the
-   window: "Sandbox patients" becomes "Help", and Start | End call narrows, never past the
-   canvas's edge.
+   window: Start | End call narrows, never past the canvas's edge.
 4. Open a second window on PHI during a test call: the same lines show as they happen.
 5. Demo: pick the call you just made (the newest), Play at 2×. It plays as it ran.
 6. Stop the dev server (Ctrl+C) with the page open: the Chat page says the dev server is not
@@ -225,8 +224,268 @@ dimension, an "unknown" answer, calibrate model graders against human ones).
   `phone_style`, and `intent_drift` (the owner, 2026-11-12: the agent going off to solve math
   or doing things away from the clinic's business). Change `RUBRIC_VERSION` when a
   dimension's meaning changes.
+- **`tool_calls`:** one row per tool call with its spans, names and numbers only (§10).
 - **The API:** `GET /agent/catalog` (every row with its current ratings, the dimensions),
   `GET /agent/calls/{id}` (the events, for Demo), `POST /agent/annotations` (one gate checks
   every field: the kind, the call, the dimension, the verdict, the score 0–5).
 - **Not built:** where the rating controls sit in the console (the owner designs them), the
   model and code graders.
+
+## 8. The sandbox patients and the code by text
+> **Part:** built · 2026-11-12 — the owner's choices: fork A (the fake Twilio now, Twilio itself
+> in Phase 5); "build as close to end product as reasonable during dev"; the layout from his two
+> screenshots of 2026-11-12.
+
+**His words (2026-11-12).** The "Sandbox patients" box moves to the rail, in Test and in Demo
+("while we replay a test log"), with patient data only: name, date of birth, and a collapsible
+list of their visits. When a text comes, a split button appears where the help button was: the
+wide left half is the code ("just the 6 digits"); a press opens a small panel with the full
+text, "like the current button does"; the narrow right half sends the code in the chat
+directly.
+
+**Where the text comes from:** [TEXTS.md](TEXTS.md), the code by text from end to end: `ehr`
+makes a random code and sends Twilio's own Messages request; in dev the fake Twilio in the
+agent's dev server takes it and writes a `text` event (the number and the words) into the live
+test call's record. The watch stream carries that event here like any other, and Demo plays it
+back at its time. The sandbox list is TEXTS.md §8.
+
+### 8.1 The data on the page
+- **`GET /agent/sandbox`** (`sandbox` in `console/src/agent/api.ts`; types `Sandbox`,
+  `SandboxPatient`, `SandboxVisit`): the place, the patients (id, given and family name, birth
+  date, number on file) and the visits (patient id, start in the place's local time, minutes,
+  clinician). The page loads it once at build (`loadSandbox`), and again when the watch stream
+  comes back up if the first load failed. With the dev server down, the panel says so.
+- **The `text` event** (`CallView.add` → its `onText` callback): a `CallEvent` with `to` and
+  `body`. `CallView` keeps it out of the lines; `addText` takes the first run of six digits in
+  the body as the code, as a phone's code autofill does, and drops an event with none.
+- **Each mode keeps its own texts** (`texts` in `chat.ts`): Test's from the live call, Demo's
+  from the call playing. Start clears Test's (`clearTexts("test")`); Play clears Demo's. PHI
+  keeps none: `shownTexts` returns nothing in PHI, so a code never draws there.
+
+### 8.2 The rail's second panel
+The rail is Timeline, the second panel, Step, Tools. The page sets `data-mode` on
+`.split-page` as well as on `.chat` (`showMode`), and CSS picks the second panel:
+**Sandbox patients** (`.panel-sandbox`) in Test and Demo, **Caller** (`.panel-caller`, empty
+for now) in PHI.
+
+Each patient (`sandboxRows`), in the fixture's order, all of them (the near-twins too):
+- **The head row** (`.patient-head`): the full name in bold; beside it "Born" and the date in
+  words (`longDay`, read in UTC so no time zone moves the day). The row wraps on a narrow rail.
+- **The visits:** with none, a muted "No visits" line (`.visits-none`). With some, a button
+  (`.visits-toggle`): the count ("1 visit", "2 visits") and a down arrow (`--chevron`). One
+  press opens the list, the next closes it. The button carries `aria-expanded` and
+  `aria-controls`. The list opens with the help box's motion: its row height and opacity over
+  `--dur-collapse`; the arrow turns over in the same time. With reduced motion, both are
+  instant.
+- **One visit per line** (`visitTime`): the weekday, the date, the time (the place's local
+  time, shown as stored), the length, the clinician and the place, joined by " · ". Sorted
+  soonest first.
+- The panel's text can be selected and copied.
+
+### 8.3 The code button
+In the control row's left slot, where the help button was (`#chat-code`, which reuses the help
+box's `.help` card and its open and close motion).
+- **When it shows:** only once the current mode has a text (`renderCode`). Then it **rises in**
+  like one step of the wave (`.arrive`: the `wave-in` keyframes, `--dur-wave-in`,
+  `--ease-wave`); no motion with reduced motion. It also joins the mode-change wave
+  (`data-wave`). With no text the slot is empty, and Start | End call keeps its place at the
+  right.
+- **The left half** (`#chat-code-show`, `.split-plain`): the newest code's six digits, in
+  tabular figures, a little apart (`--code-tracking`). Its accessible name reads the digits
+  one by one, then "Show the text message". A press opens the card; the next press closes it.
+  While open, the half takes the pressed wash (`--press`).
+- **The card** (`#chat-code-card`, `textCards`): the heading "Text message" ("Text messages"
+  for more than one), then each text of the call, newest first. Each: a muted line with "To",
+  the number in US form (`phoneWords`) and, when the number belongs to a sandbox patient, their
+  name; then the text in full. An older text is dimmed and its line ends "Replaced", because a
+  new code stops the old one working (TEXTS.md §2, step 8). The card's text can be selected.
+- **The right half** (`#chat-code-send`): the send button's green (`--go`) and arrow, square
+  (`--send-size`). A press sends the newest code as the caller's line, through the same seat
+  as the text box (`client.sendText`). The line then comes back over the watch stream like any
+  typed line. The press closes the card and puts the cursor in the text box. It works only in
+  a live test call: before Start, after the call ends, and in Demo it is dimmed and disabled
+  (`setLive` and `showMode` both redraw it).
+- **No match, no button:** when the claim matches no one, or two (the near-twins), no text is
+  sent, so no button comes. That is the honest result, the same as on a real phone.
+
+### 8.4 Tokens and files
+- New skin tokens (`skin.css`, listed in TOKENS.md): `--code-tracking`, `--chevron`.
+  `--help-width` now sizes the text card. No raw value in a component.
+- `console/src/pages/chat.ts` (the panel, the button, the card, `CallView`'s `onText`),
+  `console/src/styles/chat.css` (the code by text; the rail's panels),
+  `console/src/agent/api.ts` (`sandbox`).
+- Removed: the help button and its "Help" short label, and the hard-coded sandbox list and
+  code in `chat.ts`.
+
+### 8.5 Decided inside his choices, gaps, desk test
+**Decided inside his choices** (for his review): the right half is green with the send arrow
+(as the bar's send button) rather than a color of its own; the card lists every text of the
+call, newest first; the send half closes the card and puts the cursor in the text box; the
+code button joins the mode-change wave; PHI's rail shows the empty "Caller" panel in the same
+place; all four sandbox patients show (the Morgen twin too); the "1 visit" wording; the text's
+words (a draft in AGENT-PROMPT.md); `npm run dev` now builds `ehr` first and, on Windows, ends
+the whole process tree on Ctrl+C (an `ehr` left behind had locked the binary).
+
+**Known gaps:** a visit booked during a test call does not show in the rail (the fake
+scheduler keeps bookings in memory only). The text path's own gaps are TEXTS.md §13.
+
+**Desk test:**
+1. Stop any running `npm run dev`. If Task Manager still shows `deetshealth-ehr.exe`, end it.
+   Then `npm run dev` (it builds `ehr` first).
+2. Test: the rail shows Sandbox patients. Press "1 visit" under Jordan Ellis: the visit opens;
+   press again: it closes.
+3. Start. Say you are Jordan Ellis, born March 12, 1984, and confirm. The code button rises in
+   at the bottom left with six digits (not the fixed `FAKE_CODE`).
+4. Press the digits: the card shows the full text, to (555) 555-0101 · Jordan Ellis. Press
+   again: it closes.
+5. Press the green half: the code goes in as your line and the agent verifies you.
+6. Start again, give the details, then say you got no text: the agent sends a new one. The button shows the new code; the
+   card shows the old text dimmed, "Replaced". Send the old code: the agent refuses it.
+7. Start again as Casey Morgan, born June 5, 1990: no button comes.
+8. PHI (a second window during a test call): no code button; the rail shows Caller.
+9. Demo: play the call from step 3. The button comes in when the text does; its green half
+   is dimmed; the digits still open the card.
+
+## 9. The Tools panel
+> **Part:** built · 2026-11-12 — the owner's choices: fork A (the time to confirm is the tool's
+> own run); "a main line with subtitle text / bullet points underneath", not one row; "the
+> confirm time ... is to help us track latency as accurately as possible".
+
+**His words (2026-11-12).** "Show the tool call as the main line, with details underneath of
+the message that triggered it, time to trigger and confirm, and that's it for now."
+
+### 9.1 What each entry shows
+One entry per tool call (`ToolLog` in `chat.ts`), oldest at the top:
+- **The main line:** the tool's name in bold, then its arguments, muted: the values in the
+  order the model gave them, " · " between (`argWords`). A tool with no arguments shows its
+  name alone.
+- **Under it, one bullet each** (small and muted, each with a fainter label):
+  - **Triggered by:** the caller's last line before the call, in quotes, on one line, cut with
+    an ellipsis when long (the full line stays in the canvas, and the text can be selected). A
+    tool the model calls right after another tool shows the same line. With no caller line
+    yet: "no caller line yet".
+  - **Time to trigger:** from the caller's line to the model's call to the tool: what the
+    caller waits through first (the model's request included).
+  - **Time to confirm:** the tool's own run, from its call to its result: the EHR, the text
+    service, and Pipecat's dispatch around them. "waiting…" until the result comes; "· failed"
+    after it when the tool returned an error.
+- **No result line,** as he asked ("that's it for now").
+
+### 9.2 Accuracy
+Both times come from the agent's own high-resolution clock (`time.perf_counter`), not from the
+page, and are kept to a tenth of a millisecond:
+- `trigger_ms` on each `tool_call` event: from the moment the record took the caller's line
+  (`CallRecord.caller`; in a test call, where the line enters the pipeline at the caller
+  screen) to the tool call (`CallRecord.tool_call`).
+- `ms` on each `tool_result` event: from the tool call to its result
+  (`CallRecord.tool_result`). It was whole milliseconds; a fake tool takes a few, so whole ms
+  hid it.
+- These are record schema 3 (`SCHEMA_VERSION` in `agent/deets_agent/call_record.py`). An older
+  record has no `trigger_ms`: the panel works it out from the events' `t_ms`, which are whole
+  ms, so it is right to about a millisecond. Its `ms` is whole ms.
+- The page shows a span under a second in ms to a tenth, and from a second in seconds to the
+  millisecond (`spanWords`), so the display loses none of the record's precision.
+- Both times are measured where the agent sees the frames (the turn collector in `call.py`).
+  The time inside `ehr` alone is the `ehr` event's own `ms` (DEBUGGING.md); the panel does not
+  show it.
+
+### 9.3 Where it shows
+- **Every mode, from the same events** (`CallView`'s `tools` hook): Test from the live call,
+  PHI from the call being watched, Demo from the call playing. Each mode has its own list
+  (`.tools-log[data-for]`), and a new call or a new Play clears it. PHI shows every field in
+  dev (synthetic data), as §2 decided; roles gate it in production.
+- **The panel fills what the rail has left** and scrolls inside itself, never less than
+  `--tools-min` tall. A new entry scrolls into view only when the list is already at its end,
+  so reading an older entry is never interrupted. The text can be selected.
+
+**Decided inside his choices** (for his review): the labels "Triggered by", "Time to trigger",
+"Time to confirm"; the arguments as values only, without their names; "waiting…" before the
+result and "· failed" on an error; oldest at the top; the follow-only-at-the-end scroll; the
+caller's line cut to one line; record schema 3 with the two exact times.
+
+**Desk test:**
+1. `npm run dev`, Test, Start. Book a visit as Jordan Ellis.
+2. The Tools panel lists each tool as it runs: the name in bold with its arguments, then
+   "Triggered by" with your line, "Time to trigger" (hundreds of ms) and "Time to confirm"
+   (a few ms on the fakes; `confirm_details` takes longer, because it sends the text).
+3. A long line of yours is cut with "…" in the panel.
+4. A second window on PHI shows the same entries. Demo: play the call; the entries come in at
+   their times. An older recorded call (before schema 3) still shows both times.
+5. Scroll up in the panel during a call: new entries do not pull you down.
+
+## 10. Per-tool latency (an API)
+> **Part:** built · 2026-11-12 — the owner's choice: "just an API for now", and a doc so the
+> Analytics tab can build on it later (ideas/README.md).
+
+**Why:** to compare how long each tool takes across calls, not one call at a time (§9 shows one
+call). `agent/deets_agent/latency.py` works the rows out from the records;
+`agent/deets_agent/catalog.py` keeps them in the `tool_calls` table; the dev server serves them.
+
+### 10.1 The spans
+All in milliseconds, per tool call (`latency.py`'s docstring has the exact rule for each):
+
+| Span | From → to | Source in the record |
+|---|---|---|
+| `trigger_ms` | the caller's line → the model's call to the tool | `trigger_ms` on `tool_call` (schema 3+); else the `t_ms` difference |
+| `model_ms` | the model's request → the tool call in its reply | `first_tool_ms` on the `llm` event before the call |
+| `confirm_ms` | the tool's call → its result | `ms` on `tool_result` |
+| `ehr_ms` | the part of the run spent in `ehr` | the sum of the `ehr` events inside the run; `ehr_calls` names them |
+| `answer_ms` | the tool's call → the first frame of the agent's next line | `first_ms` on `agent` (schema 4 only) |
+| `total_ms` | the caller's line → that first frame: the caller's whole wait | the same (schema 4 only) |
+
+Two or more tools before one agent line share that line's first frame. A span the record
+cannot give is empty (null), never a guess.
+
+### 10.2 Accuracy
+- **Record schema 4** (`SCHEMA_VERSION` in `call_record.py`): every event's `t_ms` keeps a
+  tenth of a millisecond, and each agent line carries `first_ms`, stamped by the turn collector
+  (`TurnCollector._add` in `call.py` → `CallRecord.answer_started`) when the line's first frame
+  passes. Before this, the line was stamped only after the text harness's turn grace
+  (`TURN_GRACE_S`), a wait no voice caller has: in the 12:58 test call it added about 400 ms
+  to every answer. So `answer_ms` and `total_ms` exist only for schema 4 records.
+- **`exact`** marks rows from schema 3 and later: `trigger_ms` and `confirm_ms` to a tenth of
+  a millisecond. Older rows are whole ms, worked out from event times.
+- **`replayed`** marks a tool call whose model reply came from the replay cache (the typed
+  harness). It measures the cache, not the model, so every summary leaves those rows out
+  unless `with_replayed` asks for them.
+
+### 10.3 The API
+`GET /agent/latency` (`dev_server.py`, behind the launch token like every `/agent/*` path):
+
+| Query | Meaning |
+|---|---|
+| `source` | `test` or `typed` |
+| `model` | a model id, as in the record's `call_start` |
+| `since` | a day (`2026-11-12`) or a call id: that call and later ones |
+| `exact` | `true`: schema 3+ rows only |
+| `with_replayed` | `true`: count replayed rows too |
+| `rows` | `true`: add every row, not only the summary |
+
+The reply: `filters` (as asked), `spans` (the six names), `summary` (one entry per tool and
+model, most-called first: `calls`, `failed`, and for each span `n`, `p50`, `p90`, `max`; nearest
+rank, worked out in Python because SQLite has no percentile), and `rows` when asked. A row:
+`call_id`, `seq`, `t_ms`, `tool`, `node`, `model`, `source`, the six spans, `ehr_calls`,
+`replayed`, `exact`, `failed`.
+
+To read it now: with `npm run dev` running, open `/agent/latency?source=test` on the address
+Vite prints (the proxy adds the token). The catalog is rebuilt from every record when the dev
+server starts, and a test call's rows join when it ends.
+
+### 10.4 What the rows never hold
+No argument, result or word of the call: names and numbers only. So the table carries no
+protected data, and it has the shape of DEBUGGING.md's production call log ("latency per step,
+plain columns carry no protected data"). The column types follow Postgres, as the rest of the
+catalog does.
+
+### 10.5 For the Analytics tab (later)
+The tab reads this API; nothing in it is built for one screen. Open for that work (its own
+design on paper first): the charts and filters, a per-turn table for turns with no tool, and
+the move from the dev catalog to the store.
+
+**Tests (kept):** `agent/tests/test_latency.py`: each span of an exact record; an old record's
+fallback, with no guessed answer time; replayed rows left out; two tools sharing one line; the
+nearest-rank percentile.
+
+**Checked, 2026-11-12:** over the 87 records then on disk, 390 tool calls, 310 once replayed
+ones are left out. On the test calls, the model is most of every trigger, and each tool's own
+run is 1–15 ms on the fakes.
