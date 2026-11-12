@@ -1,0 +1,258 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011CgxCWBMjpWeSx5fpXPJW5",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 181
+     },
+     "cache_creation_input_tokens": 181,
+     "cache_read_input_tokens": 2068,
+     "inference_geo": "global",
+     "input_tokens": 4,
+     "output_tokens": 6,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQS8wgKEAgTGAI4AUIIdGhpbmtpbmcSDGmoqvLXDs2bJcpA+RoMVMN/0EZvFuDFkEi5IjAgT2BG+uNFe2x5bc4XQZkXF8WT3O3XkwLIZe9j2lKgNN6L9IXwrMNftXXU/JO7RYcqkAhexeBcFP2Q+B15vQs2BjkEAKti6aI3Oo3SO5Gubir5zFhT0Ho6N7nv2ugoVddh4HxuVrzXCEVb+3gFLMIeh4uKHqfwz0g1Oi7ifhpTqRrAp59ylEoXzxQPFduYDm3rT94YYSrqhCmpEzvEbHHACSaKjeQEu/1gyP3wa8gWM0fMP54kWiHlP0AXS/huWypIlRy4j930lvYJntc5obJOiTHTN0rFQcIgirXqJzkeEFieAeiEQ1saYXLigV/IEYlkYfcN5Ii83unzf9ZyBXHwipxX2p6iMXhuIr8RcehzUlnrsGBFiXSpHH5bwjivVvqL0wbivjbfC76aNL7e9kLfrSgMchnKCp1/Lzy/+16LJ9Cv63UZEUA8PbT5ZAtL97z550sY0kb9TXHZ0d/WJwSlefWDPCeMdry84gcCocPEnzh/VFOdZ+0JsB3t6lGoUZL+La3Gfs47APwZ2Sm3WRHv+d2tex4tOPLGvqw72yw4oeq59tRuIbIclgfT33vo0MvZpuSAQLU3AsyoSsAQB9r+752AhF/UilYZYOYmf1A+pAP+nXuZUkKK0E9wWze2i/BqMUEsUYdMr1yPpFS0GMfBBhKYLn0dzuae9iD4QSDoYta38bbxF5H/AURGiUsSHxy9DwIdd3ndkB8ojzBwoJuHc6iHInUKJwbA2LFJEYstwMMe80ZqKFyBRcUmtBSqKAQ2PolUfAqb2M1xqdQ8qc/MpIsLrnGWUMZaBxcH/wtXeps8XCoEM27djtd6REEU3ybTiPu2JCgiNXLuK7KCtqAyVGHqZMJ6aH5HikY7Hm1cPbmvKfSXwUUasizyHDW0Od2o4VTMrsMFb7fJ8REzyK/VrppsvTQYPxHCDCgHMsgX0eIXvLQT2PZujQ/M8mwjB8z3HeaY0Yv06lh0lxqCx/q4LqlL99+Y33sFyec3ThHZ8x/n+jo2/Ar8UduEtCpVmTI41pimAy1xpT6co/nQxL6zCIs+jd/DUlf0ZIbouVmnMawrbpZu99xB3d1NM1SMtU+Na+IBz5lZASJqxdD+1F243BHprO0Ce66EeM3+SXUDhyTLaJBQwnG4WzoUHIAjQsdlvYi1HCzPoyBomNsFlg2ktcX73rQzMSmZR3faCykYR3aBEr/win/lHTB9MYr3zfpASMwN5m4HuznvHzwfcGDS48nZHZKcMJT1lwwX6uCp56R2uqwE/yY9A8TyWuSoJWeDBQFx7qfEL58n+584jS5w36s6fnTAUcwyAnjPxHfTVGAYCZZ3jv798cRPcYaJjRJxNDeSmgc/efY4JGuw38cC8EDFf0Dgo1de9tMBr6+svZs/YChW9jySJES+lu98TOYkHDp6c75UqN9yeAawPjv6Xdh/LT3//IZ/SayCkaq9sxgJnRgB",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_019PjPGKjNTeZv3msydZTK7K",
+    "input": {},
+    "name": "medical_question",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01JSrkV36zYEUG6d23yVkJbT",
+    "input": {},
+    "name": "find_slots",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 2,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"reaso",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "n\": \"Ch",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "eck-up ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "for a b",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ad head",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ache th",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "at has ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "lasted ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "all wee",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "k\"",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"earl",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "iest_da",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "y\": \"20",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "26-10-2",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "6\"}",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 2,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 181,
+    "cache_read_input_tokens": 2068,
+    "input_tokens": 4,
+    "output_tokens": 282,
+    "output_tokens_details": {
+     "thinking_tokens": 162
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

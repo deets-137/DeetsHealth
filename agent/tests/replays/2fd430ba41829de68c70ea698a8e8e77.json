@@ -1,0 +1,235 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011CgwybMihzJ8HvtYZHPnZV",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 1780
+     },
+     "cache_creation_input_tokens": 1780,
+     "cache_read_input_tokens": 0,
+     "inference_geo": "global",
+     "input_tokens": 4,
+     "output_tokens": 4,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSwggKEAgTGAI4AUIIdGhpbmtpbmcSDN1JVjpKcRkNs1/o4xoMMkkDiKwcrubVOeTHIjB3N+WOnzH0BpLL8wh4ETewxdwMavZqdNFj+EShJJn5japHj740qOjsrO1NUdetgtYq3wfwz2KwuJQVjIQa2rTKuls0uJNph+ctPIFYrcos4cnKR41elOIydrrHPMGNO/7AEEn3m7FLQS1HDmuij+uYtnlJK25Oyaw5eGxQIkpbO/YEYaYuOGJdmv88LR1YrlwwyifKqNrp8WQ46NoAWYSxrdcq/QGUBTiiYLEl+pqiW590wvycrEiarCc5VQN6bf9x2ISUjlW9HHIz2DwoiROzqWzyGTAvmNC3w+I4CjWreBzBi1XZ6LS5eX+G8gPLk+6qwDg9XmDNXMnTeep0efw5h4mPlLLl7r0EkNiu5un7MIcA3Z0DS/a+2k6HBcLq91Ar3r7VwwBGmk/8/ros2jROyYbC7mW3PQo/PL27MfZXdF0vL1EpOy53mpU3nSE6gvJhu8vdg13X/VlQSMjQiA3u1ri1a42LtMsCXhhjWI2n6lpQPs2x28LA3HATmZfTAwTNG1N9y4JLw6wKaoR1V1oAw9GeHEbwOTMlf/fD2llLXZ8VuQ4moRj/sQOGPvRd3XOzLr8JM1b8JBQO8zXHC2/PXfWTb5NcTGooBIC7vXMqHaH+jB+eKiczbsdiK7vLOKOmcAXa5ESr4kuMuMWlU/QZmwvdLBkf7bc5iEw7WLVGtvrft150annofBXr8U40x+d77WGCJRJNtriDL9vBw3gwLfrp/BXwS7Wc/g2cSUXqZKYGhVvxRGHJ3lUkoZA4mFKlqeUW1tGixeIyRrWgoLmUDHD+jn+mjsKIdLwEDylBX2sVSWyVTZFBLiUCqMo8YvMeCttSKGkFEMh9XyCiEiTuf57lTm6fMhvCLElyxO7p1WngTb7e00F5v+xJcg3jeer+o8mA0VbJQe2UYbBo7UTvC/G8tBIAwaYTD30dfC98GaE7Lj4+sc9lQDmUN4IHL2R6ihAF6dI3KAlhTisIvgZj0M+0SsfJMK5x2Tr7CjCISRatsMRKyNGmvU14rRO5JQYPrFYEMeYUtLUXh+lHymgya8l/6R/5EKbL6lDZkIauWaIVX4ctvyEYQmDCSuaIUJPy6qs53O86yNyswdCsln17C3Nc7p4DSk/dgBgpeFeD8wt1NvTMAf54ykUE5D+xvoRRqUnOup592bYhcNXoOLVaT7GL9yED6UotgSZ5hGy6wklg1tpZTc+VXBW0ht2kb30Wz1zpmlMlb6msjV1eiyylO1QU8nP6PL/7C68i8ElAwcaxb09Ag2uvebsycE7Hs6Wq7XoI2Cvsl7ThBTxYsbV3SgQI13mVX8mGm05YudJKDd1ptx2qidoUpdJyp4WLDr8aony66g2dc+4LnSzYEt12Ueb94udH1GXC8e47tzOA81PRGAE=",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "I underst",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "and the",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " concern. The code should",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " ar",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "rive by text on",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " the ph",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "one number we",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " have on file.",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " Once",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " you have",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " it, please read the",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " six",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " digits to me.",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " If n",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "othing ar",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "rives, I can send it again",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": ".",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 1780,
+    "cache_read_input_tokens": 0,
+    "input_tokens": 4,
+    "output_tokens": 193,
+    "output_tokens_details": {
+     "thinking_tokens": 137
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

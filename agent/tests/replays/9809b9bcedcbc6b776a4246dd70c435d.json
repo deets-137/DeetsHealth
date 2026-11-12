@@ -1,0 +1,128 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011CgxDfY1ZqKzpYswLC6LVS",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 349
+     },
+     "cache_creation_input_tokens": 349,
+     "cache_read_input_tokens": 2805,
+     "inference_geo": "global",
+     "input_tokens": 4,
+     "output_tokens": 5,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSiggKEAgTGAI4AUIIdGhpbmtpbmcSDCZqgYFxywaG4onSFRoM+kMl8Hu4qYy9YHHpIjDaeVGdRRtTmB8eqZzqAV8itttRHLKrhPDTDWzuF/a2D3hS7Lbe+9DPyG/eL1pKFZoqpwfPpE5DCGIKMUhOptnJuHptE1Pty/Nm/hrH7izoTCK7u9S5uTeAoCBKO0LwCa1und//Hq2/OR0ddDuhPB6lSeK6B3JLb1ChQzhNIkX6m6CBnw1Nsk5nJRqgnQHwmQbO7mcIOxQvASQAu8q+0jEH+qNl00+ipVqpx9B+2P3a1+6KkieCVnuMM6Mocf6EJW02yUUTXKNZeZZFXEFUgJLAAPRQp4yDNGYyj22APpzEf0p8Uf/GTfwY9aPz4/wW6NuegwWrrJhLOMJK8/fD5Gsgk08tliaIlPhNNCVDD4HZHH+H0skSPXECrIOjI16DgGgO6YvEyDnv141Q1A9MgUoZuDdH3tikLEe2k+CNxvL2WWPqZV90ryMrDQEA9aCErpgrvlKtTDSHBHgAxNwnUNL5IiYoD6/sItmlK3ryUxB+NZR+TsVPXopQ7IznjQK/lErgrnZ5KYDpmnh9YNS1DuEdKRXyAsL0xNvO6eaOKi0/SbTf8fjzR0kKAy6FaTgpZnbTX1ef5W2VxLv/SSl+rSKIMGJR16bYNTQ/sIdr0TSXxB702uNE49LBxSsf/TzZnLF4mHYYnprp0pl2vjE3pxMkKJrHUrU5XVwDGClVscfnECB4raH1ZerP0jhDxkwswcH6BAkU9u4JuCaJYiPaDHaawdWp/V5UW91TzcDd+iMFyqrrA7OkFkM85fyou8cmcBovI5/Arw17j0o0585+9zhXB9uMIty9+OFqXd4FSx2OJjWjXZt4Ar9tdzKsbhpdod8wcxB9rwlQMpwt+rJPPzYcCaJ/PGrV7fydsHHpm7VJFWa3s++Mmy3vudBr0//hdftU3L58p5ULfOx8NC3/7dzz6ObNpF2dS4BYXHF1DsIlOuWK/yMIcgqK3/ZFjIchzIa6E14X8oX1LidJagAoa3dekQve+JtaOeAS6VAvhNpAgZD4yZnbExhLWyVyjQ1m/dTA5kOe2Ga6vUIqaVFNJKtVjzgTvAimUAL1PMP4bfAdCwcUopTAdDoF0jVUqhrmDqprg+jbO9im0rbAYf4WNlBhsiAlegVv98V1MAU85Jozoe6kzYPNPRClLS/22e4Ibcvo58lAnDfp+lFtWHG7DQwx+26B5SoQHWrmnPnYC7dEbDgyan4NRFSlrlXh+SY62Xm4rQNqbWYvAhN+Kh4FClgDsjP6JER7eF/HNwG6PEVsFMbxCZUZbt4tnqzru/aDilP8mfeE455U2BZva2FtgoMdVBlH8AFbfY04SxgB",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01CDrwwga6JfyV1xgYTC1fMd",
+    "input": {},
+    "name": "book",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"optio",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "n\": 1}",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 349,
+    "cache_read_input_tokens": 2805,
+    "input_tokens": 4,
+    "output_tokens": 133,
+    "output_tokens_details": {
+     "thinking_tokens": 87
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

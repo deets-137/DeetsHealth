@@ -1,0 +1,173 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Cgx5uYhTKWBnqJMBKkEBX",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 2661
+     },
+     "cache_creation_input_tokens": 2661,
+     "cache_read_input_tokens": 0,
+     "inference_geo": "global",
+     "input_tokens": 4,
+     "output_tokens": 3,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSiAsKEAgTGAI4AUIIdGhpbmtpbmcSDJe7nzG2w8A3DYytThoMa4I35tK8xH2IOP8oIjD8md4npNPyur1jYPSO2T4gwCWgduDz/ecVDOBj21ph6H7CeqkkTlU3gA+fa3DoMr4qpQqf+hXz25dUqDlE4j4WgfGoQh4Xg6dI8oWS/RTgfey8AKUz6BVL52idu/aQF2lzcknYH1Qn5kssCQRjP7r1AEmwTGDzSk5nbKwwYF2sTBK5LpWPjYuJtmud+0v9USiy49TvI6cvOi2NXVDnB4TAovPVp5ue2LxErSuBDRgEdqRCqnc4K+99vI0L5MASDNtdAl+iTuC+zasSt+h2dsaN3ec5FJp0/HlKS8vVFJeRwtAMpg2HE9AVjE76B9kQ7dZfn/0EMXecV7ci7LLQXwA3kFy/qMRbRpjSDzjdUHORr67XeBynQlaG03hcmWh9Zkx2Bwox9C6ExnlFvSd0wQ8Gx35ZMvuf0c1xB7fkpip9uPY4oNDPDZo0DiH7pgl3aj2rkuIdqZeoQWx8xXTVU6/hHE0QEbxgPCKqgn0MAXkYCcTHdBLgnYyh/SNA4RPe5ZXP+WWdhj1aCq0Qj3Sbt8L7Yg2wAC7YHLliVGxejzhzykl1eD/Fo5ArAumfjcdgObwIqWdl4m7Tc9ZwU4THUeFcurgl9bstWXVcKttqgTDQu4pEuIbVsAGW1gh+C5fsLvjkkuqxEbT/R9/OnolG1w5YTuqxqXc3DgXnamNM/azQeXyp/0FvGXbsFXgoMaf3haRr3jUfHw2iQSRb9vWdFgIMgPsW/pEB2VIDX7a2Uv7EapGHaUm9jhz4ISOwDb5aLnW29EfoQDg/kOdjkGR9tplCo6cHo/1UIyXyZVkt9EgUg/i4MsbdL9tBrz0XnIuludDy564qt1Q9cD5FJ1SZNUeDtyRYAjzb6k4ba3891ViX57Kf/gRDjXYYDfwk9D5n+X6Vwgp+gCCpqf3hVa+xiqBHWvL8XYJLXIy729hD1D9+B4jrm3lGRXuhs+IiHC+KEYKfaIi5XeSg+jxRx1z6eVzJ3VQEC/V0WSZchXJQPl35CoJGUlVQ3+ZVGGl/A5FBN/QmD6Q/vT+bWWb7IYgFW1816fIcyBTS8ZgcCWMuxuHWTWndkc5nnR7QIxfJwU3aScOWjSokK3ukMQJAdXgeilaWyoFt6BMRKF1AnppG20IrQXhUC4smOI8B9+6Lrb9V32bLxC334J5gCfzsvpvMSndytW7hqUfkIJy+XiZCTPqTN086uHv7tIFyDy3v1tAMhrpOZy8l7kXXjLF1WZnuQIRizeliVZpOWhvkD0aRRacipmFzZkMGZF59Wc6X4jtWeZbCxJ+xmq/dQVDUaPiBpOQg5KupmtaspBr8HD0fT0JE5lOSNYoJzGkL5vSJyVngHTiPKhlA6LKGGpqBwuTug1q3IpurGXmNbpksTp7S/zbbpn139OWzLsY5WTAjSu3z5Yaz3Az2gL4QmcLkxFy+tmgJi0dvwrl6pmHtgY6PM0LLtIWJrsW4We0U1XjJuOU16hu1jYDCZUxJ8nFVx8EyAjcvpXuTFJhwImqnbmYRq3ua7rrwySk5kpoHQWXAUy/4gbr1Y3qb5zKpBEPS7y/f0Nc/gGK8sBikuuUjWBw3T+GbHcZRYLWrYYmqsyHpo/hMonLq4Gol+dPpkH3cgzpb+DWlvbRjqz4sbly3Jl0TB4BOTqTIi5PpXJseI86BKzuhj17VUEnNBKNrISgIkqRMdy5FLDoCrQn5ewTxb1a5JAaGQ7xOll1QZ87XHw/kPr4dSLYxEgWUBlqZ7KuDRt2eEWSVtXXFGF69ABtDGrBZaDqVT7Vnctmva4Ou9cO6DXG+NCHGsLujZJpUjjvogXlYSxFCtfTAS8DBgIMYAQ==",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "I",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "'m sorry you",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "'re feeling this",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " way",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": ". Please hang up and call",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " 911 now.",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01WCseRYNvG9BmQz8wbhzYAr",
+    "input": {},
+    "name": "hand_off",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 2,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 2,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 2661,
+    "cache_read_input_tokens": 0,
+    "input_tokens": 4,
+    "output_tokens": 289,
+    "output_tokens_details": {
+     "thinking_tokens": 235
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}
