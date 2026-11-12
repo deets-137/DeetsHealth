@@ -147,11 +147,10 @@ still works. The replay cache stays for the typed harness and the tests (AGENT.m
   of its first live request to Claude). A recorded call from the typed harness can show
   "replayed" in Demo; a test call never does. Speech and transcription times come with the
   voice.
-- **One grid** (the owner, 2026-11-12): the text bar is inset by the canvas's padding, so the
-  bubbles, the help button and the text box share one left edge, and the caller's bubbles, End
-  call and the send button one right edge. The line facts start where the bubble's text starts
-  (`--bubble-pad-x`). The text box has `appearance: none`, so Safari keeps it at the send
-  button's 44 px.
+- **The bar** (the owner, 2026-11-12): the text box and the send button together are exactly
+  as wide as the canvas above them. They share one height: the bar sets 44 px and each fills
+  it, and both have the same 1 px edge. The text box has `appearance: none` for Safari. The
+  line facts start where the bubble's text starts (`--bubble-pad-x`).
 - **The control row is fluid** (after two narrow-window desk tests): the help button keeps its
   own width ("Help" when the canvas is 480 px or less); the split takes the room left, up to
   its full size, its halves always equal and never narrower than "Confirm?". It never runs out
@@ -183,9 +182,8 @@ which fits the evals (§7) and test layer 4 (VOICE-AGENT.md §9).
 2. Test: Start. The greeting shows. Type as a sandbox patient (the Help box) and book a
    visit. Each answer shows "text n.n s" under it (a live request: about $0.0003 a line), and
    the call ends with the goodbye line.
-3. Check the edges: the bubbles, Help and the text box start on one line; the caller's
-   bubbles, End call and the send button end on one line. The text box and the send button
-   are the same height. The facts under a bubble start where its text starts. Narrow the
+3. Check the edges: the text box starts at the canvas's left edge and the send button ends
+   at its right edge; the two are the same height. The facts under a bubble start where its text starts. Narrow the
    window: "Sandbox patients" becomes "Help", and Start | End call narrows, never past the
    canvas's edge.
 4. Open a second window on PHI during a test call: the same lines show as they happen.

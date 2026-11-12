@@ -326,14 +326,14 @@
 
 /* ------------------------------------------------------------------- the bar */
 
-/* One grid for the whole stage (the owner, 2026-11-12): the bar's edges line up with the
-   canvas's content edges, so the bubbles, the help button, the text box sit on one left edge,
-   and the caller's bubbles, End call and the send button on one right edge. */
+/* The bar is exactly as wide as the canvas above it, and its parts share one height: the row
+   sets it and each part fills it, so the text box and the send button cannot drift apart in
+   any browser (the owner, 2026-11-12). */
 .chat-bar {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  height: var(--control-height);
   gap: var(--space-4);
-  padding-inline: calc(var(--canvas-pad) + var(--edge));
 }
 
 .chat-input {
@@ -343,7 +343,7 @@
      the send button's. */
   -webkit-appearance: none;
   appearance: none;
-  height: var(--control-height);
+  height: 100%;
   padding: 0 var(--space-4);
   border: var(--edge) solid var(--glass-edge);
   border-radius: var(--radius-item);
@@ -361,11 +361,12 @@
 
 .send {
   width: var(--send-size);
-  height: var(--send-size);
+  height: 100%;
   flex: none;
   display: grid;
   place-items: center;
-  border: 0;
+  /* The same edge as the text box beside it, so their outlines match too. */
+  border: var(--edge) solid var(--glass-edge);
   border-radius: var(--radius-item);
   background: var(--go);
   color: var(--on-call-button);
