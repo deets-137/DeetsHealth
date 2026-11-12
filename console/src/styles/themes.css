@@ -29,6 +29,14 @@
   --hover: rgba(255, 255, 255, 0.07); /* the wash under the pointer */
   --press: rgba(255, 255, 255, 0.12); /* the wash while pressed */
   --line: rgba(255, 255, 255, 0.1); /* a hairline inside a panel */
+
+  --canvas: rgba(4, 4, 4, 0.85); /* the chat canvas: the panel's color pushed darker, 85 % opaque */
+  --bubble-agent: rgba(255, 255, 255, 0.1); /* the agent's bubble */
+  --bubble-caller: var(--accent); /* the caller's bubble */
+  --on-bubble-caller: var(--on-accent);
+  --go: var(--paint-forest); /* Start, Play, Send */
+  --stop: var(--paint-scarlet); /* End call, Stop */
+  --on-call-button: var(--paint-white); /* text on --go and --stop */
 }
 
 [data-theme="dark"] {
@@ -60,6 +68,11 @@
   --press: rgba(59, 36, 22, 0.1);
   --line: rgba(59, 36, 22, 0.12);
 
+  --canvas: rgba(222, 207, 178, 0.85); /* coffee beige */
+  --bubble-agent: rgba(253, 246, 227, 0.75);
+  --go: var(--paint-grass);
+  --stop: var(--paint-burgundy);
+
   color-scheme: light;
 }
 
@@ -86,6 +99,11 @@
   --hover: rgba(191, 211, 242, 0.08);
   --press: rgba(191, 211, 242, 0.14);
   --line: rgba(191, 211, 242, 0.13);
+
+  --canvas: rgba(5, 13, 30, 0.85); /* deep navy */
+  --bubble-agent: rgba(191, 211, 242, 0.1);
+  --go: var(--paint-turquoise);
+  --stop: var(--paint-purple);
 
   color-scheme: dark;
 }

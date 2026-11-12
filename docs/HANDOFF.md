@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-11
+updated: 2026-11-12
 ---
 # DeetsHealth — Handoff
 
@@ -52,6 +52,26 @@ cd agent && uv run pytest                                          # the agent's
 ```
 The build folder is `target/` at the repo root (it was `src-tauri/target/`).
 
+**On another machine (a Mac, 2026-11-12).** Nothing in the build is Windows-only: the `ehr`
+binary's name follows the OS (`agent/deets_agent/config.py`), `scripts/check.mjs` runs no shell,
+and the pre-push hook is plain `sh`. What a fresh clone needs, in order:
+1. Xcode's command-line tools, Rust (`rustup`, plus `rustup target add wasm32-unknown-unknown`
+   for the core check), Node, and `uv` (it brings Python 3.12 for `agent/`).
+2. `npm install` (it also turns the pre-push hook on), then `cd agent && uv sync`.
+3. The dev certificates, which are git-ignored: `cargo run -p deetshealth-ehr --example dev_certs`.
+4. **The git-ignored secrets do not travel with the repo.** `.env` (the Anthropic key): make it
+   again on that machine, by hand, never through a chat, a doc or a commit; replay-only tests
+   and `npm run check` need no key. `epic-client.json`: only for Epic work; the build runs
+   without it.
+5. **The sibling repos** for the docs check: `../DeetsMusic` (clone `deets-137/DeetsMusicWindows`
+   under that name) and `../DeetsEngine`, or the docs check (and so the pre-push hook) fails on
+   their links (Known gotchas).
+6. `npm run check:all` proves the machine. Then `npm run dev` for the console.
+7. **Claude's own setup is per machine.** The owner's global `~/.claude/CLAUDE.md` (the writing
+   rules, the fork test, the end-of-turn box) and this project's memory folder under
+   `~/.claude/projects/` live on the PC. Copy both to the Mac, or a session there starts
+   without them.
+
 ## Ship it
 Nothing ships yet. The deploy is A2: a separate deploy per hospital in our cloud, behind an
 interface (VOICE-AGENT.md §7.2).
@@ -70,11 +90,17 @@ and the console starts; each next step follows from what the console needs (the 
 
 Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-ORDER.md §3.4).
 
-- **In flight: the console's skeleton, built 2026-11-11, desk test open** (CONSOLE.md §6). The
-  owner chose a browser only (1A) and DeetsMotion's look, with the old looks and the card
-  engine archived (2A). **The Chat panels' names are a draft** for him: Chat, Caller, Step,
-  Tools (CONSOLE.md §3). **Next:** what Chat and Settings hold, on paper. Polish from every desk
-  test is always on (BUILD-ORDER.md §2; AGENT.md §4).
+- **In flight: the Chat page** (branch `chat-what-we-doin`, CHAT.md). Its UI is built
+  (2026-11-12), with no connection yet: the PHI / Test / Demo toggle, the canvas, Start | End
+  call with Confirm?, the sandbox-patients help box, the text bar, Demo's player, the wave.
+  **Next: wire the agent in, the hybrid** (CHAT.md §5): a small FastAPI dev server in
+  `agent/` on this PC only and a free port; the caller's seat over Pipecat's RTVI
+  (`@pipecat-ai/client-js`, the WebSocket transport); our own watch stream from a
+  `CallObserver` for the rail panels, the line facts, PHI mode and Demo; the dev call records
+  served to Demo. The owner leads the design. Polish from every desk test is always on
+  (BUILD-ORDER.md §2; AGENT.md §4).
+- **Done, 2026-11-11:** the console's skeleton (CONSOLE.md; desk test passed in Edge); Pipecat
+  1.16.0 (AGENT.md); `main` holds both.
 - **Paper, done:** the repo layout; the Anthropic dev workspace, "DeetsHealth Dev", key in the
   git-ignored `.env`; the Epic registration (2026-11-11: the patient app's registration became
   the backend app with the same client IDs; the APIs checked against Epic's live catalog; SMART
@@ -102,7 +128,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   and an invented-value check (AGENT.md §3; FUTURE-SETTINGS.md §2, §3). Then the read-back before
   the lookup (option A), and every prompt word moved to `agent/prompts/AGENT-PROMPT.md` for the
   owner to edit. 43 agent tests. The owner closed the text run here: what is left is polish.
-  The call timeline became a console idea (ideas/README.md); his audio cues wait for the voice
+  The call timeline is now the Chat page's Timeline panel (CHAT.md); his audio cues wait for the voice
   work (BUILD-ORDER.md §3.3).
 - **Next sitting (the owner, 2026-10-21): start with a full rundown** before building more:
   every library we use and how we use it (Rust: tonic, prost, rustls/AWS-LC, tokio, rcgen,

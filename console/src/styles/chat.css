@@ -1,0 +1,437 @@
+/* The Chat page (CHAT.md): the stage's head with the mode toggle, the canvas with its lines
+   and its control row, and the bar under it. Colors from themes.css, sizes from skin.css.
+   The page carries data-mode = phi | test | demo; each mode shows its own parts. */
+
+.chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: 0 var(--space-4) var(--space-4);
+}
+
+.chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--pad-panel);
+  padding-bottom: 0;
+}
+
+.chat-head h1 {
+  font-size: var(--text-page);
+  font-weight: var(--weight-regular);
+  line-height: var(--line-height-tight);
+}
+
+/* ------------------------------------------------------------ the mode toggle */
+
+/* One button; its word turns over when pressed (chat.ts adds .flip-out, swaps the word,
+   then .flip-in). At rest it has no transform, so its text is crisp. */
+.mode-toggle {
+  min-width: var(--split-half);
+  height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-item);
+  background: var(--glass-fill-strong);
+  color: var(--title);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--toggle-tracking);
+  perspective: var(--flip-depth);
+  transition: background-color var(--dur-hover) var(--ease);
+}
+
+.mode-toggle:hover {
+  background: var(--press);
+}
+
+.mode-word {
+  display: inline-block;
+  transition: transform calc(var(--dur-flip) / 2) var(--ease), opacity calc(var(--dur-flip) / 2) var(--ease);
+}
+
+.mode-toggle.flip-out .mode-word {
+  transform: rotateX(90deg);
+  opacity: 0;
+}
+
+.mode-toggle.flip-in .mode-word {
+  transition: none;
+  transform: rotateX(-90deg);
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-word {
+    transition: none;
+  }
+}
+
+/* ----------------------------------------------------------------- the canvas */
+
+/* A panel stacked on the stage: darker, 85 % opaque, the same rounding as every panel. */
+.chat-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  background: var(--canvas);
+  border: var(--edge) solid var(--glass-edge);
+  box-shadow: inset 0 var(--edge) 0 var(--glass-highlight);
+}
+
+.chat-lines {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--canvas-pad);
+}
+
+.chat-lines .empty {
+  margin: auto;
+  text-align: center;
+}
+
+.line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: var(--bubble-max);
+}
+
+.line--agent {
+  align-self: flex-start;
+}
+
+.line--caller {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.bubble {
+  padding: var(--bubble-pad);
+  border-radius: var(--radius-bubble);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.line--agent .bubble {
+  background: var(--bubble-agent);
+  color: var(--text);
+}
+
+.line--caller .bubble {
+  background: var(--bubble-caller);
+  color: var(--on-bubble-caller);
+}
+
+/* The line facts: the times under each bubble. */
+.facts {
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+/* ------------------------------------------------------------ the control row */
+
+/* Reserved at the canvas's foot, so the lines never run under it. The help box opens upward
+   from it, over the lines. */
+.chat-controls {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 0 var(--canvas-pad) var(--canvas-pad);
+}
+
+/* The help box: a button that opens a card of the sandbox patients above it. */
+.help {
+  position: relative;
+}
+
+.help-card {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + var(--space-3));
+  width: var(--help-width);
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  border-radius: var(--radius-small);
+  background: var(--glass-fill-strong);
+  border: var(--edge) solid var(--glass-edge);
+  box-shadow: var(--menu-shadow);
+  transition: grid-template-rows var(--dur-collapse) var(--ease), opacity var(--dur-collapse) var(--ease),
+    visibility 0s linear var(--dur-collapse);
+}
+
+.help.open .help-card {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition: grid-template-rows var(--dur-collapse) var(--ease), opacity var(--dur-collapse) var(--ease);
+}
+
+.help-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.help-body {
+  padding: var(--pad-panel);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-size: var(--text-small);
+  user-select: text;
+}
+
+.help-body h2 {
+  font-size: var(--text-panel);
+  font-weight: var(--weight-bold);
+}
+
+.help-body dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2) var(--space-4);
+}
+
+.help-body dt {
+  font-weight: var(--weight-bold);
+}
+
+.help-body dd {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.help-body .note {
+  color: var(--text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .help-card,
+  .help.open .help-card {
+    transition: none;
+  }
+}
+
+/* A plain control: the help button, the call picker. */
+.control {
+  height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-item);
+  background: var(--glass-fill-strong);
+  color: var(--text);
+  transition: background-color var(--dur-hover) var(--ease);
+}
+
+.control:hover:not(:disabled) {
+  background: var(--press);
+}
+
+.control[aria-expanded="true"] {
+  background: var(--press);
+}
+
+/* ----------------------------------------------------------- the split button */
+
+/* One rounded rectangle, two buttons, a hairline between them. Each half has a fixed width
+   and height, and both of its words sit in the same grid cell, so a press or a word change
+   never moves anything. */
+.split {
+  display: inline-flex;
+  height: var(--control-height);
+  border-radius: var(--radius-item);
+  overflow: hidden;
+  border: var(--edge) solid var(--glass-edge);
+  flex: none;
+}
+
+.split > button {
+  width: var(--split-half);
+  height: 100%;
+  border: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-weight: var(--weight-bold);
+  transition: filter var(--dur-hover) var(--ease), opacity var(--dur-hover) var(--ease);
+}
+
+.split > button + button {
+  border-left: var(--edge) solid var(--line);
+}
+
+.split > button > span {
+  grid-area: 1 / 1;
+}
+
+.split > button > span[hidden] {
+  display: block !important;
+  visibility: hidden;
+}
+
+.split-go {
+  background: var(--go);
+  color: var(--on-call-button);
+}
+
+.split-stop {
+  background: var(--stop);
+  color: var(--on-call-button);
+}
+
+/* A neutral pair (Demo's speed): the chosen half takes the accent. */
+.split-plain {
+  background: var(--glass-fill-strong);
+  color: var(--text);
+}
+
+.split-plain[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.split > button:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.split > button:active:not(:disabled) {
+  filter: brightness(0.92);
+}
+
+.split > button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ------------------------------------------------------------------- the bar */
+
+.chat-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.chat-input {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-item);
+  background: var(--canvas);
+  color: var(--text);
+}
+
+.chat-input::placeholder {
+  color: var(--text-3);
+}
+
+.chat-input:disabled {
+  opacity: 0.6;
+}
+
+.send {
+  width: var(--send-size);
+  height: var(--send-size);
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-item);
+  background: var(--go);
+  color: var(--on-call-button);
+  transition: filter var(--dur-hover) var(--ease), opacity var(--dur-hover) var(--ease);
+}
+
+.send svg {
+  width: 50%;
+  height: 50%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.send:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.picker {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------- what each mode shows */
+
+/* PHI watches: no controls, no bar. Test: the help box, Start | End, the text bar.
+   Demo: Play | Stop, the player bar. */
+.chat[data-mode="phi"] .chat-controls,
+.chat[data-mode="phi"] .chat-bar,
+.chat:not([data-mode="test"]) .help,
+.chat:not([data-mode="test"]) .split-call,
+.chat:not([data-mode="test"]) .bar-test,
+.chat:not([data-mode="demo"]) .split-play,
+.chat:not([data-mode="demo"]) .bar-demo {
+  display: none;
+}
+
+/* ------------------------------------------------------------------- the wave */
+
+/* A mode change (chat.ts): every visible control fades out together while the toggle's word
+   turns away; then the new mode's controls come in as one wave, left to right, each rising a
+   few whole pixels and fading in a step after the one before. The animation is not held
+   ("backwards"), so at rest nothing is transformed and every word is crisp. */
+.chat.wave-out [data-wave] {
+  opacity: 0;
+  transition: opacity var(--dur-wave-out) var(--ease);
+}
+
+.chat.wave-in [data-wave] {
+  animation: wave-in var(--dur-wave-in) var(--ease-wave) backwards;
+  animation-delay: calc(var(--wave-i, 0) * var(--wave-step));
+}
+
+@keyframes wave-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--wave-rise));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat.wave-out [data-wave] {
+    opacity: 1;
+    transition: none;
+  }
+
+  .chat.wave-in [data-wave] {
+    animation: none;
+  }
+}
+
+/* With no help box (Demo), the split still sits at the right. */
+.chat-controls > .split {
+  margin-left: auto;
+}

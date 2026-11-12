@@ -14,9 +14,9 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 
 | Tier | File | Count |
 |---|---|---|
-| Palette (raw paints) | palette.css | 12 |
-| Theme (color roles) | themes.css | 20 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 49 tokens · overrides:  |
+| Palette (raw paints) | palette.css | 18 |
+| Theme (color roles) | themes.css | 27 roles · 3 themes (dark, light, moonlight) |
+| Skin (everything else) | skin.css base block | 67 tokens · overrides:  |
 
 ## Theme roles
 
@@ -44,6 +44,13 @@ The `:root` value is Dark's, and the fallback when a theme does not map the role
 | `--hover` | `rgba(255, 255, 255, 0.07)` | light, moonlight | the wash under the pointer |
 | `--press` | `rgba(255, 255, 255, 0.12)` | light, moonlight | the wash while pressed |
 | `--line` | `rgba(255, 255, 255, 0.1)` | light, moonlight | a hairline inside a panel |
+| `--canvas` | `rgba(4, 4, 4, 0.85)` | light, moonlight | the chat canvas: the panel's color pushed darker, 85 % opaque |
+| `--bubble-agent` | `rgba(255, 255, 255, 0.1)` | light, moonlight | the agent's bubble |
+| `--bubble-caller` | `var(--accent)` | — | the caller's bubble |
+| `--on-bubble-caller` | `var(--on-accent)` | — |  |
+| `--go` | `var(--paint-forest)` | light, moonlight | Start, Play, Send |
+| `--stop` | `var(--paint-scarlet)` | light, moonlight | End call, Stop |
+| `--on-call-button` | `var(--paint-white)` | — | text on --go and --stop |
 
 ## Skin tokens
 
@@ -105,6 +112,21 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--space-3` | `8px` | — |  |
 | `--space-4` | `12px` | — |  |
 
+### chat
+
+| Token | Base | Overridden by | Note |
+|---|---|---|---|
+| `--control-height` | `44px` | — | every call control: large, and the same size in every state |
+| `--split-half` | `132px` | — | one half of a split button: wide enough for its longest word ("Confirm?") |
+| `--send-size` | `44px` | — | the send button, square |
+| `--canvas-pad` | `16px` | — |  |
+| `--bubble-max` | `70%` | — | a bubble's widest, of the canvas |
+| `--bubble-pad` | `10px 14px` | — |  |
+| `--radius-bubble` | `14px` | — |  |
+| `--help-width` | `320px` | — | the open help box |
+| `--toggle-tracking` | `0.04em` | — | the mode toggle's word |
+| `--flip-depth` | `400px` | — | the perspective the toggle's word turns in |
+
 ### glass
 
 | Token | Base | Overridden by | Note |
@@ -124,6 +146,14 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--dur-enter` | `220ms` | — | the new page fades in |
 | `--ease` | `ease` | — |  |
 | `--ease-pill` | `cubic-bezier(0.3, 0.7, 0.2, 1)` | — |  |
+| `--dur-flip` | `240ms` | — | the mode toggle's word turns over (half out, half in) |
+| `--dur-collapse` | `220ms` | — | the help box opens and closes |
+| `--dur-wave-out` | `120ms` | — | a mode change: the old controls fade out together, while the word turns away |
+| `--dur-wave-in` | `360ms` | — | then each new control rises and fades in... |
+| `--wave-step` | `60ms` | — | ...each one this much after the one before it, left to right |
+| `--wave-rise` | `6px` | — | how far each control rises (whole pixels, so its text stays crisp) |
+| `--ease-wave` | `cubic-bezier(0.2, 0.7, 0.2, 1)` | — |  |
+| `--confirm-hold` | `3000ms` | — | "Confirm?" waits this long for the second press (chat.ts reads it) |
 | `--drift-1` | `46s` | — | the backdrop shapes' slow drift |
 | `--drift-2` | `58s` | — |  |
 | `--drift-3` | `64s` | — |  |
@@ -144,3 +174,9 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--paint-moon` | `#bfd3f2` |
 | `--paint-deep-navy` | `#102240` |
 | `--paint-red` | `#e5534b` |
+| `--paint-forest` | `#1f6b2a` |
+| `--paint-scarlet` | `#c8102e` |
+| `--paint-grass` | `#3b7d1e` |
+| `--paint-burgundy` | `#800020` |
+| `--paint-turquoise` | `#13817d` |
+| `--paint-purple` | `#6a3fa0` |

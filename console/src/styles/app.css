@@ -475,7 +475,7 @@ p {
 /* ---------------------------------------------------- stage and rail */
 
 /* DeetsMotion's Visualizer layout: a large stage and a rail of panels beside it. */
-.split {
+.split-page {
   flex: 1;
   min-height: 0;
   display: grid;
@@ -538,7 +538,7 @@ p {
 
 /* Narrow windows: the rail drops under the stage. 1100px is --narrow in skin.css. */
 @media (max-width: 1100px) {
-  .split {
+  .split-page {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(var(--stage-min), 1fr) auto;
   }

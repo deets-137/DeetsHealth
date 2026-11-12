@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-11-11
+updated: 2026-11-12
 ---
 # DeetsHealth — Build order
 
@@ -52,10 +52,13 @@ Each item says its state in words: **done**, **next**, or **later**.
 
 ### 3.1 The console (it leads)
 The staff web page: settings, calls, transcripts.
-- **Done, desk test open (2026-11-11):** the skeleton. The front end is free of Tauri and runs
-  in a browser, in DeetsMotion's look, with an empty Chat page and a blank Settings page
-  ([architecture/CONSOLE.md](architecture/CONSOLE.md)).
-- **Next:** what Chat and Settings hold, on paper (§2).
+- **Done (2026-11-11, desk test passed):** the skeleton. The front end is free of Tauri and
+  runs in a browser, in DeetsMotion's look ([architecture/CONSOLE.md](architecture/CONSOLE.md)).
+- **Built, desk test open (2026-11-12):** the Chat page's UI, from the owner's sketch: PHI,
+  Test and Demo modes ([architecture/CHAT.md](architecture/CHAT.md)). It moves the idea "a
+  call view with a timeline" into the plan.
+- **Next:** wire the agent into Chat, the hybrid: Pipecat's RTVI for the caller's seat, our own
+  watch stream for everyone watching (CHAT.md §5).
 - **Later:** the settings pages, from what the agent already has: what follows the emergency
   line, the medical-question line, the emergency phrase list
   ([architecture/FUTURE-SETTINGS.md](architecture/FUTURE-SETTINGS.md)). The agent reads its
@@ -63,7 +66,7 @@ The staff web page: settings, calls, transcripts.
   does not wait on the database.
 - **Later:** staff sign-in.
 - **Later:** the call list, the transcripts and the audit trail. These meet the store (§3.2).
-- **An idea, not planned:** a chat view to watch and run calls, with a timeline of each call
+- **An idea, not planned:** a live demo for a hospital's analyst team over a Cloudflare Tunnel
   ([ideas/README.md](ideas/README.md)).
 
 **Desk test:** the owner changes a setting in the console, and the next typed call follows it.

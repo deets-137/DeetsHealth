@@ -2,11 +2,28 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-11
+updated: 2026-11-12
 ---
 # DeetsHealth — Work log
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
+
+## 2026-11-12 — The Chat page's UI, the wave, `main` brought up
+- The owner asked to record the analyst-team demo as an idea (a Cloudflare Tunnel;
+  ideas/README.md), to merge the Pipecat 1.16 branch into `conversion` and `conversion` into
+  `main` (a fast-forward), and to branch `chat-what-we-doin` off `main`.
+- He drew the Chat page and narrated it (the sketch: `architecture/images/`). Forks: Start |
+  End call as one split button in the canvas, mirroring the help box, green and red by theme,
+  End asking "Confirm?" first, and large enough that nothing moves; the help box opens and
+  closes in the canvas, which keeps a row for the controls; Demo's player in the same button
+  style. He confirmed my reading of "tied to Pipecat's PHI setting" (CHAT.md §2).
+- Built the UI with no connection (CHAT.md §3): the toggle, the canvas, the split buttons, the
+  help box, the text bar, Demo's player. Then his ask: the controls come in as one gentle
+  wave on each mode change and each time the page comes into view.
+- Moved the call view with a timeline out of ideas/ and into the plan (BUILD-ORDER.md §3.1).
+  Wrote HANDOFF's setup for a second machine: he will wire the agent in from his Mac.
+- Checks: the type check, the bundle and the docs check pass. Not opened in a browser by me.
+  No API spend.
 
 ## 2026-11-11 — Pipecat 1.16
 - Raised `agent/` to `pipecat-ai[anthropic]>=1.16,<2`, locked at 1.16.0 (before the browser

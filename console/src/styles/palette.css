@@ -25,4 +25,14 @@
 
   /* Shared */
   --paint-red: #e5534b;
+
+  /* The call buttons (CHAT.md §2): a green and a red for each theme, the owner's picks,
+     2026-11-11. Dark: forest and scarlet. Light: grass and burgundy. Moonlight: turquoise
+     and purple. Each is dark enough for white text at 4.5:1 or more. */
+  --paint-forest: #1f6b2a;
+  --paint-scarlet: #c8102e;
+  --paint-grass: #3b7d1e;
+  --paint-burgundy: #800020;
+  --paint-turquoise: #13817d;
+  --paint-purple: #6a3fa0;
 }

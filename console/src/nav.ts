@@ -1,16 +1,9 @@
 // The left nav and the page beside it (DeetsMotion's nav.ts, 2026-10-29, less its status
 // lines). The pages with `bottom` sit at the nav's foot.
 import { el, type Page } from "./pages/page";
+import { reducedMotion, tokenMs } from "./tokens";
 
 const LAST_PAGE = "deets.console.page";
-
-/** A duration token from skin.css, in ms ("120ms" or "0.12s"). */
-function tokenMs(name: string): number {
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  const n = parseFloat(v);
-  if (!Number.isFinite(n)) return 0;
-  return v.endsWith("ms") ? n : n * 1000;
-}
 
 export function initNav(pages: Page[]) {
   const nav = document.querySelector(".nav") as HTMLElement;
@@ -70,7 +63,7 @@ export function initNav(pages: Page[]) {
 
     // The old page fades out, then the new one fades in (its own .page animation).
     const mine = ++swap;
-    if (first || matchMedia("(prefers-reduced-motion: reduce)").matches) return show(page);
+    if (first || reducedMotion()) return show(page);
     host.classList.add("leaving");
     window.setTimeout(() => {
       if (mine !== swap) return;

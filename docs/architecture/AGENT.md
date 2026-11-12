@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: []
-updated: 2026-11-11
+updated: 2026-11-12
 ---
 # DeetsHealth — The agent (`agent/`), as built
 
@@ -231,8 +231,8 @@ end with the goodbye line and no hand off).
   with the speech-to-text words, so a name the transcriber spells one way passes only if the
   model spells it the same way.
 - **No call timeline.** The dev call record covers the agent's side of a typed call. The
-  timeline is now a console idea, with the timing data collected in the phone-and-voice work
-  (ideas/README.md; BUILD-ORDER.md §3.3).
+  timeline is the Chat page's Timeline panel, fed by the watch stream once the agent is wired
+  in (CHAT.md §5); the voice timings come with the phone-and-voice work (BUILD-ORDER.md §3.3).
 - **Simulated callers** (layer 4) are not built; they come with the chart track
   (BUILD-ORDER.md §3.2).
 - `grpcio` is the wheel on dev; the FIPS build against OpenSSL is a deploy-image step
