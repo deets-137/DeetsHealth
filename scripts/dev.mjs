@@ -1,6 +1,7 @@
 // `npm run dev`: the console and the agent's dev server together (CHAT.md §5; the owner,
 // 2026-11-12, fork 2A). Never a fixed port: several Deets apps run on one machine at once.
-// 0. Build ehr (only what changed), so the agent never starts an old one.
+// 0. Build ehr (only what changed), so the agent never starts an old one, and make the agent's
+//    gRPC code from the contract again.
 // 1. Pick a free port for Vite (from 1420 up) and one for the agent (from 8790 up).
 // 2. Make a fresh token for this launch. The agent refuses every request without it.
 // 3. Start the agent with the token and the console's origin; wait for its first line.
@@ -43,6 +44,13 @@ if (built.status !== 0) {
     "[dev] ehr did not build. If the error says the file is in use, an older dev server or an " +
       "ehr it left behind is still running: stop it (Task Manager › deetshealth-ehr.exe) and run npm run dev again.",
   );
+  process.exit(1);
+}
+// The agent's gRPC code for ehr's contract is generated, not committed: make it again, so a
+// changed contract never meets old code (EHR-SERVICE.md §3).
+const proto = spawnSync("uv", ["run", "python", "scripts/gen_proto.py"], { cwd: join(root, "agent"), stdio: "ignore" });
+if (proto.status !== 0) {
+  console.error("[dev] the agent's gRPC code did not generate: run `uv run python scripts/gen_proto.py` in agent/");
   process.exit(1);
 }
 

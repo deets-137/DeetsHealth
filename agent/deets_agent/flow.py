@@ -186,6 +186,13 @@ def _tool(name: str, handler, args: dict[str, str] | None = None, required: list
     )
 
 
+# Every step of the Flow, in the order a call meets them, and the ones that end the call. The
+# Chat page's Step panel draws the steps still ahead from this (CHAT.md §11). A new node goes
+# here too.
+STEPS = ("greet", "verify", "menu", "schedule", "goodbye", "hand_off")
+CLOSING_STEPS = ("goodbye", "hand_off")
+
+
 @dataclass
 class CallFlow:
     """One call's Flow. Holds the call's handle and offered slots; nothing else holds them."""
@@ -209,6 +216,9 @@ class CallFlow:
     # the store and the rules engine later, FLAGS.md §5).
     flags: list[StaffFlag] = field(default_factory=list)
     on_flag: Callable[[StaffFlag], None] | None = None
+    # Told each time the Flow moves to a node: its name and its own tools (the dev call record's
+    # `step` event; the Chat page's Step panel, CHAT.md §11).
+    on_step: Callable[[str, list[str]], None] | None = None
 
     async def start(self) -> None:
         self.handle = await self.ehr.open_call()
@@ -246,13 +256,22 @@ class CallFlow:
     def _task(name: str, **values: str) -> list[dict[str, str]]:
         return [{"role": "developer", "content": text(f"task.{name}", **values)}]
 
+    def _step(self, node: NodeConfig) -> NodeConfig:
+        """Report the move to `node`. Each builder below is called only at the moment the Flow
+        moves (a tool returns it, or the call starts), so this is when the step begins. Not a
+        Flow pre-action: a "function" action runs only when its frame reaches the pipeline's
+        end, and it holds up the actions after it."""
+        if self.on_step is not None:
+            self.on_step(node["name"], [f.name for f in node.get("functions", [])])
+        return node
+
     def greet(self) -> NodeConfig:
         # The greeting carries the disclosures (REGULATIONS.md §6, the owner, 2026-11-12): an
         # automated assistant, the call is transcribed, a person at any time. The law wants
         # those words exact, so the code speaks them as a fixed line before the model runs, and
         # the model waits for the caller. The task tells the model what the caller heard; the
         # line stays out of the context, so the model's first message is the caller's.
-        return {
+        return self._step({
             "name": "greet",
             "role_message": role(self.today),
             "task_messages": self._task("greet", clinic=CLINIC),
@@ -261,10 +280,10 @@ class CallFlow:
                 {"type": "tts_say", "text": greeting(), "append_text_to_context": False},
             ],
             "respond_immediately": False,
-        }
+        })
 
     def verify(self) -> NodeConfig:
-        return {
+        return self._step({
             "name": "verify",
             "task_messages": self._task("verify"),
             "functions": [
@@ -273,33 +292,33 @@ class CallFlow:
                 self._identify_fn(),
                 self._confirm_details_fn(),
             ],
-        }
+        })
 
     def menu(self) -> NodeConfig:
-        return {
+        return self._step({
             "name": "menu",
             "task_messages": self._task("menu"),
             "functions": [self._find_slots_fn(), self._next_visit_fn()],
-        }
+        })
 
     def schedule(self) -> NodeConfig:
-        return {
+        return self._step({
             "name": "schedule",
             "task_messages": self._task("schedule"),
             "functions": [self._book_fn(), self._find_slots_fn()],
-        }
+        })
 
     def _closing_node(self, name: str) -> NodeConfig:
         # The last words were spoken by `_say`; the model does not run again, and the call ends.
         self.closing = True
-        return {
+        return self._step({
             "name": name,
             "task_messages": [],
             "functions": [],
             "respond_immediately": False,
             "pre_actions": [{"type": "end_conversation"}],
             "closing": True,
-        }
+        })
 
     def goodbye(self) -> NodeConfig:
         return self._closing_node("goodbye")

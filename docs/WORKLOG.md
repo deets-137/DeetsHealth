@@ -8,6 +8,21 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-12 (Windows, night) — The Step panel
+- Committed the Chat work as ec8c838. The other session's 38e08ee, made while this was being
+  staged, had already taken the agent-side half (the fake Twilio, latency.py, record schema 4).
+- The steps today: greet → verify → menu ⇄ schedule → goodbye or hand off; the global tools
+  run in any step without moving the call.
+- The owner chose 1A, the map, as "each step as a block and stack blocks to document the order
+  the call went in", and 2A, the current step's tools and limits left. Built (CHAT.md §11):
+  `StepLog` in `chat.ts`; record schema 5 with `step` events stamped at each move
+  (`CallFlow._step`, `STEPS` and `CLOSING_STEPS` in `flow.py`); `left` counts on `ehr` events;
+  `OpenCall`'s reply carries the limits in full; `npm run dev` remakes the gRPC code.
+- Checks: ehr 41 tests and clippy clean (target/alt); front-end type check; ruff; agent test
+  files all pass alone except two not from this work: the old Windows-only catalog test, and
+  `test_typed_call.py`, which waits on a replay miss because the other session has edited the
+  kept scripts and the prompt and not yet recorded them again. Not run: the desk test.
+
 ## 2026-11-12 (Windows, night) — Staff sign-in, on paper
 - The owner asked how to set up role-based access with a hospital's security team when the
   hospital runs Active Directory. The answer: sign-in through its IdP (Entra ID), never the

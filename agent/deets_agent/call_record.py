@@ -16,7 +16,11 @@ Each line is one event: `t_ms` (from the call's start; to a tenth of a milliseco
 - `caller`, `agent` — what each side said. `first_ms` on `agent` (schema 4): when the line's
   first frame passed, on the call's clock; the event's own `t_ms` comes after the harness's
   turn grace (`TURN_GRACE_S` in call.py).
-- `node` — the Flow moved to a new node.
+- `node` — the model's first reply in a new node (late by the model's time; never written for
+  a closing node). Kept for the catalog's `reached`.
+- `step` (schema 5) — the Flow moved to a node, stamped at the move: its `name`, its own
+  `tools`, and the `global_tools` the model has in every node (flow.py `CallFlow._step`);
+  `steps` and `closing_steps`, the Flow's whole list (flow.py `STEPS`, `CLOSING_STEPS`).
 - `tool_call`, `tool_result` — a function the model called, its arguments, its result, its time.
   `trigger_ms` on the call: from the caller's last line to the call (schema 3). `ms` on the
   result: the tool's own run, from its call to its result. Both are measured with the
@@ -25,7 +29,9 @@ Each line is one event: `t_ms` (from the call's start; to a tenth of a milliseco
   thinking blocks dropped, time to first event, total time, tokens, or the error in full.
 - `ehr` — one gRPC call to ehr: its name, time and gRPC outcome, and for `CheckCode` and
   `Book` the domain result (`pass` · `fail` · `locked`; `booked` · `slot_taken`). Never its
-  values; those are in `tool_call` and `tool_result`.
+  values; those are in `tool_call` and `tool_result`. Since schema 5, `left` on `OpenCall`
+  (every limit in full), `Identify`, `ResendCode` and `CheckCode`: the verification limits
+  left after the call, as counts (`identify`, `resend`, `code`).
 - `text` — a text message the fake Twilio took from ehr during the call (fake_twilio.py): the
   number it went to and its words, the code among them. Test calls only. A real call never
   has one: Twilio itself sends a real text, and nothing copies it here.
@@ -53,8 +59,9 @@ PRICES = {"claude-haiku-5-5": (0.10, 0.50)}
 # `ehr` event). 2: since 2026-11-12. 3: since 2026-11-12, afternoon: `tool_call` has
 # `trigger_ms`, and a tool's `ms` keeps a tenth of a millisecond (it was whole). 4: since
 # 2026-11-12, evening: every `t_ms` keeps a tenth of a millisecond, and `agent` has
-# `first_ms`. The catalog reads all four (catalog.py).
-SCHEMA_VERSION = 4
+# `first_ms`. 5: since 2026-11-12, night: `step` events, stamped when the Flow moves, and
+# `left` on the ehr events that spend a verification limit. The catalog reads all five.
+SCHEMA_VERSION = 5
 
 
 def _ms(seconds: float) -> float:
@@ -226,10 +233,14 @@ class CallRecord:
         }
         return _LlmTrace(self, fields)
 
-    def ehr(self, name: str, ms: int, outcome: str, result: str | None = None) -> None:
+    def ehr(
+        self, name: str, ms: float, outcome: str, result: str | None = None, left: dict[str, int] | None = None
+    ) -> None:
         fields: dict[str, Any] = {"call": name, "ms": ms, "outcome": outcome}
         if result is not None:
             fields["result"] = result
+        if left is not None:
+            fields["left"] = left
         self.event("ehr", **fields)
 
     def log(self, level: str, where: str, text: str, exc: str | None) -> None:

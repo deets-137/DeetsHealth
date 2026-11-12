@@ -10,7 +10,7 @@ updated: 2026-11-12
 > narrated 2026-11-11 over his sketch. The shell it sits in is [CONSOLE.md](CONSOLE.md). The
 > connection is the hybrid (§5), built 2026-11-12 (§6); the catalog of calls is §7; the
 > sandbox patients in the rail and the code button are §8 (the text path itself is
-> [TEXTS.md](TEXTS.md)); the Tools panel is §9; per-tool latency across calls (an API) is §10.
+> [TEXTS.md](TEXTS.md)); the Tools panel is §9; per-tool latency across calls (an API) is §10; the Step panel is §11.
 
 ![The owner's sketch of the Chat page, 2026-11-11](images/chat-sketch-2026-11-11.png)
 
@@ -489,3 +489,78 @@ nearest-rank percentile.
 **Checked, 2026-11-12:** over the 87 records then on disk, 390 tool calls, 310 once replayed
 ones are left out. On the test calls, the model is most of every trigger, and each tool's own
 run is 1–15 ms on the fakes.
+
+## 11. The Step panel
+> **Part:** built · 2026-11-12 — the owner's choices: 1A, the map of the call's steps, with
+> "each step as a block and stack blocks to document the order the call went in"; 2A, under the
+> current step its tools and the limits left.
+
+**The steps** are the Flow's nodes (CALL-FLOW.md §2): greet → verify → menu ⇄ schedule → a
+closing step (goodbye or hand off). The global tools (`emergency`, `hand_off`, …) work in every
+step and do not move the call. The full list, in order, is `STEPS` in
+`agent/deets_agent/flow.py`, with `CLOSING_STEPS`; a new node goes there.
+
+### 11.1 What the panel shows (`StepLog` in `chat.ts`)
+- **A block for each step the call entered, stacked in the order it went.** A loop shows as
+  more blocks: menu, schedule, menu. A step entered again while still in it (`find_slots`
+  inside schedule re-enters schedule) stays one block with a count, "×2".
+- **A passed block:** a check (`--go`), the step's word, and on the right its start on the
+  call's clock and its time spent ("0:31 · 9.6 s"; `callClock`, `spanWords`).
+- **The current block:** lit (the accent edge and the pressed wash), a dot for the check, and
+  "from 0:42". Under it, two bullets:
+  - **Tools:** the step's own tools. A tool that spends a verification limit carries what is
+    left: "check_code (2 left)", "resend_code (1 left)", "identify (3 left)". A limit shows only
+    beside the tool that spends it, so a count never shows where it means nothing (after a
+    pass, `ehr` reports no code tries left).
+  - **Every step:** the global tools.
+- **Marks:** a global tool that ran in a step leaves a small chip on its block: "911 line",
+  "Safety reminder", "Medical question", "Staff flag" (`MARK_WORDS`), and "911 line (phrase
+  screen)" when the caller screen spoke it.
+- **The steps ahead,** faint with a dashed edge, below the current block: every step of
+  `STEPS` not entered yet, in order, and the closing steps as one block ("Goodbye or
+  Hand-off") until the call ends one way. Once the call ends, the last block becomes a passed
+  one with its time, and the closing alternatives go.
+- **Every mode, from the same events** (`CallView`'s `steps` hook): Test live, PHI watching,
+  Demo playback. Each mode keeps its own panel; a new call or a new Play clears it.
+
+### 11.2 The data (record schema 5)
+- **`step` events, stamped when the Flow moves** (`CallFlow._step` in `flow.py`, called by
+  each node builder, which runs only at the move; `TypedCall` writes the event): the step's
+  `name`, its own `tools`, the `global_tools`, and `steps` / `closing_steps`. The older `node`
+  event is stamped only at the model's first reply in a node, late by the model's time, and
+  never for a closing step; it stays for the catalog's `reached`.
+- **Why not a Flow pre-action:** a "function" action runs only when its frame reaches the
+  pipeline's end, and it holds up the actions after it (the greeting).
+- **The limits left:** `ehr`'s `OpenCall` reply now carries each limit in full
+  (`identifies_left`, `resends_left`, `code_tries_left`, from `MAX_IDENTIFIES`, `MAX_RESENDS`,
+  `MAX_CODE_FAILURES` in `ehr/src/service.rs`), so the page never copies them. `Identify`,
+  `ResendCode` and `CheckCode` already said what was left. The agent's ehr client writes them
+  on each `ehr` event as `left` (`identify`, `resend`, `code`), counts only.
+- **An older record** (before schema 5) has no `step` events: the panel builds its blocks from
+  the `node` events and says, under them, that their times run late. It has no tools, limits
+  or steps ahead.
+- `npm run dev` now also makes the agent's gRPC code from the contract again
+  (`scripts/gen_proto.py`), so a changed contract never meets old code.
+
+**Decided inside his choices** (for his review): the step words (a draft: Greeting, Verify,
+Menu, Schedule, Goodbye, Hand-off); a re-entry of the same step as "×2", not a new block; the
+limits beside their tools, not as their own list; the mark chips and their words; the closing
+steps as one "Goodbye or Hand-off" block ahead; the time as the call's clock plus time spent;
+no ticking timer on the current block ("from 0:42" is exact in every mode, Demo at 2× too).
+
+**Tests (kept):** `agent/tests/test_steps.py`: every node the Flow builds is in `STEPS`, and
+each build reports its name and tools.
+
+**Desk test:**
+1. Restart `npm run dev` (it builds `ehr` and remakes the gRPC code). Test, Start.
+2. The Step panel shows a lit "Greeting" block "from 0:00", with its tools (identify (3 left),
+   confirm_details) and the global tools; Verify, Menu, Schedule and "Goodbye or Hand-off"
+   faint below.
+3. Give the details and confirm: Greeting gets a check and its time; Verify is lit, with
+   check_code (3 left), resend_code (2 left). Say you got no text: resend_code drops to 1 left.
+4. Read the code: Verify passes; Menu is lit. Ask for times, pick one: Schedule, then Menu
+   again, stacked as three blocks after Verify.
+5. Say "I have chest pains": a "911 line" chip on the current block.
+6. End the call: the last block gets its time; the faint blocks for the other ending go.
+7. Demo: play an older call: the blocks build from its steps, with the note that their times
+   run late.

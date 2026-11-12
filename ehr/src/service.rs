@@ -61,7 +61,12 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         _: Request<pb::OpenCallRequest>,
     ) -> Result<Response<pb::OpenCallReply>, Status> {
         let handle = self.sessions.open().await.map_err(refused)?;
-        Ok(Response::new(pb::OpenCallReply { handle: handle.to_hex() }))
+        Ok(Response::new(pb::OpenCallReply {
+            handle: handle.to_hex(),
+            identifies_left: MAX_IDENTIFIES,
+            resends_left: MAX_RESENDS,
+            code_tries_left: MAX_CODE_FAILURES,
+        }))
     }
 
     async fn close_call(

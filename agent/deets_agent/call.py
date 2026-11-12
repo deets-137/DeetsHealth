@@ -40,7 +40,7 @@ from pipecat.workers.runner import WorkerRunner
 
 from deets_agent import config
 from deets_agent.ehr_client import EhrClient
-from deets_agent.flow import FAKE_TODAY, CallFlow, role
+from deets_agent.flow import CLOSING_STEPS, FAKE_TODAY, STEPS, CallFlow, role
 from deets_agent.screen import CallerScreen
 
 # After a response ends, how long to wait for a tool call or a new response before the turn
@@ -220,18 +220,19 @@ class TypedCall:
                     function_call_report_level={"*": RTVIFunctionCallReportLevel.NONE}
                 ),
             )
+        global_functions = [
+            self.flow.hand_off_fn(),
+            self.flow.end_call_fn(),
+            self.flow.emergency_fn(),
+            self.flow.safety_reminder_fn(),
+            self.flow.medical_question_fn(),
+            self.flow.flag_for_staff_fn(),
+        ]
         self._manager = FlowManager(
             llm=llm,
             context_aggregator=self._aggregators,
             worker=self._worker,
-            global_functions=[
-                self.flow.hand_off_fn(),
-                self.flow.end_call_fn(),
-                self.flow.emergency_fn(),
-                self.flow.safety_reminder_fn(),
-                self.flow.medical_question_fn(),
-                self.flow.flag_for_staff_fn(),
-            ],
+            global_functions=global_functions,
         )
         self._runner = WorkerRunner()
         self._run_task: asyncio.Task | None = None
@@ -248,6 +249,17 @@ class TypedCall:
             ehr.record = record
             # Each staff flag goes to the record, and so to the watch stream (FLAGS.md §5).
             self.flow.on_flag = lambda flag: record.event("staff_flag", **flag.test_record())
+            # Each move between steps, when it happens, with the tools the model has there
+            # (CHAT.md §11).
+            everywhere = [f.name for f in global_functions]
+            self.flow.on_step = lambda name, tools: record.event(
+                "step",
+                name=name,
+                tools=tools,
+                global_tools=everywhere,
+                steps=list(STEPS),
+                closing_steps=list(CLOSING_STEPS),
+            )
             if messages is not None and hasattr(messages, "record"):
                 messages.record = record
         self._found: list[tuple[str, str]] = getattr(messages, "words_before_tool", [])

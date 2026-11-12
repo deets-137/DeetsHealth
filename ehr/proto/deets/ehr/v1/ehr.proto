@@ -47,6 +47,12 @@ message OpenCallRequest {}
 
 message OpenCallReply {
   string handle = 1 [(secret) = true];
+  // This call's verification limits, in full (service.rs: MAX_IDENTIFIES, MAX_RESENDS,
+  // MAX_CODE_FAILURES), so a reader never copies them. The replies that spend one say what is
+  // left. Counts only, never a value.
+  uint32 identifies_left = 2;
+  uint32 resends_left = 3;
+  uint32 code_tries_left = 4;
 }
 
 message CloseCallRequest {

@@ -109,7 +109,11 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   canvas's bottom left opens the text or sends the code. `npm run dev` now builds `ehr` first.
   Twilio itself is Phase 5; start the sender registration early (TWILIO.md §6). **The Tools
   panel** (CHAT.md §9) is built too, desk test open: each tool call with its trigger line, the
-  time to trigger and the time to confirm, exact to a tenth of a ms (record schema 3).
+  time to trigger and the time to confirm, exact to a tenth of a ms (record schema 3). **The
+  Step panel** (CHAT.md §11), desk test open: a block per step, stacked in call order, the
+  current one with its tools and the limits left, the steps ahead faint (record schema 5:
+  `step` events at each move; `OpenCall` now carries the limits). **Per-tool latency**: `GET
+  /agent/latency` (CHAT.md §10).
 - **Also in flight: the call guardrails** (REGULATIONS.md, 2026-11-12). Built, desk test open:
   the greeting is a fixed line with the disclosures (automated, transcribed, a person at any
   time; §6), and a caller confused after a failed code goes to a person at once (§2.1; the kept

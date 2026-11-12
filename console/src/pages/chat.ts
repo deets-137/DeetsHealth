@@ -113,7 +113,13 @@ export function chatPage(): Page {
                 <div class="sandbox" id="sandbox-list"><p class="empty">Loading</p></div>
               </section>
               ${emptyPanel("Caller")}
-              ${emptyPanel("Step")}
+              <section class="panel glass panel-step" aria-labelledby="chat-step">
+                <h2 id="chat-step">Step</h2>
+                ${MODES.map(
+                  (m) => `<div class="steps-log" data-for="${m}" aria-label="The call's steps">` +
+                    `<p class="empty">No call yet</p></div>`,
+                ).join("")}
+              </section>
               <section class="panel glass panel-tools" aria-labelledby="chat-tools">
                 <h2 id="chat-tools">Tools</h2>
                 ${MODES.map(
@@ -130,6 +136,9 @@ export function chatPage(): Page {
       const splitPage = page.querySelector<HTMLElement>(".split-page")!;
       const lines = (m: Mode) => page.querySelector<HTMLElement>(`.chat-lines[data-for="${m}"]`)!;
       const toolsBox = (m: Mode) => page.querySelector<HTMLElement>(`.tools-log[data-for="${m}"]`)!;
+      const stepsBox = (m: Mode) => page.querySelector<HTMLElement>(`.steps-log[data-for="${m}"]`)!;
+      // The rail's panels for a new call in mode `m`: each starts empty.
+      const panels = (m: Mode) => ({ tools: new ToolLog(toolsBox(m)), steps: new StepLog(stepsBox(m)) });
 
       // ---- the mode toggle: PHI → Test → Demo → PHI, the word turning over
       const toggle = $<HTMLButtonElement>("chat-mode");
@@ -145,6 +154,7 @@ export function chatPage(): Page {
         MODES.forEach((m) => {
           lines(m).hidden = m !== mode;
           toolsBox(m).hidden = m !== mode;
+          stepsBox(m).hidden = m !== mode;
         });
         closeCode();
         renderCode(false);
@@ -316,7 +326,7 @@ export function chatPage(): Page {
         start.disabled = true;
         testLines.replaceChildren(note("Calling the agent…"));
         clearTexts("test");
-        testView = new CallView(testLines, { onText: (e) => addText("test", e), tools: new ToolLog(toolsBox("test")) });
+        testView = new CallView(testLines, { onText: (e) => addText("test", e), ...panels("test") });
         myCall = null;
         seeking = true;
         client = new PipecatClient({
@@ -378,7 +388,7 @@ export function chatPage(): Page {
             if (id) {
               phiCall = id;
               // PHI shows every field in dev (synthetic), as CHAT.md §2.4 decided; roles gate it later.
-              phiView = new CallView(phiLines, { tools: new ToolLog(toolsBox("phi")) });
+              phiView = new CallView(phiLines, panels("phi"));
               phiLines.replaceChildren();
               // The dev server runs one test call at a time, so the call that starts while this
               // page is calling is this page's call.
@@ -463,7 +473,7 @@ export function chatPage(): Page {
         }
         demoLines.replaceChildren();
         clearTexts("demo");
-        const view = new CallView(demoLines, { onText: (e) => addText("demo", e), tools: new ToolLog(toolsBox("demo")) });
+        const view = new CallView(demoLines, { onText: (e) => addText("demo", e), ...panels("demo") });
         const last = events.reduce((m, e) => Math.max(m, e.t_ms), 0);
         for (const e of events) timers.push(window.setTimeout(() => view.add(e), e.t_ms / speed));
         timers.push(window.setTimeout(stopDemo, last / speed + 50));
@@ -488,10 +498,12 @@ class CallView {
    * `tools`: the rail's Tools panel for this call. */
   constructor(
     private readonly box: HTMLElement,
-    private readonly hooks: { onText?: (e: CallEvent) => void; tools?: ToolLog } = {},
+    private readonly hooks: { onText?: (e: CallEvent) => void; tools?: ToolLog; steps?: StepLog } = {},
   ) {}
 
   add(e: CallEvent): void {
+    // The Step panel reads every kind it needs itself (steps, limits, marks, the end).
+    this.hooks.steps?.add(e);
     if (e.kind === "llm") {
       this.llm.push(e);
       return;
@@ -519,6 +531,206 @@ class CallView {
     this.box.append(node);
     this.box.scrollTop = this.box.scrollHeight;
   }
+}
+
+/** The words for each step (a draft, CHAT.md §11). A step not listed shows its own name. */
+const STEP_WORDS: Record<string, string> = {
+  greet: "Greeting",
+  verify: "Verify",
+  menu: "Menu",
+  schedule: "Schedule",
+  goodbye: "Goodbye",
+  hand_off: "Hand-off",
+};
+/** Which limit each tool spends, by the record's `left` keys (ehr_client.py). */
+const TOOL_LIMIT: Record<string, string> = { identify: "identify", resend_code: "resend", check_code: "code" };
+/** Global tools that mark the step they ran in. */
+const MARK_WORDS: Record<string, string> = {
+  emergency: "911 line",
+  safety_reminder: "Safety reminder",
+  medical_question: "Medical question",
+  flag_for_staff: "Staff flag",
+};
+
+type StepBlock = {
+  name: string;
+  at: number;
+  end?: number;
+  count: number;
+  tools: string[];
+  everywhere: string[];
+  marks: string[];
+};
+
+/** The rail's Step panel for one call (CHAT.md §11): a block for each step, stacked in the
+ * order the call went; the current one lit, with its tools and the limits left; the steps not
+ * reached yet faint below. Made new for each call. */
+class StepLog {
+  private blocks: StepBlock[] = [];
+  private all: string[] = [];
+  private closing: string[] = [];
+  private left: Record<string, number> = {};
+  /** `step` events (schema 5) stamp each move; an older record has only late `node` events. */
+  private stamped = false;
+  private late = false;
+  private ended = false;
+
+  constructor(private readonly box: HTMLElement) {
+    box.replaceChildren(emptyNote("No call yet"));
+  }
+
+  add(e: CallEvent): void {
+    const name = typeof e.name === "string" ? e.name : "";
+    if (e.kind === "step" && name) {
+      this.stamped = true;
+      if (Array.isArray(e.steps)) this.all = e.steps.filter((s): s is string => typeof s === "string");
+      if (Array.isArray(e.closing_steps)) this.closing = e.closing_steps.filter((s): s is string => typeof s === "string");
+      this.enter(name, e.t_ms, strings(e.tools), strings(e.global_tools));
+    } else if (e.kind === "node" && name && !this.stamped) {
+      this.late = true;
+      this.enter(name, e.t_ms, [], []);
+    } else if (e.kind === "ehr" && e.left && typeof e.left === "object") {
+      Object.assign(this.left, e.left);
+      this.render();
+    } else if (e.kind === "tool_call" && MARK_WORDS[name]) {
+      this.mark(MARK_WORDS[name]);
+    } else if (e.kind === "screen") {
+      this.mark("911 line (phrase screen)");
+    } else if (e.kind === "call_end") {
+      this.ended = true;
+      const last = this.blocks[this.blocks.length - 1];
+      if (last && last.end === undefined) last.end = e.t_ms;
+      this.render();
+    }
+  }
+
+  private enter(name: string, t: number, tools: string[], everywhere: string[]): void {
+    const cur = this.blocks[this.blocks.length - 1];
+    if (cur && cur.end === undefined && cur.name === name) {
+      // The Flow entered the same step again (find_slots inside schedule): one block, counted.
+      cur.count += 1;
+      if (tools.length) cur.tools = tools;
+    } else {
+      if (cur && cur.end === undefined) cur.end = t;
+      this.blocks.push({ name, at: t, count: 1, tools, everywhere, marks: [] });
+    }
+    this.render();
+  }
+
+  private mark(word: string): void {
+    const cur = this.blocks[this.blocks.length - 1];
+    if (!cur) return;
+    cur.marks.push(word);
+    this.render();
+  }
+
+  private render(): void {
+    if (!this.blocks.length) return;
+    const out: HTMLElement[] = [];
+    this.blocks.forEach((b, i) => {
+      const current = i === this.blocks.length - 1 && !this.ended;
+      out.push(this.block(b, current ? "current" : "passed"));
+    });
+    // The steps not reached yet, faint, in the Flow's order. The steps that end a call are
+    // one block of alternatives, until the call ends one way.
+    const seen = new Set(this.blocks.map((b) => b.name));
+    for (const s of this.all) {
+      if (seen.has(s) || this.closing.includes(s)) continue;
+      out.push(this.block({ name: s, at: 0, count: 1, tools: [], everywhere: [], marks: [] }, "ahead"));
+    }
+    const ends = this.closing.filter((s) => !seen.has(s));
+    if (!this.ended && ends.length === this.closing.length && ends.length) {
+      out.push(this.block({ name: ends.map(stepWord).join(" or "), at: 0, count: 1, tools: [], everywhere: [], marks: [] }, "ahead", true));
+    }
+    if (this.late) out.push(emptyNote("An older record: each step is stamped at the model's first reply in it, so its times run late."));
+    this.box.replaceChildren(...out);
+  }
+
+  private block(b: StepBlock, state: "passed" | "current" | "ahead", worded = false): HTMLElement {
+    const el = document.createElement("div");
+    el.className = `step-block is-${state}`;
+    if (state === "current") el.setAttribute("aria-current", "step");
+    const head = document.createElement("div");
+    head.className = "step-head";
+    const icon = document.createElement("span");
+    icon.className = "step-icon";
+    icon.setAttribute("aria-hidden", "true");
+    if (state === "passed") icon.innerHTML = CHECK;
+    const name = document.createElement("span");
+    name.className = "step-name";
+    name.textContent = worded ? b.name : stepWord(b.name);
+    head.append(icon, name);
+    if (b.count > 1) {
+      const n = document.createElement("span");
+      n.className = "step-count";
+      n.textContent = `×${b.count}`;
+      head.append(n);
+    }
+    if (state !== "ahead") {
+      const time = document.createElement("span");
+      time.className = "step-time";
+      time.textContent =
+        b.end === undefined ? `from ${callClock(b.at)}` : `${callClock(b.at)} · ${spanWords(b.end - b.at)}`;
+      head.append(time);
+    }
+    el.append(head);
+
+    if (state === "current" && (b.tools.length || b.everywhere.length)) {
+      const facts = document.createElement("ul");
+      facts.className = "step-facts";
+      const fact = (label: string, value: string) => {
+        const li = document.createElement("li");
+        const l = document.createElement("span");
+        l.className = "tool-label";
+        l.textContent = `${label} `;
+        const v = document.createElement("span");
+        v.textContent = value;
+        li.append(l, v);
+        facts.append(li);
+      };
+      if (b.tools.length) {
+        fact(
+          "Tools",
+          b.tools
+            .map((t) => {
+              const key = TOOL_LIMIT[t];
+              const n = key === undefined ? undefined : this.left[key];
+              return typeof n === "number" ? `${t} (${n} left)` : t;
+            })
+            .join(" · "),
+        );
+      }
+      if (b.everywhere.length) fact("Every step", b.everywhere.join(" · "));
+      el.append(facts);
+    }
+    if (b.marks.length) {
+      const marks = document.createElement("ul");
+      marks.className = "step-marks";
+      for (const m of b.marks) {
+        const li = document.createElement("li");
+        li.textContent = m;
+        marks.append(li);
+      }
+      el.append(marks);
+    }
+    return el;
+  }
+}
+
+const CHECK = `<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+
+function stepWord(name: string): string {
+  return STEP_WORDS[name] ?? name;
+}
+
+function strings(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : [];
+}
+
+/** A time on the call's clock: "0:42", "12:05". */
+function callClock(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
 /** The rail's Tools panel for one call (CHAT.md §9): each tool call as a main line (its name

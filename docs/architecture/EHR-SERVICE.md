@@ -125,6 +125,9 @@ is ignored. So nothing past the edge sees a wire type.
 - **`ehr/`** is a member of the Cargo workspace (`deetshealth-ehr`), with `tonic` and `prost`
   0.14. The binary is `deetshealth-ehr` (`--bind`, default 127.0.0.1; `--port`, default 0, so
   the OS picks and the first stdout line names it; `--certs`, default `dev-certs`).
+- **`OpenCall`'s reply** carries the call's verification limits in full (`identifies_left`,
+  `resends_left`, `code_tries_left`, from the `MAX_*` constants), counts only, so a reader
+  (the Chat page's Step panel, CHAT.md §11) never copies them (2026-11-12).
 - **The contract** has eight calls: `OpenCall`, `CloseCall`, `Identify`, `ResendCode`,
   `CheckCode`, `FindSlots`, `Book`, `NextVisit` (S5: the soonest visit, from fixed fake visits
   and this run's bookings). There is no separate `SendCode`: `Identify` sends the first

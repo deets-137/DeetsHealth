@@ -120,28 +120,37 @@ class EhrClient:
     async def close(self) -> None:
         await self._channel.close()
 
-    async def _call(self, name: str, request, deadline: float = DEADLINE_S, result=None):
+    async def _call(self, name: str, request, deadline: float = DEADLINE_S, result=None, left=None):
         """`result`, when given, turns the reply into a domain word for the record (`booked`,
-        `pass`): an enum's name, never a value."""
+        `pass`): an enum's name, never a value. `left`, when given, reads the verification
+        limits left from the reply, as counts (the Step panel, CHAT.md §11)."""
         start = time.perf_counter()
         outcome = "ok"
         word = None
+        counts = None
         try:
             reply = await getattr(self._stub, name)(request, timeout=deadline)
             if result is not None:
                 word = result(reply)
+            if left is not None:
+                counts = left(reply)
             return reply
         except grpc.aio.AioRpcError as e:
             outcome = e.code().name
             raise EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), name) from None
         finally:
             if self.record is not None:
-                self.record.ehr(name, round((time.perf_counter() - start) * 1000), outcome, word)
+                ms = round((time.perf_counter() - start) * 1000, 1)
+                self.record.ehr(name, ms, outcome, word, counts)
 
     # ---- the calls ----
 
     async def open_call(self) -> Shielded[str]:
-        reply = await self._call("OpenCall", pb.OpenCallRequest())
+        reply = await self._call(
+            "OpenCall",
+            pb.OpenCallRequest(),
+            left=lambda r: {"identify": r.identifies_left, "resend": r.resends_left, "code": r.code_tries_left},
+        )
         return Shielded(reply.handle)
 
     async def close_call(self, handle: Shielded[str]) -> None:
@@ -163,11 +172,16 @@ class EhrClient:
                 family_name=family.reveal(),
                 birth_date=birth_date.reveal(),
             ),
+            left=lambda r: {"identify": r.tries_left},
         )
         return reply.tries_left
 
     async def resend_code(self, handle: Shielded[str]) -> int:
-        reply = await self._call("ResendCode", pb.ResendCodeRequest(handle=handle.reveal()))
+        reply = await self._call(
+            "ResendCode",
+            pb.ResendCodeRequest(handle=handle.reveal()),
+            left=lambda r: {"resend": r.resends_left},
+        )
         return reply.resends_left
 
     async def check_code(
@@ -179,6 +193,7 @@ class EhrClient:
             result=lambda r: {pb.CHECK_OUTCOME_PASS: "pass", pb.CHECK_OUTCOME_LOCKED: "locked"}.get(
                 r.outcome, "fail"
             ),
+            left=lambda r: {"code": r.tries_left},
         )
         outcome = {
             pb.CHECK_OUTCOME_PASS: CheckOutcome.PASS,
