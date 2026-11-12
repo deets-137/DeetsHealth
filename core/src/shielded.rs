@@ -76,6 +76,17 @@ impl<T: Zeroize + Ord> Ord for Shielded<T> {
     }
 }
 
+impl<T: Zeroize + AsRef<[u8]>> Shielded<T> {
+    /// "Same secret?" in constant time, for a value someone may guess at (the text code). The
+    /// time it takes depends on the length only, never on where the first difference is, so
+    /// the timing tells a guesser nothing (`subtle`). Use it for every check of a secret; `==`
+    /// stays for sorting and matching records.
+    pub fn ct_eq(&self, other: &Self) -> bool {
+        use subtle::ConstantTimeEq;
+        self.0.as_ref().ct_eq(other.0.as_ref()).into()
+    }
+}
+
 impl Shielded<String> {
     /// "Is this the same name, allowing for a slip?" Like the comparisons above, it answers
     /// yes or no and never reveals either value. Case, spaces and punctuation are ignored;
@@ -163,6 +174,15 @@ mod tests {
         assert!(!n("Jordan").same_name(&n("Jardon")), "two slips");
         assert!(!n("Lee").same_name(&n("Lea")), "short names must match");
         assert!(!n("").same_name(&n("")), "empty never matches");
+    }
+
+    #[test]
+    fn ct_eq_answers_same_or_not() {
+        let c = |s: &str| Shielded::new(s.to_string());
+        assert!(c("246810").ct_eq(&c("246810")));
+        assert!(!c("246810").ct_eq(&c("246811")), "last digit differs");
+        assert!(!c("246810").ct_eq(&c("146810")), "first digit differs");
+        assert!(!c("246810").ct_eq(&c("24681")), "lengths differ");
     }
 
     #[test]

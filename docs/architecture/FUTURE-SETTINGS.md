@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: [agent/deets_agent/flow.py]
-updated: 2026-11-11
+updated: 2026-11-12
 ---
 # Future settings — what a hospital will configure
 
@@ -11,9 +11,64 @@ fixed default in code. Each entry says what it controls, what the default is now
 a hospital needs, and where the value will live. None of this is built: the settings store
 waits on Postgres (VOICE-AGENT.md §8.7), and the console page to edit them waits on the
 console's design (BUILD-ORDER.md, Phase 4). The global values that DeetsEngine carries are
-drafted in [GLOBALS.md](GLOBALS.md).
+drafted in [GLOBALS.md](../archive/GLOBALS.md).
 
-A new setting gets an entry here the day its default is built.
+**How this list works** (from DeetsMusic's ledger of the same name, the owner, 2026-11-12):
+- **One central list.** Every setting a hospital will configure is on the index below, built
+  or not. A setting that another doc names goes on the index the day that doc names it, with
+  a link to the place it is described.
+- **A full entry when its default is built.** It gets a numbered section with what it
+  controls, the default now, the choices a hospital needs, and every place it runs. Its
+  index line then points to that section.
+- **Section numbers are stable.** Code comments and other docs refer to them (`flow.py`,
+  AGENT.md, VOICE-AGENT.md). A new entry goes at the end with the next number. Never
+  renumber. Read the index by topic, not by number.
+- **When the settings store is built,** a SETTINGS.md becomes the live table of what is
+  built, and the entries here stay as the design record.
+
+## The index, by topic
+> **Part:** project · 2026-11-12
+
+**Safety on the call**
+- After the emergency line, and the emergency flag's actions — §1 (default built).
+- The medical-question line — §2 (default built).
+- The emergency phrase list — §3 (default built).
+
+**Caller verification**
+- Stronger checks above the floor: a code on every call, a call back only. Never below two
+  factors for a chart answer. Not built (SECURITY.md §4.4).
+- The random chart questions to ask, from a list whose questions reveal nothing. Not built
+  (SECURITY.md §4.4).
+
+**What the agent may say**
+- The sensitive-results list: a hospital may add to it, never remove from it. Not built
+  (VOICE-AGENT.md §7.1, DESIGN.md K2).
+- The pronunciation dictionary: drug names, provider names, the hospital's own place names.
+  Not built (CARTESIA.md).
+
+**Booking**
+- Hours, visit types and transfer numbers. Not built (DESIGN.md K2).
+- Which providers and locations are open to booking. Not built (OTHER-EHRS.md).
+
+**Records kept**
+- Retention: transcripts (30 days, a draft), recordings, the call log's plain columns, within
+  the law. The audit trail stays 6 years. Not built (SECURITY.md §4.7, VOICE-AGENT.md §8.7).
+- Call audio: off by default; on for the whole hospital or by rule (a share of calls,
+  hand-offs and errors, one line or Flow node, a debug window that ends by itself). Not built
+  (VOICE-AGENT.md §8.7).
+
+**Access and keys**
+- The staff roles: custom, named by the hospital, built from levers. Open ended; the owner
+  designs it. Not built (ideas/ACCESS-ROLES.md; SECURITY.md §4.10).
+- Bring your own key: the hospital holds its key and may revoke it. Not built (SECURITY.md
+  §4.6).
+- Emergency support access for our staff, which the hospital approves. How it approves is
+  open. Not built (SECURITY.md §4.10, §7).
+
+**Ideas only** (not planned; see ideas/README.md)
+- Protected data through MCP, for one client the hospital's BAA covers. Off by default
+  (ideas/CONSOLE-MCP.md §4).
+- The token cap for each demo call (ideas/CONSOLE-MCP.md §5.4).
 
 ## 1. After the emergency line
 > **Part:** built (the default only) · 2026-11-11

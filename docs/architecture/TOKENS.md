@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
 | Theme (color roles) | themes.css | 27 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 67 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 68 tokens · overrides:  |
 
 ## Theme roles
 
@@ -121,7 +121,8 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--send-size` | `44px` | — | the send button, square |
 | `--canvas-pad` | `16px` | — |  |
 | `--bubble-max` | `70%` | — | a bubble's widest, of the canvas |
-| `--bubble-pad` | `10px 14px` | — |  |
+| `--bubble-pad-x` | `14px` | — | a bubble's side padding; the line facts under it start where its text does |
+| `--bubble-pad` | `10px var(--bubble-pad-x)` | — |  |
 | `--radius-bubble` | `14px` | — |  |
 | `--help-width` | `320px` | — | the open help box |
 | `--toggle-tracking` | `0.04em` | — | the mode toggle's word |

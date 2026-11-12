@@ -120,17 +120,23 @@ class EhrClient:
     async def close(self) -> None:
         await self._channel.close()
 
-    async def _call(self, name: str, request, deadline: float = DEADLINE_S):
+    async def _call(self, name: str, request, deadline: float = DEADLINE_S, result=None):
+        """`result`, when given, turns the reply into a domain word for the record (`booked`,
+        `pass`): an enum's name, never a value."""
         start = time.perf_counter()
         outcome = "ok"
+        word = None
         try:
-            return await getattr(self._stub, name)(request, timeout=deadline)
+            reply = await getattr(self._stub, name)(request, timeout=deadline)
+            if result is not None:
+                word = result(reply)
+            return reply
         except grpc.aio.AioRpcError as e:
             outcome = e.code().name
             raise EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), name) from None
         finally:
             if self.record is not None:
-                self.record.ehr(name, round((time.perf_counter() - start) * 1000), outcome)
+                self.record.ehr(name, round((time.perf_counter() - start) * 1000), outcome, word)
 
     # ---- the calls ----
 
@@ -168,7 +174,11 @@ class EhrClient:
         self, handle: Shielded[str], code: Shielded[str]
     ) -> tuple[CheckOutcome, int]:
         reply = await self._call(
-            "CheckCode", pb.CheckCodeRequest(handle=handle.reveal(), code=code.reveal())
+            "CheckCode",
+            pb.CheckCodeRequest(handle=handle.reveal(), code=code.reveal()),
+            result=lambda r: {pb.CHECK_OUTCOME_PASS: "pass", pb.CHECK_OUTCOME_LOCKED: "locked"}.get(
+                r.outcome, "fail"
+            ),
         )
         outcome = {
             pb.CHECK_OUTCOME_PASS: CheckOutcome.PASS,
@@ -201,6 +211,7 @@ class EhrClient:
                 idempotency_key=idempotency_key,
             ),
             deadline=BOOK_DEADLINE_S,
+            result=lambda r: "booked" if r.outcome == pb.BOOK_OUTCOME_BOOKED else "slot_taken",
         )
         if reply.outcome == pb.BOOK_OUTCOME_BOOKED and reply.HasField("booked"):
             return _slot(reply.booked)

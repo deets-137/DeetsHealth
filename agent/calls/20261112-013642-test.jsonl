@@ -1,0 +1,11 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 2, "call_id": "20261112-013642-test", "source": "test", "scenario": null, "mode": "replay", "model": "claude-haiku-5-5", "started": "2026-11-12T01:36:42"}
+{"t_ms": 98, "kind": "ehr", "call": "OpenCall", "ms": 1, "outcome": "ok"}
+{"t_ms": 103, "kind": "llm", "key": "2c3dad93", "hit": true, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 31, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 1907}, "total_ms": 1}
+{"t_ms": 104, "kind": "node", "name": "greet"}
+{"t_ms": 505, "kind": "agent", "text": "Hello, this is the automated assistant for Main Street Clinic. How can I help you today?"}
+{"t_ms": 2701, "kind": "caller", "text": "hi"}
+{"t_ms": 2702, "kind": "llm", "key": "4e81bdc4", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "total_ms": 0, "error": {"type": "ReplayMiss", "message": "no recording for request 4e81bdc4708b54c3b98cd1dbbd95ff43; run the typed harness to record it"}}
+{"t_ms": 2704, "kind": "log", "level": "ERROR", "where": "pipecat.processors.frame_processor:push_error_frame:1032", "text": "AnthropicLLMService#0 exception (/Users/aditya/Documents/GitHub/DeetsHealth/agent/deets_agent/llm.py:315): Unknown error occurred: no recording for request 4e81bdc4708b54c3b98cd1dbbd95ff43; run the typed harness to record it"}
+{"t_ms": 2706, "kind": "log", "level": "WARNING", "where": "pipecat.pipeline.worker:_source_push_frame:1648", "text": "PipelineWorker#0: Something went wrong: ErrorFrame#0(error: Unknown error occurred: no recording for request 4e81bdc4708b54c3b98cd1dbbd95ff43; run the typed harness to record it, fatal: False)"}
+{"t_ms": 2712, "kind": "ehr", "call": "CloseCall", "ms": 1, "outcome": "ok"}
+{"t_ms": 2712, "kind": "call_end", "reason": "Claude's request failed (ReplayMiss)", "turns": 1, "requests": {"live": 0, "replayed": 1, "failed": 1}, "tokens": {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}, "cost_usd": 0.0}

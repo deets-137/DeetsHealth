@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite console",
+    "dev": "node scripts/dev.mjs",
     "build": "tsc -p console && vite build console",
     "preview": "vite preview console",
     "tokens": "node scripts/tokens.mjs",
@@ -12,10 +12,14 @@
     "docs:check": "node scripts/docs-check.mjs",
     "check": "node scripts/check.mjs",
     "check:all": "node scripts/check.mjs --all --full",
-    "prepare": "git config core.hooksPath .githooks"
+    "prepare": "git config core.hooksPath .githooks",
+    "dev:web": "vite console"
   },
   "devDependencies": {
-    "vite": "^6.0.3",
-    "typescript": "~5.6.2"
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3"
+  },
+  "dependencies": {
+    "@pipecat-ai/client-js": "^1.16.0"
   }
 }

@@ -105,6 +105,38 @@ soon want DeetsHealth in its own cloud account: Kubernetes earns its cost. A2 fo
 hospitals: ECS with Fargate is simpler and safer to start, and the deploy interface (VOICE-AGENT.md
 §7.2) lets us move to Kubernetes later.
 
+## 5a. Staging, and what it costs
+> **Part:** idea · 2026-11-12 — the owner chose 2A: the staging work starts after the Chat
+> page's connection passes its desk test. **Budget: $0** (the owner, 2026-11-12: the $100 a
+> month is Anthropic credit only; everything else should cost nothing).
+
+**Why early:** cloud to cloud is easier than local to cloud (the owner's point). The hard parts
+of a first deploy are the network, the secrets, the certificates, keeping processes running and
+draining calls, not scale. Staging with synthetic data finds them before a hospital does.
+
+**First, a local stand-in, $0:** Docker Compose (Docker is on the Mac) with the same images ECS
+would run: `agent`, `ehr` (mTLS between them, as in production), Caddy for TLS in front in
+place of the load balancer, Postgres, and LocalStack for KMS, Secrets Manager and S3. It cannot
+copy IAM roles exactly, ECS's draining, or the network distance to Twilio.
+
+**Then AWS staging, us-east-1** (list prices from memory, 2026-11-12; check the AWS pricing
+calculator at the fork): the agent on Fargate (0.5 vCPU, 1 GB) about $18 a month, `ehr`
+(0.25 vCPU, 0.5 GB) about $9, a load balancer about $17, public IPv4 addresses about $11,
+Postgres (db.t4g.micro, once the store exists) about $14, the rest about $5: **about $60–75 a
+month always on**. Without a NAT gateway (about $33 a month) and brought up only to test
+(Terraform up and down), an idle month costs about $1–2. That is not $0, so it waits for the
+owner's word.
+
+**Cloudflare** (the owner has Workers Paid, 2026-11-12). A Worker can accept a WebSocket and
+hand it to a Durable Object, which holds it for minutes and can sleep between messages: one
+Durable Object per call would make a good hub for watchers. Neither runs our Python Pipecat
+process or the Rust `ehr` with mTLS; Cloudflare Containers could. Cloudflare signs a BAA only
+with Enterprise customers, service by service, and no source found on 2026-11-12 lists
+Workers, Durable Objects or Containers as covered (one user on Cloudflare's forum says Workers
+and D1 are not). With synthetic data no BAA is needed, so a Cloudflare staging is possible, but
+it proves Cloudflare, not AWS (fork C1 A). Cloudflare's place for now: the Tunnel with Access
+for the analyst demo (ideas/README.md) and the key-set Worker.
+
 ## 6. Sources
 - [Saga IT — AWS vs Azure vs GCP for healthcare (2026)](https://saga-it.com/blog/healthcare-cloud-migration-guide)
 - [Taction — HIPAA cloud architecture: AWS, Azure, GCP](https://www.tactionsoft.com/blog/hipaa-compliant-cloud-architecture-aws-azure-gcp/)
@@ -112,3 +144,6 @@ hospitals: ECS with Fargate is simpler and safer to start, and the deploy interf
 - [Of Ash and Fire — Which cloud for HIPAA](https://www.ofashandfire.com/blog/hipaa-compliant-cloud-architecture-aws-azure-gcp)
 - [Twilio — Core latency in AI voice agents (edge placement)](https://www.twilio.com/en-us/blog/developers/best-practices/guide-core-latency-ai-voice-agents)
 - [Cartesia on AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-bcf67mlwzvkce)
+- [Accountable — Is Cloudflare HIPAA compliant? BAA and covered services](https://www.accountablehq.com/post/is-cloudflare-hipaa-compliant-baa-covered-services-and-best-practices)
+- [Paubox — Cloudflare and HIPAA](https://www.paubox.com/blog/cloudflare-hipaa-compliant)
+- [A community thread on HIPAA and BAAs for Workers](https://www.answeroverflow.com/m/1428298876615655457)

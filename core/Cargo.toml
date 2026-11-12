@@ -9,6 +9,9 @@ edition = "2021"
 [dependencies]
 # Wipes a protected value from memory when it drops (SECURITY.md §8.2).
 zeroize = "1"
+# Constant-time comparison for a secret someone may guess at, the text code (Shielded::ct_eq).
+# no_std, so the wasm build keeps it.
+subtle = { version = "2", default-features = false }
 # The desktop store (store/sqlite.rs): SQLite compiled in, the version DeetsMusic uses. Holds
 # sealed values only. Behind a feature, so the wasm build never pulls it in.
 rusqlite = { version = "0.32", features = ["bundled"], optional = true }

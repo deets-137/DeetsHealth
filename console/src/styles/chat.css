@@ -83,6 +83,8 @@
   background: var(--canvas);
   border: var(--edge) solid var(--glass-edge);
   box-shadow: inset 0 var(--edge) 0 var(--glass-highlight);
+  /* The control row fits itself to the canvas's width (the narrow canvas, below). */
+  container: canvas / inline-size;
 }
 
 .chat-lines {
@@ -134,8 +136,10 @@
   color: var(--on-bubble-caller);
 }
 
-/* The line facts: the times under each bubble. */
+/* The line facts: the times under each bubble, lined up with the bubble's text (the owner,
+   2026-11-12), not with its rounded edge. */
 .facts {
+  padding-inline: var(--bubble-pad-x);
   font-size: var(--text-small);
   color: var(--text-3);
 }
@@ -163,6 +167,7 @@
   left: 0;
   bottom: calc(100% + var(--space-3));
   width: var(--help-width);
+  max-width: calc(100cqw - 2 * var(--canvas-pad));
   display: grid;
   grid-template-rows: 0fr;
   opacity: 0;
@@ -321,15 +326,23 @@
 
 /* ------------------------------------------------------------------- the bar */
 
+/* One grid for the whole stage (the owner, 2026-11-12): the bar's edges line up with the
+   canvas's content edges, so the bubbles, the help button, the text box sit on one left edge,
+   and the caller's bubbles, End call and the send button on one right edge. */
 .chat-bar {
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  padding-inline: calc(var(--canvas-pad) + var(--edge));
 }
 
 .chat-input {
   flex: 1;
   min-width: 0;
+  /* Safari draws its own text field unless told not to, and then the height can drift from
+     the send button's. */
+  -webkit-appearance: none;
+  appearance: none;
   height: var(--control-height);
   padding: 0 var(--space-4);
   border: var(--edge) solid var(--glass-edge);
@@ -434,4 +447,42 @@
 /* With no help box (Demo), the split still sits at the right. */
 .chat-controls > .split {
   margin-left: auto;
+}
+
+/* ------------------------------------------------------------ the narrow canvas */
+
+/* The owner, 2026-11-12 (two desk tests in a narrow window): the help button's label wrapped
+   onto two lines, and the split ran out of the canvas. Now the help button keeps its own
+   width, and the split takes the room that is left, up to its full size: its two halves stay
+   equal (flex), so "Confirm?" never moves anything, and they never grow past
+   `--split-half` or shrink below their longest word. */
+.help-short {
+  display: none;
+}
+
+#chat-help-button {
+  white-space: nowrap;
+}
+
+.chat-controls > .split {
+  flex: 0 1 calc(2 * var(--split-half));
+  min-width: 0;
+}
+
+.chat-controls > .split > button {
+  flex: 1 1 0;
+  width: auto;
+  min-width: min-content;
+  padding: 0 var(--space-3);
+}
+
+/* In a narrow canvas the help button says "Help" (its accessible name stays "Sandbox
+   patients"). The width is raw because a container query cannot read a token (as in app.css). */
+@container canvas (max-width: 480px) {
+  .help-long {
+    display: none;
+  }
+  .help-short {
+    display: inline;
+  }
 }

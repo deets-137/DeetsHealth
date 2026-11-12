@@ -72,7 +72,11 @@ async def main() -> int:
     )
     args = parser.parse_args()
     today = date.today() if args.today == "real" else date.fromisoformat(args.today)
-    record = None if args.no_record else CallRecord(args.mode, config.MODEL)
+    record = (
+        None
+        if args.no_record
+        else CallRecord(args.mode, config.MODEL, scenario=args.script.stem if args.script else None)
+    )
     if record is not None:
         redact.dev_tap = record.log
     redact.install(args.log)

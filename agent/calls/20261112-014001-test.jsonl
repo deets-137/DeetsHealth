@@ -1,0 +1,10 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 2, "call_id": "20261112-014001-test", "source": "test", "scenario": null, "mode": "replay", "model": "claude-haiku-5-5", "started": "2026-11-12T01:40:01"}
+{"t_ms": 45, "kind": "ehr", "call": "OpenCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 50, "kind": "llm", "key": "2c3dad93", "hit": true, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 31, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 1907}, "total_ms": 1}
+{"t_ms": 51, "kind": "node", "name": "greet"}
+{"t_ms": 452, "kind": "agent", "text": "Hello, this is the automated assistant for Main Street Clinic. How can I help you today?"}
+{"t_ms": 8855, "kind": "caller", "text": "Hi, I'd like to book a check-up."}
+{"t_ms": 8858, "kind": "llm", "key": "0f56d2ac", "hit": true, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 1907, "cache_creation_input_tokens": 48}, "total_ms": 1}
+{"t_ms": 9263, "kind": "agent", "text": "I can help with that. First, could you tell me your first name, last name, and date of birth?"}
+{"t_ms": 15750, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 15751, "kind": "call_end", "reason": "the caller hung up", "turns": 1, "requests": {"live": 0, "replayed": 2, "failed": 0}, "tokens": {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}, "cost_usd": 0.0}

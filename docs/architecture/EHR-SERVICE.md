@@ -2,7 +2,7 @@
 status: built
 desk_test: none
 sources: []
-updated: 2026-10-21
+updated: 2026-11-12
 ---
 # DeetsHealth — The `ehr` service and its wire
 
@@ -176,8 +176,11 @@ is ignored. So nothing past the edge sees a wire type.
   at one synthetic clinic. No clock. It filters by day with `Shielded`'s comparison, without a
   reveal.
 - **The Python side** is built: AGENT.md.
-- **Not built yet:** tracing, a constant-time code comparison (the agent is the only client,
-  behind mTLS).
+- **The code check is constant time** (2026-11-12, the owner's ask): `CheckCode` compares with
+  `Shielded::ct_eq` (the `subtle` crate), so a reply's timing never says how many digits were
+  right. The lock after three wrong codes already made a timing attack impractical; this
+  closes it.
+- **Not built yet:** tracing.
 
 ## 7. Tracing and tests
 - **The call timeline:** the OpenTelemetry trace context rides in gRPC metadata, so one call is

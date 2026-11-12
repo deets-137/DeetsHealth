@@ -2,8 +2,11 @@
 // - PHI: watch a call. Read only: no controls, no text bar.
 // - Test: the user is the caller. The help box (the sandbox patients), Start | End, the text bar.
 // - Demo: a recorded call plays back as if live. Play | Stop, the call picker and the speed.
-// The page is the UI only for now: the connection to the agent is the next step (CHAT.md §4),
-// so a test call takes the caller's lines and nothing answers yet.
+// The connection is the hybrid (CHAT.md §5): Test's seat sends over RTVI (agent/transport.ts);
+// every mode draws its lines from the agent's events (agent/api.ts › watch, catalog).
+import { PipecatClient } from "@pipecat-ai/client-js";
+import { catalog, callEvents, watch, type CallEvent, type CallRow } from "../agent/api";
+import { TextSeat } from "../agent/transport";
 import { reducedMotion, tokenMs } from "../tokens";
 import { el, type Page } from "./page";
 
@@ -77,7 +80,7 @@ export function chatPage(): Page {
                       </div></div>
                     </div>
                     <button class="control" data-wave id="chat-help-button" type="button" aria-expanded="false"
-                      aria-controls="chat-help-card">Sandbox patients</button>
+                      aria-controls="chat-help-card" aria-label="Sandbox patients"><span class="help-long">Sandbox patients</span><span class="help-short">Help</span></button>
                   </div>
 
                   <div class="split split-call" data-wave role="group" aria-label="The call">
@@ -232,16 +235,57 @@ export function chatPage(): Page {
         return p;
       };
 
-      start.addEventListener("click", () => {
-        testLines.replaceChildren(note("Call started. The agent is not connected yet."));
-        setLive(true);
-        input.focus();
+      // The lines of a test call come back from the watch stream, the same path PHI and Demo
+      // draw from; the seat only sends (CHAT.md §5).
+      let client: PipecatClient | undefined;
+      let myCall: string | null = null;
+      let seeking = false; // between Start and the dev server's "started"
+      let testView: CallView | undefined;
+      const hangUp = async () => {
+        const c = client;
+        client = undefined;
+        await c?.disconnect().catch(() => {});
+      };
+
+      start.addEventListener("click", async () => {
+        start.disabled = true;
+        testLines.replaceChildren(note("Calling the agent…"));
+        testView = new CallView(testLines);
+        myCall = null;
+        seeking = true;
+        client = new PipecatClient({
+          transport: new TextSeat(),
+          enableMic: false,
+          enableCam: false,
+          callbacks: {
+            onDisconnected: () => {
+              if (live) {
+                setLive(false);
+                testLines.append(note("Call ended"));
+              }
+            },
+          },
+        });
+        try {
+          await client.connect();
+          setLive(true);
+          // The greeting may already be on the canvas (it comes over the watch stream).
+          if (!testLines.querySelector(".line")) testLines.replaceChildren(note("Connected"));
+          input.focus();
+        } catch (e) {
+          client = undefined;
+          seeking = false;
+          start.disabled = false;
+          testLines.replaceChildren(
+            note(e instanceof Error && e.message ? `No call: ${e.message}` : "No call: the agent did not answer"),
+          );
+        }
       });
       end.addEventListener("click", () => {
         if (!live) return;
         if (confirmWord.hidden) return setConfirm(true);
         setLive(false);
-        testLines.append(note("Call ended"));
+        void hangUp();
         start.focus();
       });
       end.addEventListener("keydown", (e) => {
@@ -251,23 +295,172 @@ export function chatPage(): Page {
       $<HTMLFormElement>("chat-form").addEventListener("submit", (e) => {
         e.preventDefault();
         const text = input.value.trim();
-        if (!live || !text) return;
-        testLines.querySelector(".empty")?.remove();
-        testLines.append(line("caller", text));
+        if (!live || !text || !client) return;
+        void client.sendText(text, { run_immediately: true, audio_response: false }).catch(() => {});
         input.value = "";
-        testLines.scrollTop = testLines.scrollHeight;
       });
 
-      // ---- Demo's speed: one of the pair is chosen
-      const speeds = [...page.querySelectorAll<HTMLButtonElement>("[data-speed]")];
-      speeds.forEach((b) =>
-        b.addEventListener("click", () => speeds.forEach((x) => x.setAttribute("aria-pressed", String(x === b)))),
+      // ---- the watch stream: a live call's events. Test draws its own call; PHI draws any.
+      const phiLines = lines("phi");
+      let phiView: CallView | undefined;
+      let phiCall: string | null = null;
+      const phiIdle = () => phiLines.replaceChildren(note("No live call to watch"));
+      watch(
+        (m) => {
+          if (m.type === "hello" || m.type === "started") {
+            const id = m.type === "hello" ? m.live : m.call;
+            if (id) {
+              phiCall = id;
+              phiView = new CallView(phiLines);
+              phiLines.replaceChildren();
+              // The dev server runs one test call at a time, so the call that starts while this
+              // page is calling is this page's call.
+              if (m.type === "started" && seeking) {
+                myCall = id;
+                seeking = false;
+              }
+            } else phiIdle();
+            return;
+          }
+          if (m.type === "event") {
+            if (m.call === phiCall) phiView?.add(m.event);
+            if (m.call === myCall) testView?.add(m.event);
+            return;
+          }
+          if (m.type === "ended") {
+            if (m.call === phiCall) {
+              phiCall = null;
+              phiLines.append(note("The call ended"));
+            }
+            if (m.call === myCall && live) {
+              setLive(false);
+              void hangUp();
+            }
+            void loadCatalog();
+          }
+        },
+        (up) => {
+          if (!up && !phiCall) phiLines.replaceChildren(note("The agent's dev server is not running"));
+          else if (up && !phiCall) phiIdle();
+        },
       );
+
+      // ---- Demo: a recorded call plays back as if live, from the catalog
+      const pick = $<HTMLSelectElement>("demo-pick");
+      const play = $<HTMLButtonElement>("demo-play");
+      const stop = $<HTMLButtonElement>("demo-stop");
+      const demoLines = lines("demo");
+      const speeds = [...page.querySelectorAll<HTMLButtonElement>("[data-speed]")];
+      let speed = 1;
+      speeds.forEach((b) =>
+        b.addEventListener("click", () => {
+          speed = Number(b.dataset.speed) || 1;
+          speeds.forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        }),
+      );
+      let timers: number[] = [];
+      const stopDemo = () => {
+        timers.forEach((t) => window.clearTimeout(t));
+        timers = [];
+        stop.disabled = true;
+        play.disabled = pick.disabled;
+      };
+      async function loadCatalog() {
+        let calls: CallRow[];
+        try {
+          calls = (await catalog()).calls;
+        } catch {
+          pick.replaceChildren(new Option("The agent's dev server is not running"));
+          pick.disabled = play.disabled = true;
+          return;
+        }
+        const chosen = pick.value;
+        pick.replaceChildren(...calls.map((c) => new Option(callName(c), c.id)));
+        if (!calls.length) pick.append(new Option("No recorded calls yet"));
+        pick.disabled = !calls.length;
+        if (calls.some((c) => c.id === chosen)) pick.value = chosen;
+        play.disabled = pick.disabled || timers.length > 0;
+      }
+      play.addEventListener("click", async () => {
+        if (pick.disabled) return;
+        stopDemo();
+        play.disabled = true;
+        stop.disabled = false;
+        let events: CallEvent[];
+        try {
+          events = await callEvents(pick.value);
+        } catch {
+          demoLines.replaceChildren(note("That call could not be read"));
+          return stopDemo();
+        }
+        demoLines.replaceChildren();
+        const view = new CallView(demoLines);
+        const last = events.reduce((m, e) => Math.max(m, e.t_ms), 0);
+        for (const e of events) timers.push(window.setTimeout(() => view.add(e), e.t_ms / speed));
+        timers.push(window.setTimeout(stopDemo, last / speed + 50));
+      });
+      stop.addEventListener("click", () => {
+        stopDemo();
+        demoLines.append(note("Stopped"));
+      });
+      void loadCatalog();
 
       showMode();
       return page;
     },
   };
+}
+
+/** A call drawn from its events, live or played back: the same code for Test, PHI and Demo. */
+class CallView {
+  private llm: CallEvent[] = [];
+  constructor(private readonly box: HTMLElement) {}
+
+  add(e: CallEvent): void {
+    if (e.kind === "llm") {
+      this.llm.push(e);
+      return;
+    }
+    if (e.kind === "caller" && typeof e.text === "string") {
+      this.llm = [];
+      this.show(line("caller", e.text));
+    } else if (e.kind === "agent" && typeof e.text === "string") {
+      this.show(line("agent", e.text, agentFacts(this.llm)));
+      this.llm = [];
+    } else if (e.kind === "call_end") {
+      this.show(endNote(typeof e.reason === "string" ? e.reason : ""));
+    }
+  }
+
+  private show(node: HTMLElement): void {
+    this.box.querySelector(".empty")?.remove();
+    this.box.append(node);
+    this.box.scrollTop = this.box.scrollHeight;
+  }
+}
+
+/** The agent's line facts (CHAT.md §4, a draft): the time to the first word of its first live
+ * request, or "replayed" when the replay cache answered. Speech times come with the voice. */
+function agentFacts(llm: CallEvent[]): string | undefined {
+  if (!llm.length) return undefined;
+  const live = llm.find((e) => !e.hit);
+  if (!live) return "replayed";
+  const ms = (live.first_text_ms ?? live.total_ms) as number | undefined;
+  return typeof ms === "number" ? `text ${(ms / 1000).toFixed(1)} s` : undefined;
+}
+
+function endNote(reason: string): HTMLElement {
+  const p = document.createElement("p");
+  p.className = "empty";
+  p.textContent = reason ? `Call ended: ${reason}` : "Call ended";
+  return p;
+}
+
+/** A call's name in Demo's picker: the label if it has one, else its time and outcome. */
+function callName(c: CallRow): string {
+  const when = c.started ? c.started.replace("T", " ").slice(5, 16) : c.id;
+  const what = [c.outcome.replace("_", " "), c.scenario].filter(Boolean).join(" · ");
+  return `${c.keep ? "★ " : ""}${c.label ?? `${when} · ${what}`}`;
 }
 
 /** One line of the call: the bubble, and its facts row when there are facts to show. */

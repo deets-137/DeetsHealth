@@ -69,6 +69,9 @@ class CallerScreen(FrameProcessor):
         self.fired = False
         # Set by TypedCall when a dev call record is open.
         self.record = None
+        # Called with each caller line, before the screen acts on it. Set by TypedCall when the
+        # lines come from a transport (the dev server), so the record hears the caller.
+        self.on_line = None
 
     @staticmethod
     def _caller_line(frame: Frame) -> str | None:
@@ -84,6 +87,8 @@ class CallerScreen(FrameProcessor):
         if line is None:
             await self.push_frame(frame, direction)
             return
+        if self.on_line is not None:
+            self.on_line(line)
         self.flow.heard(line)
         if not emergency_match(line):
             await self.push_frame(frame, direction)

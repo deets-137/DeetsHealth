@@ -32,7 +32,10 @@ from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
+from pipecat.processors.frameworks.rtvi import RTVIObserverParams
+from pipecat.processors.frameworks.rtvi.observer import RTVIFunctionCallReportLevel
 from pipecat.services.anthropic.llm import AnthropicLLMService
+from pipecat.transports.base_transport import BaseTransport
 from pipecat.workers.runner import WorkerRunner
 
 from deets_agent import config
@@ -175,7 +178,16 @@ class TypedCall:
     """A call driven by text. `start()` returns the greeting; `say()` returns each reply, or
     None once the call has ended."""
 
-    def __init__(self, ehr: EhrClient, llm: AnthropicLLMService, record=None, today: date = FAKE_TODAY) -> None:
+    def __init__(
+        self,
+        ehr: EhrClient,
+        llm: AnthropicLLMService,
+        record=None,
+        today: date = FAKE_TODAY,
+        transport: BaseTransport | None = None,
+    ) -> None:
+        """`transport`: the caller's seat in the console (dev_server.py). The caller's lines then
+        come over RTVI, and `serve()` runs the call in place of `start()` and `say()`."""
         # A typed call pins "today" to the day ehr's fake slots are built around (flow.py).
         self.flow = CallFlow(ehr, today=today)
         self._llm = llm
@@ -187,12 +199,23 @@ class TypedCall:
         self.record = record
         context = LLMContext()
         self._aggregators = LLMContextAggregatorPair(context)
-        pipeline = Pipeline(
-            [self._screen, self._aggregators.user(), llm, self._collector, self._aggregators.assistant()]
-        )
-        self._worker = PipelineWorker(
-            pipeline, params=PipelineParams(), cancel_on_idle_timeout=False, enable_rtvi=False
-        )
+        middle = [self._screen, self._aggregators.user(), llm, self._collector, self._aggregators.assistant()]
+        if transport is None:
+            self._worker = PipelineWorker(
+                Pipeline(middle), params=PipelineParams(), cancel_on_idle_timeout=False, enable_rtvi=False
+            )
+        else:
+            # The caller's seat (CHAT.md §2.4): RTVI carries the caller's lines in and the call's
+            # state out. Tool reports stay at NONE, so the browser never gets a tool's arguments
+            # or result through RTVI; the watch stream carries those, from the record.
+            self._worker = PipelineWorker(
+                Pipeline([transport.input(), *middle, transport.output()]),
+                params=PipelineParams(enable_metrics=True, enable_usage_metrics=True),
+                enable_rtvi=True,
+                rtvi_observer_params=RTVIObserverParams(
+                    function_call_report_level={"*": RTVIFunctionCallReportLevel.NONE}
+                ),
+            )
         self._manager = FlowManager(
             llm=llm,
             context_aggregator=self._aggregators,
@@ -249,6 +272,54 @@ class TypedCall:
         await asyncio.wait_for(started.wait(), timeout=10)
         await self._manager.initialize(self.flow.greet())
         return await self._next_turn()
+
+    async def serve(self) -> str:
+        """Run a call whose caller is on a transport, until it ends. Each of the agent's turns
+        goes to the record (and so to the watch stream). Returns the end's reason."""
+        if self.record is not None:
+            self._screen.on_line = self.record.caller
+        started = asyncio.Event()
+
+        @self._worker.event_handler("on_pipeline_started")
+        async def _on_started(worker, frame):
+            started.set()
+
+        await self.flow.start()
+        await self._runner.add_workers(self._worker)
+        self._run_task = asyncio.create_task(self._runner.run())
+        await asyncio.wait_for(started.wait(), timeout=10)
+        await self._manager.initialize(self.flow.greet())
+        reason = "the caller hung up"
+        try:
+            while True:
+                getter = asyncio.create_task(self._collector.turns.get())
+                done, _ = await asyncio.wait({getter, self._run_task}, return_when=asyncio.FIRST_COMPLETED)
+                if getter not in done:
+                    getter.cancel()
+                    break  # the pipeline stopped: the caller's socket closed
+                turn = getter.result()
+                if isinstance(turn, CallFailed):
+                    reason = f"Claude's request failed ({turn})"
+                    break
+                if turn is ENDED:
+                    reason = "the agent ended it"
+                    break
+                if self.record is not None:
+                    self.record.agent(turn)
+        finally:
+            self.ended = True
+            if not self._run_task.done():
+                await self._worker.queue_frame(EndFrame())
+                try:
+                    await asyncio.wait_for(self._run_task, timeout=10)
+                except TimeoutError:
+                    self._run_task.cancel()
+            await self.flow.close()
+        return reason
+
+    async def cancel(self) -> None:
+        """Stop a served call at once: the caller's socket closed."""
+        await self._worker.cancel(reason="the caller hung up")
 
     async def say(self, text: str) -> str | None:
         if self.ended:

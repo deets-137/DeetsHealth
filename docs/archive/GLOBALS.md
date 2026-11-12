@@ -1,10 +1,17 @@
 ---
-status: project
+status: archived
 desk_test: none
-sources: [core/src/index.rs, core/src/store/mod.rs, ../DeetsEngine/docs/ideas/deetshealth-needs.md, ../DeetsEngine/docs/architecture/IENS-AND-INDEXES.md]
-updated: 2026-10-13
+sources: [core/src/index.rs, core/src/store/mod.rs, ../DeetsEngine/docs/architecture/IENS-AND-INDEXES.md]
+updated: 2026-11-12
 ---
 # DeetsHealth — The globals: a draft
+
+> **Archived 2026-11-12** (the owner). These globals model a cached chart, and the phone agent
+> keeps none: the record lives one call long, and the store is Postgres with our sealing
+> (VOICE-AGENT.md §8.7). DeetsEngine was not taken up for the call catalog either: the engine
+> is a skeleton, the catalog is Python, and its hosting has no BAA path (CHAT.md §7). What
+> carries: the journal (the catalog's append-only annotations) and derived views (its rows,
+> rebuilt from the records).
 
 > **A draft, with its two forks decided** (G1 A, G2 A, §7). What the first Epic fetch (Camila Lopez, the Epic sandbox)
 > shows about the shape of the record, and a first sketch of DeetsHealth's own globals in

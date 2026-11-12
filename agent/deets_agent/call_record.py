@@ -9,14 +9,17 @@ to `CallRecord`. The files in `agent/calls/` are committed to the private repo (
 2026-11-11), so they must stay synthetic: never type a real person's details into a typed call.
 
 Each line is one event: `t_ms` (from the call's start), `kind`, and its fields.
-- `call_start`, `call_end` — the mode, the model, the totals and the estimated cost.
+- `call_start`, `call_end` — the schema version, the call's id (the file's name), the source
+  (`typed`, `test`), the scenario (a script's name, or none), the mode, the model; at the end,
+  the totals and the estimated cost.
 - `caller`, `agent` — what each side said.
 - `node` — the Flow moved to a new node.
 - `tool_call`, `tool_result` — a function the model called, its arguments, its result, its time.
 - `llm` — one request to Claude: replayed or live, the request key, the tools offered, the
   thinking blocks dropped, time to first event, total time, tokens, or the error in full.
-- `ehr` — one gRPC call to ehr: its name, time and outcome (never its values; those are in
-  `tool_call` and `tool_result`).
+- `ehr` — one gRPC call to ehr: its name, time and gRPC outcome, and for `CheckCode` and
+  `Book` the domain result (`pass` · `fail` · `locked`; `booked` · `slot_taken`). Never its
+  values; those are in `tool_call` and `tool_result`.
 - `log` — a library warning or error, with its text (the console shows it withheld).
 - `error` — the harness itself failed.
 """
@@ -36,6 +39,10 @@ CALLS = config.AGENT / "calls"
 # Haiku 5.5, per 1M tokens (integrations/ANTHROPIC.md §3). Cache writes are billed at 1.25× the
 # input price and cache reads at 0.1×. An estimate for the record, not a bill.
 PRICES = {"claude-haiku-5-5": (0.10, 0.50)}
+
+# 1: the records of 2026-11-11 (no id, source or scenario in `call_start`; no `result` on an
+# `ehr` event). 2: since 2026-11-12. The catalog reads both (catalog.py).
+SCHEMA_VERSION = 2
 
 
 class _LlmTrace:
@@ -96,11 +103,27 @@ class _LlmTrace:
 
 
 class CallRecord:
-    def __init__(self, mode: str, model: str, folder: Path = CALLS) -> None:
+    def __init__(
+        self,
+        mode: str,
+        model: str,
+        folder: Path = CALLS,
+        source: str = "typed",
+        scenario: str | None = None,
+    ) -> None:
         folder.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        self.path = folder / f"{stamp}-typed.jsonl"
-        self._file = self.path.open("a", encoding="utf-8")
+        # The file's name is the call's id in the catalog (catalog.py). Two calls in one second
+        # get a suffix.
+        self.path = folder / f"{stamp}-{source}.jsonl"
+        n = 2
+        while self.path.exists():
+            self.path = folder / f"{stamp}-{source}-{n}.jsonl"
+            n += 1
+        self.call_id = self.path.stem
+        self._file = self.path.open("x", encoding="utf-8")
+        # Each event also goes to these, as it is written: the dev server's watch stream.
+        self.listeners: list = []
         self._start = time.perf_counter()
         self._model = model
         self._tool_start: dict[str, float] = {}
@@ -108,14 +131,26 @@ class CallRecord:
         self.turns = 0
         self.requests = {"live": 0, "replayed": 0, "failed": 0}
         self.tokens = {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
-        self.event("call_start", mode=mode, model=model, started=datetime.now().isoformat(timespec="seconds"))
+        self.event(
+            "call_start",
+            schema_version=SCHEMA_VERSION,
+            call_id=self.call_id,
+            source=source,
+            scenario=scenario,
+            mode=mode,
+            model=model,
+            started=datetime.now().isoformat(timespec="seconds"),
+        )
 
     def event(self, kind: str, **fields: Any) -> None:
         line = {"t_ms": round((time.perf_counter() - self._start) * 1000), "kind": kind, **fields}
         if kind == "llm":
             self.requests["failed" if "error" in fields else "replayed" if fields.get("hit") else "live"] += 1
-        self._file.write(json.dumps(line, default=str, ensure_ascii=False) + "\n")
+        text = json.dumps(line, default=str, ensure_ascii=False)
+        self._file.write(text + "\n")
         self._file.flush()
+        for listener in self.listeners:
+            listener(text)
 
     # ---- the hooks ----
 
@@ -155,8 +190,11 @@ class CallRecord:
         }
         return _LlmTrace(self, fields)
 
-    def ehr(self, name: str, ms: int, outcome: str) -> None:
-        self.event("ehr", call=name, ms=ms, outcome=outcome)
+    def ehr(self, name: str, ms: int, outcome: str, result: str | None = None) -> None:
+        fields: dict[str, Any] = {"call": name, "ms": ms, "outcome": outcome}
+        if result is not None:
+            fields["result"] = result
+        self.event("ehr", **fields)
 
     def log(self, level: str, where: str, text: str, exc: str | None) -> None:
         fields = {"level": level, "where": where, "text": text}

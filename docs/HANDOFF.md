@@ -12,9 +12,10 @@ updated: 2026-11-12
 > is [archive/PATIENT-APP-HANDOFF.md](archive/PATIENT-APP-HANDOFF.md).
 
 ## Run it
-**The console** (a skeleton, [architecture/CONSOLE.md](architecture/CONSOLE.md)): `npm run dev`,
-then open the address Vite prints (1420 or the next free port) in a browser. **The typed call**:
-see AGENT.md §1. Nothing else runs end to end yet.
+**The console with the agent** ([architecture/CHAT.md](architecture/CHAT.md) §6): `npm run dev`
+starts the agent's dev server and Vite, each on a free port, and prints the address (1420 or the
+next free one). It needs `ehr` built, the dev certificates and `uv sync` (below). `npm run dev:web`
+starts the console alone. **The typed call**: see AGENT.md §1. Nothing else runs end to end yet.
 
 **The single check command** (`scripts/check.mjs`) runs only the checks that your changes need.
 "Changes" means the commits since the upstream branch (else `origin/main`) plus the working
@@ -90,15 +91,16 @@ and the console starts; each next step follows from what the console needs (the 
 
 Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-ORDER.md §3.4).
 
-- **In flight: the Chat page** (branch `chat-what-we-doin`, CHAT.md). Its UI is built
-  (2026-11-12), with no connection yet: the PHI / Test / Demo toggle, the canvas, Start | End
-  call with Confirm?, the sandbox-patients help box, the text bar, Demo's player, the wave.
-  **Next: wire the agent in, the hybrid** (CHAT.md §5): a small FastAPI dev server in
-  `agent/` on this PC only and a free port; the caller's seat over Pipecat's RTVI
-  (`@pipecat-ai/client-js`, the WebSocket transport); our own watch stream from a
-  `CallObserver` for the rail panels, the line facts, PHI mode and Demo; the dev call records
-  served to Demo. The owner leads the design. Polish from every desk test is always on
-  (BUILD-ORDER.md §2; AGENT.md §4).
+- **In flight: the Chat page** (branch `chat-what-we-doin`, CHAT.md). The UI passed its first
+  desk test (2026-11-12). **The connection is built, desk test open** (CHAT.md §6): `npm run
+  dev` starts both; Test calls the agent through client-js and our own text transport (not
+  Pipecat's WebSocket transport, which loads remote code); the watch stream draws Test, PHI
+  and Demo with one code path; Demo plays any call in the catalog. **The catalog** (CHAT.md
+  §7): SQLite, rebuilt from the records, with labels and ratings in the committed
+  `agent/calls/annotations.jsonl`. **Next, the owner's to design:** the rail panels
+  (Timeline, Caller, Step, Tools), where the rating controls sit, the model and code graders.
+  Then the staging deploy (2A: after this desk test; at $0, so the Docker Compose stand-in
+  first, CLOUD.md). Polish from every desk test is always on (BUILD-ORDER.md §2; AGENT.md §4).
 - **Done, 2026-11-11:** the console's skeleton (CONSOLE.md; desk test passed in Edge); Pipecat
   1.16.0 (AGENT.md); `main` holds both.
 - **Paper, done:** the repo layout; the Anthropic dev workspace, "DeetsHealth Dev", key in the
@@ -197,8 +199,6 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
 - **`../DeetsMusic` in a cloud session.** The Tauri DeetsMusic is the repo
   `deets-137/DeetsMusicWindows` (public). `deets-137/DeetsMusic` is an older Swift app. Clone
   DeetsMusicWindows and link it as `../DeetsMusic`, or the docs check fails the README link.
-- **`../DeetsEngine` is not in a cloud session**, so `GLOBALS.md`'s two sources fail the docs
-  check there. They pass on the owner's machine.
 - **Epic's sandbox data is small and tidy.** Real site data is not.
 - **Several Deets* apps run at once on the owner's PC.** Never hard-code a dev port; Vite takes
   the next free one from 1420.

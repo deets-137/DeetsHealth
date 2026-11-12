@@ -146,7 +146,8 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             Stage::Locked => return reply(pb::CheckOutcome::Locked, 0),
             Stage::Unverified(None) => None,
             Stage::Unverified(Some(p)) => {
-                (p.code == code && p.issued.elapsed() < CODE_LIFETIME).then(|| p.patient.clone())
+                // Constant time: the reply's timing never says how many digits were right.
+                (p.code.ct_eq(&code) && p.issued.elapsed() < CODE_LIFETIME).then(|| p.patient.clone())
             }
         };
         if let Some(patient) = right {

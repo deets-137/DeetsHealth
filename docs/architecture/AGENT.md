@@ -59,10 +59,13 @@ end with the goodbye line and no hand off).
 | File | What it does |
 |---|---|
 | `deets_agent/flow.py` | The nodes: greet, verify, menu, schedule, goodbye, hand off. Each node's tools and the global ones (`hand_off`, `end_call`, `emergency`, `medical_question`). The fixed lines (`_say`), the name guard. |
-| `deets_agent/call.py` | One typed call: the pipeline, the turn collector, `start()`, `say()`, `hang_up()`. |
+| `deets_agent/call.py` | One typed call: the pipeline, the turn collector, `start()`, `say()`, `hang_up()`. With a transport (the dev server), RTVI on and `serve()` in place of `start()` and `say()`. |
+| `deets_agent/dev_server.py` | The console's dev server (CHAT.md §6): the caller's seat over RTVI, the watch stream, the catalog API. 127.0.0.1, the launch token, the console's origin only. |
+| `deets_agent/rtvi_json.py` | RTVI as JSON text on the seat's WebSocket; logs nothing. |
+| `deets_agent/catalog.py` | The catalog of dev call records in SQLite, and the committed annotations file (CHAT.md §7). |
 | `deets_agent/ehr_client.py` | The gRPC client: mTLS, a deadline on each call, the edge into `Shielded` types, error kinds. |
 | `deets_agent/llm.py` | Pipecat's Anthropic service behind our client: GA only, the replay cache, stale thinking blocks dropped. |
-| `deets_agent/call_record.py` | The dev call record: one JSON Lines file per typed call. |
+| `deets_agent/call_record.py` | The dev call record: one JSON Lines file per typed or test call, named by its id. Schema 2 (2026-11-12) adds the id, source and scenario to `call_start` and ehr's domain answer to `CheckCode` and `Book`. Each event also goes to the record's listeners (the watch stream). |
 | `deets_agent/redact.py` | The PHI-free log processor; `redacted_text` for a wire message. |
 | `prompts/AGENT-PROMPT.md` | **Every word**: the role prompt, each step's task, each tool's description, every fixed line. The owner reads and edits it by hand; its top says how. |
 | `deets_agent/prompts.py` | Loads AGENT-PROMPT.md and checks it at start-up: every section there, no unknown one, the right `{placeholders}`. |
