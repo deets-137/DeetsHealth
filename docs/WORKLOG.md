@@ -8,6 +8,29 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-12 (Windows, night) — The API surface, the annotation gate, the drift checks
+- The owner asked for the API surface, front end and back end, then for the annotate gap and
+  the state of the docs; then "go ahead with all recommended fixes, ensure to account for
+  possible drift in our docs checks".
+- The annotate gap, found: the console's body was untyped; the gate let unknown fields into the
+  committed `annotations.jsonl`; a sender could set `at` and `rubric_version`; the Review panel
+  dropped the gate's reason; no test ran the routes over HTTP. Fixed: `FIELDS` and `STAMPS` in
+  `catalog.py`, the `Annotation` union and `AnnotationRefused` in `api.ts`, the reason in the
+  Review panel's status line, `test_dev_server.py` (the wall, the close codes, the gate).
+  `/agent/call` now says "ehr is not up yet" instead of "already running" in that case.
+- The Windows catalog bug in the test (HANDOFF.md › Known gotchas) is fixed: `Catalog.close`.
+  The agent's catalog and dev server tests: 33 pass.
+- Docs: new DEV-API.md (the route ledger, the wall, the annotation body, the watch stream, the
+  seat, a map to every other API); the RPC ledger in EHR-SERVICE.md §3; README.md rewritten for
+  the phone agent (it still described the patient app); CHAT.md §7's two stale lines; the six
+  patient-app docs marked `legacy: patient-app` (DOCS-ORG.md §2); CONSOLE.md's Run it and its
+  token counts, which check 6 found stale.
+- docs:check gained checks 12, 13, 14 (facts) and 6 (a suspicion). Each was proved by breaking
+  its ledger once. Check 13 at once caught the "Dev server setup" session's new
+  `rpc FileCall`, which has no ledger row yet; that session was told.
+- The other session's commit 2c4a624 took in this work's edits as they stood then; the rest
+  (the checker, DOCS-ORG.md §4, CONSOLE.md, this entry) is in the tree, not committed.
+
 ## 2026-11-12 (Windows, late night) — The Review panel
 - The Step panel passed its desk test; committed as 4b8b45d (this work's edits only; the other
   session's edits to flow.py and call.py stay in the tree).

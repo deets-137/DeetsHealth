@@ -1,8 +1,8 @@
 ---
 status: built
 desk_test: passed 2026-11-11
-sources: [scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts]
-updated: 2026-11-11
+sources: [scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts]
+updated: 2026-11-12
 ---
 # DeetsHealth — The console
 
@@ -15,10 +15,12 @@ updated: 2026-11-11
 ## 1. Run it
 ```
 npm install
-npm run dev           # Vite on 1420, or the next free port; the first line names it
+npm run dev           # the agent's dev server, the dev database, then Vite (1420 or the next free port)
+npm run dev:web       # the console alone, with no agent
 npm run build         # type check and bundle into console/dist/
 ```
-Open the address that Vite prints in Edge, Chrome, Firefox or Safari. The front-end check is
+What `npm run dev` starts, and in what order, is HANDOFF.md › Run it; the routes the page calls
+are [DEV-API.md](DEV-API.md). Open the address that Vite prints in Edge, Chrome, Firefox or Safari. The front-end check is
 `npm run check -- web` (the type check); `npm run check:all` also bundles.
 
 ## 2. Where it runs (fork 1A, the owner, 2026-11-11)
@@ -94,9 +96,13 @@ web app cannot do.
   picks a theme. `public/prepaint.js` sets the theme before the first paint.
 - **One skin, Glass.** `skin.css`'s base block is Glass. The `data-skin` attribute and the
   mechanism stay, so a second skin is one more block.
-- **The tiers.** `palette.css` holds the solid paints; `themes.css` maps them to 20 color
-  roles; `skin.css` holds 48 tokens for type, layout, shape, spacing, blur and motion;
-  `app.css` reads only tokens. The list is [TOKENS.md](TOKENS.md) (`npm run tokens`).
+- **The tiers.** `palette.css` holds the solid paints; `themes.css` maps them to color roles
+  (the Chat page's call colors, `--go` and `--stop`, and its canvas and bubbles joined on
+  2026-11-12: CHAT.md); `skin.css` holds the tokens for type, layout, shape, spacing, blur and
+  motion; `app.css` reads only tokens. The list and the counts are [TOKENS.md](TOKENS.md)
+  (`npm run tokens`).
+- **Shared helpers:** `tokens.ts` reads a duration token (`tokenMs`) and the reduced-motion
+  setting (`reducedMotion`) for the nav and the Chat page (2026-11-12).
 - **Glass, as in DeetsMotion:** a panel's fill, edge, highlight, shadow and blur are on its
   `::before` layer, so its text is never blurred. Panels are never transformed. Liberation
   Serif, 400 and 700, with `font-synthesis: none`; 16 px body, 14 px floor.

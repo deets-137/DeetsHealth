@@ -5,6 +5,13 @@
 //   3. every section pointer resolves   "SECURITY.md §4.3" → a heading numbered 4.3 in SECURITY.md
 //   4. front matter present and valid   the fields and values of DOCS-ORG.md §2
 //  11. nothing in ideas/ is above `idea`; docs/archive/ holds the archived docs and only them
+// The drift checks (DOCS-ORG.md §4, DEV-API.md §7; 2026-11-12): a doc's ledger against the code.
+//  12. the route ledger (DEV-API.md §2) equals the routes in dev_server.py, and each handler exists
+//  13. the RPC ledger (EHR-SERVICE.md §3) equals the rpcs in ehr.proto, and each has both ends
+//  14. the console and the agent agree: annotation fields, watch message types, the clients
+// And one suspicion, listed but never failing the run:
+//   6. a built doc whose sources changed in git after its `updated` date; a legacy doc whose
+//      sources are all archived
 // DeetsMusic's checks 5 (versions), 18 (generated copies) and 19 (shipped links) come when
 // this repo has releases and generated copies.
 //
@@ -29,7 +36,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const STATUS = ["shipped", "built", "designed", "project", "parked", "idea", "foundation", "sop", "guide", "archived"];
-const KEYS = ["status", "shipped_in", "desk_test", "sources", "updated", "generated"];
+const KEYS = ["status", "shipped_in", "desk_test", "sources", "updated", "generated", "legacy"];
+const LEGACY = ["patient-app"];
 // A path that starts with one of these points into another repo, and is not ours to check.
 const OTHER_REPO = /^(\.\.\/(?!src|docs|scripts|README|CLAUDE)|Deets[A-Za-z]+\/)/;
 // Another repo named in prose: any Deets* name but this app's own.
@@ -132,21 +140,199 @@ export function check() {
     else if (fm.status !== "archived") for (const s of src[1].split(",").map((x) => x.trim()).filter(Boolean)) {
       if (!existsSync(join(ROOT, s))) fail(4, file, 1, `source ${s} does not exist`);
     }
+    if (fm.legacy !== undefined && !LEGACY.includes(fm.legacy)) fail(4, file, 1, `legacy "${fm.legacy}" is not one of ${LEGACY.join(" ")}`);
     if (file.startsWith("docs/ideas/") && fm.status !== "idea") fail(11, file, 1, `in ideas/ with status ${fm.status} — move it out of ideas/`);
     if (file.startsWith("docs/archive/") !== (fm.status === "archived")) fail(11, file, 1, `status ${fm.status} — archived docs, and only they, live in docs/archive/`);
   }
 
-  return { facts, docs: docs.length };
+  drift(fail);
+  const suspicions = stale(docs, texts);
+  return { facts, suspicions, docs: docs.length };
 }
 
-export function report({ facts, docs }) {
+// ---- The drift checks (12–14): a doc's ledger against the code --------------------------------
+
+const DEV_API = "docs/architecture/DEV-API.md";
+const DEV_SERVER = "agent/deets_agent/dev_server.py";
+const CATALOG = "agent/deets_agent/catalog.py";
+const API_TS = "console/src/agent/api.ts";
+const TRANSPORT_TS = "console/src/agent/transport.ts";
+const EHR_DOC = "docs/architecture/EHR-SERVICE.md";
+const PROTO = "ehr/proto/deets/ehr/v1/ehr.proto";
+const EHR_SERVICE = "ehr/src/service.rs";
+const EHR_CLIENT = "agent/deets_agent/ehr_client.py";
+
+/** The body of a numbered `##` section: "## 2. …" up to the next `##`. */
+function section(text, num) {
+  const start = text.search(new RegExp(`^## ${num}\\.? `, "m"));
+  if (start < 0) return null;
+  const rest = text.slice(start + 3);
+  const end = rest.search(/^## /m);
+  return end < 0 ? rest : rest.slice(0, end);
+}
+
+/** The table rows of a text whose first cells match `first`; each row as its cells. */
+function rows(text, first) {
+  const out = [];
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("|")) continue;
+    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+    if (first.test(cells[0] ?? "")) out.push({ cells, line: line });
+  }
+  return out;
+}
+
+const ticked = (cell) => /^`([^`]+)`$/.exec(cell)?.[1];
+/** A difference both ways, as two lists. */
+const diff = (a, b) => [[...a].filter((x) => !b.has(x)), [...b].filter((x) => !a.has(x))];
+
+/** The type members of a TS union `export type NAME =` up to its closing `;`: the first one at
+ * a line's end whose next line starts at the margin (a member's own `;` lines are indented). */
+function union(ts, name) {
+  const m = new RegExp(`export type ${name} =([\\s\\S]*?);[ \\t]*\\n(?=\\S|$)`).exec(ts);
+  if (!m) return null;
+  return m[1].split(/\n\s*\|\s*/).map((s) => s.trim()).filter(Boolean);
+}
+
+function drift(fail) {
+  const need = [DEV_API, DEV_SERVER, CATALOG, API_TS, TRANSPORT_TS, EHR_DOC, PROTO, EHR_SERVICE, EHR_CLIENT];
+  for (const p of need) if (!existsSync(join(ROOT, p))) { fail(12, p, 0, "missing: the drift checks read it"); return; }
+  const server = read(DEV_SERVER);
+  const devApi = read(DEV_API);
+  const apiTs = read(API_TS);
+  const clients = apiTs + "\n" + read(TRANSPORT_TS);
+
+  // 12. The route ledger.
+  const ledger = section(devApi, 2);
+  if (!ledger) fail(12, DEV_API, 0, "no section 2 (the route ledger)");
+  else {
+    const inCode = new Set(
+      [...server.matchAll(/@app\.(get|post|put|patch|delete|websocket)\("([^"]+)"\)/g)].map(
+        ([, m, p]) => `${m === "websocket" ? "WS" : m.toUpperCase()} ${p}`,
+      ),
+    );
+    const routeRows = rows(ledger, /^`(GET|POST|PUT|PATCH|DELETE|WS) \//);
+    const inDoc = new Set(routeRows.map((r) => ticked(r.cells[0])));
+    const [noRow, noRoute] = diff(inCode, inDoc);
+    for (const r of noRow) fail(12, DEV_API, 0, `${r} is a route in ${DEV_SERVER} with no row in §2`);
+    for (const r of noRoute) fail(12, DEV_API, 0, `§2 has a row for ${r}, which ${DEV_SERVER} does not serve`);
+    for (const { cells } of routeRows) {
+      const handler = ticked(cells[1] ?? "");
+      if (!handler || !new RegExp(`async def ${handler}\\(`).test(server))
+        fail(12, DEV_API, 0, `${ticked(cells[0])}: handler ${cells[1] ?? "(none)"} is not an async def in ${DEV_SERVER}`);
+      // 14. Each client it names exists.
+      const client = ticked(cells[2] ?? "")?.replace(/\(\)$/, "");
+      if (client && !new RegExp(`export\\s+(?:async\\s+)?(?:function|const|class)\\s+${client}\\b`).test(clients))
+        fail(14, DEV_API, 0, `${ticked(cells[0])}: client ${client} is not exported from api.ts or transport.ts`);
+    }
+  }
+
+  // 13. The RPC ledger.
+  const contract = section(read(EHR_DOC), 3);
+  if (!contract) fail(13, EHR_DOC, 0, "no section 3 (the RPC ledger)");
+  else {
+    const rpcs = new Set([...read(PROTO).matchAll(/^\s*rpc (\w+)\(/gm)].map((m) => m[1]));
+    const rpcRows = rows(contract, /^`[A-Z]\w*`$/);
+    const [noRow, noRpc] = diff(rpcs, new Set(rpcRows.map((r) => ticked(r.cells[0]))));
+    for (const r of noRow) fail(13, EHR_DOC, 0, `rpc ${r} in ehr.proto has no row in §3`);
+    for (const r of noRpc) fail(13, EHR_DOC, 0, `§3 has a row for ${r}, which ehr.proto does not declare`);
+    const service = read(EHR_SERVICE);
+    const client = read(EHR_CLIENT);
+    for (const { cells } of rpcRows) {
+      const [rpc, handler, method] = cells.slice(0, 3).map(ticked);
+      if (!handler || !new RegExp(`async fn ${handler}\\(`).test(service)) fail(13, EHR_DOC, 0, `${rpc}: no async fn ${handler} in ${EHR_SERVICE}`);
+      if (!method || !new RegExp(`async def ${method}\\(`).test(client)) fail(13, EHR_DOC, 0, `${rpc}: no async def ${method} in ${EHR_CLIENT}`);
+    }
+  }
+
+  // 14. The annotation fields: catalog.py › FIELDS against api.ts › Annotation.
+  const py = /^FIELDS = \{([\s\S]*?)^\}/m.exec(read(CATALOG));
+  const ts = union(apiTs, "Annotation");
+  if (!py || !ts) fail(14, !py ? CATALOG : API_TS, 0, !py ? "no FIELDS = { … }" : "no export type Annotation");
+  else {
+    const want = new Map([...py[1].matchAll(/"(\w+)":\s*\{([^}]*)\}/g)].map(([, k, f]) => [k, new Set([...f.matchAll(/"(\w+)"/g)].map((x) => x[1]))]));
+    const have = new Map();
+    for (const member of ts) {
+      const kinds = /kind:\s*((?:"\w+"\s*\|?\s*)+)/.exec(member)?.[1].match(/\w+/g) ?? [];
+      const fields = new Set([...member.matchAll(/(\w+)\??:/g)].map((x) => x[1]).filter((f) => f !== "kind" && f !== "call"));
+      for (const k of kinds) have.set(k, fields);
+    }
+    const [noTs, noPy] = diff(new Set(want.keys()), new Set(have.keys()));
+    for (const k of noTs) fail(14, API_TS, 0, `annotation kind ${k} is in catalog.py › FIELDS but not in Annotation`);
+    for (const k of noPy) fail(14, API_TS, 0, `annotation kind ${k} is in Annotation but not in catalog.py › FIELDS`);
+    for (const [k, fields] of want) {
+      if (!have.has(k)) continue;
+      const [noField, extra] = diff(fields, have.get(k));
+      if (noField.length || extra.length)
+        fail(14, API_TS, 0, `annotation ${k}: catalog.py takes {${[...fields].join(", ")}}, Annotation has {${[...have.get(k)].join(", ")}}`);
+    }
+  }
+
+  // 14. The watch messages: the "type" values the server sends against api.ts › WatchMessage.
+  const watchTs = union(apiTs, "WatchMessage");
+  if (!watchTs) fail(14, API_TS, 0, "no export type WatchMessage");
+  else {
+    const sent = new Set([...server.matchAll(/"type":\s*"(\w+)"/g)].map((m) => m[1]));
+    const typed = new Set(watchTs.map((m) => /type:\s*"(\w+)"/.exec(m)?.[1]).filter(Boolean));
+    const [noType, noSend] = diff(sent, typed);
+    for (const t of noType) fail(14, API_TS, 0, `the dev server sends type "${t}", which WatchMessage does not have`);
+    for (const t of noSend) fail(14, API_TS, 0, `WatchMessage has type "${t}", which the dev server never sends`);
+  }
+}
+
+// ---- Check 6, the suspicion: a doc older than its sources ------------------------------------
+
+/** Each tracked file's last change: the newest commit date, or today when the tree changes it. */
+function lastChanged() {
+  const out = new Map();
+  const log = execFileSync("git", ["log", "--format=%x01%cs", "--name-only", "--no-renames"], { cwd: ROOT, encoding: "utf8", maxBuffer: 64 << 20 });
+  let date = "";
+  for (const line of log.split("\n")) {
+    if (line.startsWith("\x01")) date = line.slice(1);
+    else if (line && !out.has(line)) out.set(line, date);
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  const status = execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], { cwd: ROOT, encoding: "utf8" });
+  for (const line of status.split("\n")) if (line.length > 3) out.set(line.slice(3).replace(/^.* -> /, ""), today);
+  return out;
+}
+
+function stale(docs, texts) {
+  const out = [];
+  let changed;
+  try {
+    changed = lastChanged();
+  } catch {
+    return [{ at: "git", msg: "could not read the history; check 6 skipped" }];
+  }
+  for (const file of docs) {
+    const fm = frontMatter(texts.get(file));
+    const src = /^\[(.*)\]$/.exec(fm?.sources ?? "")?.[1].split(",").map((s) => s.trim()).filter(Boolean) ?? [];
+    if (!fm || fm.generated || !src.length) continue;
+    if (fm.legacy) {
+      if (src.every((s) => s.startsWith("archive/"))) out.push({ at: file, msg: "legacy, and every source is archived: ready for docs/archive/ (DOCS-ORG.md §5)" });
+      continue;
+    }
+    if (fm.status !== "built" && fm.status !== "foundation") continue;
+    const newer = src.filter((s) => (changed.get(s) ?? "") > fm.updated);
+    if (newer.length) out.push({ at: file, msg: `updated ${fm.updated}; changed since: ${newer.map((s) => `${s} (${changed.get(s)})`).join(", ")}` });
+  }
+  return out;
+}
+
+export function report({ facts, suspicions = [], docs }) {
   const lines = [];
-  const names = { 1: "links", 2: "mentions", 3: "section pointers", 4: "front matter", 11: "ideas/" };
+  const names = {
+    1: "links", 2: "mentions", 3: "section pointers", 4: "front matter", 11: "ideas/",
+    12: "route ledger", 13: "RPC ledger", 14: "console and agent agree",
+  };
   for (const n of Object.keys(names).map(Number)) {
     const mine = facts.filter((f) => f.n === n);
     lines.push(`check ${n} — ${names[n]}: ${mine.length ? `${mine.length} FAIL` : "ok"}`);
     for (const f of mine) lines.push(`    ${f.at}  ${f.msg}`);
   }
+  lines.push(`check 6 — docs older than their sources (a suspicion, never a failure): ${suspicions.length ? `${suspicions.length} to read` : "none"}`);
+  for (const s of suspicions) lines.push(`    ${s.at}  ${s.msg}`);
   lines.push(`[docs-check] ${docs} docs · ${facts.length} fact${facts.length === 1 ? "" : "s"} failing`);
   return lines.join("\n");
 }

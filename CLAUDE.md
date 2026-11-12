@@ -81,6 +81,10 @@ the branch `archive/patient-app`.
   calls, the PHI tag in the contract, the edge, mTLS, tracing and tests.
 - `CALL-FLOW.md` — the default call flow as a map into the code: each step, fixed line, limit
   and code-held rule, by file and symbol. Never copies a word or value (DOCS-ORG.md §1, rule 8).
+- `DEV-API.md` — the one reference for the dev API: every route between the console and the
+  agent's dev server (the route ledger), the wall, the annotation body and gate, the watch
+  stream, the caller's seat, and a map to every other API. `docs:check` 12–14 keep it, the RPC
+  ledger in EHR-SERVICE.md §3 and the code in step; a new route or RPC needs its row.
 - `DATABASE.md` — the dev database shaped like the production store: native Postgres that
   `npm run dev` starts (`scripts/postgres.mjs`), the writer rule, the Chat page's contract, the
   draft schema, and the work to be demo ready in the cloud.

@@ -1,8 +1,8 @@
 ---
 status: sop
 desk_test: none
-sources: []
-updated: 2026-10-19
+sources: [scripts/docs-check.mjs]
+updated: 2026-11-12
 ---
 # DeetsHealth — Docs organization
 

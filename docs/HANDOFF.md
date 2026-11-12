@@ -47,7 +47,7 @@ Each check by hand:
 npm install
 npx tsc --noEmit      # front-end type check (it compiles; it does not run in a browser yet)
 npx vite build        # front-end bundle
-npm run docs:check    # links, mentions, § pointers, front matter, the archive rule
+npm run docs:check    # links, mentions, § pointers, front matter, the archive rule, the drift checks (DOCS-ORG.md §4)
 npm run tokens        # regenerate docs/architecture/TOKENS.md after a token change
 npm run types         # regenerate src/model/ (TypeScript) from core/src/payload.rs
 cargo check --workspace --features deetshealth-core/dev,deetshealth-core/ts   # not --all-features: ehr's `fips` needs CMake and Go
@@ -122,6 +122,11 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   current one with its tools and the limits left, the steps ahead faint (record schema 5:
   `step` events at each move; `OpenCall` now carries the limits). **Per-tool latency**: `GET
   /agent/latency` (CHAT.md §10).
+- **Also in flight: the dev API reference and the annotation gate** (DEV-API.md, 2026-11-12).
+  Built, desk test open (DEV-API.md §8): the gate refuses a field its kind does not take, and the
+  catalog alone sets `at` and `rubric_version`; the console's `Annotation` type has one shape
+  per kind; the Review panel shows the gate's reason; `test_dev_server.py` runs every route.
+  docs:check 12–14 compare the route and RPC ledgers and the console's types with the code.
 - **Also in flight: the call guardrails** (REGULATIONS.md, 2026-11-12). Built, desk test open:
   the greeting is a fixed line with the disclosures (automated, transcribed, a person at any
   time; §6), and a caller confused after a failed code goes to a person at once (§2.1; the kept
@@ -201,6 +206,9 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
 - **The repo layout** (CONVERSION.md §6, a draft).
 - **The agent's words, name and voice** (DESIGN.md §2 B).
 - **Transcript retention**, 30 days by default (a draft value, VOICE-AGENT.md §8.7).
+- **ERRORS.md to the archive?** Every source of it is archived (docs:check 6 lists it). It stays
+  in `architecture/` while the console has no error event of its own, because the pattern
+  carries. His call when to move it.
 
 ### To find out
 - Epic's sandbox: does it serve `Appointment/$find` and `$book`? (VOICE-AGENT.md §8.4)
