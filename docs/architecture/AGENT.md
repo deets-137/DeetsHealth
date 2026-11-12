@@ -225,9 +225,10 @@ end with the goodbye line and no hand off).
 - **The name guard checks words, not spelling.** On a voice call it compares the model's names
   with the speech-to-text words, so a name the transcriber spells one way passes only if the
   model spells it the same way.
-- **No call timeline yet** (OpenTelemetry across the agent and `ehr`, VOICE-AGENT.md §9). The
-  dev call record covers the agent's side for typed calls; the timeline is still the main
-  debugging tool for a voice call.
-- **Simulated callers** (layer 4) are not built; they come in Phase 2.
+- **No call timeline.** The dev call record covers the agent's side of a typed call. The
+  timeline is now a console idea, with the timing data collected in the phone-and-voice work
+  (ideas/README.md; BUILD-ORDER.md §3.3).
+- **Simulated callers** (layer 4) are not built; they come with the chart track
+  (BUILD-ORDER.md §3.2).
 - `grpcio` is the wheel on dev; the FIPS build against OpenSSL is a deploy-image step
   (EHR-SERVICE.md §6).

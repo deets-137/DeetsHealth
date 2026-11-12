@@ -25,9 +25,9 @@ cargo check --workspace --features deetshealth-core/dev,deetshealth-core/ts   # 
 cargo test -p deetshealth-core --features sqlite                  # core tests + compile-fail proofs
 cargo test -p deetshealth-ehr                                     # the ehr service: verify, gate, booking, PHI marks, mTLS
 cargo run -p deetshealth-ehr --example dev_certs                  # once: the dev CA and certificates into dev-certs/
-cargo run -p deetshealth-ehr                                      # ehr on a free port (first line names it), Phase 1 fakes
+cargo run -p deetshealth-ehr                                      # ehr on a free port (first line names it), the text run's fakes
 cargo check -p deetshealth-core --target wasm32-unknown-unknown   # core stays web-ready
-cd agent && uv run python harness/typed_call.py                    # the typed call (Phase 1 desk test); see AGENT.md §1
+cd agent && uv run python harness/typed_call.py                    # the typed call (the desk test); see AGENT.md §1
 cd agent && uv run pytest                                          # the agent's tests, replay only: no tokens
 ```
 The build folder is `target/` at the repo root (it was `src-tauri/target/`).
@@ -38,32 +38,25 @@ interface (VOICE-AGENT.md §7.2).
 
 ## Open now
 ### The build (BUILD-ORDER.md)
-The product is built in six phases, each ending in a desk test (BUILD-ORDER.md §2):
-0. **Paper** — the cost quote, the repo layout, the Epic registration, the dev accounts,
-   `npm run check`. *In flight.*
-1. **The text slice** — the call's shape with no audio and no Epic: the Pipecat Flow (greet,
-   verify, menu, schedule, hand off), the verify gate, a fake in-memory scheduler, fake
-   patients, the typed harness, the PHI-free log processor. Desk test: type a call, book a visit.
-2. **The EHR** — Backend Services sign-in to Epic's sandbox, the chart reads through record and
-   replay, behind the `ehr` service that Phase 1 builds. Desk test: the typed call answers "when is my next visit?"
-3. **Voice** — the fake Twilio, Cartesia in and out, barge-in, fillers, the laptop microphone;
-   measure latency and pick the model. Desk test: speak and book a visit.
-4. **The store and the console** — Postgres with sealing, the call log, transcripts, the audit
-   trail; then the console once the owner designs it.
-5. **The real network** — a Twilio number, booking on Epic's sandbox, results with guards, refills.
-6. **Ship** — the deploy interface, the BAAs, the compliance paperwork, the first hospital.
+**Where we stand (2026-11-11): the paper work and the text run are done.** Three tracks remain,
+and the console starts; each next step follows from what the console needs (the owner,
+2026-11-11). One build is in flight at a time. The whole plan is BUILD-ORDER.md.
+1. **The console** (it leads) — the design on paper first, then the settings pages, staff
+   sign-in, the call list, transcripts and the audit trail (BUILD-ORDER.md §3.1).
+2. **The chart and the store** — the Epic sign-in, the chart reads through record and replay,
+   booking on Epic's sandbox, then Postgres with sealing (BUILD-ORDER.md §3.2).
+3. **The phone and the voice** — Twilio and Cartesia, speech in and out, the speed target, the
+   cost per call minute, then a real number (BUILD-ORDER.md §3.3).
 
-- **Decided 2026-10-20: the text slice (Phase 1) goes first; Backend Services (Phase 2) follows
-  when the Epic registration lands.** The owner starts Phase 1 on 2026-10-21. Phase 0's paper
-  items run beside it; none of them blocks it except an Anthropic dev key.
-- **Phase 0, open:** the cost per call minute (Claude); `npm run check` from DeetsMusic
-  (Claude). **E-1 nearly done (2026-11-11):** the patient app's registration became the
-  Backend Systems app (same client IDs), the APIs are checked against Epic's live catalog
-  (EPIC.md §2.1–§2.2), and the JWK Set URL is live (EPIC.md §2.3); the owner saves the form
-  with the URL. Twilio and Cartesia accounts move to Phase 3. Done: the repo layout
-  (2026-10-21) and the Anthropic dev workspace, "DeetsHealth Dev", key in the git-ignored
-  `.env` (2026-10-20). **So Phase 2 can start after the Phase 1 desk test.**
-- **Phase 1, in flight (2026-10-21).** Decided: Claude through a replay cache, cheapest model
+Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-ORDER.md §3.4).
+
+- **Next:** the single check command (Claude), then the console's design on paper (the owner,
+  with Claude). Polish from every desk test is always on (BUILD-ORDER.md §2; AGENT.md §4).
+- **Paper, done:** the repo layout; the Anthropic dev workspace, "DeetsHealth Dev", key in the
+  git-ignored `.env`; the Epic registration (2026-11-11: the patient app's registration became
+  the backend app with the same client IDs; the APIs checked against Epic's live catalog; SMART
+  v2; the key set live, EPIC.md §2).
+- **The text run, closed 2026-11-11.** Decided: Claude through a replay cache, cheapest model
   first (Haiku), a hard $100-a-month API budget; the Rust `ehr` service from the first call;
   gRPC between the agent and `ehr`; mTLS with FIPS crypto at both ends; the caller identified
   by name and date of birth, then the code. Built: `ehr/` for Phase 1 — the contract (eight
@@ -85,9 +78,9 @@ The product is built in six phases, each ending in a desk test (BUILD-ORDER.md �
   fixed medical-question line, an emergency phrase screen on every caller line, a name guard,
   and an invented-value check (AGENT.md §3; FUTURE-SETTINGS.md §2, §3). Then the read-back before
   the lookup (option A), and every prompt word moved to `agent/prompts/AGENT-PROMPT.md` for the
-  owner to edit. 43 agent tests.
-  **Waiting on the owner's next desk test.** Next in Phase 1: the call timeline. Phase 3 holds his offer
-  of audio cues (connect, goodbye, a hold sound for slow tools).
+  owner to edit. 43 agent tests. The owner closed the text run here: what is left is polish.
+  The call timeline became a console idea (ideas/README.md); his audio cues wait for the voice
+  work (BUILD-ORDER.md §3.3).
 - **Next sitting (the owner, 2026-10-21): start with a full rundown** before building more:
   every library we use and how we use it (Rust: tonic, prost, rustls/AWS-LC, tokio, rcgen,
   zeroize, getrandom; Python: Pipecat 1.13 and its Flows, the Anthropic SDK, grpcio, protobuf,
@@ -99,10 +92,9 @@ The product is built in six phases, each ending in a desk test (BUILD-ORDER.md �
 - **Step 4, the docs.** Done: DESIGN, HANDOFF, CLAUDE.md, SECURITY, SECURITY-BRIEF, EPIC,
   DEBUGGING, a header on CORE-CRATE (its sections change with their code), the archive rule,
   and a draft of `ops/PROTOCOLS.md`. Open: LESSONS.md's patient-app lessons.
-- **Epic backend registration** (EPIC.md §2, step E-1): converted 2026-11-11; the owner saves
-  the form with the JWK Set URL.
-- **Step 5, Backend Services against the Epic sandbox,** is now Phase 2 of the build: it
-  follows the text slice and waits for the registration (BUILD-ORDER.md §3).
+- **Epic backend registration** (EPIC.md §2, step E-1): done 2026-11-11.
+- **Step 5, Backend Services against the Epic sandbox,** is now the Epic sign-in on the chart
+  track (BUILD-ORDER.md §3.2).
 - **Held back from the archive**, each moving with the work that replaces it (CONVERSION.md
   §5.1): `core/src/store/`, `payload.rs` (the pass redesign); `auth.rs`, `sync.rs`, `dev.rs`,
   `build.rs`, `epic-client.example.json` (Backend Services); the patient-only front-end files
@@ -132,7 +124,7 @@ The product is built in six phases, each ending in a desk test (BUILD-ORDER.md �
   that runs it (`../DeetsMusic/.githooks/pre-push`).
 - **Unit tests on pure logic**: `tests/*.test.ts` on Node's own runner, no test dependency.
 
-## State of play (2026-10-19)
+## State of play (2026-11-11)
 - **The pivot.** DeetsHealth is now the hospital phone agent (DESIGN.md). Every fork for the
   product so far is closed (VOICE-AGENT.md §7).
 - **Conversion steps 1–3 are done** (CONVERSION.md §5.1): the Tauri host and the patient-only
@@ -144,7 +136,9 @@ The product is built in six phases, each ending in a desk test (BUILD-ORDER.md �
 - **Built and kept:** the core crate's FHIR client, normalizer, sealing and `Shielded<T>`
   (CORE-CRATE.md), and the front-end toolkit (tokens, themes, skins, primitives, the card
   engine).
-- **Nothing of the phone agent is built yet.**
+- **The phone agent's text run is built and closed (2026-11-11):** `agent/` and `ehr/`, a typed
+  call that verifies and books against fakes (AGENT.md, EHR-SERVICE.md). No voice, no Epic
+  reads, no store, no console yet.
 
 ## Known gotchas
 - **A cloud session cannot push a tag** (git proxy, HTTP 403, 2026-10-19). Branches push.
@@ -175,7 +169,9 @@ The product is built in six phases, each ending in a desk test (BUILD-ORDER.md �
 - **The record lives one call long**: no chart cache to protect (VOICE-AGENT.md §8.1).
 - **The typed, Epic-free call is built before the Epic sign-in** (2026-10-20): the patient
   feels the call's shape first, text proves the Flow for Claude tokens only, and the Epic
-  registration was not in yet (BUILD-ORDER.md §3).
+  registration was not in yet (BUILD-ORDER.md §4).
+- **The console starts; each next step follows as we go** (2026-11-11): the owner leads the
+  console first, so its uses, features and settings grow one at a time (BUILD-ORDER.md §4).
 
 ## File map
 - `core/` — the core crate (CORE-CRATE.md): `shielded.rs` (the wrapper and its passes),

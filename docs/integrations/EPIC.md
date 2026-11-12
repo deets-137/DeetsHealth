@@ -39,8 +39,9 @@ chat. The private key never leaves the secret manager (SECURITY.md §4.6).
 | 2 | Incoming APIs | The list in §2.1. **Read, search and the booking operations only.** | Minimum necessary (SECURITY.md §4.9). |
 | 3 | Non-Production JWK Set URL | **`https://health-keys.deets.solutions/nonprod/jwks.json`** (live 2026-11-11). The form takes a URL only for this audience; there is no field for a pasted key. | Epic checks our JWT against it. §2.3. |
 | 3b | Production JWK Set URL | Blank. It joins with the deploy (§4: one key per hospital's deploy). | |
-| 4 | SMART on FHIR version | **R4** | |
-| 5 | SMART scope version | Tell me **v1 or v2**. | Sets the scope words (`system/*.read` or `system/*.rs`). |
+| 4 | SMART on FHIR version | **R4** | The sign-in's version. The API list, not this field, lets us call the STU3 booking APIs. |
+| 5 | SMART scope version | **SMART v2** (the owner, 2026-11-11) | v2's CRUDS letters grant less: the held note write is `DocumentReference.c` (create only), where v1's `.write` also allows update. Epic grants what we ask for, cut to the selected APIs. The `ehr` sign-in asks with v2 words. |
+| 5b | FHIR ID Generation Scheme | **64-Character-Limited FHIR IDs** (the owner, 2026-11-11) | The FHIR standard caps an ID at 64 characters. Epic keeps longer IDs only for apps that saved old ones; we save none (the record lives one call long). |
 | 6 | Non-production client ID | Copy it to `epic-client.json`. | The sandbox. |
 | 7 | Production client ID | Copy it to `epic-client.json`, unused until the first real hospital. | §4. |
 | 8 | Public documentation, privacy policy, terms | Blank if the form allows. Needed before production. | |

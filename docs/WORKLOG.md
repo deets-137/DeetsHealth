@@ -8,7 +8,7 @@ updated: 2026-11-11
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
-## 2026-11-11 (night) — Phase 0 again: the Epic registration, the APIs, the JWK Set URL
+## 2026-11-11 (night) — Phase 0 done, the text run closed, the plan reframed
 - The owner asked where Phase 0 stands and whether the patient app's Epic registration carries
   over. It was a Patients-audience app. I said the audience could not change; it can. The
   owner changed it to Backend Systems and retired the patient app's registration. The client
@@ -27,6 +27,20 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   the `cf` CLI, made a P-384 key (ES384; the private key in git-ignored `dev-certs/`), deployed
   `https://health-keys.deets.solutions/nonprod/jwks.json` and checked it live (EPIC.md §2.3).
   Twilio and Cartesia accounts move to Phase 3. No API spend.
+- On the owner's word: SMART v2 (narrower grants: the held note write is create only) and
+  64-character FHIR IDs (the standard; we save no IDs). `epic-client.json` now says v2.
+  Committed `9b10f24` (the Epic work) and `91eb92e` (the 149 replay recordings).
+- **The text run is closed** (the owner). Its one open item, the call timeline, measures speed,
+  which matters on a voice call, not a typed one. What it left is polish: the gaps in AGENT.md
+  §4, fixed as each desk test finds them. The owner wants the timeline in the console instead: a
+  chat view to see and run calls, with rows for what the agent says, what the caller hears and
+  what each tool does, with their times. Recorded as an idea (ideas/README.md).
+- **The plan, reframed** (the owner): no more numbered phases. Three tracks remain to the
+  finish line, not three builds at once: the console, the chart and the store, the phone and the
+  voice. The console starts, and each next step follows as we go, so its uses, features and
+  settings grow one at a time. Then going live. BUILD-ORDER.md is rewritten; its §5 maps the
+  old phase names, which older docs and this log still use. Next: the single check command,
+  then the console's design on paper.
 
 ## 2026-11-11 (evening) — the third desk test: an emergency in the middle of a booking
 - The repo is confirmed private. On the owner's word, the dev call records in `agent/calls/` are

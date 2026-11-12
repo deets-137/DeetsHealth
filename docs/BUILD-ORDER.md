@@ -2,131 +2,146 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-10-20
+updated: 2026-11-11
 ---
 # DeetsHealth — Build order
 
-> The phases that take the phone agent from nothing to a first hospital, each ending in a desk
-> test. It rests on three decisions already made: the nucleus is one inbound call that books a
-> visit ([DESIGN.md](DESIGN.md) §A); the test layers build in the order 3, 4, 5, 7, 6, 8
-> ([architecture/VOICE-AGENT.md](architecture/VOICE-AGENT.md) §9); the Epic plan is E-1 to E-4
-> ([integrations/EPIC.md](integrations/EPIC.md) §5). The state of each phase lives here; the
-> state of the whole project is [HANDOFF.md](HANDOFF.md).
-> Status legend: ✅ done · 🔵 in flight · ⬜ not started · ❓ a fork for the owner
+> The path from where we stand to the first hospital. The paper work and the text run are done.
+> Three tracks remain: the console, the chart and the store, and the phone and the voice. The
+> console starts, and each next step follows from what the console needs. Then going live. The
+> state of the whole project is [HANDOFF.md](HANDOFF.md); the record of each sitting is
+> [WORKLOG.md](WORKLOG.md).
 
 **Terms**
-- **Slice:** one path through the product that the owner can desk-test end to end.
-- **Text harness:** test layer 3. The real Flow, text in and text out, no audio.
-- **Fake scheduler:** the in-memory `Scheduler` that stands in for an EHR's booking in tests.
-- **E-1 … E-4:** the Epic steps in EPIC.md §5. E-1 is the owner's registration on fhir.epic.com.
+- **Track:** one of the three bodies of work that must all reach the finish line. Not three
+  builds at once: one build is in flight at a time (§4).
+- **Desk test:** the owner runs the work by hand and gives feedback.
+- **Text run:** the typed call, with no audio and no Epic: text in, text out.
+- **Fake scheduler:** the in-memory booking that stands in for an EHR in tests.
+- **Record and replay:** each reply from Claude or Epic is recorded once and replayed in tests,
+  so a rerun costs nothing and puts no load on Epic.
 
-## 1. Why this order
-- The patient feels turn-taking, the verify step and the booking first. The Flow and the tools
-  can be proven in text for Claude tokens only, so text comes before voice.
-- Voice costs Cartesia minutes. It comes once the Flow is right.
-- Nothing needs persisting before a call works, so the store comes after voice.
-- The PHI wall (the verify gate, the PHI-free log processor) is in from the first phase. It is
-  never retrofitted.
-- Each phase ends in something the owner can run (LESSONS.md §3.11: kept tooling, not a harness).
+## 1. Where we stand (2026-11-11)
+- **Paper: done.** The repo layout (2026-10-21). The Anthropic dev workspace and the $100 monthly
+  ceiling (2026-10-20). The Epic registration: the patient app's registration became the backend
+  app, the APIs were checked against Epic's live catalog, SMART v2, and the key set is live on
+  Cloudflare ([integrations/EPIC.md](integrations/EPIC.md) §2). Two small items moved on: the
+  single check command (§2) and the cost per call minute (phone and voice, §3.3).
+- **The text run: closed** (the owner, 2026-11-11). What it built: the call flow (greet, verify,
+  menu, book, next visit, hand off, goodbye); the Rust `ehr` service with the verify gate, the
+  patient binding and the fake scheduler; gRPC with mTLS between them; the typed harness and the
+  dev call record; logs that hold no protected data; the emergency line, the phrase screen, the
+  medical-question line, the name guard, the read-back; every prompt word in
+  `agent/prompts/AGENT-PROMPT.md`. Three desk tests. 43 agent tests and 32 `ehr` tests. What it
+  left is polish (§2), not missing parts. The call timeline it once held is now a console idea
+  ([ideas/README.md](ideas/README.md)).
 
-## 2. The phases
+## 2. Next
+1. **The single check command** (Claude): `npm run check` and the pre-push hook from
+   `../DeetsMusic`. One command runs every test and check.
+2. **The console's design, on paper** (the owner, with Claude): what it shows, how staff sign
+   in, the look ([DESIGN.md](DESIGN.md) §C, §D). The console track starts here.
+3. **Polish, always on.** Every desk test, on any track, feeds fixes back into the call. The
+   gaps a caller would notice today are in [architecture/AGENT.md](architecture/AGENT.md) §4: a
+   medical question asked with a booking gets the medical line a turn late; the model's own
+   words before a fixed line are held by the prompt only; a time said in words is not checked;
+   off-topic questions are held by the prompt only.
 
-### Phase 0 — paper 🔵
-> **Part:** project · 2026-10-20
+## 3. The three tracks
+Each item says its state in words: **done**, **next**, or **later**.
 
-No code. Everything the first slice needs to exist first.
+### 3.1 The console (it leads)
+The staff web page: settings, calls, transcripts.
+- **Next:** the design on paper (§2).
+- **Later:** free the front end from the old Windows host (Tauri), so it runs in a browser
+  ([CONVERSION.md](CONVERSION.md) §5.1).
+- **Later:** the settings pages, from what the agent already has: what follows the emergency
+  line, the medical-question line, the emergency phrase list
+  ([architecture/FUTURE-SETTINGS.md](architecture/FUTURE-SETTINGS.md)). The agent reads its
+  settings through one interface. A stand-in holds them until the store exists, so the console
+  does not wait on the database.
+- **Later:** staff sign-in.
+- **Later:** the call list, the transcripts and the audit trail. These meet the store (§3.2).
+- **An idea, not planned:** a chat view to watch and run calls, with a timeline of each call
+  ([ideas/README.md](ideas/README.md)).
 
-| # | Item | Who | State |
-|---|---|---|---|
-| P0.1 | The cost per call minute, quoted (DESIGN.md §I, VOICE-AGENT.md §8.5) | Claude | ⬜ |
-| P0.2 | The repo layout approved (CONVERSION.md §6, a draft): `agent/`, `ehr/`, `console/`, `deploy/`. Each folder is born with the phase that needs it; `ehr/` in Phase 1 | the owner | ✅ 2026-10-21 |
-| P0.3 | E-1: the Epic backend app registration (EPIC.md §2): the patient app's registration converted to Backend Systems, the APIs checked against Epic's live catalog, the key made and the JWK Set URL live | the owner, Claude | 🔵 2026-11-11 (the owner saves the form with the URL) |
-| P0.4 | Dev accounts: Anthropic (a separate workspace) ✅ 2026-10-20. Twilio (trial) and Cartesia (standard) move to Phase 3, the first phase that uses them. Synthetic data only; no BAA needed for that | the owner | 🔵 |
-| P0.5 | `npm run check` and the pre-push hook from `../DeetsMusic` | Claude | ⬜ |
-| P0.6 | The fork §3 decided: the text slice goes first, Backend Services follows E-1 | the owner | ✅ 2026-10-20 |
+**Desk test:** the owner changes a setting in the console, and the next typed call follows it.
+Later: he reads the transcript of his own test call, and the audit trail shows that he read it.
 
-### Phase 1 — the text slice 🔵 (started 2026-10-21)
-> **Part:** built · 2026-10-21 · `ehr/` and `agent/` built; a scripted call books a visit end to
-> end (EHR-SERVICE.md §6a, AGENT.md). Waiting on the owner's desk test. Not built yet: the call
-> timeline.
+### 3.2 The chart and the store
+No screens. Epic behind the `ehr` service, and the database.
+- **Done:** the Epic registration and the key set (EPIC.md §2).
+- **Later:** the Epic sign-in (Backend Services, SMART v2). It replaces `core/src/auth.rs`.
+- **Later:** the chart reads through record and replay: visits, medicines and their schedule,
+  refill state, lab results with their guards (released results only, never sensitive ones).
+  EPIC.md §2.1 lists each API.
+- **Later:** booking on Epic's sandbox (`$find` and `$book`), if the sandbox serves it. Moving
+  and cancelling hand off to staff: Epic has no API for them (EPIC.md §2.2).
+- **Later:** simulated callers become the test suite.
+- **Later:** the pass redesign; `core/src/store/` and `payload.rs` move to `archive/`
+  (CONVERSION.md §5.1).
+- **Later:** the store. Postgres, sealed field by field under the hospital's own key. It holds
+  the settings (in place of the stand-in), the call log, transcripts and the audit trail
+  ([architecture/VOICE-AGENT.md](architecture/VOICE-AGENT.md) §8.7).
 
-Pipecat Flows with the node map of VOICE-AGENT.md §8.1, in `agent/`. Features C1, C2, C4, S1,
-S2 and S5 against the fake scheduler and fake patients. C3's second factor is a fake code. The
-text harness (layer 3), the call timeline and the PHI-free log processor are built here.
-- **The model (decided 2026-10-20, the owner):** Claude through the Anthropic Messages API
-  from the first day, on a dev Console workspace (synthetic data only). Every Claude reply is
-  recorded and replayed, keyed by its prompt: a rerun with no change costs nothing and needs
-  no network. Not chosen: a local model (llama.cpp) first. It runs Pipecat's OpenAI path, not
-  the Anthropic one, and its tool calls and wording do not predict Claude's.
-- **The budget (the owner, 2026-10-20): the Max plan's $100 of API credit a month, a hard
-  ceiling.** The credit lands in the Deets.Solutions Console organization; the work runs in its
-  "DeetsHealth Dev" workspace. No purchased credit and no auto-reload. Every design choice
-  counts tokens: the replay cache, prompt caching on the fixed system prompt, a `max_tokens`
-  cap on each reply. **Every test starts on the cheapest model (Claude Haiku 5.5) and moves up
-  only when a test shows it must** (the owner, 2026-10-20; VOICE-AGENT.md §8.3). This holds for
-  the agent and for the test-only roles (the simulated callers of layer 4). The key lives in the git-ignored `.env` (`.env.example`
-  shows its shape); `.claude/settings.json` denies Claude any read of it.
-- **The Rust `ehr` service is born here (decided 2026-10-21, the owner).** From the first
-  typed call it holds the verify state, binds every tool call to the verified patient and runs
-  the fake scheduler (SECURITY.md §4.9). The Python agent only asks it; Pipecat Flows decides
-  which tools each node offers. Phase 2 swaps the fake scheduler for Epic behind the same
-  interface. Not chosen: Python fakes first, which would move the patient binding from Python
-  to Rust in Phase 2, the retrofit §1 rules out.
-- **The wire is gRPC with mTLS (decided 2026-10-21, the owner):** deadlines and cancels reach
-  Rust, and the PHI tag lives in the contract. Not chosen: HTTP with JSON. The design is
-  [architecture/EHR-SERVICE.md](architecture/EHR-SERVICE.md).
-- **The verify gate is tested with no model:** a scripted stub drives the Flow and asserts
-  which tools each node offers. The chart tools must not exist before the check passes.
+**Desk test:** the typed call answers "when is my next visit?" and "when do I take my
+medicine?" from Epic's sandbox, through recorded replies.
 
-**Desk test:** the owner types a call and books a visit.
+### 3.3 The phone and the voice
+- **Later:** dev accounts with Twilio and Cartesia, synthetic data only (the owner).
+- **Later:** a fake phone line, Cartesia speech in and out, interruptions (barge-in), filler
+  words while a slow tool runs, the laptop microphone.
+- **Later:** measure the speed against the 800 ms target and pick the model from the numbers
+  (VOICE-AGENT.md §8.3). Quote the cost per call minute. Collect the timing of each step; the
+  console's call timeline idea would show it.
+- **Later:** the owner's audio cues: connect, goodbye, a hold sound for a slow tool.
+- **Later:** a real Twilio number and a tunnel. It meets the chart (§3.2) for booking on Epic.
 
-### Phase 2 — the EHR ⬜
-E-2: Backend Services sign-in replaces `core/src/auth.rs`. E-3: the reads R1 and R2 through
-record and replay, behind the `ehr` service that Phase 1 built.
-The pass redesign lands and `core/src/store/` and `payload.rs` move to `archive/`
-(CONVERSION.md §5.1). Simulated callers (layer 4) become the test suite.
-**Desk test:** the text harness answers "when is my next visit?" from the Epic sandbox's
-recorded replies.
+**Desk test:** the owner speaks and books a visit. Then he phones the number from his own phone
+and books one.
 
-### Phase 3 — voice ⬜
-The fake Twilio (layer 5). Cartesia Ink in and Sonic out. C6 barge-in, C7 fillers. Layer 7, the
-owner's laptop microphone. Measure the 800 ms target and pick the model from the numbers
-(VOICE-AGENT.md §8.3).
-**Desk test:** the owner speaks and books a visit.
+### 3.4 Going live
+The deploy interface and A2, one deploy per hospital in our cloud (VOICE-AGENT.md §7.2). The
+production key set on AWS (EPIC.md §2.3). Signed BAAs with every vendor (VOICE-AGENT.md §8.2).
+The paperwork in [architecture/SECURITY.md](architecture/SECURITY.md) §6. The first hospital.
 
-### Phase 4 — the store and the console ⬜
-Postgres, sealing, the KMS key (X3). The call log, transcripts, the audit trail (X6, X7). Then
-the console K1 to K5, once the owner has designed it (DESIGN.md §C, §D).
-**Desk test:** the owner reads the transcript of his own test call in the console; the audit
-trail shows the view.
+## 4. Decisions that shape the order
+- **The console starts; each next step follows as we go** (the owner, 2026-11-11). He leads the
+  console first, so that its uses, features and settings grow one at a time. Work on the other
+  two tracks comes when the console needs it, or while the console waits on the owner's design
+  or desk test. **One load-bearing build is in flight at a time** (CLAUDE.md › Working style).
+- **The text run first** (the owner, 2026-10-20): the patient feels the call's shape first, and
+  text proves the flow for Claude tokens only. Chosen over the Epic sign-in first, which had to
+  wait for the registration.
+- **Claude through a replay cache, cheapest model first** (the owner, 2026-10-20): Haiku first,
+  a hard $100-a-month ceiling, no purchased credit. A local model was not chosen: its tool calls
+  and wording do not predict Claude's.
+- **The Rust `ehr` service from the first call** (the owner, 2026-10-21): it binds every tool to
+  the verified patient, so the binding is never retrofitted (SECURITY.md §4.9).
+- **gRPC with mTLS between the agent and `ehr`** (the owner, 2026-10-21): deadlines and cancels
+  reach Rust, and the protected-data tag lives in the contract
+  ([architecture/EHR-SERVICE.md](architecture/EHR-SERVICE.md)).
+- **The verify gate is tested with no model:** a scripted stub drives the flow and checks which
+  tools each step offers.
+- **The protected-data wall is in from the start** (the verify gate, the logs). It is never
+  retrofitted.
 
-### Phase 5 — the real network ⬜
-A Twilio trial number and a tunnel (layer 8). E-4: booking on the Epic sandbox, if it serves
-`$find` and `$book`. R4 results with guards. R3 refills, once Epic confirms what a backend app
-may do.
-**Desk test:** the owner phones the number from his own phone and books a visit.
+## 5. Where the old phase names went
+Older docs and the work log name phases. They map to this order:
 
-### Phase 6 — ship ⬜
-The deploy interface and A2 (X4). Signed BAAs with every vendor (VOICE-AGENT.md §8.2). The
-SECURITY.md §6 paperwork. The first hospital.
+| Old name | Now |
+|---|---|
+| Phase 0, paper | §1, done |
+| Phase 1, the text slice | §1, the text run, closed 2026-11-11 |
+| Phase 2, the EHR | §3.2, the chart and the store |
+| Phase 3, voice | §3.3, the phone and the voice |
+| Phase 4, the store and the console | §3.2 (the store) and §3.1 (the console) |
+| Phase 5, the real network | §3.3 (the real number) and §3.2 (booking on Epic) |
+| Phase 6, ship | §3.4, going live |
 
-## 3. The fork: what goes first while E-1 waits ✅
-**Decided 2026-10-20: the text slice first** (the owner). The typed, Epic-free call of Phase 1
-is built now; Backend Services sign-in (Phase 2) starts when E-1 lands. The two options, as
-they were put:
-
-CONVERSION.md step 5 records "the first feature: SMART Backend Services against the Epic
-sandbox." That step is blocked until E-1 lands and the sandbox accepts the new client (about
-25 minutes to an hour, EPIC.md §3). Claude wrote the step on 2026-10-19, before the test layers
-were designed.
-- **A. The text slice first (chosen).** Build the call's shape now. Backend Services starts the
-  moment E-1 lands, as a second small feature. The two share no primitive until the `ehr`
-  service's contract exists in Phase 2, so the one-in-flight rule holds in spirit.
-- **B. Backend Services first, as recorded (not chosen).** Paper work only until E-1 lands. Cost: idle build
-  time, and the call's shape, which the patient feels first, waits.
-
-## 4. Choices that wait for their phase
-- The console's layout, staff sign-in and which looks it keeps (Phase 4; DESIGN.md §C, §D).
-- The agent's words, name and voice (Phase 3 at the latest; DESIGN.md §B).
-- Transcript retention, 30 days as a draft (Phase 4; VOICE-AGENT.md §8.7).
-- The Spanish path (after Phase 3; VOICE-AGENT.md §8.6).
+## 6. Choices that wait for their work
+- The console's layout, staff sign-in and its looks (§3.1; DESIGN.md §C, §D).
+- The agent's words, name and voice (§3.3 at the latest; DESIGN.md §B).
+- Transcript retention, 30 days as a draft (§3.2; VOICE-AGENT.md §8.7).
+- The Spanish path (after §3.3; VOICE-AGENT.md §8.6).
+- Outbound calls, medication check-ins among them (after inbound; ideas/README.md).

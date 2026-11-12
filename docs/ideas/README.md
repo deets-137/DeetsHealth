@@ -17,6 +17,13 @@ hospital or a patient that the agent can do any of these things. The patient app
   paper first: consent, call times, who sees the answers, and where they are filed (the held
   `DocumentReference.Create (Clinical Notes)` API, EPIC.md §2.1). Inbound, the caller asks
   "when do I take my pills?" and the agent reads `MedicationRequest`'s dose instructions.
+- **A call view in the console, with a call timeline** (the owner, 2026-11-11: "for later";
+  he will talk us through it). A chat-style view where staff see calls and run test calls. Each
+  call gets a timeline with one row each for what the agent says, what the caller hears and
+  what each tool does, and how long each step takes. It replaces the call timeline that the text
+  run once planned (a trace in a local viewer, ops/DEBUGGING.md); the timing data comes from
+  the phone-and-voice work (BUILD-ORDER.md §3.3). The view shows protected data, so each view
+  is audited (SECURITY.md §4).
 - **Spanish and other languages.** Cartesia's Ink-2 is English only (VOICE-AGENT.md §8.6).
 - **Running on Epic's Agent Factory** once Epic opens external connectors (VOICE-AGENT.md §5).
 - **Other health products in this repo** (the owner, 2026-10-19: "if we ever get more health
