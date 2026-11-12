@@ -30,11 +30,15 @@ def assert_clean(call: TypedCall) -> None:
 
 async def run(ehr, name: str) -> tuple[TypedCall, list[str | None]]:
     call = TypedCall(ehr, build_llm(Mode.REPLAY))
-    # The disclosures are a fixed line: every call starts with them, word for word.
-    assert await call.start() == greeting()
-    replies = [await call.say(line) for line in script(name)]
-    assert_clean(call)
-    await call.hang_up()
+    # hang_up() in `finally`: a reply that is not recorded fails the test at once, and the
+    # pipeline is stopped, so the run goes on to the next test (it hung before, 2026-11-12).
+    try:
+        # The disclosures are a fixed line: every call starts with them, word for word.
+        assert await call.start() == greeting()
+        replies = [await call.say(line) for line in script(name)]
+        assert_clean(call)
+    finally:
+        await call.hang_up()
     return call, replies
 
 
@@ -147,8 +151,17 @@ async def test_code_confusion(ehr):
     not to more tries. Two near-identical records on one date mean no code went out (twins)."""
     call, replies = await run(ehr, "code_confusion.txt")
     assert any(r and "didn't match" in r for r in replies), "the first code should fail"
-    last = replies[-1]
-    assert last is not None and "member of our staff now" in last, "the confused caller goes to a person"
+    assert replies[-1] == text("line.hand_off_code"), "the confused caller goes to a person"
+    assert call.ended
+
+
+async def test_no_code_after_a_resend(ehr):
+    """The owner's test call, 2026-11-12: a twin gets no text, asks for a new code, still gets
+    none, and goes to a person with an apology (FUTURE-SETTINGS.md §7). No code was ever checked.
+    The resend line says a code went out only if the details match."""
+    call, replies = await run(ehr, "no_code_after_resend.txt")
+    assert text("line.code_resent") in replies, "the caller should be sent a new code first"
+    assert replies[-1] == text("line.hand_off_code"), "no text after a new code goes to a person"
     assert call.ended
 
 

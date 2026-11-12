@@ -1,0 +1,11 @@
+# A typed call: the owner's test call of 2026-11-12. The caller's name and date of birth match two
+# near-identical records (the fake Casey Morgan and Casey Morgen), so no code goes out, and none
+# goes out after a resend either. No code is ever checked. The agent hands off with an apology
+# (task.verify, FUTURE-SETTINGS.md §7).
+# Run: uv run python harness/typed_call.py --script tests/scripts/no_code_after_resend.txt
+Hey, my name is Casey Morgan, I'd like to book an appointment for a pain in my left wrist
+June 5th 1990
+Yes
+are you broken i didnt get a code
+yes
+bruh i still didnt get it

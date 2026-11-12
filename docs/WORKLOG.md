@@ -8,6 +8,26 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-12 (Windows, night) — The Casey Morgan call review, friction at verification
+- Reviewed the owner's test call as Casey Morgan (a twin record: no code goes out). The
+  verification rules held and nothing showed whether the details matched. Two prompt gaps:
+  `line.code_resent` said a code went out when none did, and `task.verify` sent a caller with no
+  text to a person only after a failed code check.
+- The owner's drafts A and B: `line.code_resent` now says a new code went out only if the details
+  match; `task.verify` hands off when there is still no text after a new code, by itself.
+- His idea, an instant "technical limitation" transfer for twins, would tell anyone with a name
+  and date of birth that two or more records exist (SECURITY.md §4.4). He chose the same path
+  for every caller, warmer: a `verification_failed` hand-off speaks `line.hand_off_code`. The
+  instant transfer is a hospital setting, off by default, with its cost stated:
+  FUTURE-SETTINGS.md §7 (new). The silent "no single record matched" flag raised by `ehr` is
+  designed there, not built.
+- The tests hung for 10 minutes: a missing recording failed the call, but the pipeline was left
+  running. `TypedCall.hang_up` now cancels a failed call; `test_typed_call.run` hangs up in
+  `finally`. A miss now fails in 6 s. `npm run check` builds its own ehr in `target/check`, so a
+  running dev server no longer blocks it. New kept script `no_code_after_resend.txt` (the
+  owner's call). All 12 scripts recorded again. 100 agent tests pass in about 40 s. When to run
+  the tests: HANDOFF.md › Known gotchas.
+
 ## 2026-11-12 (Windows, night) — The Analytics page, the recovered sketches
 - The owner asked for a blank page beside Settings to sketch on, then whether his design
   screenshots were saved. Only the Chat sketch was. Four more came back from the session

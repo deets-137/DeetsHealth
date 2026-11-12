@@ -474,8 +474,11 @@ class CallFlow:
                     str(args.get("summary") or ""),
                     [quotes] if isinstance(quotes, str) else [str(q) for q in quotes],
                 )
-            # Phase 1 has no line to transfer to; the call ends with the words only.
-            return await self._say(flow_manager, text("line.hand_off"), self.handed_off())
+            # Phase 1 has no line to transfer to; the call ends with the words only. After a code
+            # that did not work, the caller hears an apology (the owner, 2026-11-12). The same
+            # words for every caller, matched or not, so they reveal nothing (SECURITY.md §4.4).
+            line = "line.hand_off_code" if args.get("kind") == "verification_failed" else "line.hand_off"
+            return await self._say(flow_manager, text(line), self.handed_off())
 
         return _tool(
             "hand_off",

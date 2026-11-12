@@ -98,7 +98,9 @@ call loop; the sealed store.
 - **How the caller is identified** (the owner, 2026-10-21): by name and date of birth, then
   the code to the number on file. The calling number is not used to find the patient. No
   reply ever says whether a name and date of birth matched; a mismatch shows only as a code
-  that never arrives (EHR-SERVICE.md §1).
+  that never arrives (EHR-SERVICE.md §1). This is the default. A hospital may turn on an
+  instant transfer when no single record matches, and accept what it reveals (the owner,
+  2026-11-12; FUTURE-SETTINGS.md §7).
 - **Rules for the random question:**
   - **The question never reveals the chart.** "What is the ZIP code on your record?" asks; it
     does not tell. "Which medicine do you take for blood pressure?" tells the caller that the

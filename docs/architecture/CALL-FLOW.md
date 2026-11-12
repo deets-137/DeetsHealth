@@ -55,6 +55,7 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | The hand-off (it may carry a staff flag) | `hand_off_fn` → `handed_off()` | `line.hand_off`; its flag fields: `arg.hand_off.*` | the transfer number: FUTURE-SETTINGS.md › Booking |
 | A caller for someone else goes to a person | the rule in `role` | — | — |
 | A staff flag (silent to the caller) | `flag_for_staff_fn`, `CallFlow.raise_flag`, `FLAG_KINDS` (FLAGS.md) | `tool.flag_for_staff`, `arg.flag_for_staff.*`; the model's next step: `note.after_flag` | FUTURE-SETTINGS.md §5 |
+| A hand-off after the code did not work (the model's `hand_off` with kind `verification_failed`; the same for every caller, matched or not) | `hand_off_fn` | `line.hand_off_code`; the rule: `task.verify` | FUTURE-SETTINGS.md §7 |
 | A hand-off after a lock | `_check_code_fn` | `line.locked` | — |
 | A hand-off when no code is left to send | `_resend_code_fn` | `line.no_more_codes` | — |
 | When `ehr` refuses or is down (all hand off but `line.say_again`) | `_ehr_trouble` | `line.not_on_this_call`, `line.not_now`, `line.ehr_down`, `line.say_again` | — |

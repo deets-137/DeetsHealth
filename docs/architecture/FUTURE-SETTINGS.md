@@ -42,6 +42,8 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
   factors for a chart answer. Not built (SECURITY.md §4.4).
 - The random chart questions to ask, from a list whose questions reveal nothing. Not built
   (SECURITY.md §4.4).
+- When verification meets friction: how many missed codes before a person, the apology, and
+  an instant transfer when no single record matches (twins, duplicates) — §7 (default built).
 
 **What the agent may say**
 - The sensitive-results list: a hospital may add to it, never remove from it. Not built
@@ -265,3 +267,60 @@ an alert, a toast or a log line carries the kind only, never the summary or the 
 - Which settings a clinic inside a hospital may override, and which stay with the hospital.
 - Who in the hospital may change a setting that touches safety (the emergency line), and
   whether a change needs a second person to approve it.
+
+## 7. When verification meets friction
+> **Part:** built (the default only) · 2026-11-12
+
+**What it controls:** what the agent does when a caller cannot finish verification: the code
+never arrives, the code does not match, or the caller is confused. The owner, 2026-11-12, after
+the test call as Casey Morgan (a twin record, so no code went out): "I want to be more
+proactive here", and "some hospitals won't care due to sheer scale of possible record
+matches out there."
+
+**The default now (2026-11-12).** Every piece points to the code (DOCS-ORG.md §1, rule 8):
+- **One path for every caller.** No record, one record, or two near-identical records (twins,
+  duplicates): the caller hears the same words at every step, so nothing shows whether a name
+  and date of birth matched (SECURITY.md §4.4). The owner chose this over an instant transfer
+  for twins (2026-11-12).
+- **When the agent offers more tries:** a caller with no text is offered a new code, or their
+  name and date of birth again (`task.verify`). `line.code_resent` says a new code went out
+  only if the details match our records.
+- **When a person takes over:** at once, when the caller still has no text after a new code,
+  or a code did not match and they ask why or say it is right (`task.verify`). The limits in
+  `ehr/src/service.rs` (`MAX_RESENDS`, `MAX_CODE_FAILURES`, `MAX_IDENTIFIES`) hand off in code
+  (CALL-FLOW.md §3, §4).
+- **The apology:** a model hand-off of kind `verification_failed` speaks `line.hand_off_code`
+  in place of `line.hand_off` (`hand_off_fn`).
+
+**The choices a hospital needs:**
+- **How soon a person takes over:** at the first missing code, after one new code (the
+  default), or after more. Fewer tries means less waiting for a twin or a caller with an old
+  number. It also means more calls for staff from patients whose text is only slow.
+- **What the agent offers at a missing code:** a new code, the name and date of birth again,
+  the call back to the number on file (SECURITY.md §4.4, not built), or a person.
+- **The words** of the apology and of each verification line.
+- **An instant transfer when no single record matches.** Off by default. When it is on,
+  the caller hears an apology and goes to a person right after they confirm their details,
+  without waiting for a code that cannot come. This is not hidden from the caller: anyone
+  who knows a name and date of birth learns that this hospital has two or more records for
+  that person. That is protected data (SECURITY.md §2), so the default never does it. A
+  hospital with many duplicate records may decide the faster path is worth that cost. The
+  settings page must state the cost when a hospital turns it on, and the audit trail records
+  who turned it on. The words must stay true: they say that the agent cannot finish the check
+  by phone, not that something is broken.
+
+**Designed, not built: a silent flag for staff when no single record matches.** `ehr` knows
+when a name and date of birth match no record or more than one; the agent and the model never
+do (EHR-SERVICE.md §1). `ehr` would raise the flag itself, so the staff member who takes the
+call knows at once to look for a twin, a duplicate or a typo. It needs its own design first:
+where `ehr` keeps the fact after `CloseCall`, how it reaches the call store and the console
+(the dev call record is written by the agent, which must not learn it), and a flag kind.
+
+**Every place it runs:**
+- **The call:** the same on any phone. A real transfer needs Twilio and a staffed number
+  (Phase 5).
+- **The console:** one control for each choice, every change audited; the instant transfer
+  states what it reveals before it applies.
+- **The deploy:** A2 and B read it from the settings store the same way.
+- **Each EHR:** what counts as one match is `ehr`'s rule for each EHR. Epic's patient match
+  can return more than one candidate, so each adapter must report "not exactly one" the same way.

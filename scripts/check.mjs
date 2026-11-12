@@ -24,6 +24,9 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT = join(ROOT, "agent");
 const WORKER = join(ROOT, "ehr", "jwks-worker");
+// The ehr that the agent's tests run: its own build, apart from the dev server's (see `agent`).
+const CHECK_TARGET = join(ROOT, "target", "check");
+const CHECK_EHR = join(CHECK_TARGET, "debug", `deetshealth-ehr${process.platform === "win32" ? ".exe" : ""}`);
 const TTY = Boolean(process.stdout.isTTY);
 
 // Each scope: what it checks, the files that make it run, and its steps.
@@ -61,10 +64,12 @@ const SCOPES = {
 		match: [/^agent\/(?!calls\/)/], // agent/calls/ holds dev call records, not code
 		needs: ["ehr"],
 		steps: [
-			["ehr build for the agent", "cargo", ["build", "-q", "-p", "deetshealth-ehr"]],
+			// Its own target folder: a running dev server holds target/debug's ehr, and Windows
+			// will not replace a running .exe (2026-11-12). The tests run this build.
+			["ehr build for the agent", "cargo", ["build", "-q", "-p", "deetshealth-ehr", "--target-dir", CHECK_TARGET]],
 			["agent proto code", "uv", ["run", "python", "scripts/gen_proto.py"], AGENT],
 			["agent lint", "uv", ["run", "ruff", "check", "."], AGENT],
-			["agent tests", "uv", ["run", "pytest", "-q"], AGENT],
+			["agent tests", "uv", ["run", "pytest", "-q"], AGENT, { DEETS_EHR_BIN: CHECK_EHR }],
 		],
 	},
 	keys: {
@@ -180,13 +185,18 @@ if (reasons.has("keys") && !existsSync(join(WORKER, "node_modules"))) {
 const started = Date.now();
 const failed = [];
 for (const { scope, step } of plan) {
-	const [label, cmd, cmdArgs, cwd = ROOT] = step;
+	const [label, cmd, cmdArgs, cwd = ROOT, env = {}] = step;
 	const t0 = Date.now();
 	// On a terminal, show the step while it runs, then overwrite the line with its result.
 	if (TTY) process.stdout.write(`  … ${label}`);
 	// No shell: every command here is a real executable (node, cargo, uv), so nothing is
 	// re-parsed by cmd.exe or sh.
-	const r = spawnSync(cmd, cmdArgs, { cwd, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+	const r = spawnSync(cmd, cmdArgs, {
+		cwd,
+		env: { ...process.env, ...env },
+		encoding: "utf8",
+		maxBuffer: 64 * 1024 * 1024,
+	});
 	const secs = ((Date.now() - t0) / 1000).toFixed(1);
 	const lead = TTY ? "\r\x1b[2K" : "";
 	if (r.status === 0) {

@@ -86,6 +86,8 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "line.next_visit": {"visit"},
     "line.goodbye": set(),
     "line.hand_off": set(),
+    # The hand-off after the code did not work (FUTURE-SETTINGS.md §7, the owner, 2026-11-12).
+    "line.hand_off_code": set(),
     "line.emergency": set(),
     "line.emergency_reminder": set(),
     # A note in a tool result, for the model only: never spoken.

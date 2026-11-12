@@ -52,14 +52,17 @@ it "a code to the number on file, after name and date of birth".
 - **A confused caller goes to a person at once** (the owner, 2026-11-12: "If we know there is
   confusion, transfer to a person since we know we can't help"). After a failed code, if the
   caller asks why, says the code is right, or still has no text after a new code, the agent
-  uses `hand_off` (AGENT-PROMPT.md `task.verify`).
+  uses `hand_off` (AGENT-PROMPT.md `task.verify`), and the caller hears an apology
+  (`line.hand_off_code`). How soon this happens is a hospital setting (FUTURE-SETTINGS.md §7).
 - **The failed-code line offers a person** (`line.code_wrong`): read it again, a new code, or a
   member of staff.
 - **Repeated failed codes lock the chart path** for the call and hand off (the limit is
   `MAX_CODE_FAILURES`, CALL-FLOW.md §4).
 - **Nothing says why.** A name and date of birth that match no record, or match two
   near-identical records (twins, duplicates), send no code. The caller only hears that the
-  code did not match. The person they reach can then help. The kept script
+  code did not match, or does not get it. Every line about a code says it went out only if the
+  details match our records, so no line is false for these callers. An instant transfer for
+  them is a hospital setting, off by default (FUTURE-SETTINGS.md §7). The person they reach can then help. The kept script
   `tests/scripts/code_confusion.txt` covers the twin case (the fakes Casey Morgan and Casey
   Morgen share a date of birth).
 

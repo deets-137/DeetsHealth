@@ -12,6 +12,7 @@ and no new response starts within a short grace.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 from datetime import date
 
@@ -238,6 +239,9 @@ class TypedCall:
         self._runner = WorkerRunner()
         self._run_task: asyncio.Task | None = None
         self.ended = False
+        # Set when a turn failed (a failed request, or no reply within the limit): hang_up()
+        # then cancels the pipeline in place of waiting for it to end.
+        self.failed = False
         client = getattr(llm, "_client", None)
         messages = getattr(client, "messages", None)
         if messages is not None and hasattr(messages, "on_failure"):
@@ -369,8 +373,13 @@ class TypedCall:
         return await self._next_turn()
 
     async def _next_turn(self) -> str | None:
-        turn = await asyncio.wait_for(self._collector.turns.get(), timeout=TURN_LIMIT_S)
+        try:
+            turn = await asyncio.wait_for(self._collector.turns.get(), timeout=TURN_LIMIT_S)
+        except TimeoutError:
+            self.failed = True
+            raise
         if isinstance(turn, CallFailed):
+            self.failed = True
             raise turn
         if self.record is not None and turn is not ENDED:
             self.record.agent(turn)
@@ -391,9 +400,21 @@ class TypedCall:
         await self.flow.close()
 
     async def hang_up(self) -> None:
-        if not self.ended:
+        """End the call; safe after a failed request and safe to call twice. A failed request
+        kills Pipecat's LLM service, so an EndFrame may never get through: the pipeline is then
+        cancelled. Before 2026-11-12 a test whose reply was not recorded left the pipeline
+        running, and pytest hung at the end of the run in place of failing."""
+        if not self.ended and not self.failed:
             await self._worker.queue_frame(EndFrame())
-            self.ended = True
-        if self._run_task is not None:
-            await asyncio.wait_for(self._run_task, timeout=10)
+        self.ended = True
+        task = self._run_task
+        if task is not None and not task.done():
+            if self.failed:
+                await self._worker.cancel(reason="the call failed")
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=10)
+            except TimeoutError:
+                task.cancel()
+                with contextlib.suppress(BaseException):  # only stopping it matters here
+                    await task
         await self.flow.close()

@@ -1,0 +1,474 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011CgyteeT34adeXXV3RXcJi",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 210
+     },
+     "cache_creation_input_tokens": 210,
+     "cache_read_input_tokens": 3423,
+     "inference_geo": "global",
+     "input_tokens": 4,
+     "output_tokens": 3,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQS7wgKEAgTGAI4AUIIdGhpbmtpbmcSDMa0suWntsQY7PPBZxoMN0/KcjW7Dm4FIxVcIjAEaWkUw8C62qEXHmeFZzvHWdiw7WY+uTCzqiva5OQXKglK2nEvXmbA7ie3Bu1tZMYqjAi9aQomCdJwmjYszZiLg0ubGNsms5Ol+FW4rnyrF5jJHPdaIElZOHpGe708h4wk2iWohR6VwZwJYCcnld5ozozyAtTZ8oFf6Q3wdS+0I9IabZjL8vMqkKQRGXXGmJFkm1FCumIdJuu634ldZizWj4RAKf/ai9jzcRmsps57UXPJqLBH1KzW2exaCtQeVgZBJxJIpTiED3sRtoGWka0xXquJYrALi/MjcJgZduuVav/FesW5nRX4U0KQz3PYLH0reyceV4Q1/4iTa+MLKlNXfnYIWcvIyBq9D91x4EaMiuAtTGWf2JHKYPTFhFVF/GQl1uHCj8TC+VfHa3TV7um3T/MAeyNSeCQsz2OLEVCzNzB64g+YGQ/mDVJIIM6/R+lHy8ttXD2h+WtD6ubBocQF7igHyiGrIkd8ocSIAEioN5U97rw9BUKm0cINv3Shr5b/814HIG5DbxuoxJuuUBckNQIhfxMGGOdCvNrhag2HAQTxifVBtPd3B04lbvMZGTrPvVWKxuozAh1bqFLLBI/2U6nL1PrcL8wQBLCrycrdWJn37PkKKmXg+yQhrO/a04LsNY2i0Vj051LaRqaWPzXmS6B6fJ1JlDUN1bgGCFX5C+zVbFHDA9SqkuuZ/rTP3Ehsb4ox755mq8WMU2myUQUQCEL9ZL9nxG3wtTaafelnUFYQif37wZOH4ibxAIXVOya6X50eHOvAK9cN6kX3PU0jAMWQwocBIuuC7MXiDeVMEKpy3DVAJ7/oiCL1dYLQwwTV7tU+91fK1lVrzrQZNU8BpGi6gdVIeL6DK9alJupsHmyKeoV+o+YV60JUyQEamixEveiqtdq88ho/JTTcPcbnq/yw+7R2Ndd37aXMefGAc8q8WgRBsoemkn3+SPIHPJKIriT+NhFkL/PZeBbro2mmXOOAcABLNf1obYnmjaRiR8jFvjm5gq+mGZReaBH1AV3EwZKL/G1bCcL6Yt+Y1Ud8M3m6s7HhS7uwbutTYYqTwgGXbtXj9bAOkuCUR0f4Wc7RPXS0PXUb1gepubHfuvvSBiuQRiJxWwTNYU2rndDY/6b++mxx3n+NzMYHfbDD+nKZ1mNcIHz/56i6w5EftgpIfXc5p3aPjzkopxSAdyth2jBj1d/G9IuPyBg+9heYUGW5HD+vcQGZZZF7wFbUNrIrcOKWKnyPGuvUHcSdonvGDUTBcuW1x1SD9/+08dNvD2EkJkRMj67UwrArQJpDgs7coYjbH6zuaT/Qadl73f35ihiJx03MfmxtEsnFoGQULkVLrcI0H9azdeXZi7lLiJhBP1rClFy3dFcnibIvNVpBOfuH1kSUQ7QDmsh7uPhcbItrQE9Y9S6Ik+mzBLcNdHZpaF0mNOwtMmXLjqQB5Bv8GAE=",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01M97zJo8NjEGg1TAv4snq6s",
+    "input": {},
+    "name": "medical_question",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01CzsShjmFfu4MsGk7DcQh6t",
+    "input": {},
+    "name": "flag_for_staff",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 2,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"kind\"",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ": \"clin",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ical_qu",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "estion_",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "waiting",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "\"",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"summ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ary\": \"",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "Caller,",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " verifi",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ed as J",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ordan E",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "llis, a",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "sked wh",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "at is w",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "rong wi",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "th them",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " after ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "reporti",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ng a he",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "adache ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "all wee",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "k. They",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " wanted",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " to boo",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "k a che",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ck-up.\"",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"evid",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ence\": ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "[\"I've ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "had a b",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ad head",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ache al",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "l week.",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " What's",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " wrong ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "with me",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "?\",\"I'd",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " like t",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "o book ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "a check",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "-up.\"]}",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 2,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 210,
+    "cache_read_input_tokens": 3423,
+    "input_tokens": 4,
+    "output_tokens": 368,
+    "output_tokens_details": {
+     "thinking_tokens": 160
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

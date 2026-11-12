@@ -37,7 +37,7 @@ npm run check -- --list             # say what would run and why; run nothing
 npm run check:all                   # every scope plus the slow extras (vite build, ehr clippy)
 ```
 The scopes: `web` (front-end type check), `core` (tests and the WebAssembly build), `ehr` (tests),
-`agent` (ruff and pytest, replay only, against a fresh `ehr` build), `keys` (the key-set Worker
+`agent` (ruff and pytest, replay only, against a fresh `ehr` build in `target/check`), `keys` (the key-set Worker
 build), `docs`. A change to core also runs `ehr`, and a change to `ehr` also runs `agent`.
 `agent/calls/` (the dev call records) runs nothing. The pre-push hook (`.githooks/pre-push`)
 runs it on the commits being pushed; `npm install` turns the hook on. To skip the hook once:
@@ -260,6 +260,22 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   `test_annotations_survive_a_rebuild_and_the_latest_rating_wins` failed for the same reason
   until 2026-11-12: it now lets go of the first catalog first (`Catalog.close`). The leftover
   process is still a cause.
+- **The agent's tests: when to run them, and what to watch** (the owner, 2026-11-12, after a run
+  hung for 10 minutes):
+  - **After a prompt or Flow edit, record first, then test.** An edit to `AGENT-PROMPT.md` or
+    `flow.py` changes the model's requests, so their recordings miss. Record the kept scripts
+    that the edit touches (`harness/typed_call.py --no-record --script …`, about a tenth of a
+    cent each), then run `pytest`. A run before the recording can only fail.
+  - **Run only the scope that changed.** `npm run check` picks it. Use
+    `uv run pytest tests/test_<file>.py` while you work, and the whole suite once before a
+    commit. The whole agent suite takes about 40 s (100 tests, 2026-11-12). Over 2 minutes
+    means a hang: stop it and find why. Do not wait.
+  - **A missing recording fails at once** (`CallFailed: ReplayMiss`). Before 2026-11-12 it
+    left the call's pipeline running, and pytest hung at the end of the run. `TypedCall.hang_up`
+    now cancels a failed call, and `test_typed_call.run` hangs up in `finally`.
+  - **The check builds its own ehr** in `target/check` (2026-11-12): a running dev server holds
+    `target/debug/deetshealth-ehr.exe`, and Windows will not replace a running .exe. The first
+    check after a clean takes a few minutes to build it.
 - **Casey Morgan never verifies, on purpose.** The fakes hold Casey Morgan and Casey Morgen on
   one date of birth, so no code goes out. Use Jordan Ellis, 1984-03-12, code `246810`.
 - **Several Deets* apps run at once on the owner's PC.** Never hard-code a dev port; Vite takes
