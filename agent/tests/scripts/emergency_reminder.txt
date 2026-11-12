@@ -1,0 +1,12 @@
+# A typed call: the caller gives their details and a danger phrase in one line. The screen speaks
+# the 911 line; the caller says they are safe and mentions the same thing again. The agent gives
+# the one-sentence reminder, not the full line, and uses the details already given without
+# asking again (the owner, 2026-11-12).
+# Run: uv run python harness/typed_call.py --script tests/scripts/emergency_reminder.txt
+Jordan Ellis, born March 12 1984. Can I book a visit please? I'm having chest pains
+Yes please. My chest still hurts a little, I'll go to the urgent care after this.
+Yes, that's right.
+246810
+Just a routine check-up, any day is fine
+The first one, please
+That's all, thanks

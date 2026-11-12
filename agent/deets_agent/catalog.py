@@ -17,12 +17,14 @@ columns and types follow Postgres, so the store (VOICE-AGENT.md §8.7) can take 
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from deets_agent import latency
 from deets_agent.call_record import CALLS
 
 ANNOTATIONS = "annotations.jsonl"
@@ -82,6 +84,25 @@ CREATE TABLE ratings (
     rated_at       TEXT NOT NULL
 );
 CREATE INDEX ratings_by_call ON ratings (call_id, dimension);
+-- One row per tool call, names and numbers only (latency.py; CHAT.md §10). Spans in ms.
+CREATE TABLE tool_calls (
+    call_id        TEXT NOT NULL REFERENCES calls(id),
+    seq            INTEGER NOT NULL,   -- the tool call's place in its call, from 1
+    t_ms           REAL NOT NULL,      -- when it was called, from the call's start
+    tool           TEXT NOT NULL,
+    node           TEXT,
+    trigger_ms     REAL,
+    model_ms       REAL,
+    confirm_ms     REAL,
+    ehr_ms         REAL,
+    ehr_calls      TEXT NOT NULL,      -- JSON array of ehr call names
+    answer_ms      REAL,
+    total_ms       REAL,
+    replayed       INTEGER NOT NULL,   -- the model's reply came from the replay cache
+    exact          INTEGER NOT NULL,   -- trigger and confirm to a tenth of a ms (schema 3+)
+    failed         INTEGER NOT NULL,
+    PRIMARY KEY (call_id, seq)
+);
 -- The rating that counts: the latest from each grader on each dimension of each call.
 CREATE VIEW current_ratings AS
     SELECT r.* FROM ratings r
@@ -162,6 +183,9 @@ def summarize(call_id: str, events: list[dict[str, Any]]) -> Summary:
                 locked = True
         elif kind == "screen":
             flags.add("screen_911")
+        elif kind == "staff_flag":
+            # A staff flag (FLAGS.md): the catalog's label names its kind, never its notes.
+            flags.add(f"staff_{e.get('flag') or 'other'}")
         elif kind == "invented_value":
             flags.add("invented_value")
         elif kind == "words_before_tool":
@@ -258,7 +282,9 @@ class Catalog:
         for path in sorted(self.folder.glob("*.jsonl")):
             if path.name == ANNOTATIONS:
                 continue
-            self._put(summarize(path.stem, read_events(path)))
+            events = read_events(path)
+            self._put(summarize(path.stem, events))
+            self._put_tools(path.stem, events)
         if self.annotations_path.exists():
             for line in self.annotations_path.read_text(encoding="utf-8").splitlines():
                 try:
@@ -274,8 +300,11 @@ class Catalog:
         if self.db is None or not path.exists():
             return
         old = self.db.execute("SELECT label, note, keep FROM calls WHERE id = ?", (call_id,)).fetchone()
+        self.db.execute("DELETE FROM tool_calls WHERE call_id = ?", (call_id,))
         self.db.execute("DELETE FROM calls WHERE id = ?", (call_id,))
-        self._put(summarize(call_id, read_events(path)))
+        events = read_events(path)
+        self._put(summarize(call_id, events))
+        self._put_tools(call_id, events)
         if old is not None:
             self.db.execute(
                 "UPDATE calls SET label = ?, note = ?, keep = ? WHERE id = ?",
@@ -313,7 +342,64 @@ class Catalog:
             return None
         return read_events(self.folder / f"{call_id}.jsonl")
 
+    def latency(
+        self,
+        source: str | None = None,
+        model: str | None = None,
+        since: str | None = None,
+        exact: bool = False,
+        with_replayed: bool = False,
+        rows: bool = False,
+    ) -> dict[str, Any]:
+        """Per-tool latency (latency.py): a summary per tool and model, and the rows if asked.
+        `since` is a day (YYYY-MM-DD) or a call id; calls are named by their start time."""
+        assert self.db is not None
+        where, args = ["1 = 1"], []
+        if source:
+            where.append("c.source = ?")
+            args.append(source)
+        if model:
+            where.append("c.model = ?")
+            args.append(model)
+        if since:
+            # A day "2026-11-12" becomes "20261112", the start of every id made that day.
+            day = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", since)
+            where.append("c.id >= ?")
+            args.append("".join(day.groups()) if day else since)
+        if exact:
+            where.append("t.exact = 1")
+        found = [
+            _tool_row(r)
+            for r in self.db.execute(
+                "SELECT t.*, c.model AS model, c.source AS source FROM tool_calls t"
+                " JOIN calls c ON c.id = t.call_id WHERE " + " AND ".join(where) + " ORDER BY t.call_id, t.seq",
+                args,
+            )
+        ]
+        out: dict[str, Any] = {
+            "filters": {"source": source, "model": model, "since": since, "exact": exact, "with_replayed": with_replayed},
+            "spans": list(latency.SPANS),
+            "summary": latency.summarize(found, with_replayed=with_replayed),
+        }
+        if rows:
+            out["rows"] = [r for r in found if with_replayed or not r["replayed"]]
+        return out
+
     # ---- inside ----
+
+    def _put_tools(self, call_id: str, events: list[dict[str, Any]]) -> None:
+        assert self.db is not None
+        for r in latency.tool_rows(call_id, events):
+            self.db.execute(
+                "INSERT OR REPLACE INTO tool_calls (call_id, seq, t_ms, tool, node, trigger_ms, model_ms,"
+                " confirm_ms, ehr_ms, ehr_calls, answer_ms, total_ms, replayed, exact, failed)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    call_id, r["seq"], r["t_ms"], r["tool"] or "", r["node"], r["trigger_ms"], r["model_ms"],
+                    r["confirm_ms"], r["ehr_ms"], json.dumps(r["ehr_calls"]), r["answer_ms"], r["total_ms"],
+                    int(r["replayed"]), int(r["exact"]), int(r["failed"]),
+                ),
+            )
 
     def _put(self, s: Summary) -> None:
         assert self.db is not None
@@ -357,6 +443,14 @@ def _call(r: sqlite3.Row, ratings: list[dict[str, Any]]) -> dict[str, Any]:
     d["flags"] = json.loads(d["flags"])
     d["keep"] = bool(d["keep"])
     d["ratings"] = ratings
+    return d
+
+
+def _tool_row(r: sqlite3.Row) -> dict[str, Any]:
+    d = dict(r)
+    d["ehr_calls"] = json.loads(d["ehr_calls"])
+    for k in ("replayed", "exact", "failed"):
+        d[k] = bool(d[k])
     return d
 
 

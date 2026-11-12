@@ -1,0 +1,7 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 3, "call_id": "20261112-130618-typed", "source": "typed", "scenario": "book_a_visit", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T13:06:18"}
+{"t_ms": 416, "kind": "ehr", "call": "OpenCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 422, "kind": "log", "level": "ERROR", "where": "pipecat.processors.frame_processor:push_error_frame:1032", "text": "TurnCollector#0 exception (C:\\Users\\Aditya Sundaram\\Documents\\DeetsHealth\\agent\\deets_agent\\call.py:157): Error processing frame: 'CallRecord' object has no attribute 'answer_started'"}
+{"t_ms": 423, "kind": "log", "level": "WARNING", "where": "pipecat.pipeline.worker:_source_push_frame:1648", "text": "PipelineWorker#0: Something went wrong: ErrorFrame#0(error: Error processing frame: 'CallRecord' object has no attribute 'answer_started', fatal: False)"}
+{"t_ms": 60443, "kind": "error", "type": "TimeoutError", "message": ""}
+{"t_ms": 60446, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 60446, "kind": "call_end", "reason": "the harness failed (TimeoutError)", "turns": 0, "requests": {"live": 0, "replayed": 0, "failed": 0}, "tokens": {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}, "cost_usd": 0.0}

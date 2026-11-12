@@ -27,7 +27,7 @@ MAX_TOKENS = 600
 CLOSING_TOOLS = frozenset({"end_call", "hand_off"})
 # Tools that speak a fixed line the model must not speak before (the role prompt says so). The
 # tests allow no words before any of them. `emergency` does not end the call.
-SILENT_TOOLS = CLOSING_TOOLS | {"emergency", "medical_question"}
+SILENT_TOOLS = CLOSING_TOOLS | {"emergency", "safety_reminder", "medical_question"}
 
 
 def anthropic_key() -> str | None:

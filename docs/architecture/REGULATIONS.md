@@ -160,6 +160,8 @@ Each is a later piece of work, in the order recommended. None is built.
 - **R4. The code by keypad** (DTMF): the code then never reaches speech-to-text, the model or a
   log. Keep speech as the fallback.
 - **R5. Personal representatives** (164.502(g)): a parent or a caregiver calling for a patient.
+  Today (2026-11-12) such a caller goes to a person at once, with a staff flag
+  (`calling_for_someone_else`, FLAGS.md), and is never asked for their own details.
 - **R6. Integrity** (164.312(c)): show that a transcript or an audit row was not changed.
 - **R7. Recognized security practices** (HITECH 2021): choose NIST CSF 2.0 or 405(d) HICP, and
   start the 12-month record.

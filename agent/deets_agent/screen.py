@@ -103,6 +103,9 @@ class CallerScreen(FrameProcessor):
             await self.push_frame(frame, direction)
             return
         self.fired = True
+        self.flow.warned = True
+        # The caller's own line is the evidence (FLAGS.md §2).
+        self.flow.raise_flag("possible_emergency", "code", quotes=[line])
         logger.info("emergency phrase heard; 911 line spoken by the screen")
         if self.record is not None:
             self.record.event("screen", action="emergency phrase, 911 line spoken")

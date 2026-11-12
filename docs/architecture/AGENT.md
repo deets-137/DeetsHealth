@@ -212,6 +212,11 @@ end with the goodbye line and no hand off).
   node, the answer is our own client-side search or smaller nodes. Each node change also
   changes the tool list, which rewrites the prompt cache (about 2,000 tokens) and caused the
   thinking-block crash; the API's mid-conversation tool changes would avoid it but are beta.
+- **A statement line with a note** (2026-11-12). The safety reminder must end in a statement
+  (the owner: do not ask again), and the model then said it a second time and stopped. A
+  `note.*` section in the tool result now says what comes next, and the model went on with the
+  read-back in the same turn. Use a note for any future statement line. There are now 5 global
+  tools (`safety_reminder` added; CALL-FLOW.md §3), so each node offers 7 to 9.
 
 ## 4. Known gaps
 - **The model's words before a fixed-line tool: held by the prompt, not by code** (fork C,

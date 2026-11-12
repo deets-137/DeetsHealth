@@ -183,3 +183,52 @@ async def test_the_model_never_sees_a_slot_token(ehr):
     for slot in flow.offered:
         assert slot.token.reveal() not in str(result)
     await flow.close()
+
+
+async def test_safety_reminder_holds_the_safe_side(ehr):
+    """The owner, 2026-11-12: the reminder only after the caller heard the full 911 line. Before
+    that, the code speaks the full line, whatever the model chose."""
+    from deets_agent.flow import EMERGENCY_LINE
+    from deets_agent.prompts import text
+
+    flow = new_flow(ehr)
+    remind = flow.safety_reminder_fn().handler
+    fm = manager()
+    await remind({}, fm)
+    await remind({}, fm)
+    assert spoken(fm) == [EMERGENCY_LINE, text("line.emergency_reminder")]
+    # The full line raised one code flag; the reminder raised none.
+    assert [(f.kind, f.source) for f in flow.flags] == [("possible_emergency", "code")]
+
+
+async def test_a_flag_keeps_only_what_the_caller_said(ehr):
+    """Fork 1A, 2026-11-12: the model's evidence is checked by code. A quote the caller said
+    (punctuation and case aside) is kept; one they did not say is counted and dropped. Nothing is
+    spoken (fork 2A)."""
+    flow = CallFlow(ehr, today=FAKE_TODAY)
+    flow.heard("I'm calling for my mom. She's been really confused lately, I'm worried.")
+    seen = []
+    flow.on_flag = seen.append
+    fm = manager()
+    result, nxt = await flow.flag_for_staff_fn().handler(
+        {
+            "kind": "calling_for_someone_else",
+            "summary": "The caller is calling for their mother, who has been confused.",
+            "evidence": ["calling for my mom", "she's been REALLY confused lately", "she fell yesterday"],
+        },
+        fm,
+    )
+    assert spoken(fm) == [], "the caller hears nothing"
+    assert nxt is None, "the model goes on"
+    flag = seen[0]
+    assert flag.kind == "calling_for_someone_else" and flag.source == "model"
+    assert [q.reveal() for q in flag.evidence] == ["calling for my mom", "she's been REALLY confused lately"]
+    assert flag.unverified == 1
+    assert result["evidence_kept"] == 2
+
+
+async def test_an_unknown_flag_kind_becomes_other_and_code_flags_raise_once(ehr):
+    flow = CallFlow(ehr, today=FAKE_TODAY)
+    assert flow.raise_flag("made_up_kind", "model").kind == "other"
+    assert flow.raise_flag("verification_failed", "code") is not None
+    assert flow.raise_flag("verification_failed", "code") is None

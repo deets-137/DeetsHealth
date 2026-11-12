@@ -1,0 +1,32 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 3, "call_id": "20261112-125717-typed", "source": "typed", "scenario": "code_confusion", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T12:57:17"}
+{"t_ms": 437, "kind": "ehr", "call": "OpenCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 851, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?"}
+{"t_ms": 852, "kind": "caller", "text": "Hi, I want to check on my appointment."}
+{"t_ms": 854, "kind": "node", "name": "greet"}
+{"t_ms": 1715, "kind": "llm", "key": "c4d0cc11", "hit": false, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 1939, "cache_creation_input_tokens": 265}, "total_ms": 862, "first_event_ms": 683, "first_text_ms": 698}
+{"t_ms": 2121, "kind": "agent", "text": "I can help with that. First, could you tell me your first name, last name, and date of birth?"}
+{"t_ms": 2121, "kind": "caller", "text": "My name is Casey Morgan, born June 5th 1990"}
+{"t_ms": 2902, "kind": "llm", "key": "7d4e7a4a", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 105, "cache_read_input_tokens": 2204, "cache_creation_input_tokens": 49}, "total_ms": 780, "first_event_ms": 536, "first_tool_ms": 536}
+{"t_ms": 2904, "kind": "tool_call", "name": "identify", "arguments": {"given_name": "Casey", "family_name": "Morgan", "birth_date": "1990-06-05"}, "trigger_ms": 783.2}
+{"t_ms": 2904, "kind": "tool_result", "name": "identify", "result": {"spoken_to_caller": "I have Casey Morgan, born June 5, 1990. Is that right?"}, "ms": 0.6}
+{"t_ms": 3306, "kind": "agent", "text": "I have Casey Morgan, born June 5, 1990. Is that right?"}
+{"t_ms": 3306, "kind": "caller", "text": "Yes, that's correct."}
+{"t_ms": 3872, "kind": "llm", "key": "671f3197", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 2253, "cache_creation_input_tokens": 161}, "total_ms": 564, "first_event_ms": 546, "first_tool_ms": 546}
+{"t_ms": 3873, "kind": "tool_call", "name": "confirm_details", "arguments": {}, "trigger_ms": 566.6}
+{"t_ms": 3875, "kind": "ehr", "call": "Identify", "ms": 2, "outcome": "ok"}
+{"t_ms": 3875, "kind": "tool_result", "name": "confirm_details", "result": {"spoken_to_caller": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}, "ms": 2.1}
+{"t_ms": 4288, "kind": "agent", "text": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}
+{"t_ms": 4288, "kind": "caller", "text": "246810"}
+{"t_ms": 4290, "kind": "node", "name": "verify"}
+{"t_ms": 5144, "kind": "llm", "key": "80409411", "hit": false, "messages": 7, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "check_code", "resend_code", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 48, "cache_read_input_tokens": 2094, "cache_creation_input_tokens": 753}, "total_ms": 854, "first_event_ms": 750, "first_tool_ms": 751}
+{"t_ms": 5145, "kind": "tool_call", "name": "check_code", "arguments": {"code": "246810"}, "trigger_ms": 857.1}
+{"t_ms": 5147, "kind": "ehr", "call": "CheckCode", "ms": 1, "outcome": "ok", "result": "fail"}
+{"t_ms": 5147, "kind": "tool_result", "name": "check_code", "result": {"spoken_to_caller": "That code didn't match. Would you like to read it again, get a new code, or talk with a member of our staff?", "tries_left": 2}, "ms": 1.9}
+{"t_ms": 5559, "kind": "agent", "text": "That code didn't match. Would you like to read it again, get a new code, or talk with a member of our staff?"}
+{"t_ms": 5559, "kind": "caller", "text": "Why didn't it work? That's definitely the code I got."}
+{"t_ms": 6212, "kind": "llm", "key": "b584da73", "hit": false, "messages": 9, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "check_code", "resend_code", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 53, "cache_read_input_tokens": 2847, "cache_creation_input_tokens": 129}, "total_ms": 651, "first_event_ms": 466, "first_tool_ms": 628}
+{"t_ms": 6213, "kind": "tool_call", "name": "hand_off", "arguments": {}, "trigger_ms": 653.7}
+{"t_ms": 6213, "kind": "tool_result", "name": "hand_off", "result": {"spoken_to_caller": "I'm connecting you with a member of our staff now."}, "ms": 0.5}
+{"t_ms": 6214, "kind": "agent", "text": "I'm connecting you with a member of our staff now."}
+{"t_ms": 6216, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 6216, "kind": "call_end", "reason": "the agent ended it", "turns": 5, "requests": {"live": 5, "replayed": 0, "failed": 0}, "tokens": {"input_tokens": 20, "output_tokens": 262, "cache_read_input_tokens": 11337, "cache_creation_input_tokens": 1357}, "cost_usd": 0.000416}

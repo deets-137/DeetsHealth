@@ -20,6 +20,8 @@ REGULATIONS.md. How the parts were built and decided: AGENT.md.
 - **Task:** the instructions for the model in one node: `task.<node>` in AGENT-PROMPT.md.
 - **Fixed line:** words the code speaks to the caller word for word, never the model:
   `line.<name>` in AGENT-PROMPT.md, spoken by `_say` in `agent/deets_agent/flow.py`.
+- **Note:** words for the model only, inside a tool's result, never spoken: `note.<name>` in
+  AGENT-PROMPT.md.
 - **Global tool:** a tool the model has in every node.
 - **Closing node:** a node that ends the call after its fixed line (`CallFlow._closing_node`).
 
@@ -50,11 +52,14 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 |---|---|---|---|
 | The greeting, with the disclosures | `CallFlow.greet` (its `pre_actions`), `greeting()` | `line.greeting` | FUTURE-SETTINGS.md §4 |
 | The goodbye (the disconnect) | `end_call_fn` → `goodbye()` | `line.goodbye` | not yet listed |
-| The hand-off | `hand_off_fn` → `handed_off()` | `line.hand_off` | the transfer number: FUTURE-SETTINGS.md › Booking |
+| The hand-off (it may carry a staff flag) | `hand_off_fn` → `handed_off()` | `line.hand_off`; its flag fields: `arg.hand_off.*` | the transfer number: FUTURE-SETTINGS.md › Booking |
+| A caller for someone else goes to a person | the rule in `role` | — | — |
+| A staff flag (silent to the caller) | `flag_for_staff_fn`, `CallFlow.raise_flag`, `FLAG_KINDS` (FLAGS.md) | `tool.flag_for_staff`, `arg.flag_for_staff.*`; the model's next step: `note.after_flag` | FUTURE-SETTINGS.md §5 |
 | A hand-off after a lock | `_check_code_fn` | `line.locked` | — |
 | A hand-off when no code is left to send | `_resend_code_fn` | `line.no_more_codes` | — |
 | When `ehr` refuses or is down (all hand off but `line.say_again`) | `_ehr_trouble` | `line.not_on_this_call`, `line.not_now`, `line.ehr_down`, `line.say_again` | — |
 | The emergency line | `emergency_fn`, `EMERGENCY_LINE` | `line.emergency` | FUTURE-SETTINGS.md §1 |
+| The safety reminder (after a warning, the same danger again; the call goes on) | `safety_reminder_fn` | `line.emergency_reminder`; the model's next step: `note.after_reminder` | FUTURE-SETTINGS.md §1 |
 | The emergency phrase screen | `EMERGENCY_PHRASES`, `CallerScreen` (`agent/deets_agent/screen.py`) | the patterns are in the code, each with its examples | FUTURE-SETTINGS.md §3 |
 | The medical-question line | `medical_question_fn` | `line.medical_question` | FUTURE-SETTINGS.md §2 |
 | Verification lines | `_identify_fn`, `_confirm_details_fn`, `_check_code_fn`, `_resend_code_fn` | `line.read_back`, `line.ask_details`, `line.birth_not_possible`, `line.name_not_said`, `line.code_sent`, `line.code_length`, `line.code_wrong`, `line.code_resent`, `line.verified` | — |
@@ -84,6 +89,10 @@ The verification limits are a floor: a hospital may make them stricter, never lo
 | Rule | Where in code |
 |---|---|
 | A line that ends in a question waits for the caller; any other lets the model go on | `CallFlow._say` |
+| The reminder only after the full 911 line; before that, the full line plays | `CallFlow.warned`, set by `emergency_fn` and `CallerScreen`; read by `safety_reminder_fn` |
+| After a fixed line that ends in a statement, a note in the tool result tells the model what comes next | `note.*` sections; `safety_reminder_fn` |
+| A flag keeps only the quotes the caller really said | `CallFlow._caller_said`; the count of the rest: `StaffFlag.unverified` |
+| A code flag of one kind is raised once per call | `CallFlow.raise_flag` |
 | The details are read back before the lookup | `_identify_fn`, `_confirm_details_fn` |
 | The model may send only names the caller said | `CallFlow._was_said` (the name guard) |
 | An impossible date of birth costs no try | `CallFlow._possible_birth` |

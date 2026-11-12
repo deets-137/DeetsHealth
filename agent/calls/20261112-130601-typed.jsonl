@@ -1,0 +1,12 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 3, "call_id": "20261112-130601-typed", "source": "typed", "scenario": "flag_for_someone_else", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T13:06:01"}
+{"t_ms": 381, "kind": "ehr", "call": "OpenCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 790, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?"}
+{"t_ms": 790, "kind": "caller", "text": "Hi, I'm calling for my mom. She's been really confused lately and I want to book her a visit."}
+{"t_ms": 793, "kind": "node", "name": "greet"}
+{"t_ms": 2626, "kind": "llm", "key": "dc9fbfe6", "hit": false, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 305, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 2949}, "total_ms": 1834, "first_event_ms": 753, "first_tool_ms": 1339}
+{"t_ms": 2628, "kind": "tool_call", "name": "hand_off", "arguments": {"kind": "calling_for_someone_else", "summary": "The caller is calling for their mother, who has been confused lately. The caller wants to book a visit for her. The caller is not a verified patient on this call.", "evidence": ["I'm calling for my mom.", "She's been really confused lately", "I want to book her a visit."]}, "trigger_ms": 1837.9}
+{"t_ms": 2629, "kind": "staff_flag", "flag": "calling_for_someone_else", "source": "model", "summary": "The caller is calling for their mother, who has been confused lately. The caller wants to book a visit for her. The caller is not a verified patient on this call.", "evidence": ["I'm calling for my mom.", "She's been really confused lately", "I want to book her a visit."], "unverified": 0}
+{"t_ms": 2629, "kind": "tool_result", "name": "hand_off", "result": {"spoken_to_caller": "I'm connecting you with a member of our staff now."}, "ms": 0.8}
+{"t_ms": 2630, "kind": "agent", "text": "I'm connecting you with a member of our staff now."}
+{"t_ms": 2632, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 2632, "kind": "call_end", "reason": "the agent ended it", "turns": 1, "requests": {"live": 1, "replayed": 0, "failed": 0}, "tokens": {"input_tokens": 4, "output_tokens": 305, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 2949}, "cost_usd": 0.000522}

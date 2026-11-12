@@ -1,0 +1,23 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 3, "call_id": "20261112-125815-typed", "source": "typed", "scenario": "off_topic", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T12:58:15"}
+{"t_ms": 448, "kind": "ehr", "call": "OpenCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 867, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?"}
+{"t_ms": 868, "kind": "caller", "text": "17+6?"}
+{"t_ms": 871, "kind": "node", "name": "greet"}
+{"t_ms": 2168, "kind": "llm", "key": "b3e7bea3", "hit": false, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 94, "cache_read_input_tokens": 1939, "cache_creation_input_tokens": 255}, "total_ms": 1298, "first_event_ms": 928, "first_text_ms": 1199}
+{"t_ms": 2585, "kind": "agent", "text": "I can only help with visits here. What do you need for your visit today?"}
+{"t_ms": 2585, "kind": "caller", "text": "2+2"}
+{"t_ms": 3269, "kind": "llm", "key": "078f53e0", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 22, "cache_read_input_tokens": 2194, "cache_creation_input_tokens": 101}, "total_ms": 683, "first_event_ms": 492, "first_text_ms": 492}
+{"t_ms": 3676, "kind": "agent", "text": "I can only help with visits here. Is there something you need for your visit?"}
+{"t_ms": 3676, "kind": "caller", "text": "How do I say hello world in Python?"}
+{"t_ms": 4402, "kind": "llm", "key": "13f87d52", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 22, "cache_read_input_tokens": 2295, "cache_creation_input_tokens": 37}, "total_ms": 725, "first_event_ms": 610, "first_text_ms": 610}
+{"t_ms": 4816, "kind": "agent", "text": "I can only help with visits here. Is there something you need for your visit?"}
+{"t_ms": 4816, "kind": "caller", "text": "Why can you help with math and not Python?"}
+{"t_ms": 5587, "kind": "llm", "key": "5411eabf", "hit": false, "messages": 7, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 57, "cache_read_input_tokens": 2332, "cache_creation_input_tokens": 38}, "total_ms": 769, "first_event_ms": 501, "first_text_ms": 702}
+{"t_ms": 5989, "kind": "agent", "text": "I can only help with visits here. What do you need for your visit?"}
+{"t_ms": 5989, "kind": "caller", "text": "Never mind, goodbye."}
+{"t_ms": 6724, "kind": "llm", "key": "a75e92b3", "hit": false, "messages": 9, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 26, "cache_read_input_tokens": 2370, "cache_creation_input_tokens": 71}, "total_ms": 734, "first_event_ms": 611, "first_tool_ms": 612}
+{"t_ms": 6726, "kind": "tool_call", "name": "end_call", "arguments": {}, "trigger_ms": 736.3}
+{"t_ms": 6726, "kind": "tool_result", "name": "end_call", "result": {"spoken_to_caller": "Thank you for calling. Goodbye."}, "ms": 0.7}
+{"t_ms": 6727, "kind": "agent", "text": "Thank you for calling. Goodbye."}
+{"t_ms": 6729, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 6729, "kind": "call_end", "reason": "the agent ended it", "turns": 5, "requests": {"live": 5, "replayed": 0, "failed": 0}, "tokens": {"input_tokens": 20, "output_tokens": 221, "cache_read_input_tokens": 11130, "cache_creation_input_tokens": 502}, "cost_usd": 0.000287}

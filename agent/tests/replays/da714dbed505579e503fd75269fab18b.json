@@ -1,0 +1,171 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011CgyheDw8HZLHAHZY5MBwm",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 296
+     },
+     "cache_creation_input_tokens": 296,
+     "cache_read_input_tokens": 2771,
+     "inference_geo": "global",
+     "input_tokens": 4,
+     "output_tokens": 5,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSjAcKEAgTGAI4AUIIdGhpbmtpbmcSDIKEeWYXr2udcqODKhoMKCaIJShWZB9dbwSkIjDEf6RRN5seJ7TROaKZ90AKTpZ7O3UkCu4v4KUTZzqaPnEWvKS/kl5629leu0F86XoqqQbHase/3fyd8pHd2uemBwRBKtJgmQTa0jnVKr2lRFZTRVdOmtKUPN9VU6oVnf7n8ik2BFfbs+9tU6yAUZUqk01JRQwTd2RrStLJCUjihmct1Wex0x2g03N87253S6qHYnfmjF2LVXAs3P8NGwHk3hEMpyS7TUi7KyEdkTk3jIreZEFxnFfEJRE0xPaW7i7aOrDhdq4FPD9vQl8kn9bdJNDYPo1cUkPTgEOQjeWY1UQazzUvEIzjPJ8eSyqwQ/fT9XeSMrGjRYlijCvHr25wweLfJ69TO4bnh31dv3ZDSwgvpeFdLduapT2nVp3GcMYPFGXKe3Q5mDawCd+MIDPUHC4qwp2Vtp7rRjWjpOffenmEoWRK6y14Uu7eai9Fpy7/LFQRB3UPW6/PYX5Yb226EH/WjVm8d2Qa0TiZmfG9an+Nw4f5bhGf4bZeaNLY8qTMoMK+GQPDkViyyhLPYTRHKQYDEHBr3/Z7nsnytJaFvcEIH5TFXFu7/sbN4rS1+pXMArBtfrp7BJqjkCDosuF+tRVfdsB83QMwS2fnPm4WvHQzKqkUIsYYBW8v6FnPSPP+5c7NVnJuTNAhCCzZ6WCFSUa7u0RaRuL/OZai+fsl1SoIPPNZC5Mcas2i54Yxeja/dxiQ9LRAkjzNJDnMrLANOZa417g2qPWf8to3WGLR6aiEJqCITD/JyFR3kkzw9usGHMrcT6zLSu7x4GFddtPnNhuEiPHC2+Gz7VWuNRdsaYr7SzH8jsY5c/XLajamoWYW2ngfC/DzlVa1eY1KreFFYu+AmuXa+oCCOB+2mRh3SIkYDAMSb7NCRQ9e7NyduqUYzexm8AWY/DJ1F+Lk+N94YswOJQVwuihsabh90X7awOpS/p/7q10fp8cMzRIwDJoA8OSmdhcMo44GL73B+zRrs4r8314cTX/NX4jLNuKI89MzjP+1/7Lqshb2+19BWWrqTxbItbinu+3obX6YpBAblSREA5dN5463vcoLcbPNF4xhghFuC6etQAlejY9Xuv8cIThVsarsLeEqPzMVbptVYHNe8rO3B7MWwpa2+PG5XM6ptfDex9nElLHBLBgB",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "I",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "'m sorry, I",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " didn't cat",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "ch that. Is",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " Jordan Ellis,",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " born March 12, 1984",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": ", corre",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "ct?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " Please say yes or no.",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 296,
+    "cache_read_input_tokens": 2771,
+    "input_tokens": 4,
+    "output_tokens": 121,
+    "output_tokens_details": {
+     "thinking_tokens": 73
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

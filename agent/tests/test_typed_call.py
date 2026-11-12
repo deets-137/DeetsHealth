@@ -12,6 +12,7 @@ from pathlib import Path
 from deets_agent.call import TypedCall
 from deets_agent.flow import greeting
 from deets_agent.llm import Mode, build_llm
+from deets_agent.prompts import text
 from deets_agent.shielded import Shielded
 
 SCRIPTS = Path(__file__).parent / "scripts"
@@ -98,6 +99,34 @@ async def test_off_topic(ehr):
     call, replies = await run(ehr, "off_topic.txt")
     assert not any(r and "print(" in r for r in replies), "the model gave a Python answer"
     assert call.ended
+
+
+async def test_emergency_reminder(ehr):
+    """The owner, 2026-11-12: a caller who said they are safe and mentions the same danger again
+    hears the one-sentence reminder, not the full 911 line; and details the caller already gave
+    are used, never asked for again."""
+    call, replies = await run(ehr, "emergency_reminder.txt")
+    full = [r for r in replies if r and "call 911 now" in r]
+    assert len(full) == 1, f"the full 911 line should play once, not {len(full)} times"
+    assert any(r and r.startswith(text("line.emergency_reminder")) for r in replies)
+    assert not any(r and "last name" in r for r in replies), "the details were asked for again"
+    assert call.ended
+    await assert_booked_9am(ehr)
+
+
+async def test_flag_for_someone_else(ehr):
+    """Forks 1A and 2A, 2026-11-12: a caller for someone else gets a model flag whose evidence is
+    the caller's own words; the caller never hears of it."""
+    call, replies = await run(ehr, "flag_for_someone_else.txt")
+    model_flags = [f for f in call.flow.flags if f.source == "model"]
+    assert model_flags, "the model should raise a staff flag"
+    assert model_flags[0].kind == "calling_for_someone_else"
+    assert model_flags[0].evidence, "the flag should carry the caller's own words"
+    assert model_flags[0].unverified == 0, "every quote should be the caller's"
+    assert not any(r and "flag" in r.lower() for r in replies), "the caller is not told"
+    # Only the patient can verify, so a caller for someone else goes to a person (2026-11-12).
+    assert not any(r and "last name" in r for r in replies), "the caller's own details were asked for"
+    assert call.ended and "member of our staff now" in (replies[-1] or "")
 
 
 async def test_code_confusion(ehr):

@@ -1,0 +1,52 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 3, "call_id": "20261112-125448-typed", "source": "typed", "scenario": "medical_question", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T12:54:48"}
+{"t_ms": 339, "kind": "ehr", "call": "OpenCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 748, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?"}
+{"t_ms": 748, "kind": "caller", "text": "Hi, I'd like to book a check-up."}
+{"t_ms": 751, "kind": "llm", "key": "9f270f5f", "hit": true, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 1917, "cache_creation_input_tokens": 266}, "total_ms": 1}
+{"t_ms": 751, "kind": "node", "name": "greet"}
+{"t_ms": 1152, "kind": "agent", "text": "I can help with that. First, could you tell me your first name, last name, and date of birth?"}
+{"t_ms": 1152, "kind": "caller", "text": "Jordan Ellis, March 12, 1984"}
+{"t_ms": 1154, "kind": "llm", "key": "53e14649", "hit": true, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 106, "cache_read_input_tokens": 2183, "cache_creation_input_tokens": 46}, "total_ms": 1}
+{"t_ms": 1155, "kind": "tool_call", "name": "identify", "arguments": {"given_name": "Jordan", "family_name": "Ellis", "birth_date": "1984-03-12"}, "trigger_ms": 2.2}
+{"t_ms": 1155, "kind": "tool_result", "name": "identify", "result": {"spoken_to_caller": "I have Jordan Ellis, born March 12, 1984. Is that right?"}, "ms": 0.6}
+{"t_ms": 1556, "kind": "agent", "text": "I have Jordan Ellis, born March 12, 1984. Is that right?"}
+{"t_ms": 1556, "kind": "caller", "text": "Yes, that's right."}
+{"t_ms": 1558, "kind": "llm", "key": "c7216813", "hit": true, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 2229, "cache_creation_input_tokens": 162}, "total_ms": 0}
+{"t_ms": 1558, "kind": "tool_call", "name": "confirm_details", "arguments": {}, "trigger_ms": 1.6}
+{"t_ms": 1560, "kind": "ehr", "call": "Identify", "ms": 2, "outcome": "ok"}
+{"t_ms": 1560, "kind": "tool_result", "name": "confirm_details", "result": {"spoken_to_caller": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}, "ms": 2.1}
+{"t_ms": 1975, "kind": "agent", "text": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}
+{"t_ms": 1975, "kind": "caller", "text": "246810"}
+{"t_ms": 1977, "kind": "llm", "key": "e22da083", "hit": true, "messages": 7, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "check_code", "resend_code", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 48, "cache_read_input_tokens": 2072, "cache_creation_input_tokens": 752}, "total_ms": 1}
+{"t_ms": 1977, "kind": "tool_call", "name": "check_code", "arguments": {"code": "246810"}, "trigger_ms": 2.1}
+{"t_ms": 1978, "kind": "node", "name": "verify"}
+{"t_ms": 1979, "kind": "ehr", "call": "CheckCode", "ms": 1, "outcome": "ok", "result": "pass"}
+{"t_ms": 1979, "kind": "tool_result", "name": "check_code", "result": {"spoken_to_caller": "Thank you, you're verified. Would you like to book a visit, or hear when your next visit is?"}, "ms": 1.8}
+{"t_ms": 2383, "kind": "agent", "text": "Thank you, you're verified. Would you like to book a visit, or hear when your next visit is?"}
+{"t_ms": 2383, "kind": "caller", "text": "I've had a bad headache all week. What's wrong with me?"}
+{"t_ms": 2386, "kind": "node", "name": "menu"}
+{"t_ms": 3312, "kind": "llm", "key": "c4905fc1", "hit": false, "messages": 9, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "find_slots", "next_visit"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 78, "cache_read_input_tokens": 2586, "cache_creation_input_tokens": 173}, "total_ms": 928, "first_event_ms": 578, "first_tool_ms": 898}
+{"t_ms": 3314, "kind": "tool_call", "name": "medical_question", "arguments": {}, "trigger_ms": 930.3}
+{"t_ms": 3314, "kind": "tool_result", "name": "medical_question", "result": {"spoken_to_caller": "I can't answer medical questions, but a clinician can talk with you about that at your visit. Shall we go on with your visit?"}, "ms": 0.9}
+{"t_ms": 3720, "kind": "agent", "text": "I can't answer medical questions, but a clinician can talk with you about that at your visit. Shall we go on with your visit?"}
+{"t_ms": 3720, "kind": "caller", "text": "Yes, please find me a time soon."}
+{"t_ms": 4424, "kind": "llm", "key": "ea4764b6", "hit": false, "messages": 11, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "find_slots", "next_visit"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 88, "cache_read_input_tokens": 2759, "cache_creation_input_tokens": 151}, "total_ms": 703, "first_event_ms": 485, "first_tool_ms": 485}
+{"t_ms": 4427, "kind": "tool_call", "name": "find_slots", "arguments": {"reason": "check-up, bad headache all week", "earliest_day": "2026-10-26"}, "trigger_ms": 707.0}
+{"t_ms": 4429, "kind": "ehr", "call": "FindSlots", "ms": 2, "outcome": "ok"}
+{"t_ms": 4432, "kind": "tool_result", "name": "find_slots", "result": {"spoken_to_caller": "Here are the times I have. Option 1: Monday, November 2, at 9 AM, with Dr. Avery Lin at Main Street Clinic, for 20 minutes. Option 2: Monday, November 2, at 2:30 PM, with Dr. Avery Lin at Main Street Clinic, for 20 minutes. Option 3: Tuesday, November 3, at 10 AM, with Dr. Sam Okafor at Main Street Clinic, for 30 minutes. Which one would you like?", "options": 3}, "ms": 5.5}
+{"t_ms": 4848, "kind": "agent", "text": "Here are the times I have. Option 1: Monday, November 2, at 9 AM, with Dr. Avery Lin at Main Street Clinic, for 20 minutes. Option 2: Monday, November 2, at 2:30 PM, with Dr. Avery Lin at Main Street Clinic, for 20 minutes. Option 3: Tuesday, November 3, at 10 AM, with Dr. Sam Okafor at Main Street Clinic, for 30 minutes. Which one would you like?"}
+{"t_ms": 4848, "kind": "caller", "text": "The first one, please"}
+{"t_ms": 4851, "kind": "node", "name": "schedule"}
+{"t_ms": 5401, "kind": "llm", "key": "61672ac0", "hit": false, "messages": 13, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "book", "find_slots"], "thinking_dropped": 1, "usage": {"input_tokens": 4, "output_tokens": 45, "cache_read_input_tokens": 1857, "cache_creation_input_tokens": 1360}, "total_ms": 552, "first_event_ms": 473, "first_tool_ms": 473}
+{"t_ms": 5403, "kind": "tool_call", "name": "book", "arguments": {"option": 1}, "trigger_ms": 555.1}
+{"t_ms": 5405, "kind": "ehr", "call": "Book", "ms": 2, "outcome": "ok", "result": "booked"}
+{"t_ms": 5405, "kind": "tool_result", "name": "book", "result": {"spoken_to_caller": "You're booked for Monday, November 2, at 9 AM, with Dr. Avery Lin at Main Street Clinic, for 20 minutes. Is there anything else?"}, "ms": 2.2}
+{"t_ms": 5822, "kind": "agent", "text": "You're booked for Monday, November 2, at 9 AM, with Dr. Avery Lin at Main Street Clinic, for 20 minutes. Is there anything else?"}
+{"t_ms": 5822, "kind": "caller", "text": "That's all, thanks"}
+{"t_ms": 5824, "kind": "node", "name": "menu"}
+{"t_ms": 6511, "kind": "llm", "key": "936205ed", "hit": false, "messages": 15, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "find_slots", "next_visit"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 26, "cache_read_input_tokens": 2910, "cache_creation_input_tokens": 519}, "total_ms": 687, "first_event_ms": 652, "first_tool_ms": 652}
+{"t_ms": 6513, "kind": "tool_call", "name": "end_call", "arguments": {}, "trigger_ms": 691.3}
+{"t_ms": 6514, "kind": "tool_result", "name": "end_call", "result": {"spoken_to_caller": "Thank you for calling. Goodbye."}, "ms": 0.5}
+{"t_ms": 6515, "kind": "agent", "text": "Thank you for calling. Goodbye."}
+{"t_ms": 6517, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 6517, "kind": "call_end", "reason": "the agent ended it", "turns": 8, "requests": {"live": 4, "replayed": 4, "failed": 0}, "tokens": {"input_tokens": 16, "output_tokens": 237, "cache_read_input_tokens": 10112, "cache_creation_input_tokens": 2203}, "cost_usd": 0.000497}

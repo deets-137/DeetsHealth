@@ -1,0 +1,11 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 3, "call_id": "20261112-130528-typed", "source": "typed", "scenario": "flag_for_someone_else", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T13:05:28"}
+{"t_ms": 345, "kind": "ehr", "call": "OpenCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 761, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?"}
+{"t_ms": 761, "kind": "caller", "text": "Hi, I'm calling for my mom. She's been really confused lately and I want to book her a visit."}
+{"t_ms": 764, "kind": "node", "name": "greet"}
+{"t_ms": 2612, "kind": "llm", "key": "7ac70f9b", "hit": false, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 322, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 2726}, "total_ms": 1849, "first_event_ms": 605, "first_tool_ms": 1253}
+{"t_ms": 2615, "kind": "tool_call", "name": "hand_off", "arguments": {}, "trigger_ms": 1853.6}
+{"t_ms": 2615, "kind": "tool_result", "name": "hand_off", "result": {"spoken_to_caller": "I'm connecting you with a member of our staff now."}, "ms": 0.6}
+{"t_ms": 2616, "kind": "agent", "text": "I'm connecting you with a member of our staff now."}
+{"t_ms": 2618, "kind": "ehr", "call": "CloseCall", "ms": 1, "outcome": "ok"}
+{"t_ms": 2618, "kind": "call_end", "reason": "the agent ended it", "turns": 1, "requests": {"live": 1, "replayed": 0, "failed": 0}, "tokens": {"input_tokens": 4, "output_tokens": 322, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 2726}, "cost_usd": 0.000502}

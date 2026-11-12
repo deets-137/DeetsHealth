@@ -101,10 +101,24 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   (Timeline, Caller, Step, Tools), where the rating controls sit, the model and code graders.
   Then the staging deploy (2A: after this desk test; at $0, so the Docker Compose stand-in
   first, CLOUD.md). Polish from every desk test is always on (BUILD-ORDER.md §2; AGENT.md §4).
+- **Also in flight: the sandbox patients and the code by text** (CHAT.md §8 for the page,
+  TEXTS.md for the text path, 2026-11-12).
+  Built, desk test open: the rail's Sandbox patients panel (Test and Demo) from
+  `ehr/fixtures/sandbox.json`; Test calls send a random code through `ehr`'s real Twilio
+  request (`ehr/src/texts.rs`) to a fake Twilio in the dev server; the code button at the
+  canvas's bottom left opens the text or sends the code. `npm run dev` now builds `ehr` first.
+  Twilio itself is Phase 5; start the sender registration early (TWILIO.md §6). **The Tools
+  panel** (CHAT.md §9) is built too, desk test open: each tool call with its trigger line, the
+  time to trigger and the time to confirm, exact to a tenth of a ms (record schema 3).
 - **Also in flight: the call guardrails** (REGULATIONS.md, 2026-11-12). Built, desk test open:
   the greeting is a fixed line with the disclosures (automated, transcribed, a person at any
   time; §6), and a caller confused after a failed code goes to a person at once (§2.1; the kept
-  script `code_confusion.txt`). Open, in order: REGULATIONS.md §10 (twins, limits across
+  script `code_confusion.txt`). Also built: the safety reminder after a warning, and details
+  already given are never asked for again (`emergency_reminder.txt`). Staff flags, Phase 1
+  (FLAGS.md; forks 1A and 2A): code and the model raise them, silent to the caller, with the
+  caller's own words as checked evidence; a hand-off carries one; a caller for someone else
+  goes to a person. Desk test open. Next for flags: the kinds list (the owner's), and the
+  console's view of a flag. Open, in order: REGULATIONS.md §10 (twins, limits across
   calls, the confidential number, the code by keypad, and more). The map of every step, fixed
   line and limit, by file and symbol: CALL-FLOW.md.
 - **Gate on the first real call: split the call record** (the owner, 2026-11-12). Test mode

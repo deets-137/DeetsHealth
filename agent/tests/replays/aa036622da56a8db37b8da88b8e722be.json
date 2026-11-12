@@ -1,0 +1,112 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Cgyhdq8ArugpmnUcxBfXJ",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 2298
+     },
+     "cache_creation_input_tokens": 2298,
+     "cache_read_input_tokens": 0,
+     "inference_geo": "global",
+     "input_tokens": 4,
+     "output_tokens": 5,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "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",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01WFeiCiHq7jJrw4p2geyKKb",
+    "input": {},
+    "name": "safety_reminder",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 2298,
+    "cache_read_input_tokens": 0,
+    "input_tokens": 4,
+    "output_tokens": 379,
+    "output_tokens_details": {
+     "thinking_tokens": 349
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

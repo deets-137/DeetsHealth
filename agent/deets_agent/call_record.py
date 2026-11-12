@@ -8,18 +8,27 @@ because every caller here is synthetic. No real call may ever open one: the depl
 to `CallRecord`. The files in `agent/calls/` are committed to the private repo (the owner,
 2026-11-11), so they must stay synthetic: never type a real person's details into a typed call.
 
-Each line is one event: `t_ms` (from the call's start), `kind`, and its fields.
+Each line is one event: `t_ms` (from the call's start; to a tenth of a millisecond since schema
+4, whole before), `kind`, and its fields.
 - `call_start`, `call_end` — the schema version, the call's id (the file's name), the source
   (`typed`, `test`), the scenario (a script's name, or none), the mode, the model; at the end,
   the totals and the estimated cost.
-- `caller`, `agent` — what each side said.
+- `caller`, `agent` — what each side said. `first_ms` on `agent` (schema 4): when the line's
+  first frame passed, on the call's clock; the event's own `t_ms` comes after the harness's
+  turn grace (`TURN_GRACE_S` in call.py).
 - `node` — the Flow moved to a new node.
 - `tool_call`, `tool_result` — a function the model called, its arguments, its result, its time.
+  `trigger_ms` on the call: from the caller's last line to the call (schema 3). `ms` on the
+  result: the tool's own run, from its call to its result. Both are measured with the
+  high-resolution clock and kept to a tenth of a millisecond; `t_ms` is whole ms only.
 - `llm` — one request to Claude: replayed or live, the request key, the tools offered, the
   thinking blocks dropped, time to first event, total time, tokens, or the error in full.
 - `ehr` — one gRPC call to ehr: its name, time and gRPC outcome, and for `CheckCode` and
   `Book` the domain result (`pass` · `fail` · `locked`; `booked` · `slot_taken`). Never its
   values; those are in `tool_call` and `tool_result`.
+- `text` — a text message the fake Twilio took from ehr during the call (fake_twilio.py): the
+  number it went to and its words, the code among them. Test calls only. A real call never
+  has one: Twilio itself sends a real text, and nothing copies it here.
 - `log` — a library warning or error, with its text (the console shows it withheld).
 - `error` — the harness itself failed.
 """
@@ -41,8 +50,16 @@ CALLS = config.AGENT / "calls"
 PRICES = {"claude-haiku-5-5": (0.10, 0.50)}
 
 # 1: the records of 2026-11-11 (no id, source or scenario in `call_start`; no `result` on an
-# `ehr` event). 2: since 2026-11-12. The catalog reads both (catalog.py).
-SCHEMA_VERSION = 2
+# `ehr` event). 2: since 2026-11-12. 3: since 2026-11-12, afternoon: `tool_call` has
+# `trigger_ms`, and a tool's `ms` keeps a tenth of a millisecond (it was whole). 4: since
+# 2026-11-12, evening: every `t_ms` keeps a tenth of a millisecond, and `agent` has
+# `first_ms`. The catalog reads all four (catalog.py).
+SCHEMA_VERSION = 4
+
+
+def _ms(seconds: float) -> float:
+    """A span in milliseconds, to a tenth: a fake tool takes 1 to 4 ms, so whole ms hide it."""
+    return round(seconds * 1000, 1)
 
 
 class _LlmTrace:
@@ -127,6 +144,8 @@ class CallRecord:
         self._start = time.perf_counter()
         self._model = model
         self._tool_start: dict[str, float] = {}
+        self._last_caller: float | None = None
+        self._answer_start: float | None = None
         self._node: str | None = None
         self.turns = 0
         self.requests = {"live": 0, "replayed": 0, "failed": 0}
@@ -143,7 +162,7 @@ class CallRecord:
         )
 
     def event(self, kind: str, **fields: Any) -> None:
-        line = {"t_ms": round((time.perf_counter() - self._start) * 1000), "kind": kind, **fields}
+        line = {"t_ms": _ms(time.perf_counter() - self._start), "kind": kind, **fields}
         if kind == "llm":
             self.requests["failed" if "error" in fields else "replayed" if fields.get("hit") else "live"] += 1
         text = json.dumps(line, default=str, ensure_ascii=False)
@@ -156,10 +175,21 @@ class CallRecord:
 
     def caller(self, text: str) -> None:
         self.turns += 1
+        self._last_caller = time.perf_counter()
         self.event("caller", text=text)
 
+    def answer_started(self) -> None:
+        """The first frame of the agent's next line passed (call.py's TurnCollector)."""
+        self._answer_start = time.perf_counter()
+
     def agent(self, text: str | None) -> None:
-        self.event("agent", text=text)
+        fields: dict[str, Any] = {"text": text}
+        if self._answer_start is not None:
+            # When the line began, on the call's clock: the event itself is stamped after the
+            # text harness's turn grace, which a voice caller never waits through.
+            fields["first_ms"] = _ms(self._answer_start - self._start)
+            self._answer_start = None
+        self.event("agent", **fields)
 
     def node(self, name: str | None) -> None:
         if name and name != self._node:
@@ -167,14 +197,20 @@ class CallRecord:
             self.event("node", name=name)
 
     def tool_call(self, call_id: str, name: str, arguments: Any) -> None:
-        self._tool_start[call_id] = time.perf_counter()
-        self.event("tool_call", name=name, arguments=arguments)
+        now = time.perf_counter()
+        self._tool_start[call_id] = now
+        fields: dict[str, Any] = {"name": name, "arguments": arguments}
+        if self._last_caller is not None:
+            # From the caller's line to the model's call: what the caller waits through first.
+            fields["trigger_ms"] = _ms(now - self._last_caller)
+        self.event("tool_call", **fields)
 
     def tool_result(self, call_id: str, name: str, result: Any, error: Any = None) -> None:
         start = self._tool_start.pop(call_id, None)
         fields: dict[str, Any] = {"name": name, "result": result}
         if start is not None:
-            fields["ms"] = round((time.perf_counter() - start) * 1000)
+            # The tool's own run, from its call to its result (the EHR, the text service).
+            fields["ms"] = _ms(time.perf_counter() - start)
         if error:
             fields["error"] = str(error)
         self.event("tool_result", **fields)

@@ -41,7 +41,10 @@ caller's yes and the offered slots live on this object, as `Shielded`.
 
 from __future__ import annotations
 
+import re
 import secrets
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
@@ -100,6 +103,51 @@ def _visit_words(v: Slot | Visit) -> str:
 EMERGENCY_LINE = text("line.emergency")
 
 
+# The kinds of staff flag (FLAGS.md §3; a draft list, the owner's to edit). A flag carries its
+# kind out of the wall; its summary and evidence stay inside it.
+FLAG_KINDS = (
+    "possible_emergency",
+    "verification_failed",
+    "caller_distressed",
+    "calling_for_someone_else",
+    "safety_concern",
+    "clinical_question_waiting",
+    "other",
+)
+
+
+def _plain_words(value: str) -> list[str]:
+    """Lowercase words, apostrophes kept, punctuation dropped: how a quote is matched."""
+    return re.findall(r"[a-z0-9']+", value.lower().replace("’", "'"))
+
+
+@dataclass
+class StaffFlag:
+    """One flag for staff (the owner, 2026-11-12, forks 1A and 2A): silent to the caller. The
+    model's summary, and the caller's own words as its evidence, each checked by code against
+    what the caller said. Protected data: Shielded; sealed in the store (FLAGS.md §4)."""
+
+    kind: str
+    source: str  # "code" or "model"
+    t: float
+    summary: Shielded[str] | None = None
+    evidence: list[Shielded[str]] = field(default_factory=list)
+    # Quotes the model gave that the caller never said. Counted, never kept: a quote the
+    # caller did not say is the model's words, not evidence.
+    unverified: int = 0
+
+    def test_record(self) -> dict[str, Any]:
+        """The fields for the dev call record. Test mode keeps full values (REGULATIONS.md §8);
+        the store will seal the summary and the evidence."""
+        return {
+            "flag": self.kind,
+            "source": self.source,
+            "summary": self.summary.reveal() if self.summary is not None else None,
+            "evidence": [q.reveal() for q in self.evidence],
+            "unverified": self.unverified,
+        }
+
+
 def greeting() -> str:
     """The first words of every call, with the disclosures. The hospital sets its own later
     (FUTURE-SETTINGS.md §4)."""
@@ -118,11 +166,16 @@ def role(today: date) -> str:
 
 
 def _tool(name: str, handler, args: dict[str, str] | None = None, required: list[str] | None = None,
-          types: dict[str, str] | None = None) -> FlowsFunctionSchema:
-    """A tool whose description and argument descriptions come from the prompt file."""
+          types: dict[str, str] | None = None, schemas: dict[str, dict] | None = None) -> FlowsFunctionSchema:
+    """A tool whose description and argument descriptions come from the prompt file. `schemas`
+    gives an argument a full JSON schema (an enum, an array) in place of a plain type."""
     args = args or {}
     properties = {
-        a: {"type": (types or {}).get(a, "string"), "description": text(f"arg.{name}.{a}")} for a in args
+        a: {
+            **(schemas or {}).get(a, {"type": (types or {}).get(a, "string")}),
+            "description": text(f"arg.{name}.{a}"),
+        }
+        for a in args
     }
     return FlowsFunctionSchema(
         name=name,
@@ -149,6 +202,13 @@ class CallFlow:
     caller_lines: list[Shielded[str]] = field(default_factory=list)
     # The details read back and waiting for the caller's yes: (given, family, birth).
     pending: tuple[Shielded[str], Shielded[str], Shielded[str]] | None = None
+    # True once the caller has heard the full 911 line on this call (from the `emergency` tool or
+    # the phrase screen). Until then, `safety_reminder` speaks the full line, not the reminder.
+    warned: bool = False
+    # The staff flags raised on this call, and who hears of each (the dev call record today;
+    # the store and the rules engine later, FLAGS.md §5).
+    flags: list[StaffFlag] = field(default_factory=list)
+    on_flag: Callable[[StaffFlag], None] | None = None
 
     async def start(self) -> None:
         self.handle = await self.ehr.open_call()
@@ -247,6 +307,73 @@ class CallFlow:
     def handed_off(self) -> NodeConfig:
         return self._closing_node("hand_off")
 
+    # ---- staff flags (FLAGS.md) ----
+
+    def _caller_said(self, quote: str) -> bool:
+        """True when `quote`'s words appear, in order and together, in one caller line."""
+        words = _plain_words(quote)
+        if not words:
+            return False
+        for line in self.caller_lines:
+            said = _plain_words(line.reveal())
+            if any(said[i : i + len(words)] == words for i in range(len(said) - len(words) + 1)):
+                return True
+        return False
+
+    def raise_flag(
+        self, kind: str, source: str, summary: str | None = None, quotes: list[str] | tuple[str, ...] = ()
+    ) -> StaffFlag | None:
+        """Raise a flag. A code flag of one kind is raised once per call; the model may add its
+        own of any kind. Each quote is kept only if the caller said it (fork 1A)."""
+        if kind not in FLAG_KINDS:
+            kind = "other"
+        if source == "code" and any(f.kind == kind and f.source == "code" for f in self.flags):
+            return None
+        kept = [Shielded(q.strip()) for q in quotes if self._caller_said(q)]
+        flag = StaffFlag(
+            kind=kind,
+            source=source,
+            t=time.time(),
+            summary=Shielded(summary.strip()) if summary and summary.strip() else None,
+            evidence=kept,
+            unverified=len([q for q in quotes if q.strip()]) - len(kept),
+        )
+        self.flags.append(flag)
+        logger.info("staff flag raised: {} by {}, {} quotes kept", kind, source, len(kept))
+        if self.on_flag is not None:
+            self.on_flag(flag)
+        return flag
+
+    def flag_for_staff_fn(self) -> FlowsFunctionSchema:
+        # The owner, 2026-11-12: the model raises a flag with its notes and its evidence; the
+        # caller is not told (2A). Nothing is spoken, so the result tells the model to go on.
+        async def handler(args, flow_manager: FlowManager):
+            quotes = args.get("evidence") or []
+            if isinstance(quotes, str):
+                quotes = [quotes]
+            flag = self.raise_flag(
+                str(args.get("kind", "other")),
+                "model",
+                str(args.get("summary", "")),
+                [str(q) for q in quotes],
+            )
+            result = {
+                "flag_raised": flag.kind,
+                "evidence_kept": len(flag.evidence),
+                "next_step": text("note.after_flag"),
+            }
+            return result, None
+
+        return _tool(
+            "flag_for_staff",
+            handler,
+            {"kind": "", "summary": "", "evidence": ""},
+            schemas={
+                "kind": {"type": "string", "enum": list(FLAG_KINDS)},
+                "evidence": {"type": "array", "items": {"type": "string"}},
+            },
+        )
+
     # ---- global (every node has these) ----
 
     def medical_question_fn(self) -> FlowsFunctionSchema:
@@ -267,9 +394,31 @@ class CallFlow:
         # an end to the call.
         async def handler(args, flow_manager: FlowManager):
             logger.info("emergency line spoken")
+            self.warned = True
+            self.raise_flag("possible_emergency", "code")
             return await self._say(flow_manager, EMERGENCY_LINE)
 
         return _tool("emergency", handler)
+
+    def safety_reminder_fn(self) -> FlowsFunctionSchema:
+        # The owner, 2026-11-12: over-warning is fine, but a caller who has said they are safe to
+        # go on should not be asked the same question again. The reminder is a statement, so the
+        # model goes on with the task after it. The model chooses it; the code holds the safe
+        # side: before the caller has heard the full line, the full line is spoken instead.
+        async def handler(args, flow_manager: FlowManager):
+            if not self.warned:
+                logger.info("safety reminder asked before any warning; full 911 line spoken")
+                self.warned = True
+                self.raise_flag("possible_emergency", "code")
+                return await self._say(flow_manager, EMERGENCY_LINE)
+            logger.info("safety reminder spoken")
+            # A statement lets the model go on, and a model that goes on after a fixed line tends
+            # to say it again (AGENT.md §3); it did on 2026-11-12. The result says what comes next.
+            return await self._say(
+                flow_manager, text("line.emergency_reminder"), next_step=text("note.after_reminder")
+            )
+
+        return _tool("safety_reminder", handler)
 
     def end_call_fn(self) -> FlowsFunctionSchema:
         # Global, so a caller can leave at any step, verified or not; before, "end call" in the
@@ -282,10 +431,30 @@ class CallFlow:
     def hand_off_fn(self) -> FlowsFunctionSchema:
         async def handler(args, flow_manager: FlowManager):
             logger.info("hand off requested")
+            # A hand-off carries its own flag (FLAGS.md §2): the staff member learns why the
+            # caller is coming to them. A hand-off ends the call, so a separate flag_for_staff
+            # in a later reply would never run.
+            if args.get("kind") or args.get("summary"):
+                quotes = args.get("evidence") or []
+                self.raise_flag(
+                    str(args.get("kind") or "other"),
+                    "model",
+                    str(args.get("summary") or ""),
+                    [quotes] if isinstance(quotes, str) else [str(q) for q in quotes],
+                )
             # Phase 1 has no line to transfer to; the call ends with the words only.
             return await self._say(flow_manager, text("line.hand_off"), self.handed_off())
 
-        return _tool("hand_off", handler)
+        return _tool(
+            "hand_off",
+            handler,
+            {"kind": "", "summary": "", "evidence": ""},
+            required=[],
+            schemas={
+                "kind": {"type": "string", "enum": list(FLAG_KINDS)},
+                "evidence": {"type": "array", "items": {"type": "string"}},
+            },
+        )
 
     # ---- verification ----
 
@@ -369,6 +538,7 @@ class CallFlow:
             if outcome is CheckOutcome.PASS:
                 return await self._say(flow_manager, text("line.verified"), self.menu())
             if outcome is CheckOutcome.LOCKED:
+                self.raise_flag("verification_failed", "code")
                 return await self._say(flow_manager, text("line.locked"), self.handed_off())
             return await self._say(flow_manager, text("line.code_wrong"), tries_left=left)
 
@@ -380,6 +550,7 @@ class CallFlow:
                 left = await self.ehr.resend_code(self.handle)
             except EhrError as e:
                 if e.kind is ErrorKind.NOT_ALLOWED_NOW:
+                    self.raise_flag("verification_failed", "code")
                     return await self._say(flow_manager, text("line.no_more_codes"), self.handed_off())
                 return await self._ehr_trouble(flow_manager, e, "resend_code")
             return await self._say(flow_manager, text("line.code_resent"), resends_left=left)

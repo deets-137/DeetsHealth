@@ -1,0 +1,40 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 2, "call_id": "20261112-124210-test", "source": "test", "scenario": null, "mode": "live", "model": "claude-haiku-5-5", "started": "2026-11-12T12:42:10"}
+{"t_ms": 186, "kind": "ehr", "call": "OpenCall", "ms": 3, "outcome": "ok"}
+{"t_ms": 604, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?"}
+{"t_ms": 26038, "kind": "caller", "text": "Casey Morgan born June 5th 1990. Can I book a visit please? I'm having chest pains"}
+{"t_ms": 26039, "kind": "screen", "action": "emergency phrase, 911 line spoken"}
+{"t_ms": 26443, "kind": "agent", "text": "If this might be an emergency, please hang up and call 911 now. If you're safe to go on, would you like me to keep helping with your call?"}
+{"t_ms": 39351, "kind": "caller", "text": "Yes please, ill go to the urgent care in a second"}
+{"t_ms": 39353, "kind": "node", "name": "greet"}
+{"t_ms": 40950, "kind": "llm", "key": "193326bd", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 164, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 2045}, "total_ms": 1598, "first_event_ms": 794, "first_tool_ms": 1596}
+{"t_ms": 40951, "kind": "tool_call", "name": "emergency", "arguments": {}}
+{"t_ms": 40953, "kind": "tool_result", "name": "emergency", "result": {"spoken_to_caller": "If this might be an emergency, please hang up and call 911 now. If you're safe to go on, would you like me to keep helping with your call?"}, "ms": 1}
+{"t_ms": 41363, "kind": "agent", "text": "If this might be an emergency, please hang up and call 911 now. If you're safe to go on, would you like me to keep helping with your call?"}
+{"t_ms": 45371, "kind": "caller", "text": "yes"}
+{"t_ms": 47238, "kind": "llm", "key": "db6e77c6", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 243, "cache_read_input_tokens": 2045, "cache_creation_input_tokens": 231}, "total_ms": 1866, "first_event_ms": 602, "first_text_ms": 1756}
+{"t_ms": 47649, "kind": "agent", "text": "Thank you. To book a visit, I'll need your first name, last name, and date of birth."}
+{"t_ms": 61633, "kind": "caller", "text": "I already gave it to you? Casey Morgan June 5th 1990"}
+{"t_ms": 62494, "kind": "llm", "key": "e232cf2f", "hit": false, "messages": 7, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 105, "cache_read_input_tokens": 2276, "cache_creation_input_tokens": 269}, "total_ms": 859, "first_event_ms": 586, "first_tool_ms": 586}
+{"t_ms": 62495, "kind": "tool_call", "name": "identify", "arguments": {"given_name": "Casey", "family_name": "Morgan", "birth_date": "1990-06-05"}}
+{"t_ms": 62497, "kind": "tool_result", "name": "identify", "result": {"spoken_to_caller": "I have Casey Morgan, born June 5, 1990. Is that right?"}, "ms": 2}
+{"t_ms": 62884, "kind": "agent", "text": "I have Casey Morgan, born June 5, 1990. Is that right?"}
+{"t_ms": 68107, "kind": "caller", "text": "Yes, i told you twice"}
+{"t_ms": 68733, "kind": "llm", "key": "6ccc2ef5", "hit": false, "messages": 9, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 2545, "cache_creation_input_tokens": 161}, "total_ms": 624, "first_event_ms": 606, "first_tool_ms": 606}
+{"t_ms": 68734, "kind": "tool_call", "name": "confirm_details", "arguments": {}}
+{"t_ms": 68737, "kind": "ehr", "call": "Identify", "ms": 3, "outcome": "ok"}
+{"t_ms": 68738, "kind": "tool_result", "name": "confirm_details", "result": {"spoken_to_caller": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}, "ms": 4}
+{"t_ms": 69147, "kind": "agent", "text": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}
+{"t_ms": 76341, "kind": "caller", "text": "i didnt get a code"}
+{"t_ms": 76345, "kind": "node", "name": "verify"}
+{"t_ms": 77107, "kind": "llm", "key": "28860b9b", "hit": false, "messages": 11, "tools": ["hand_off", "end_call", "emergency", "medical_question", "check_code", "resend_code", "identify", "confirm_details"], "thinking_dropped": 2, "usage": {"input_tokens": 4, "output_tokens": 55, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 2791}, "total_ms": 764, "first_event_ms": 615, "first_tool_ms": 741}
+{"t_ms": 77108, "kind": "tool_call", "name": "resend_code", "arguments": {}}
+{"t_ms": 77111, "kind": "ehr", "call": "ResendCode", "ms": 3, "outcome": "ok"}
+{"t_ms": 77112, "kind": "tool_result", "name": "resend_code", "result": {"spoken_to_caller": "I've sent the code again. It can take a minute to arrive. Could you read it to me when it does?", "resends_left": 1}, "ms": 4}
+{"t_ms": 77514, "kind": "agent", "text": "I've sent the code again. It can take a minute to arrive. Could you read it to me when it does?"}
+{"t_ms": 84141, "kind": "caller", "text": "I DIDNT GET A CODE"}
+{"t_ms": 84859, "kind": "llm", "key": "1b4bd214", "hit": false, "messages": 13, "tools": ["hand_off", "end_call", "emergency", "medical_question", "check_code", "resend_code", "identify", "confirm_details"], "thinking_dropped": 2, "usage": {"input_tokens": 4, "output_tokens": 27, "cache_read_input_tokens": 2791, "cache_creation_input_tokens": 128}, "total_ms": 717, "first_event_ms": 681, "first_tool_ms": 681}
+{"t_ms": 84860, "kind": "tool_call", "name": "hand_off", "arguments": {}}
+{"t_ms": 84861, "kind": "tool_result", "name": "hand_off", "result": {"spoken_to_caller": "I'm connecting you with a member of our staff now."}, "ms": 1}
+{"t_ms": 84863, "kind": "agent", "text": "I'm connecting you with a member of our staff now."}
+{"t_ms": 84866, "kind": "ehr", "call": "CloseCall", "ms": 1, "outcome": "ok"}
+{"t_ms": 84866, "kind": "call_end", "reason": "the agent ended it", "turns": 7, "requests": {"live": 6, "replayed": 0, "failed": 0}, "tokens": {"input_tokens": 24, "output_tokens": 622, "cache_read_input_tokens": 9657, "cache_creation_input_tokens": 5625}, "cost_usd": 0.001113}

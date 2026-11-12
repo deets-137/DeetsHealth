@@ -1,0 +1,26 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 3, "call_id": "20261112-125748-typed", "source": "typed", "scenario": "leave_at_code", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T12:57:48"}
+{"t_ms": 335, "kind": "ehr", "call": "OpenCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 753, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?"}
+{"t_ms": 754, "kind": "caller", "text": "Hi, I'd like to book a check-up."}
+{"t_ms": 756, "kind": "llm", "key": "e7cb7e2d", "hit": true, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 1939, "cache_creation_input_tokens": 266}, "total_ms": 1}
+{"t_ms": 756, "kind": "node", "name": "greet"}
+{"t_ms": 1159, "kind": "agent", "text": "I can help with that. First, could you tell me your first name, last name, and date of birth?"}
+{"t_ms": 1159, "kind": "caller", "text": "Priya Raman, November 30, 1971"}
+{"t_ms": 2066, "kind": "llm", "key": "8bc96073", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 104, "cache_read_input_tokens": 2205, "cache_creation_input_tokens": 44}, "total_ms": 906, "first_event_ms": 654, "first_tool_ms": 660}
+{"t_ms": 2068, "kind": "tool_call", "name": "identify", "arguments": {"given_name": "Priya", "family_name": "Raman", "birth_date": "1971-11-30"}, "trigger_ms": 908.6}
+{"t_ms": 2069, "kind": "tool_result", "name": "identify", "result": {"spoken_to_caller": "I have Priya Raman, born November 30, 1971. Is that right?"}, "ms": 0.6}
+{"t_ms": 2477, "kind": "agent", "text": "I have Priya Raman, born November 30, 1971. Is that right?"}
+{"t_ms": 2477, "kind": "caller", "text": "Yes, that's right."}
+{"t_ms": 2972, "kind": "llm", "key": "21ef2476", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 2249, "cache_creation_input_tokens": 158}, "total_ms": 494, "first_event_ms": 479, "first_tool_ms": 479}
+{"t_ms": 2973, "kind": "tool_call", "name": "confirm_details", "arguments": {}, "trigger_ms": 496.3}
+{"t_ms": 2975, "kind": "ehr", "call": "Identify", "ms": 1, "outcome": "ok"}
+{"t_ms": 2975, "kind": "tool_result", "name": "confirm_details", "result": {"spoken_to_caller": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}, "ms": 1.9}
+{"t_ms": 3386, "kind": "agent", "text": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}
+{"t_ms": 3387, "kind": "caller", "text": "I don't have my phone, I'll call back later. Bye."}
+{"t_ms": 3389, "kind": "node", "name": "verify"}
+{"t_ms": 3904, "kind": "llm", "key": "1a2d17b5", "hit": false, "messages": 7, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "check_code", "resend_code", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 26, "cache_read_input_tokens": 2094, "cache_creation_input_tokens": 763}, "total_ms": 516, "first_event_ms": 488, "first_tool_ms": 488}
+{"t_ms": 3905, "kind": "tool_call", "name": "end_call", "arguments": {}, "trigger_ms": 518.8}
+{"t_ms": 3906, "kind": "tool_result", "name": "end_call", "result": {"spoken_to_caller": "Thank you for calling. Goodbye."}, "ms": 0.5}
+{"t_ms": 3907, "kind": "agent", "text": "Thank you for calling. Goodbye."}
+{"t_ms": 3908, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 3909, "kind": "call_end", "reason": "the agent ended it", "turns": 4, "requests": {"live": 3, "replayed": 1, "failed": 0}, "tokens": {"input_tokens": 12, "output_tokens": 158, "cache_read_input_tokens": 6548, "cache_creation_input_tokens": 965}, "cost_usd": 0.000266}

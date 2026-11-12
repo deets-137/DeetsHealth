@@ -151,6 +151,10 @@ class TurnCollector(FrameProcessor):
     def _add(self, text: str, whole: bool = False) -> None:
         """Add words to the turn. A whole line (spoken by the Flow) is set apart by a space from
         the model's stream on either side of it."""
+        if not self._words and self.record is not None:
+            # The answer's first frame: where a voice caller would start to hear it. The turn
+            # itself is stamped later, after TURN_GRACE_S, which no voice caller waits through.
+            self.record.answer_started()
         if (whole or self._last_whole) and self._words and not self._words[-1].endswith((" ", "\n")):
             self._words.append(" ")
         self._words.append(text)
@@ -224,7 +228,9 @@ class TypedCall:
                 self.flow.hand_off_fn(),
                 self.flow.end_call_fn(),
                 self.flow.emergency_fn(),
+                self.flow.safety_reminder_fn(),
                 self.flow.medical_question_fn(),
+                self.flow.flag_for_staff_fn(),
             ],
         )
         self._runner = WorkerRunner()
@@ -240,6 +246,8 @@ class TypedCall:
             self._collector.manager = self._manager
             self._screen.record = record
             ehr.record = record
+            # Each staff flag goes to the record, and so to the watch stream (FLAGS.md §5).
+            self.flow.on_flag = lambda flag: record.event("staff_flag", **flag.test_record())
             if messages is not None and hasattr(messages, "record"):
                 messages.record = record
         self._found: list[tuple[str, str]] = getattr(messages, "words_before_tool", [])

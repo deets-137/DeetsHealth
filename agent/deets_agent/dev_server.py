@@ -11,10 +11,16 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
 - `GET  /agent/catalog` — every dev call record, its row and current ratings (catalog.py), and
   the rubric's dimensions.
 - `GET  /agent/calls/{id}` — one record's events, for Demo.
+- `GET  /agent/latency` — per-tool latency: a summary per tool and model (p50, p90, max of each
+  span), and each tool call's row with `rows=true`. Filters: `source`, `model`, `since` (a day
+  or a call id), `exact`, `with_replayed` (latency.py).
 - `POST /agent/annotations` — a label, a note, a star or a rating; kept in the committed file.
 - `WS   /agent/call` — the caller's seat (Test): RTVI as JSON (rtvi_json.py). One call at a time.
 - `WS   /agent/watch` — the watch stream: the live call's events as the record writes them, the
   same lines Demo plays back.
+- `GET  /agent/sandbox` — the sandbox patients and their visits (ehr/fixtures/sandbox.json).
+- `POST /2010-04-01/Accounts/{sid}/Messages.json` — the fake Twilio (fake_twilio.py), for ehr
+  only: its own Basic auth instead of the token. A text it takes joins the live call's record.
 
 **The wall.** A WebSocket is not covered by CORS: any web page can open one to 127.0.0.1. So
 every request must carry the launch token (only Vite's proxy has it) and come from the
@@ -51,16 +57,21 @@ from deets_agent.catalog import (
 )
 from deets_agent.ehr_client import EhrClient
 from deets_agent.ehr_process import running_ehr
+from deets_agent.fake_twilio import FakeTwilio
 from deets_agent.llm import Mode, build_llm
 from deets_agent.rtvi_json import RtviJsonSerializer
 
 TOKEN_HEADER = "x-deets-token"
 
 
+SANDBOX = config.REPO / "ehr" / "fixtures" / "sandbox.json"
+
+
 class State:
-    def __init__(self, token: str, origins: set[str]) -> None:
+    def __init__(self, token: str, origins: set[str], port: int) -> None:
         self.token = token
         self.origins = origins
+        self.twilio = FakeTwilio(port)
         self.catalog = Catalog().build()
         self.ehr: EhrClient | None = None
         # Test is always live (the owner, 2026-11-12: "limit replaying conversations only to the
@@ -88,7 +99,8 @@ class State:
 def build_app(state: State) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        async with running_ehr() as target:
+        # ehr sends its texts to the fake Twilio below, with this launch's fake account.
+        async with running_ehr(env=state.twilio.ehr_env()) as target:
             state.ehr = await EhrClient.connect(target, config.CERTS)
             try:
                 yield
@@ -99,13 +111,37 @@ def build_app(state: State) -> FastAPI:
 
     @app.middleware("http")
     async def wall(request: Request, call_next):
+        if request.url.path == state.twilio.path():
+            # ehr, not the console: the fake Twilio's own check (fake_twilio.py).
+            host = request.client.host if request.client else None
+            if not state.twilio.authorized(request.headers, host):
+                return JSONResponse({"code": 20003, "message": "Authenticate", "status": 401}, status_code=401)
+            return await call_next(request)
         if not state.allowed(request.headers):
             return JSONResponse({"error": "forbidden"}, status_code=403)
         return await call_next(request)
 
+    @app.post("/2010-04-01/Accounts/{account}/Messages.json")
+    async def twilio_messages(account: str, request: Request):
+        if request.url.path != state.twilio.path():
+            return JSONResponse({"code": 20404, "message": "Not found", "status": 404}, status_code=404)
+        status, reply = state.twilio.take(await request.body())
+        text = reply.pop("_text", None)
+        live = state.live
+        if text is not None and live is not None:
+            # The phone that got it, on the Chat page: the code button (CHAT.md §8).
+            live.event("text", to=text["to"], body=text["body"])
+        return JSONResponse(reply, status_code=status)
+
     @app.get("/agent/health")
     async def health():
         return {"key": state.has_key, "live": state.live.call_id if state.live else None}
+
+    @app.get("/agent/sandbox")
+    async def sandbox():
+        """The sandbox patients and their visits, the same file ehr's fakes read."""
+        data = json.loads(SANDBOX.read_text(encoding="utf-8"))
+        return {"place": data["place"], "patients": data["patients"], "visits": data["visits"]}
 
     @app.get("/agent/catalog")
     async def catalog():
@@ -115,6 +151,18 @@ def build_app(state: State) -> FastAPI:
             "outcomes": OUTCOMES,
             "rubric_version": RUBRIC_VERSION,
         }
+
+    @app.get("/agent/latency")
+    async def tool_latency(
+        source: str | None = None,
+        model: str | None = None,
+        since: str | None = None,
+        exact: bool = False,
+        with_replayed: bool = False,
+        rows: bool = False,
+    ):
+        """Per-tool latency from the catalog (latency.py; CHAT.md §10)."""
+        return state.catalog.latency(source, model, since, exact, with_replayed, rows)
 
     @app.get("/agent/calls/{call_id}")
     async def call_events(call_id: str):
@@ -233,7 +281,7 @@ def main() -> int:
         print("DEETS_DEV_TOKEN is missing or short. Start the dev server with `npm run dev`.", file=sys.stderr)
         return 2
     redact.install(args.log)
-    state = State(token, set(args.origin))
+    state = State(token, set(args.origin), args.port)
     keyed = "test calls live" if state.has_key else "no Anthropic key: Demo only"
     print(f"agent dev server on 127.0.0.1:{args.port} ({keyed})", flush=True)
     uvicorn.run(build_app(state), host="127.0.0.1", port=args.port, log_level="warning", access_log=False)

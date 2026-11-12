@@ -5,6 +5,7 @@ port: several Deets apps run on this PC at once). ehr prints its address as its 
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,8 +16,13 @@ _LISTENING = re.compile(r"^ehr listening on (\S+)$")
 
 
 @asynccontextmanager
-async def running_ehr(binary: Path = config.EHR_BINARY, certs: Path = config.CERTS):
-    """Yields ehr's address (host:port). Stops ehr on exit."""
+async def running_ehr(
+    binary: Path = config.EHR_BINARY,
+    certs: Path = config.CERTS,
+    env: dict[str, str] | None = None,
+):
+    """Yields ehr's address (host:port). Stops ehr on exit. `env` adds settings to ehr's
+    environment (the dev server's fake Twilio, ehr/src/texts.rs)."""
     if not binary.exists():
         raise FileNotFoundError("ehr is not built. Run: cargo build -p deetshealth-ehr")
     if not (certs / "agent.pem").exists():
@@ -29,6 +35,7 @@ async def running_ehr(binary: Path = config.EHR_BINARY, certs: Path = config.CER
         "0",
         "--certs",
         str(certs),
+        env={**os.environ, **env} if env else None,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )

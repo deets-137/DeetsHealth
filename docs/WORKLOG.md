@@ -8,6 +8,57 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-12 (Windows, evening) — Per-tool latency, an API
+- The owner asked whether a call's record keeps how long each tool took. It does: his 12:58
+  test call showed the model is most of every trigger (527–1497 ms), each tool's run took
+  1–8 ms on the fakes, and each answer was stamped about 400 ms late by the text harness's turn
+  grace (`TURN_GRACE_S`), a wait no voice caller has.
+- He chose A, "just an API for now", and a doc for the Analytics tab to build on. Built
+  (CHAT.md §10): `latency.py` (one row per tool call, six spans, names and numbers only), the
+  catalog's `tool_calls` table, `GET /agent/latency` (a summary per tool and model with p50,
+  p90 and max; the rows on request; filters). Record schema 4: every `t_ms` to a tenth of a
+  millisecond, and `first_ms` on each agent line, stamped at its first frame, so the answer
+  time no longer carries the grace. Older records leave the answer spans empty, not guessed.
+- The Analytics tab went into ideas/README.md, with this API as its first source.
+- Checks: ruff; agent 69 of 70 tests (the same Windows-only catalog test); over the 87 records,
+  390 tool calls, 310 without the replayed ones.
+
+## 2026-11-12 (Windows, late afternoon) — The code-by-text doc; the Tools panel
+- Documented the code by text in full: a new architecture doc, TEXTS.md (the path by file and
+  symbol, the request, the settings, `TextPass`, the fake Twilio, the tests, the Phase 5
+  steps), and CHAT.md §8 rewritten as the full UI record (§8.1–§8.5).
+- The Tools panel (CHAT.md §9). The owner chose A: the time to confirm is the tool's own run,
+  "to help us track latency as accurately as possible"; and a main line with bullets under it,
+  not one row. Built: each tool call as its name and arguments, with "Triggered by", "Time to
+  trigger" and "Time to confirm" under it, in every mode.
+- For accuracy the record now keeps both times from the agent's high-resolution clock to a
+  tenth of a millisecond: `trigger_ms` on `tool_call`, and `ms` on `tool_result`, which was
+  whole ms (record schema 3). Older records fall back to whole-ms event times.
+- Checks: front-end type check, docs check, ruff pass; agent 59 of 60 (the same Windows-only
+  catalog test as before). Not run: the desk test (CHAT.md §9).
+
+## 2026-11-12 (Windows, afternoon) — The sandbox patients in the rail; the code by text
+- The owner chose fork A: a fake Twilio now, Twilio itself in Phase 5, and asked to build as
+  close to the end product as is reasonable. His layout, from two screenshots: the sandbox
+  patients in the rail (Test and Demo: name, date of birth, a collapsible list of visits); a
+  split button where the help button was, the code on the left (it opens the text), a send
+  shortcut on the right.
+- Built (CHAT.md §8): `ehr/fixtures/sandbox.json`, one list for the fakes and the page;
+  `ehr/src/texts.rs`, a random code sent with Twilio's Messages request on the wire's AWS-LC
+  provider; a fifth pass, `TextPass`, held only by `texts.rs`; the text's words in
+  AGENT-PROMPT.md › `text.code`; the fake Twilio in the dev server
+  (`agent/deets_agent/fake_twilio.py`), which writes a `text` event into the test call's
+  record; the rail panel and the code button in `chat.ts`. Kept tests: `ehr/tests/texts.rs`
+  (the real request against a local listener), `agent/tests/test_fake_twilio.py`.
+- `npm run dev` now builds `ehr` first, and on Windows ends the whole process tree on Ctrl+C.
+  Found while checking: an `ehr` left behind by an earlier dev server held the binary, so no
+  rebuild could replace it.
+- Checks: ehr 41 tests and clippy clean (in a second target folder, because the running dev
+  server holds `target/debug`'s binary); agent 59 of 60 tests pass: one catalog test fails on
+  Windows (`test_annotations_survive_a_rebuild…`: it deletes a SQLite file still open; the
+  catalog files are unchanged, so it was failing before this work); front-end type check and
+  docs check pass. Not run: the desk test (CHAT.md §8).
+
 ## 2026-11-12 (Windows, afternoon) — The regulations map; the greeting's disclosures; confusion goes to a person
 - Pulled the Mac's work. `npm run dev` failed on Windows: `spawn("npx")` gives ENOENT, because
   `npx` is a `.cmd` file. `scripts/dev.mjs` now runs Vite's own script with Node (`d14b9a5`).
@@ -28,6 +79,30 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   DOCS-ORG.md §1, rule 8. FUTURE-SETTINGS.md now points to the lines in place of quoting them. The
   emergency phrase list now lives only in `screen.py`, with each entry's examples as a comment;
   the test that matched the doc's copy to the code is gone.
+- The owner's retest (Casey Morgan, chest pains in the first line): the greeting, the screen and
+  the confusion hand-off worked. Two defects: the 911 line played twice, and the agent asked
+  again for the name and date of birth given in the first line.
+- The owner, 2026-11-12: over-warning is fine, but a caller who said yes should not be asked
+  again; a reminder in neutral words, then go on. Built: `safety_reminder` (a global tool) speaks
+  `line.emergency_reminder`; anything new or worse still gets `emergency`. The code holds the
+  safe side: before the full line has played on the call (`CallFlow.warned`), the reminder plays
+  the full line. `task.greet` now uses details already given. New kept script
+  `emergency_reminder.txt`.
+- Found while recording: Haiku skipped the reminder until the rule gave examples ("it still
+  hurts, they will go to urgent care"); then it said the reminder twice and stopped, the
+  statement-line problem of AGENT.md §3. Fixed with a note in the tool result
+  (`note.after_reminder`, a new `note.*` kind of section: for the model only, never spoken).
+  All 9 scripts recorded again (about $0.01). 61 of 62 tests pass (the Windows catalog bug).
+- Staff flags, the owner's forks: 1A (the model's summary plus the caller's own words as its
+  evidence) and 2A (silent to the caller; a flag starts work in the background: a rules
+  engine, a nurse who chooses to join). Built Phase 1 (FLAGS.md): code flags on the 911 line,
+  a lock and no code left; the model's `flag_for_staff`; the evidence check in code.
+- Found while recording: a caller for their mother was asked for their own details, which
+  would book the caller, not the mother. A rule now sends such a caller to a person. The model
+  then handed off without a flag, because a hand-off ends the call; `hand_off` now carries
+  the flag's fields itself. New kept script `flag_for_someone_else.txt`. All 10 scripts
+  recorded again (about $0.01). 69 of 70 tests pass (the Windows catalog bug). A separate
+  session wrote the flag settings, FUTURE-SETTINGS.md §5 (`d9c48b6`).
 
 ## 2026-11-12 — The Mac set up; the Chat page wired to the agent; the catalog of calls
 - On the Mac: `npm install`, `uv` (Homebrew), the `wasm32` target, `uv sync`, `ehr` built, the
