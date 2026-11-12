@@ -35,6 +35,49 @@ async def test_a_recording_replays_as_sdk_events(tmp_path):
     assert events[1].type == "content_block_delta" and events[1].delta.text == "Hi there"
 
 
+CUT_OFF = [
+    {"type": "content_block_start", "index": 0, "content_block": {"type": "thinking", "thinking": "", "signature": ""}},
+    {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": "Hmm..."}},
+    {"type": "content_block_stop", "index": 0},
+    {"type": "message_delta", "delta": {"stop_reason": "max_tokens"}, "usage": {"output_tokens": 1200}},
+    {"type": "message_stop"},
+]
+
+
+async def test_a_reply_cut_off_with_nothing_to_say_is_retried_after_the_holding_line(tmp_path):
+    """The owner, 2026-11-12: a reply that thinks through the whole cap and says nothing is
+    dropped; the holding line and a review flag come first, then one retry with the retry cap.
+    Pipecat sees only the retry's events."""
+    from deets_agent import config
+
+    (tmp_path / f"{request_key(PARAMS)}.json").write_text(json.dumps({"stream": True, "events": CUT_OFF}))
+    retry = dict(PARAMS, max_tokens=config.RETRY_MAX_TOKENS)
+    (tmp_path / f"{request_key(retry)}.json").write_text(json.dumps({"stream": True, "events": EVENTS}))
+    client = GaClient(Mode.REPLAY, tmp_path)
+    calls = []
+
+    async def on_cut_off(final):
+        calls.append(final)
+
+    client.messages.on_cut_off = on_cut_off
+    events = [e async for e in await client.messages.create(**PARAMS)]
+    assert calls == [False]
+    assert [e.type for e in events] == [e["type"] for e in EVENTS], "only the retry reaches Pipecat"
+
+
+async def test_a_reply_with_text_streams_untouched(tmp_path):
+    (tmp_path / f"{request_key(PARAMS)}.json").write_text(json.dumps({"stream": True, "events": EVENTS}))
+    client = GaClient(Mode.REPLAY, tmp_path)
+    calls = []
+
+    async def on_cut_off(final):
+        calls.append(final)
+
+    client.messages.on_cut_off = on_cut_off
+    events = [e async for e in await client.messages.create(**PARAMS)]
+    assert calls == [] and len(events) == len(EVENTS)
+
+
 async def test_a_miss_in_replay_mode_never_calls_the_network(tmp_path):
     client = GaClient(Mode.REPLAY, tmp_path, api_key="not-used")
     with pytest.raises(ReplayMiss):

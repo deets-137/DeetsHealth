@@ -186,6 +186,9 @@ def summarize(call_id: str, events: list[dict[str, Any]]) -> Summary:
         elif kind == "staff_flag":
             # A staff flag (FLAGS.md): the catalog's label names its kind, never its notes.
             flags.add(f"staff_{e.get('flag') or 'other'}")
+        elif kind == "review_flag":
+            # A review flag (FLAGS.md §8): for an analyst or engineer to look at the call.
+            flags.add(f"review_{e.get('reason') or 'other'}")
         elif kind == "invented_value":
             flags.add("invented_value")
         elif kind == "words_before_tool":

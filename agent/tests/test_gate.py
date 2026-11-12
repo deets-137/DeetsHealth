@@ -129,17 +129,21 @@ async def test_a_whole_call_through_the_handlers(ehr):
     assert "Tuesday, November 10, at 10 AM" in result["spoken_to_caller"]
 
     result, node = await handler(flow.menu(), "find_slots")({"reason": "a check-up"}, fm)
-    assert node["name"] == "schedule" and result["options"] == 3
+    assert node["name"] == "schedule" and result["options"] == [1, 2, 3]
     assert "Option 1: Monday, November 2, at 9 AM" in result["spoken_to_caller"]
 
-    result, node = await handler(node, "book")({"option": 1}, fm)
+    # Confirm before booking (the owner's choice A, 2026-11-12): the choice is read back first.
+    result, nxt = await handler(node, "choose_option")({"option": 1}, fm)
+    assert nxt is NO_RESPONSE and result["spoken_to_caller"].endswith("?")
+    assert "Monday, November 2, at 9 AM" in result["spoken_to_caller"]
+    result, node = await handler(node, "book")({}, fm)
     assert node["name"] == "menu" and result["spoken_to_caller"].startswith("You're booked for Monday, November 2")
 
     result, _ = await handler(node, "next_visit")({}, fm)
     assert "Monday, November 2" in result["spoken_to_caller"]
 
     # Every line the model was told about is a line the caller heard, word for word.
-    assert len(spoken(fm)) == 7  # the read-back, then six lines
+    assert len(spoken(fm)) == 8  # the read-back, then seven lines
     assert spoken(fm)[-1] == result["spoken_to_caller"]
     await flow.close()
 
@@ -180,8 +184,45 @@ async def test_the_model_never_sees_a_slot_token(ehr):
     _, node = await identify(flow, JORDAN)
     _, node = await handler(node, "check_code")(CODE, manager())
     result, _ = await handler(node, "find_slots")({"reason": "a check-up"}, manager())
-    for slot in flow.offered:
+    for slot in flow.offered.values():
         assert slot.token.reveal() not in str(result)
+    await flow.close()
+
+
+async def test_book_needs_a_read_back_and_numbers_keep_their_time(ehr):
+    """2026-11-12, after a double booking: `book` books nothing until a choice was read back,
+    and an option number means one time for the whole call; a later search goes on from the
+    last number."""
+    flow = new_flow(ehr)
+    await flow.start()
+    _, node = await identify(flow, JORDAN)
+    _, node = await handler(node, "check_code")(CODE, manager())
+    first, node = await handler(node, "find_slots")({"reason": "a check-up"}, manager())
+    assert first["options"] == [1, 2, 3]
+    _, nxt = await handler(node, "book")({}, manager())
+    assert nxt is NO_RESPONSE and flow.last_booked is None, "no booking without a read-back"
+
+    later, _ = await handler(node, "find_slots")({"reason": "a check-up", "earliest_day": "2026-11-03"}, manager())
+    # Tuesday at 10 AM was option 3 and stays option 3; the times not heard before go on from 4.
+    assert later["options"][0] == 3 and all(n >= 4 for n in later["options"][1:])
+    assert "Option 3: Tuesday, November 3, at 10 AM" in later["spoken_to_caller"]
+    await flow.close()
+
+
+async def test_a_change_after_booking_names_the_visit_flags_and_hands_off(ehr):
+    flow = new_flow(ehr)
+    await flow.start()
+    _, node = await identify(flow, JORDAN)
+    _, node = await handler(node, "check_code")(CODE, manager())
+    _, node = await handler(node, "find_slots")({"reason": "a check-up"}, manager())
+    await handler(node, "choose_option")({"option": 2}, manager())
+    _, node = await handler(node, "book")({}, manager())
+    flow.heard("Actually, could I take option 3 instead?")
+    result, nxt = await handler(node, "change_visit")({}, manager())
+    assert nxt["name"] == "hand_off"
+    assert "Monday, November 2, at 2:30 PM" in result["spoken_to_caller"], "the caller hears what stays booked"
+    flag = flow.flags[-1]
+    assert flag.kind == "booking_change" and flag.evidence[0].reveal().startswith("Actually")
     await flow.close()
 
 

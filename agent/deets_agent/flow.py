@@ -112,6 +112,7 @@ FLAG_KINDS = (
     "calling_for_someone_else",
     "safety_concern",
     "clinical_question_waiting",
+    "booking_change",
     "other",
 )
 
@@ -200,9 +201,16 @@ class CallFlow:
     ehr: EhrClient
     today: date = field(default_factory=date.today)
     handle: Shielded[str] | None = None
-    offered: list[Slot] = field(default_factory=list)
+    # Every option the caller has heard on this call, by its number. A number keeps its time for
+    # the whole call, and a new search goes on from the last number, so "option 3" never means
+    # two times (the owner, 2026-11-12, after a double booking).
+    offered: dict[int, Slot] = field(default_factory=dict)
     # One idempotency key per option the caller chose, so a retry never books twice.
     book_keys: dict[int, str] = field(default_factory=dict)
+    # The option read back and waiting for the caller's yes (confirm before booking, the owner's
+    # choice A, 2026-11-12), and the visit booked last on this call.
+    chosen: int | None = None
+    last_booked: Visit | None = None
     # Set when the Flow moves to a node that ends the call (goodbye, hand off).
     closing: bool = False
     # Every caller line on this call, for the name guard. Protected data: Shielded, call-long.
@@ -298,14 +306,19 @@ class CallFlow:
         return self._step({
             "name": "menu",
             "task_messages": self._task("menu"),
-            "functions": [self._find_slots_fn(), self._next_visit_fn()],
+            "functions": [self._find_slots_fn(), self._next_visit_fn(), self._change_visit_fn()],
         })
 
     def schedule(self) -> NodeConfig:
         return self._step({
             "name": "schedule",
             "task_messages": self._task("schedule"),
-            "functions": [self._book_fn(), self._find_slots_fn()],
+            "functions": [
+                self._choose_option_fn(),
+                self._book_fn(),
+                self._find_slots_fn(),
+                self._change_visit_fn(),
+            ],
         })
 
     def _closing_node(self, name: str) -> NodeConfig:
@@ -586,42 +599,86 @@ class CallFlow:
                 slots = await self.ehr.find_slots(self.handle, reason, Shielded(day) if day else None)
             except EhrError as e:
                 return await self._ehr_trouble(flow_manager, e, "find_slots")
-            logger.info("find_slots: {} offered", len(slots))
-            self.offered = slots
-            self.book_keys.clear()
+            logger.info("find_slots: {} found", len(slots))
+            self.chosen = None
             if not slots:
                 return await self._say(flow_manager, text("line.no_slots"))
+            numbers = [self._number_for(s) for s in slots]
             options = " ".join(
-                text("line.slot_option", number=str(i), visit=_visit_words(s)) for i, s in enumerate(slots, 1)
+                text("line.slot_option", number=str(n), visit=_visit_words(s)) for n, s in zip(numbers, slots)
             )
             return await self._say(
-                flow_manager, text("line.slots", options=options), self.schedule(), options=len(slots)
+                flow_manager, text("line.slots", options=options), self.schedule(), options=numbers
             )
 
         return _tool("find_slots", handler, {"reason": "", "earliest_day": ""}, required=["reason"])
 
-    def _book_fn(self) -> FlowsFunctionSchema:
+    def _number_for(self, slot: Slot) -> int:
+        """The slot's option number on this call: its old number if the caller heard this time
+        before, or the next number after every one they have heard."""
+        same = (slot.starts_at.reveal(), slot.clinician.reveal(), slot.place.reveal())
+        for n, s in self.offered.items():
+            if (s.starts_at.reveal(), s.clinician.reveal(), s.place.reveal()) == same:
+                self.offered[n] = slot  # the newest token for the same time
+                return n
+        n = max(self.offered, default=0) + 1
+        self.offered[n] = slot
+        return n
+
+    def _choose_option_fn(self) -> FlowsFunctionSchema:
+        # Confirm before booking (the owner's choice A, 2026-11-12): the agent cannot undo a
+        # booking (moving and cancelling go to staff, BUILD-ORDER.md), so the chosen time is read
+        # back first, as the details are before the lookup.
         async def handler(args, flow_manager: FlowManager):
             try:
                 option = int(args.get("option", 0))
             except (TypeError, ValueError):
                 option = 0
-            if not 1 <= option <= len(self.offered):
+            if option not in self.offered:
+                return await self._say(flow_manager, text("line.which_option"))
+            self.chosen = option
+            logger.info("choose_option: read back")
+            line = text("line.confirm_slot", number=str(option), visit=_visit_words(self.offered[option]))
+            return await self._say(flow_manager, line)
+
+        return _tool("choose_option", handler, {"option": ""}, types={"option": "integer"})
+
+    def _book_fn(self) -> FlowsFunctionSchema:
+        async def handler(args, flow_manager: FlowManager):
+            option = self.chosen
+            if option is None or option not in self.offered:
+                logger.info("book: nothing read back yet")
                 return await self._say(flow_manager, text("line.which_option"))
             key = self.book_keys.setdefault(option, secrets.token_urlsafe(24))
-            chosen = self.offered[option - 1]
             try:
-                booked = await self.ehr.book(self.handle, chosen.token, key)
+                booked = await self.ehr.book(self.handle, self.offered[option].token, key)
             except EhrError as e:
                 return await self._ehr_trouble(flow_manager, e, "book")
+            self.chosen = None
             if booked is None:
                 logger.info("book: slot taken")
+                del self.offered[option]
                 return await self._say(flow_manager, text("line.slot_taken"))
             logger.info("book: booked")
-            self.offered = []
+            self.last_booked = booked
             return await self._say(flow_manager, text("line.booked", visit=_visit_words(booked)), self.menu())
 
-        return _tool("book", handler, {"option": ""}, types={"option": "integer"})
+        return _tool("book", handler)
+
+    def _change_visit_fn(self) -> FlowsFunctionSchema:
+        # The agent cannot move or cancel a visit (BUILD-ORDER.md: Epic has no API for it), so a
+        # change goes to staff. The caller hears which visit stays booked, and staff get a flag
+        # with the caller's own words (FLAGS.md).
+        async def handler(args, flow_manager: FlowManager):
+            asked = [self.caller_lines[-1].reveal()] if self.caller_lines else []
+            self.raise_flag("booking_change", "code", quotes=asked)
+            if self.last_booked is not None:
+                line = text("line.change_booked", visit=_visit_words(self.last_booked))
+            else:
+                line = text("line.change_visit")
+            return await self._say(flow_manager, line, self.handed_off())
+
+        return _tool("change_visit", handler)
 
     def _next_visit_fn(self) -> FlowsFunctionSchema:
         async def handler(args, flow_manager: FlowManager):

@@ -491,7 +491,7 @@ ones are left out. On the test calls, the model is most of every trigger, and ea
 run is 1–15 ms on the fakes.
 
 ## 11. The Step panel
-> **Part:** built · 2026-11-12 — the owner's choices: 1A, the map of the call's steps, with
+> **Part:** built · 2026-11-12 · desk test passed 2026-11-12 — the owner's choices: 1A, the map of the call's steps, with
 > "each step as a block and stack blocks to document the order the call went in"; 2A, under the
 > current step its tools and the limits left.
 

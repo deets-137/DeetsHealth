@@ -48,6 +48,8 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
   (VOICE-AGENT.md §7.1, DESIGN.md K2).
 - The pronunciation dictionary: drug names, provider names, the hospital's own place names.
   Not built (CARTESIA.md).
+- The holding line, spoken when a reply is slow to come because it ran into the token cap (the
+  owner, 2026-11-12: configurable). Default built: `line.one_moment` (CALL-FLOW.md §3).
 
 **Booking**
 - Hours, visit types and transfer numbers. Not built (DESIGN.md K2).

@@ -110,7 +110,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   Twilio itself is Phase 5; start the sender registration early (TWILIO.md §6). **The Tools
   panel** (CHAT.md §9) is built too, desk test open: each tool call with its trigger line, the
   time to trigger and the time to confirm, exact to a tenth of a ms (record schema 3). **The
-  Step panel** (CHAT.md §11), desk test open: a block per step, stacked in call order, the
+  Step panel** (CHAT.md §11), desk test passed 2026-11-12: a block per step, stacked in call order, the
   current one with its tools and the limits left, the steps ahead faint (record schema 5:
   `step` events at each move; `OpenCall` now carries the limits). **Per-tool latency**: `GET
   /agent/latency` (CHAT.md §10).
@@ -122,7 +122,11 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   (FLAGS.md; forks 1A and 2A): code and the model raise them, silent to the caller, with the
   caller's own words as checked evidence; a hand-off carries one; a caller for someone else
   goes to a person. Desk test open. Next for flags: the kinds list (the owner's), and the
-  console's view of a flag. Open, in order: REGULATIONS.md §10 (twins, limits across
+  console's view of a flag. Confirm before booking (choice A), stable option numbers and
+  `change_visit` are built (CALL-FLOW.md §5). A reply cut off by the token cap now gets the
+  holding line, a review flag and one retry (FLAGS.md §8). **Next: the production-shaped dev
+  database** (the owner, 2026-11-12: a script files each call into it; design on paper
+  first). Open, in order: REGULATIONS.md §10 (twins, limits across
   calls, the confidential number, the code by keypad, and more). The map of every step, fixed
   line and limit, by file and symbol: CALL-FLOW.md.
 - **Gate on the first real call: split the call record** (the owner, 2026-11-12). Test mode

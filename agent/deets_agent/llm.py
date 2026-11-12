@@ -261,6 +261,61 @@ class _Recording:
             _write(self._path, {"stream": True, "events": events})
 
 
+class _CutOffGuard:
+    """A reply that thinks through the whole token cap and stops with nothing to say leaves the
+    caller in silence (2026-11-12). This holds back the reply's thinking until its first text or
+    tool block starts; the caller hears nothing before that anyway, so speech starts no later.
+    If the reply ends cut off with no text and no tool, it is dropped, `on_cut_off` speaks the
+    holding line and marks the call for review, and the request is sent once more with the
+    retry cap (the owner, 2026-11-12). Pipecat never sees the cut-off reply, so its context and
+    thinking signatures stay clean."""
+
+    def __init__(self, messages: _Messages, params: dict[str, Any], first) -> None:
+        self._messages = messages
+        self._params = params
+        self._first = first
+
+    def __aiter__(self):
+        return self._gen()
+
+    async def _gen(self):
+        stream = self._first
+        for attempt in (1, 2):
+            held: list = []
+            started = cut = False
+            async for event in stream:
+                if started:
+                    yield event
+                    continue
+                kind = getattr(event, "type", None)
+                block = getattr(getattr(event, "content_block", None), "type", None)
+                if kind == "content_block_start" and block in ("text", "tool_use"):
+                    started = True
+                    for h in held:
+                        yield h
+                    held.clear()
+                    yield event
+                    continue
+                if kind == "message_delta" and getattr(getattr(event, "delta", None), "stop_reason", None) == "max_tokens":
+                    cut = True
+                held.append(event)
+            if started or not cut:
+                for h in held:
+                    yield h
+                return
+            final = attempt == 2
+            logger.warning("reply cut off by the token cap with nothing to say (attempt {})", attempt)
+            if self._messages.on_cut_off is not None:
+                await self._messages.on_cut_off(final)
+            if final:
+                for h in held:
+                    yield h
+                return
+            stream = await self._messages.create(
+                _guard=False, **dict(self._params, max_tokens=config.RETRY_MAX_TOKENS)
+            )
+
+
 def _write(path: Path, body: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(body, indent=1, sort_keys=True) + "\n", encoding="utf-8")
@@ -280,6 +335,9 @@ class _Messages:
         # Each tool call that came after words in the same reply: (tool name, the words).
         # Kept on every call, so the replay tests can check it with no record open.
         self.words_before_tool: list[tuple[str, str]] = []
+        # Awaited with `final` when a reply is cut off by the token cap with nothing to say
+        # (_CutOffGuard): speaks the holding line and marks the call for review (call.py).
+        self.on_cut_off = None
 
     def _failed(self, e: BaseException, trace) -> None:
         if trace is not None:
@@ -287,7 +345,13 @@ class _Messages:
         if self.on_failure is not None:
             self.on_failure(e)
 
-    async def create(self, **params: Any):
+    async def create(self, _guard: bool = True, **params: Any):
+        reply = await self._create(**params)
+        if _guard and params.get("stream"):
+            return _CutOffGuard(self, params, reply)
+        return reply
+
+    async def _create(self, **params: Any):
         params, dropped = drop_stale_thinking(_clean(params), self._bound)
         if dropped:
             logger.info("dropped {} thinking blocks made under another tool list", dropped)

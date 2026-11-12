@@ -71,3 +71,17 @@ and the confused caller's hand-off (`verification_failed`). Desk test open.
 - The console's view of a flag and the nurse's controls (FUTURE-SETTINGS.md §5).
 - Whether the model over-flags. The kept scripts show a flag in most calls that go wrong; a
   measure across simulated callers comes with the voice work.
+
+## 8. Review flags (for an analyst or an engineer)
+> **Part:** built · 2026-11-12
+
+A review flag marks a call for the people who build and tune the agent, not for a nurse. Code
+raises it; the model never does. It carries a reason, never a value.
+- **`token_cap`** (the owner, 2026-11-12): a reply ran through the token cap with nothing to
+  say. The caller hears the holding line (`line.one_moment`), and the request goes once more
+  with the retry cap. `final` is true when the retry was cut off too. Code: `_CutOffGuard` in
+  `agent/deets_agent/llm.py`; `on_cut_off` in `TypedCall` (`agent/deets_agent/call.py`); the caps:
+  `MAX_TOKENS`, `RETRY_MAX_TOKENS` (`agent/deets_agent/config.py`).
+- **Where it goes:** a `review_flag` event in the call record, and a `review_<reason>` label in
+  the catalog. In production, a review queue that only roles with transcript access can open,
+  each view audited (SECURITY.md §4.10).

@@ -41,6 +41,7 @@ from pipecat.workers.runner import WorkerRunner
 from deets_agent import config
 from deets_agent.ehr_client import EhrClient
 from deets_agent.flow import CLOSING_STEPS, FAKE_TODAY, STEPS, CallFlow, role
+from deets_agent.prompts import text
 from deets_agent.screen import CallerScreen
 
 # After a response ends, how long to wait for a tool call or a new response before the turn
@@ -242,6 +243,22 @@ class TypedCall:
         if messages is not None and hasattr(messages, "on_failure"):
             # A failed request kills Pipecat's LLM service; end the turn now, not after the limit.
             messages.on_failure = lambda e: self._collector.turns.put_nowait(CallFailed(type(e).__name__))
+        # Review flags (FLAGS.md §8): marks for an analyst or engineer, never for a nurse.
+        self.review_flags: list[str] = []
+        if messages is not None and hasattr(messages, "on_cut_off"):
+
+            async def on_cut_off(final: bool) -> None:
+                # A reply cut off by the token cap (llm.py `_CutOffGuard`; the owner, 2026-11-12):
+                # the caller hears the holding line at once, pushed out of the LLM service itself
+                # (a frame queued at the pipeline's start would wait behind the reply), and code
+                # marks the call for review.
+                self.review_flags.append("token_cap")
+                if record is not None:
+                    record.event("review_flag", reason="token_cap", final=final)
+                if not final:
+                    await llm.push_frame(TTSSpeakFrame(text=text("line.one_moment"), append_to_context=False))
+
+            messages.on_cut_off = on_cut_off
         if record is not None:
             self._collector.record = record
             self._collector.manager = self._manager

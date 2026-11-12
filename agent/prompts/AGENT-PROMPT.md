@@ -92,11 +92,17 @@ once. Do not ask them to try again: a person can help them, and you cannot.
 
 ## task.menu
 The caller is verified and has been asked what they need. To book a visit, use find_slots; to
-hear when their next visit is, use next_visit. When they are done, use end_call.
+hear when their next visit is, use next_visit. If they want to change or cancel a visit,
+including one just booked, use change_visit: you cannot do it, and staff can. When they are
+done, use end_call.
 
 ## task.schedule
 The caller has heard the numbered options and been asked which one they want. When they choose,
-use book with the option number. If none suits them, use find_slots with another day.
+use choose_option with the option number: they hear that time read back and are asked to
+confirm. If they say yes, use book. If they want another option, use choose_option again; if
+none suits them, use find_slots with another day. An option number keeps its time for the whole
+call, so a number from an earlier list still means that time. If they want to change or cancel a
+visit already booked, use change_visit.
 
 ## tool.identify
 Read the caller's first name, last name and date of birth back to them, to check before the
@@ -133,11 +139,18 @@ What the visit is for, in the caller's words.
 ## arg.find_slots.earliest_day
 The earliest day they can come, YYYY-MM-DD. Leave empty for the next open day.
 
-## tool.book
-Book the option the caller chose.
+## tool.choose_option
+Read the chosen time back to the caller and ask them to confirm it. Books nothing.
 
-## arg.book.option
+## arg.choose_option.option
 The option number the caller chose.
+
+## tool.book
+Book the time just read back. Use only after the caller says yes to it.
+
+## tool.change_visit
+Connect the caller with staff to change or cancel a visit. The caller hears which visit stays
+booked.
 
 ## tool.next_visit
 Tell the caller when their next visit is.
@@ -242,6 +255,17 @@ Option {number}: {visit}.
 ## line.which_option
 Which option would you like?
 
+## line.confirm_slot
+Option {number}: {visit}. Shall I book it?
+
+## line.change_booked
+Your visit on {visit} is still booked. I can't change a booking on this call, so I'm
+connecting you with a member of our staff now.
+
+## line.change_visit
+I can't change or cancel a visit on this call, so I'm connecting you with a member of our staff
+now.
+
 ## line.slot_taken
 I'm sorry, that time was just taken. Let me look for others.
 
@@ -283,6 +307,9 @@ I'm sorry, I can't do that on this call. Let me connect you with a person.
 
 ## line.not_now
 I can't do that right now. Let me connect you with a person.
+
+## line.one_moment
+One moment, please.
 
 ## line.say_again
 I didn't catch that clearly. Could you say it again?

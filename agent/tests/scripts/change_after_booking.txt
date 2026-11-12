@@ -1,0 +1,12 @@
+# A typed call, from the owner's test call of 2026-11-12 (12:58): the caller books option 2,
+# then asks for option 3 instead. The agent cannot change a booking, so the caller hears that
+# the first visit stays booked and goes to a person, with a flag; nothing else is booked.
+# Run: uv run python harness/typed_call.py --script tests/scripts/change_after_booking.txt
+Priya Raman, November 30th 1971
+Yes
+246810
+Do I have a visit on the books?
+Yes please, for severe headaches
+option 2 please
+Yes
+actually could I take option 3?

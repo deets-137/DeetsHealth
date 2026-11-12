@@ -32,8 +32,8 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 |---|---|---|---|---|
 | greet | `CallFlow.greet` | `task.greet` | `identify`, `confirm_details` | verify, after `confirm_details` |
 | verify | `CallFlow.verify` | `task.verify` | `check_code`, `resend_code`, `identify`, `confirm_details` | menu on a pass; hand off on a lock or no more codes |
-| menu | `CallFlow.menu` | `task.menu` | `find_slots`, `next_visit` | schedule, after `find_slots` offers times |
-| schedule | `CallFlow.schedule` | `task.schedule` | `book`, `find_slots` | menu, after `book` |
+| menu | `CallFlow.menu` | `task.menu` | `find_slots`, `next_visit`, `change_visit` | schedule, after `find_slots` offers times; hand off after `change_visit` |
+| schedule | `CallFlow.schedule` | `task.schedule` | `choose_option`, `book`, `find_slots`, `change_visit` | menu, after `book`; hand off after `change_visit` |
 | goodbye | `CallFlow.goodbye` | none | none | the call ends |
 | hand off | `CallFlow.handed_off` | none | none | the call ends (Phase 1 has no transfer) |
 
@@ -64,7 +64,9 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | The medical-question line | `medical_question_fn` | `line.medical_question` | FUTURE-SETTINGS.md §2 |
 | Verification lines | `_identify_fn`, `_confirm_details_fn`, `_check_code_fn`, `_resend_code_fn` | `line.read_back`, `line.ask_details`, `line.birth_not_possible`, `line.name_not_said`, `line.code_sent`, `line.code_length`, `line.code_wrong`, `line.code_resent`, `line.verified` | — |
 | The text message with the code | `SECTION` (`ehr/src/texts.rs`) | `text.code` | — |
-| Booking lines | `_find_slots_fn`, `_book_fn`, `_next_visit_fn` | `line.slots`, `line.slot_option`, `line.no_slots`, `line.which_option`, `line.slot_taken`, `line.booked`, `line.next_visit`, `line.no_visits` | — |
+| Booking lines | `_find_slots_fn`, `_choose_option_fn`, `_book_fn`, `_next_visit_fn` | `line.slots`, `line.slot_option`, `line.no_slots`, `line.which_option`, `line.confirm_slot`, `line.slot_taken`, `line.booked`, `line.next_visit`, `line.no_visits` | — |
+| A change or cancel goes to staff, with a flag; the caller hears which visit stays booked | `_change_visit_fn` | `line.change_booked`, `line.change_visit` | — |
+| The holding line when a reply is cut off by the token cap (with a review flag, FLAGS.md §8) | `_CutOffGuard` (`agent/deets_agent/llm.py`), `on_cut_off` (`call.py`) | `line.one_moment` | FUTURE-SETTINGS.md › What the agent may say |
 | The clinic's name | `CLINIC` (`flow.py`) | fills `{clinic}` | the hospital's settings |
 | Today's date | `CallFlow.today`; `FAKE_TODAY` for a typed call | fills `{today}` | — |
 
@@ -79,7 +81,7 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | Open calls in `ehr`, and the longest a call lives there | `MAX_SESSIONS`, `MAX_AGE` (`ehr/src/session.rs`) |
 | The earliest date of birth | `EARLIEST_BIRTH` (`flow.py`); `ehr` checks too (`ehr/src/edge.rs`) |
 | The pause that ends the agent's turn; the longest turn | `TURN_GRACE_S`, `TURN_LIMIT_S` (`call.py`) |
-| The model, its effort, its longest reply | `MODEL`, `EFFORT`, `MAX_TOKENS` (`agent/deets_agent/config.py`) |
+| The model, its effort, its longest reply, and the cap for the one retry of a cut-off reply | `MODEL`, `EFFORT`, `MAX_TOKENS`, `RETRY_MAX_TOKENS` (`agent/deets_agent/config.py`) |
 | The tools that speak for the model; the tools that end the call | `SILENT_TOOLS`, `CLOSING_TOOLS` (`config.py`) |
 
 The verification limits are a floor: a hospital may make them stricter, never looser
@@ -94,6 +96,8 @@ The verification limits are a floor: a hospital may make them stricter, never lo
 | A flag keeps only the quotes the caller really said | `CallFlow._caller_said`; the count of the rest: `StaffFlag.unverified` |
 | A code flag of one kind is raised once per call | `CallFlow.raise_flag` |
 | The details are read back before the lookup | `_identify_fn`, `_confirm_details_fn` |
+| The chosen time is read back before it is booked; `book` books nothing without it | `_choose_option_fn`, `_book_fn`, `CallFlow.chosen` |
+| An option number keeps its time for the whole call; a new search goes on from the last number | `CallFlow.offered`, `CallFlow._number_for` |
 | The model may send only names the caller said | `CallFlow._was_said` (the name guard) |
 | An impossible date of birth costs no try | `CallFlow._possible_birth` |
 | Chart and booking tools exist only after a pass | the node table in §2; `ehr` refuses them too (`ehr/src/service.rs`) |

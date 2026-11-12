@@ -129,6 +129,19 @@ async def test_flag_for_someone_else(ehr):
     assert call.ended and "member of our staff now" in (replies[-1] or "")
 
 
+async def test_change_after_booking(ehr):
+    """The owner's choice A, 2026-11-12, after a double booking: the time is read back before
+    it is booked, and a change after booking goes to a person, who hears which visit stays
+    booked. Only one visit is ever booked."""
+    call, replies = await run(ehr, "change_after_booking.txt")
+    assert any(r and "Shall I book it?" in r for r in replies), "the choice should be read back"
+    assert sum(1 for r in replies if r and "You're booked for" in r) == 1, "exactly one booking"
+    last = replies[-1] or ""
+    assert "is still booked" in last and "member of our staff now" in last
+    assert any(f.kind == "booking_change" for f in call.flow.flags)
+    assert call.ended
+
+
 async def test_code_confusion(ehr):
     """The owner, 2026-11-12: a caller confused after a failed code goes to a person at once,
     not to more tries. Two near-identical records on one date mean no code went out (twins)."""

@@ -1,0 +1,42 @@
+{"t_ms": 0.0, "kind": "call_start", "schema_version": 5, "call_id": "20261112-135421-typed", "source": "typed", "scenario": "read_back_correction", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T13:54:21"}
+{"t_ms": 514.3, "kind": "ehr", "call": "OpenCall", "ms": 2.1, "outcome": "ok", "left": {"identify": 0, "resend": 0, "code": 0}}
+{"t_ms": 524.8, "kind": "step", "name": "greet", "tools": ["identify", "confirm_details"], "global_tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff"], "steps": ["greet", "verify", "menu", "schedule", "goodbye", "hand_off"], "closing_steps": ["goodbye", "hand_off"]}
+{"t_ms": 940.1, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?", "first_ms": 528.2}
+{"t_ms": 940.7, "kind": "caller", "text": "Hi, I'd like to check on my visits."}
+{"t_ms": 943.9, "kind": "node", "name": "greet"}
+{"t_ms": 1684.2, "kind": "llm", "key": "9b5df5ab", "hit": false, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 2678, "cache_creation_input_tokens": 266}, "total_ms": 742, "first_event_ms": 586, "first_text_ms": 605}
+{"t_ms": 2100.2, "kind": "agent", "text": "I can help with that. First, could you tell me your first name, last name, and date of birth?", "first_ms": 1550.3}
+{"t_ms": 2100.3, "kind": "caller", "text": "My name is ellis jordan 21 3 1984"}
+{"t_ms": 2806.6, "kind": "llm", "key": "9f4c37f7", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 106, "cache_read_input_tokens": 2944, "cache_creation_input_tokens": 46}, "total_ms": 705, "first_event_ms": 442, "first_tool_ms": 442}
+{"t_ms": 2808.7, "kind": "tool_call", "name": "identify", "arguments": {"given_name": "Ellis", "family_name": "Jordan", "birth_date": "1984-03-21"}, "trigger_ms": 708.4}
+{"t_ms": 2809.7, "kind": "tool_result", "name": "identify", "result": {"spoken_to_caller": "I have Ellis Jordan, born March 21, 1984. Is that right?"}, "ms": 1.0}
+{"t_ms": 3210.1, "kind": "agent", "text": "I have Ellis Jordan, born March 21, 1984. Is that right?", "first_ms": 2810.4}
+{"t_ms": 3210.3, "kind": "caller", "text": "No, my first name is Jordan and my last name is Ellis, and I was born March 12, 1984."}
+{"t_ms": 3881.6, "kind": "llm", "key": "2eb36819", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 106, "cache_read_input_tokens": 2990, "cache_creation_input_tokens": 186}, "total_ms": 670, "first_event_ms": 429, "first_tool_ms": 429}
+{"t_ms": 3883.4, "kind": "tool_call", "name": "identify", "arguments": {"given_name": "Jordan", "family_name": "Ellis", "birth_date": "1984-03-12"}, "trigger_ms": 673.2}
+{"t_ms": 3884.3, "kind": "tool_result", "name": "identify", "result": {"spoken_to_caller": "I have Jordan Ellis, born March 12, 1984. Is that right?"}, "ms": 0.9}
+{"t_ms": 4298.3, "kind": "agent", "text": "I have Jordan Ellis, born March 12, 1984. Is that right?", "first_ms": 3884.9}
+{"t_ms": 4298.4, "kind": "caller", "text": "Yes, that's right."}
+{"t_ms": 4840.2, "kind": "llm", "key": "4c321de8", "hit": false, "messages": 7, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 3176, "cache_creation_input_tokens": 162}, "total_ms": 540, "first_event_ms": 519, "first_tool_ms": 519}
+{"t_ms": 4842.1, "kind": "tool_call", "name": "confirm_details", "arguments": {}, "trigger_ms": 543.7}
+{"t_ms": 4844.3, "kind": "ehr", "call": "Identify", "ms": 1.9, "outcome": "ok", "left": {"identify": 2}}
+{"t_ms": 4844.4, "kind": "step", "name": "verify", "tools": ["check_code", "resend_code", "identify", "confirm_details"], "global_tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff"], "steps": ["greet", "verify", "menu", "schedule", "goodbye", "hand_off"], "closing_steps": ["goodbye", "hand_off"]}
+{"t_ms": 4844.7, "kind": "tool_result", "name": "confirm_details", "result": {"spoken_to_caller": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}, "ms": 2.7}
+{"t_ms": 5258.0, "kind": "agent", "text": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?", "first_ms": 4845.6}
+{"t_ms": 5258.2, "kind": "caller", "text": "246810"}
+{"t_ms": 5261.8, "kind": "node", "name": "verify"}
+{"t_ms": 5848.0, "kind": "llm", "key": "745619c8", "hit": false, "messages": 9, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "check_code", "resend_code", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 48, "cache_read_input_tokens": 2833, "cache_creation_input_tokens": 938}, "total_ms": 588, "first_event_ms": 507, "first_tool_ms": 507}
+{"t_ms": 5849.8, "kind": "tool_call", "name": "check_code", "arguments": {"code": "246810"}, "trigger_ms": 591.6}
+{"t_ms": 5852.2, "kind": "ehr", "call": "CheckCode", "ms": 2.0, "outcome": "ok", "result": "pass", "left": {"code": 0}}
+{"t_ms": 5852.2, "kind": "step", "name": "menu", "tools": ["find_slots", "next_visit", "change_visit"], "global_tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff"], "steps": ["greet", "verify", "menu", "schedule", "goodbye", "hand_off"], "closing_steps": ["goodbye", "hand_off"]}
+{"t_ms": 5852.5, "kind": "tool_result", "name": "check_code", "result": {"spoken_to_caller": "Thank you, you're verified. Would you like to book a visit, or hear when your next visit is?"}, "ms": 2.8}
+{"t_ms": 6259.4, "kind": "agent", "text": "Thank you, you're verified. Would you like to book a visit, or hear when your next visit is?", "first_ms": 5853.1}
+{"t_ms": 6259.5, "kind": "caller", "text": "That's all, thanks"}
+{"t_ms": 6262.8, "kind": "node", "name": "menu"}
+{"t_ms": 6705.0, "kind": "llm", "key": "f0a48ee2", "hit": false, "messages": 11, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "find_slots", "next_visit", "change_visit"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 26, "cache_read_input_tokens": 2675, "cache_creation_input_tokens": 1136}, "total_ms": 444, "first_event_ms": 407, "first_tool_ms": 408}
+{"t_ms": 6706.7, "kind": "tool_call", "name": "end_call", "arguments": {}, "trigger_ms": 447.2}
+{"t_ms": 6706.9, "kind": "step", "name": "goodbye", "tools": [], "global_tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff"], "steps": ["greet", "verify", "menu", "schedule", "goodbye", "hand_off"], "closing_steps": ["goodbye", "hand_off"]}
+{"t_ms": 6707.3, "kind": "tool_result", "name": "end_call", "result": {"spoken_to_caller": "Thank you for calling. Goodbye."}, "ms": 0.7}
+{"t_ms": 6708.6, "kind": "agent", "text": "Thank you for calling. Goodbye.", "first_ms": 6708.1}
+{"t_ms": 6710.5, "kind": "ehr", "call": "CloseCall", "ms": 1.8, "outcome": "ok"}
+{"t_ms": 6710.7, "kind": "call_end", "reason": "the agent ended it", "turns": 6, "requests": {"live": 6, "replayed": 0, "failed": 0}, "tokens": {"input_tokens": 24, "output_tokens": 342, "cache_read_input_tokens": 17296, "cache_creation_input_tokens": 2734}, "cost_usd": 0.000688}

@@ -217,8 +217,24 @@ end with the goodbye line and no hand off).
   `note.*` section in the tool result now says what comes next, and the model went on with the
   read-back in the same turn. Use a note for any future statement line. There are now 5 global
   tools (`safety_reminder` added; CALL-FLOW.md §3), so each node offers 7 to 9.
+- **Confirm before booking** (the owner's choice A, 2026-11-12). A test call booked option 2,
+  then "option 3 instead" booked a time from a new list with new numbers, and the first visit
+  stayed booked. Now `choose_option` reads the time back and `book` books only that; option
+  numbers keep their time for the whole call; a change goes to staff by `change_visit`
+  (moving and cancelling go to staff, BUILD-ORDER.md). With `flag_for_staff` and
+  `change_visit`, the schedule node offers 10 tools.
+- **The token cap and a cut-off reply** (the owner, 2026-11-12). In one recording the model
+  spent the whole 600-token cap on thinking, wrote no reply, and the call sat silent until the
+  turn limit. The owner raised the cap and asked for code to flag the call for review. Built:
+  `_CutOffGuard` holds back thinking until text or a tool starts (no later speech), drops a
+  cut-off reply, speaks `line.one_moment`, raises a `token_cap` review flag and retries once at
+  `RETRY_MAX_TOKENS` (FLAGS.md §8).
 
 ## 4. Known gaps
+- **A second cut-off is still silence** (2026-11-12). The first reply cut off by the token cap
+  is handled: the holding line, a review flag and one retry at a higher cap (FLAGS.md §8). If
+  the retry is cut off too, it is flagged (`final`) but the caller hears nothing until they
+  speak again. Not seen yet.
 - **The model's words before a fixed-line tool: held by the prompt, not by code** (fork C,
   §3). A live call can still break the rule. The record and the tests find it, but the caller
   has already heard it. Pipecat 1.16's Anthropic fix does not close it: that fix only sets the

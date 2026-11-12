@@ -133,6 +133,23 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   the flag's fields itself. New kept script `flag_for_someone_else.txt`. All 10 scripts
   recorded again (about $0.01). 69 of 70 tests pass (the Windows catalog bug). A separate
   session wrote the flag settings, FUTURE-SETTINGS.md §5 (`d9c48b6`).
+- Committed `38e08ee` (flags, the reminder, all of `agent/`) and `3376dca`: the first call
+  scores in `annotations.jsonl` (the owner's four test calls, a model grader).
+- The owner's run as Priya Raman (12:58) double-booked: after booking option 2, "option 3
+  instead" searched again, renumbered, and booked a different time; the first visit stayed.
+  The owner chose A, confirm before booking. Built: `choose_option` reads the time back and
+  `book` books only that; option numbers keep their time for the whole call; `change_visit`
+  names the visit that stays booked, raises a `booking_change` flag and hands off. New kept
+  script `change_after_booking.txt`. 73 tests pass.
+- Found: in one recording the model spent all of `MAX_TOKENS` thinking and said nothing; the
+  call sat silent until the turn limit (AGENT.md §4). Not fixed: the cap is the owner's call.
+- The owner: raise the cap; if a reply ever goes over, code flags the call for an analyst or
+  engineer; "One moment, please." as a configurable line. Built: `MAX_TOKENS` 1,200,
+  `RETRY_MAX_TOKENS` 2,400; `_CutOffGuard` (llm.py) holds back thinking until text or a tool
+  starts, drops a cut-off reply, speaks `line.one_moment`, raises a `token_cap` review flag
+  (FLAGS.md §8), retries once. All 12 scripts recorded again (about $0.01). 76 tests pass.
+- The owner on the catalog: file each transcript into the database by a script, and shape it
+  like the production store, ready for the cloud. Design on paper first (forks brought).
 
 ## 2026-11-12 — The Mac set up; the Chat page wired to the agent; the catalog of calls
 - On the Mac: `npm install`, `uv` (Homebrew), the `wasm32` target, `uv sync`, `ehr` built, the

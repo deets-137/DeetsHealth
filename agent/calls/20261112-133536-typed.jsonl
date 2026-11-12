@@ -1,0 +1,25 @@
+{"t_ms": 0.0, "kind": "call_start", "schema_version": 5, "call_id": "20261112-133536-typed", "source": "typed", "scenario": "off_topic", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T13:35:36"}
+{"t_ms": 341.2, "kind": "ehr", "call": "OpenCall", "ms": 1.7, "outcome": "ok", "left": {"identify": 0, "resend": 0, "code": 0}}
+{"t_ms": 343.9, "kind": "step", "name": "greet", "tools": ["identify", "confirm_details"], "global_tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff"], "steps": ["greet", "verify", "menu", "schedule", "goodbye", "hand_off"], "closing_steps": ["goodbye", "hand_off"]}
+{"t_ms": 755.3, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?", "first_ms": 346.3}
+{"t_ms": 755.9, "kind": "caller", "text": "17+6?"}
+{"t_ms": 759.4, "kind": "node", "name": "greet"}
+{"t_ms": 1896.1, "kind": "llm", "key": "57dc50a3", "hit": false, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 83, "cache_read_input_tokens": 2678, "cache_creation_input_tokens": 255}, "total_ms": 1139, "first_event_ms": 679, "first_text_ms": 927}
+{"t_ms": 2309.5, "kind": "agent", "text": "I can only help with visits here. What do you need for your visit today?", "first_ms": 1684.2}
+{"t_ms": 2309.6, "kind": "caller", "text": "2+2"}
+{"t_ms": 3184.7, "kind": "llm", "key": "4d1c15ef", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 22, "cache_read_input_tokens": 2933, "cache_creation_input_tokens": 90}, "total_ms": 874, "first_event_ms": 641, "first_text_ms": 642}
+{"t_ms": 3589.0, "kind": "agent", "text": "I can only help with visits here. Is there something you need for your visit?", "first_ms": 2952.3}
+{"t_ms": 3589.1, "kind": "caller", "text": "How do I say hello world in Python?"}
+{"t_ms": 4459.5, "kind": "llm", "key": "3ad9f47a", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 25, "cache_read_input_tokens": 3023, "cache_creation_input_tokens": 37}, "total_ms": 869, "first_event_ms": 596, "first_text_ms": 597}
+{"t_ms": 4866.6, "kind": "agent", "text": "I can only help with visits here. Is there something you need for your clinic visit?", "first_ms": 4187.0}
+{"t_ms": 4866.7, "kind": "caller", "text": "Why can you help with math and not Python?"}
+{"t_ms": 5810.7, "kind": "llm", "key": "3d9bb090", "hit": false, "messages": 7, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 37, "cache_read_input_tokens": 3060, "cache_creation_input_tokens": 41}, "total_ms": 943, "first_event_ms": 566, "first_text_ms": 567}
+{"t_ms": 6224.1, "kind": "agent", "text": "I can't help with math or Python, only with clinic visits. Would you like to book a visit or hear about one you have?", "first_ms": 5434.9}
+{"t_ms": 6224.2, "kind": "caller", "text": "Never mind, goodbye."}
+{"t_ms": 7105.5, "kind": "llm", "key": "baf35b7d", "hit": false, "messages": 9, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 26, "cache_read_input_tokens": 3101, "cache_creation_input_tokens": 51}, "total_ms": 880, "first_event_ms": 724, "first_tool_ms": 724}
+{"t_ms": 7106.9, "kind": "tool_call", "name": "end_call", "arguments": {}, "trigger_ms": 882.7}
+{"t_ms": 7107.2, "kind": "step", "name": "goodbye", "tools": [], "global_tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff"], "steps": ["greet", "verify", "menu", "schedule", "goodbye", "hand_off"], "closing_steps": ["goodbye", "hand_off"]}
+{"t_ms": 7107.6, "kind": "tool_result", "name": "end_call", "result": {"spoken_to_caller": "Thank you for calling. Goodbye."}, "ms": 0.6}
+{"t_ms": 7108.7, "kind": "agent", "text": "Thank you for calling. Goodbye.", "first_ms": 7108.4}
+{"t_ms": 7110.5, "kind": "ehr", "call": "CloseCall", "ms": 1.7, "outcome": "ok"}
+{"t_ms": 7110.7, "kind": "call_end", "reason": "the agent ended it", "turns": 5, "requests": {"live": 5, "replayed": 0, "failed": 0}, "tokens": {"input_tokens": 20, "output_tokens": 193, "cache_read_input_tokens": 14795, "cache_creation_input_tokens": 474}, "cost_usd": 0.000306}
