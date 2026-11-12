@@ -10,6 +10,7 @@ words before a fixed-line tool and for values the model said that no one gave it
 from pathlib import Path
 
 from deets_agent.call import TypedCall
+from deets_agent.flow import greeting
 from deets_agent.llm import Mode, build_llm
 from deets_agent.shielded import Shielded
 
@@ -28,7 +29,8 @@ def assert_clean(call: TypedCall) -> None:
 
 async def run(ehr, name: str) -> tuple[TypedCall, list[str | None]]:
     call = TypedCall(ehr, build_llm(Mode.REPLAY))
-    await call.start()
+    # The disclosures are a fixed line: every call starts with them, word for word.
+    assert await call.start() == greeting()
     replies = [await call.say(line) for line in script(name)]
     assert_clean(call)
     await call.hang_up()
@@ -95,6 +97,16 @@ async def test_off_topic(ehr):
     `run` fails on an invented value, so a sum such as "23" fails here."""
     call, replies = await run(ehr, "off_topic.txt")
     assert not any(r and "print(" in r for r in replies), "the model gave a Python answer"
+    assert call.ended
+
+
+async def test_code_confusion(ehr):
+    """The owner, 2026-11-12: a caller confused after a failed code goes to a person at once,
+    not to more tries. Two near-identical records on one date mean no code went out (twins)."""
+    call, replies = await run(ehr, "code_confusion.txt")
+    assert any(r and "didn't match" in r for r in replies), "the first code should fail"
+    last = replies[-1]
+    assert last is not None and "member of our staff now" in last, "the confused caller goes to a person"
     assert call.ended
 
 

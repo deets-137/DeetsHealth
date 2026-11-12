@@ -1,0 +1,38 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 2, "call_id": "20261112-122453-typed", "source": "typed", "scenario": "read_back_correction", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T12:24:53"}
+{"t_ms": 328, "kind": "ehr", "call": "OpenCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 745, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?"}
+{"t_ms": 745, "kind": "caller", "text": "Hi, I'd like to check on my visits."}
+{"t_ms": 749, "kind": "node", "name": "greet"}
+{"t_ms": 1913, "kind": "llm", "key": "ccf0fc15", "hit": false, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 30, "cache_read_input_tokens": 1727, "cache_creation_input_tokens": 237}, "total_ms": 1165, "first_event_ms": 842, "first_text_ms": 854}
+{"t_ms": 2318, "kind": "agent", "text": "Happy to help with that. First, could you tell me your first name, last name, and date of birth?"}
+{"t_ms": 2318, "kind": "caller", "text": "My name is ellis jordan 21 3 1984"}
+{"t_ms": 3316, "kind": "llm", "key": "06121b0b", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 106, "cache_read_input_tokens": 1964, "cache_creation_input_tokens": 48}, "total_ms": 997, "first_event_ms": 622, "first_tool_ms": 622}
+{"t_ms": 3317, "kind": "tool_call", "name": "identify", "arguments": {"given_name": "Ellis", "family_name": "Jordan", "birth_date": "1984-03-21"}}
+{"t_ms": 3318, "kind": "tool_result", "name": "identify", "result": {"spoken_to_caller": "I have Ellis Jordan, born March 21, 1984. Is that right?"}, "ms": 1}
+{"t_ms": 3721, "kind": "agent", "text": "I have Ellis Jordan, born March 21, 1984. Is that right?"}
+{"t_ms": 3721, "kind": "caller", "text": "No, my first name is Jordan and my last name is Ellis, and I was born March 12, 1984."}
+{"t_ms": 4595, "kind": "llm", "key": "67954b83", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 106, "cache_read_input_tokens": 2012, "cache_creation_input_tokens": 186}, "total_ms": 873, "first_event_ms": 711, "first_tool_ms": 711}
+{"t_ms": 4597, "kind": "tool_call", "name": "identify", "arguments": {"given_name": "Jordan", "family_name": "Ellis", "birth_date": "1984-03-12"}}
+{"t_ms": 4598, "kind": "tool_result", "name": "identify", "result": {"spoken_to_caller": "I have Jordan Ellis, born March 12, 1984. Is that right?"}, "ms": 1}
+{"t_ms": 5011, "kind": "agent", "text": "I have Jordan Ellis, born March 12, 1984. Is that right?"}
+{"t_ms": 5011, "kind": "caller", "text": "Yes, that's right."}
+{"t_ms": 6220, "kind": "llm", "key": "42b1e4fd", "hit": false, "messages": 7, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 2198, "cache_creation_input_tokens": 162}, "total_ms": 1207, "first_event_ms": 1191, "first_tool_ms": 1191}
+{"t_ms": 6222, "kind": "tool_call", "name": "confirm_details", "arguments": {}}
+{"t_ms": 6225, "kind": "ehr", "call": "Identify", "ms": 3, "outcome": "ok"}
+{"t_ms": 6225, "kind": "tool_result", "name": "confirm_details", "result": {"spoken_to_caller": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}, "ms": 4}
+{"t_ms": 6635, "kind": "agent", "text": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}
+{"t_ms": 6635, "kind": "caller", "text": "246810"}
+{"t_ms": 6638, "kind": "node", "name": "verify"}
+{"t_ms": 7244, "kind": "llm", "key": "5e03a27a", "hit": false, "messages": 9, "tools": ["hand_off", "end_call", "emergency", "medical_question", "check_code", "resend_code", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 48, "cache_read_input_tokens": 1882, "cache_creation_input_tokens": 911}, "total_ms": 607, "first_event_ms": 522, "first_tool_ms": 522}
+{"t_ms": 7245, "kind": "tool_call", "name": "check_code", "arguments": {"code": "246810"}}
+{"t_ms": 7246, "kind": "ehr", "call": "CheckCode", "ms": 1, "outcome": "ok", "result": "pass"}
+{"t_ms": 7247, "kind": "tool_result", "name": "check_code", "result": {"spoken_to_caller": "Thank you, you're verified. Would you like to book a visit, or hear when your next visit is?"}, "ms": 2}
+{"t_ms": 7659, "kind": "agent", "text": "Thank you, you're verified. Would you like to book a visit, or hear when your next visit is?"}
+{"t_ms": 7659, "kind": "caller", "text": "That's all, thanks"}
+{"t_ms": 7662, "kind": "node", "name": "menu"}
+{"t_ms": 8400, "kind": "llm", "key": "35ac0ee4", "hit": false, "messages": 11, "tools": ["hand_off", "end_call", "emergency", "medical_question", "find_slots", "next_visit"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 48, "cache_read_input_tokens": 1644, "cache_creation_input_tokens": 1072}, "total_ms": 739, "first_event_ms": 541, "first_tool_ms": 714}
+{"t_ms": 8402, "kind": "tool_call", "name": "end_call", "arguments": {}}
+{"t_ms": 8403, "kind": "tool_result", "name": "end_call", "result": {"spoken_to_caller": "Thank you for calling. Goodbye."}, "ms": 1}
+{"t_ms": 8404, "kind": "agent", "text": "Thank you for calling. Goodbye."}
+{"t_ms": 8405, "kind": "ehr", "call": "CloseCall", "ms": 1, "outcome": "ok"}
+{"t_ms": 8405, "kind": "call_end", "reason": "the agent ended it", "turns": 6, "requests": {"live": 6, "replayed": 0, "failed": 0}, "tokens": {"input_tokens": 24, "output_tokens": 366, "cache_read_input_tokens": 11427, "cache_creation_input_tokens": 2616}, "cost_usd": 0.000627}

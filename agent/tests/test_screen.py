@@ -1,23 +1,9 @@
 """The code checks that need no model: the emergency phrase screen (option 2A), the name guard,
 and the invented-value check (2026-11-11)."""
 
-import re
-from pathlib import Path
-
 from deets_agent.call import invented_values
 from deets_agent.flow import CallFlow
-from deets_agent.screen import EMERGENCY_PHRASES, emergency_match
-
-SETTINGS_DOC = Path(__file__).resolve().parents[2] / "docs" / "architecture" / "FUTURE-SETTINGS.md"
-
-
-def test_the_doc_lists_the_same_phrases_as_the_code():
-    """FUTURE-SETTINGS.md §3 lists every pattern, in the same order, so the owner reads the real
-    list. Change both together."""
-    text = SETTINGS_DOC.read_text(encoding="utf-8")
-    section = text.split("## 3. The emergency phrase list", 1)[1].split("\n## ", 1)[0]
-    listed = re.findall(r"^- `(.+?)` — ", section, flags=re.MULTILINE)
-    assert listed == list(EMERGENCY_PHRASES)
+from deets_agent.screen import emergency_match
 
 
 def test_emergency_phrases_match():

@@ -26,29 +26,32 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 from deets_agent.flow import EMERGENCY_LINE, CallFlow
 
-# The default phrase list. Each entry is a regular expression matched against the caller's line
-# in lower case, with curly apostrophes made straight. Over-calling is the safe side: a false
-# alarm costs the caller one sentence, because the call goes on after the line (option A).
+# The default phrase list: the one copy (CALL-FLOW.md §3 points here; FUTURE-SETTINGS.md §3 holds
+# what a hospital will change). Each entry is a regular expression matched against the caller's
+# line in lower case, with curly apostrophes made straight: `\b` marks a word edge, `'?` an
+# apostrophe that may be missing, `(a|b)` one of several words. It fires once per call.
+# Over-calling is the safe side: a false alarm costs the caller one sentence, because the call
+# goes on after the line (option A). The comment after each entry shows what it catches.
 EMERGENCY_PHRASES: tuple[str, ...] = (
-    r"\bchest pains?\b",
-    r"\bheart attack\b",
-    r"\b(can'?t|cannot|can not|couldn'?t) breathe?\b",
-    r"\b(trouble|difficulty|hard time) breathing\b",
-    r"\bnot breathing\b",
-    r"\bam i dying\b",
-    r"\bi'?m dying\b(?! to\b)",
-    r"\bgoing to die\b",
-    r"\boverdos(e|ed|ing)\b",
-    r"\bkill(ing)? myself\b",
-    r"\bend my life\b",
-    r"\bwant to die\b",
-    r"\bsuicid(e|al)\b",
-    r"\b(having a |had a )?stroke\b",
-    r"\bseizures?\b",
-    r"\bunconscious\b",
-    r"\bpassed out\b",
-    r"\b(bleeding a lot|heavy bleeding|won'?t stop bleeding)\b",
-    r"\b911\b",
+    r"\bchest pains?\b",  # chest pain, chest pains
+    r"\bheart attack\b",  # heart attack
+    r"\b(can'?t|cannot|can not|couldn'?t) breathe?\b",  # I can't breathe, couldn't breathe
+    r"\b(trouble|difficulty|hard time) breathing\b",  # trouble breathing, a hard time breathing
+    r"\bnot breathing\b",  # he's not breathing
+    r"\bam i dying\b",  # am I dying
+    r"\bi'?m dying\b(?! to\b)",  # I'm dying (but not "I'm dying to get in")
+    r"\bgoing to die\b",  # I'm going to die
+    r"\boverdos(e|ed|ing)\b",  # overdose, overdosed, overdosing
+    r"\bkill(ing)? myself\b",  # kill myself, killing myself
+    r"\bend my life\b",  # end my life
+    r"\bwant to die\b",  # I want to die
+    r"\bsuicid(e|al)\b",  # suicide, suicidal
+    r"\b(having a |had a )?stroke\b",  # a stroke (also "a stroke of luck": over-calling is safe)
+    r"\bseizures?\b",  # a seizure, seizures
+    r"\bunconscious\b",  # unconscious
+    r"\bpassed out\b",  # she passed out
+    r"\b(bleeding a lot|heavy bleeding|won'?t stop bleeding)\b",  # heavy bleeding, won't stop
+    r"\b911\b",  # should I call 911
 )
 
 _PATTERNS = [re.compile(p) for p in EMERGENCY_PHRASES]

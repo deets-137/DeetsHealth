@@ -8,6 +8,27 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-12 (Windows, afternoon) — The regulations map; the greeting's disclosures; confusion goes to a person
+- Pulled the Mac's work. `npm run dev` failed on Windows: `spawn("npx")` gives ENOENT, because
+  `npx` is a `.cmd` file. `scripts/dev.mjs` now runs Vite's own script with Node (`d14b9a5`).
+- The owner's test call as Casey Morgan failed at the code three times. That was by design:
+  the fakes hold Casey Morgan and Casey Morgen on one date, so no code went out. The review of
+  that call led to REGULATIONS.md: HIPAA, the other federal rules, state laws, ISO, and what
+  each one asks of the agent.
+- The owner, 2026-11-12: test mode keeps full logs, because the data is synthetic; the call
+  record splits before the first real call. "If we know there is confusion, transfer to a
+  person since we know we can't help."
+- Built: the greeting is a fixed line spoken by the code, with the disclosures (automated, not
+  a person; transcribed; a person at any time). The failed-code line offers a person. A caller
+  confused after a failed code goes to `hand_off` (a prompt rule in `task.verify`). A new kept
+  script, `code_confusion.txt`. All 8 scripts recorded again (about $0.004). 56 of 57 agent
+  tests pass; the catalog test fails on Windows (HANDOFF.md › Known gotchas). Desk test open.
+- The owner asked for a doc on the default call flow, pointing to the code and not copying it,
+  because each fixed piece will become a console setting. New: CALL-FLOW.md, and the rule in
+  DOCS-ORG.md §1, rule 8. FUTURE-SETTINGS.md now points to the lines in place of quoting them. The
+  emergency phrase list now lives only in `screen.py`, with each entry's examples as a comment;
+  the test that matched the doc's copy to the code is gone.
+
 ## 2026-11-12 — The Mac set up; the Chat page wired to the agent; the catalog of calls
 - On the Mac: `npm install`, `uv` (Homebrew), the `wasm32` target, `uv sync`, `ehr` built, the
   dev certificates. The owner passed the Chat UI's desk test in Safari for now.

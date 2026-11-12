@@ -1,0 +1,9 @@
+# A typed call: the caller's name and date of birth match two near-identical records (the fake
+# Casey Morgan and Casey Morgen, as with twins), so no code goes out and the right code fails.
+# The caller is confused, and the agent hands off to a person at once (the owner, 2026-11-12).
+# Run: uv run python harness/typed_call.py --script tests/scripts/code_confusion.txt
+Hi, I want to check on my appointment.
+My name is Casey Morgan, born June 5th 1990
+Yes, that's correct.
+246810
+Why didn't it work? That's definitely the code I got.

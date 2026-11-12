@@ -2,7 +2,7 @@
 status: designed
 desk_test: none
 sources: []
-updated: 2026-10-19
+updated: 2026-11-12
 ---
 # DeetsHealth — Security and privacy (the phone agent)
 
@@ -113,6 +113,10 @@ call loop; the sealed store.
   call, a call back only). It may never go below the two factors above for a chart answer.
 - **Results** keep their own rules on top (VOICE-AGENT.md §7.1): released to the portal only,
   sensitive results never on the phone.
+- **A confused caller goes to a person** (the owner, 2026-11-12; built). After a failed code, a
+  caller who asks why, says the code is right, or still has no text goes to staff at once, not
+  to more tries. What the rules say about verification, and what is still open (twins, limits
+  across calls, the confidential number): REGULATIONS.md §2.
 
 ### 4.5 Logs, traces and crashes
 - Logs, traces and metrics carry counts, resource types, Flow nodes, durations and error kinds.
@@ -121,6 +125,10 @@ call loop; the sealed store.
   (VOICE-AGENT.md §9), and the Rust service logs error kinds only (`CoreError`).
 - A panic hook replaces the panic message before it reaches a log.
 - Error-tracking services get no request bodies and no frame variables.
+- **Test mode is the exception** (the owner, 2026-11-12): the dev call record in `agent/calls/`
+  keeps the caller's words and the tools' arguments in full, to debug. Every value in it is
+  synthetic (§4.8). Before the first real call it splits into a call log with no values and a
+  transcript sealed under the hospital's key (REGULATIONS.md §8).
 
 ### 4.6 Keys
 - **The strictest standard:** HIPAA's Security Rule binds us now, and we hold the bar HHS sets
@@ -188,6 +196,7 @@ not yet signed) are VOICE-AGENT.md §8.2. US data residency for every one. A ven
 BAA never receives protected data, in dev or in production.
 
 ## 6. The law (a summary, not legal advice)
+The full map of laws, guidance and standards, and what each asks of us: REGULATIONS.md.
 - **HIPAA binds us now.** As a business associate we follow the Security Rule's safeguards
   (administrative, physical, technical), the Breach Notification Rule (we tell the hospital
   without unreasonable delay, at most 60 days after we find a breach), and the minimum-necessary
@@ -196,7 +205,9 @@ BAA never receives protected data, in dev or in production.
   security and privacy officers, written policies, and workforce training for everyone with
   access, helpers included.
 - **Call recording:** some US states need every party to agree. When any rule can record a
-  call, the greeting says so first (VOICE-AGENT.md §8.7).
+  call, the greeting says so first (VOICE-AGENT.md §8.7). **Transcription counts too**
+  (2026-11-12): every greeting says the call is transcribed, because we keep transcripts
+  (REGULATIONS.md §6).
 - **Not a medical device, by design:** the agent reads the chart and books visits; it gives no
   advice and does no triage (DESIGN.md › Not goals). Triage would bring FDA rules for software
   as a medical device.

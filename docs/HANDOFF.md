@@ -101,6 +101,15 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   (Timeline, Caller, Step, Tools), where the rating controls sit, the model and code graders.
   Then the staging deploy (2A: after this desk test; at $0, so the Docker Compose stand-in
   first, CLOUD.md). Polish from every desk test is always on (BUILD-ORDER.md §2; AGENT.md §4).
+- **Also in flight: the call guardrails** (REGULATIONS.md, 2026-11-12). Built, desk test open:
+  the greeting is a fixed line with the disclosures (automated, transcribed, a person at any
+  time; §6), and a caller confused after a failed code goes to a person at once (§2.1; the kept
+  script `code_confusion.txt`). Open, in order: REGULATIONS.md §10 (twins, limits across
+  calls, the confidential number, the code by keypad, and more). The map of every step, fixed
+  line and limit, by file and symbol: CALL-FLOW.md.
+- **Gate on the first real call: split the call record** (the owner, 2026-11-12). Test mode
+  keeps full logs on purpose; before a real call, a log with no values and a sealed transcript
+  (REGULATIONS.md §8, SECURITY.md §4.5).
 - **Done, 2026-11-11:** the console's skeleton (CONSOLE.md; desk test passed in Edge); Pipecat
   1.16.0 (AGENT.md); `main` holds both.
 - **Paper, done:** the repo layout; the Anthropic dev workspace, "DeetsHealth Dev", key in the
@@ -200,6 +209,13 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   `deets-137/DeetsMusicWindows` (public). `deets-137/DeetsMusic` is an older Swift app. Clone
   DeetsMusicWindows and link it as `../DeetsMusic`, or the docs check fails the README link.
 - **Epic's sandbox data is small and tidy.** Real site data is not.
+- **Windows holds `catalog.db` open** (2026-11-12): `Catalog.build()` deletes the file, which
+  fails with WinError 32 while any process has it open. A leftover agent from a closed terminal
+  tab does that (stop the run with Ctrl+C, not by closing the tab), and
+  `test_annotations_survive_a_rebuild_and_the_latest_rating_wins` fails on Windows for the same
+  reason. Not fixed.
+- **Casey Morgan never verifies, on purpose.** The fakes hold Casey Morgan and Casey Morgen on
+  one date of birth, so no code goes out. Use Jordan Ellis, 1984-03-12, code `246810`.
 - **Several Deets* apps run at once on the owner's PC.** Never hard-code a dev port; Vite takes
   the next free one from 1420.
 - **The wall in the engine** (SECURITY.md §4): hover hints are written hints only; the context

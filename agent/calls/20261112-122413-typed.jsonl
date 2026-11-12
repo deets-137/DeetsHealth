@@ -1,0 +1,26 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 2, "call_id": "20261112-122413-typed", "source": "typed", "scenario": "leave_at_code", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T12:24:13"}
+{"t_ms": 371, "kind": "ehr", "call": "OpenCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 781, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?"}
+{"t_ms": 782, "kind": "caller", "text": "Hi, I'd like to book a check-up."}
+{"t_ms": 785, "kind": "llm", "key": "e680476a", "hit": true, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 34, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 1964}, "total_ms": 1}
+{"t_ms": 785, "kind": "node", "name": "greet"}
+{"t_ms": 1201, "kind": "agent", "text": "Happy to help you book a check-up. First, could you tell me your first name, last name, and date of birth?"}
+{"t_ms": 1201, "kind": "caller", "text": "Priya Raman, November 30, 1971"}
+{"t_ms": 2335, "kind": "llm", "key": "cbac7542", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 104, "cache_read_input_tokens": 1964, "cache_creation_input_tokens": 50}, "total_ms": 1133, "first_event_ms": 925, "first_tool_ms": 932}
+{"t_ms": 2337, "kind": "tool_call", "name": "identify", "arguments": {"given_name": "Priya", "family_name": "Raman", "birth_date": "1971-11-30"}}
+{"t_ms": 2338, "kind": "tool_result", "name": "identify", "result": {"spoken_to_caller": "I have Priya Raman, born November 30, 1971. Is that right?"}, "ms": 1}
+{"t_ms": 2754, "kind": "agent", "text": "I have Priya Raman, born November 30, 1971. Is that right?"}
+{"t_ms": 2754, "kind": "caller", "text": "Yes, that's right."}
+{"t_ms": 3402, "kind": "llm", "key": "e90d3d5d", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 2014, "cache_creation_input_tokens": 158}, "total_ms": 647, "first_event_ms": 630, "first_tool_ms": 630}
+{"t_ms": 3403, "kind": "tool_call", "name": "confirm_details", "arguments": {}}
+{"t_ms": 3405, "kind": "ehr", "call": "Identify", "ms": 1, "outcome": "ok"}
+{"t_ms": 3405, "kind": "tool_result", "name": "confirm_details", "result": {"spoken_to_caller": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}, "ms": 2}
+{"t_ms": 3813, "kind": "agent", "text": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}
+{"t_ms": 3813, "kind": "caller", "text": "I don't have my phone, I'll call back later. Bye."}
+{"t_ms": 3816, "kind": "node", "name": "verify"}
+{"t_ms": 4456, "kind": "llm", "key": "5830e5b1", "hit": false, "messages": 7, "tools": ["hand_off", "end_call", "emergency", "medical_question", "check_code", "resend_code", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 26, "cache_read_input_tokens": 1882, "cache_creation_input_tokens": 740}, "total_ms": 641, "first_event_ms": 606, "first_tool_ms": 606}
+{"t_ms": 4457, "kind": "tool_call", "name": "end_call", "arguments": {}}
+{"t_ms": 4458, "kind": "tool_result", "name": "end_call", "result": {"spoken_to_caller": "Thank you for calling. Goodbye."}, "ms": 1}
+{"t_ms": 4459, "kind": "agent", "text": "Thank you for calling. Goodbye."}
+{"t_ms": 4460, "kind": "ehr", "call": "CloseCall", "ms": 1, "outcome": "ok"}
+{"t_ms": 4460, "kind": "call_end", "reason": "the agent ended it", "turns": 4, "requests": {"live": 3, "replayed": 1, "failed": 0}, "tokens": {"input_tokens": 12, "output_tokens": 158, "cache_read_input_tokens": 5860, "cache_creation_input_tokens": 948}, "cost_usd": 0.000257}

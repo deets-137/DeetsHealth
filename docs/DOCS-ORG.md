@@ -21,6 +21,12 @@ and that one differ, this file wins for DeetsHealth.
 5. A new doc gets one line in CLAUDE.md.
 6. Where a doc has an "as built" section, it is the code; the design above it is history.
 7. No real PHI in any doc. Sandbox patient names are fine; they are public fakes.
+8. **A doc points to the code; it never copies a word or a value the code holds** (the owner,
+   2026-11-12). The agent's words, its limits and its lists will become settings a console
+   page changes, so the code (and AGENT-PROMPT.md) is the one copy. Name the file and the
+   symbol, or the AGENT-PROMPT.md section: "`line.greeting`", "`MAX_CODE_FAILURES` in
+   `ehr/src/service.rs`". The map of them all is `architecture/CALL-FLOW.md`. WORKLOG.md and
+   the decision records in AGENT.md §3 may quote the words of their day.
 
 ## 2. Front matter
 First thing in the file, above the `#` title:

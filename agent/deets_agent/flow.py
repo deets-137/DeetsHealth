@@ -100,6 +100,12 @@ def _visit_words(v: Slot | Visit) -> str:
 EMERGENCY_LINE = text("line.emergency")
 
 
+def greeting() -> str:
+    """The first words of every call, with the disclosures. The hospital sets its own later
+    (FUTURE-SETTINGS.md §4)."""
+    return text("line.greeting", clinic=CLINIC)
+
+
 def _words(value: str) -> set[str]:
     """Lowercase words with only their letters and digits ("O'Brien," -> "obrien")."""
     return {w for w in ("".join(c for c in part if c.isalnum()) for part in value.lower().split()) if w}
@@ -181,11 +187,20 @@ class CallFlow:
         return [{"role": "developer", "content": text(f"task.{name}", **values)}]
 
     def greet(self) -> NodeConfig:
+        # The greeting carries the disclosures (REGULATIONS.md §6, the owner, 2026-11-12): an
+        # automated assistant, the call is transcribed, a person at any time. The law wants
+        # those words exact, so the code speaks them as a fixed line before the model runs, and
+        # the model waits for the caller. The task tells the model what the caller heard; the
+        # line stays out of the context, so the model's first message is the caller's.
         return {
             "name": "greet",
             "role_message": role(self.today),
             "task_messages": self._task("greet", clinic=CLINIC),
             "functions": [self._identify_fn(), self._confirm_details_fn()],
+            "pre_actions": [
+                {"type": "tts_say", "text": greeting(), "append_text_to_context": False},
+            ],
+            "respond_immediately": False,
         }
 
     def verify(self) -> NodeConfig:

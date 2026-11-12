@@ -46,6 +46,7 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "tool.hand_off": set(),
     "tool.emergency": set(),
     "tool.medical_question": set(),
+    "line.greeting": {"clinic"},
     "line.read_back": {"given", "family", "birth"},
     "line.ask_details": set(),
     "line.birth_not_possible": set(),

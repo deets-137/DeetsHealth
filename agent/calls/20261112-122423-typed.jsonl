@@ -1,0 +1,14 @@
+{"t_ms": 0, "kind": "call_start", "schema_version": 2, "call_id": "20261112-122423-typed", "source": "typed", "scenario": "leave_at_greet", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T12:24:23"}
+{"t_ms": 348, "kind": "ehr", "call": "OpenCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 760, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?"}
+{"t_ms": 761, "kind": "caller", "text": "Hi, is this the clinic?"}
+{"t_ms": 764, "kind": "node", "name": "greet"}
+{"t_ms": 1987, "kind": "llm", "key": "11de4b70", "hit": false, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 55, "cache_read_input_tokens": 1727, "cache_creation_input_tokens": 233}, "total_ms": 1225, "first_event_ms": 819, "first_text_ms": 829}
+{"t_ms": 2395, "kind": "agent", "text": "Yes, this is Main Street Clinic. How can I help you today? If you want to book a visit or check on one, I'll first need your first name, last name, and date of birth."}
+{"t_ms": 2395, "kind": "caller", "text": "Never mind, goodbye."}
+{"t_ms": 3336, "kind": "llm", "key": "7e9ccbe9", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 26, "cache_read_input_tokens": 1960, "cache_creation_input_tokens": 67}, "total_ms": 940, "first_event_ms": 706, "first_tool_ms": 707}
+{"t_ms": 3337, "kind": "tool_call", "name": "end_call", "arguments": {}}
+{"t_ms": 3338, "kind": "tool_result", "name": "end_call", "result": {"spoken_to_caller": "Thank you for calling. Goodbye."}, "ms": 1}
+{"t_ms": 3339, "kind": "agent", "text": "Thank you for calling. Goodbye."}
+{"t_ms": 3340, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 3340, "kind": "call_end", "reason": "the agent ended it", "turns": 2, "requests": {"live": 2, "replayed": 0, "failed": 0}, "tokens": {"input_tokens": 8, "output_tokens": 81, "cache_read_input_tokens": 3687, "cache_creation_input_tokens": 300}, "cost_usd": 0.000116}

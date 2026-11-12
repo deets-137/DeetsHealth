@@ -79,6 +79,11 @@ the branch `archive/patient-app`.
   words in `flow.py`. After an edit, record the kept scripts again (AGENT.md §3).
 - `EHR-SERVICE.md` — the Rust `ehr` service and its gRPC wire to the agent: the handle, the
   calls, the PHI tag in the contract, the edge, mTLS, tracing and tests.
+- `CALL-FLOW.md` — the default call flow as a map into the code: each step, fixed line, limit
+  and code-held rule, by file and symbol. Never copies a word or value (DOCS-ORG.md §1, rule 8).
+- `REGULATIONS.md` — the outside rules behind SECURITY.md: what HIPAA, the other federal
+  rules, state laws and ISO ask of the agent, how to verify a patient, the call's disclosures,
+  test mode's full logs, and the open guardrails (§10).
 - `SECURITY-BRIEF.md` — the one-pager for an outside security engineer: the stack, the threats,
   the plan, the idea to poke at (the model never chooses a patient), the questions.
 - `ERRORS.md` — the one `app-error` event and its codes (the patient app's; the pattern
