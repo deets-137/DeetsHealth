@@ -8,6 +8,57 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-12 — The Mac set up; the Chat page wired to the agent; the catalog of calls
+- On the Mac: `npm install`, `uv` (Homebrew), the `wasm32` target, `uv sync`, `ehr` built, the
+  dev certificates. The owner passed the Chat UI's desk test in Safari for now.
+- He asked about the security in `ehr/`: the crypto and TLS are rustls on AWS-LC; the rules
+  (sessions, verification, the edge) are ours. He asked for the text code's check to be
+  constant time: built (`Shielded::ct_eq`, the `subtle` crate; EHR-SERVICE.md §6a).
+- Forks: the first slice is Test and the watch stream together (1A); `npm run dev` starts both
+  (2A); the catalog in SQLite (1B); ratings per dimension with an optional 0–5 score (A); a
+  new dimension, intent drift. Staging after this desk test (2A), at $0 for anything but
+  Anthropic credit (CLOUD.md §5a).
+- Found on the way: Pipecat's browser WebSocket transport loads Daily's call-machine bundle
+  from Daily's CDN, so the console uses client-js with our own text transport; Pipecat's
+  serializers drop RTVI messages unless told not to; RTVI's text events do not carry the
+  Flow's fixed lines, so the watch stream does.
+- Built: the dev server, the launcher, the seat, the watch stream, Demo from the catalog, the
+  catalog and its annotations file (CHAT.md §6, §7). A replayed booking ran end to end through
+  the seat and the watch stream. 56 agent tests. Not run in a browser: the owner's desk test.
+- Desk tests in Safari, the same night: the narrow canvas (the help label wrapped, the split
+  ran out of the canvas; now "Help" and a fluid split); a replay miss ended a call (nothing
+  lost: the record held the full error); Test made always live, replay kept for Demo (the
+  owner's ask); one grid for the stage's edges, the line facts under the bubble's text.
+- DeetsEngine cloned: nothing taken (a skeleton, Rust against a Python catalog, no BAA path);
+  GLOBALS.md archived (the owner).
+- The owner made `.env`; the `.env` deny rules in `.claude/settings.json` stay. API spend:
+  about $0.001 (a few live lines).
+
+## 2026-11-12 — Idea: a CLI and an MCP server for the console
+- The owner asked for an MCP server or a CLI that lets Claude operate the console to debug,
+  and later lets a hospital's analysts query logs, edit settings and run demos. Talked first,
+  then wrote ideas/CONSOLE-MCP.md.
+- Forks: protected data through MCP is off by default, and a hospital can turn it on for a
+  client its own BAA covers (1 A); analysts get the external MCP server, and the in-console
+  assistant waits until it proves useful (2 A).
+- Decided inside his choices: one staff API for the console, the CLI and the MCP server; the
+  CLI first; a remote MCP server; setting changes as drafts that a person applies in the
+  console; the tool list is a draft for him to edit.
+- No code. No API spend.
+- Then the owner asked for one central list of future settings. FUTURE-SETTINGS.md held only
+  the 3 with a built default; 13 more were named across the docs. Added an index by topic at
+  its top, on DeetsMusic's pattern (its FUTURE-SETTINGS.md ledger): every setting on the
+  index the day a doc names it, a full entry once its default is built, stable section
+  numbers, a SETTINGS.md as the live table once the store is built.
+- Cloned `deets-137/DeetsEngine` beside this repo on the Mac (over HTTPS: `gh` is set to SSH
+  here). Its `docs/ideas/deetshealth-needs.md` (commit `adea158`, 2026-10-13) is not on GitHub;
+  at the owner's word, dropped it from GLOBALS.md's sources. The docs check passes clean.
+- He asked for another idea: access levels by role. I first wrote a full design (levels, a
+  role table, rules, forks); he asked for it open ended instead, for his own design and build.
+  ideas/ACCESS-ROLES.md now holds only his direction (custom-named roles built from levers,
+  found as we build) and a list of the levers seen so far. SECURITY.md §4.10's four roles
+  are now marked as examples.
+
 ## 2026-11-12 — The Chat page's UI, the wave, `main` brought up
 - The owner asked to record the analyst-team demo as an idea (a Cloudflare Tunnel;
   ideas/README.md), to merge the Pipecat 1.16 branch into `conversion` and `conversion` into

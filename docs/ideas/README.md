@@ -28,6 +28,14 @@ hospital or a patient that the agent can do any of these things. The patient app
   block WebSockets to unknown sites; synthetic callers only, and the page says so. A real call
   in front of analysts is the production watch instead (sign-in, roles, an audit row per view;
   CONSOLE.md).
+- **A CLI and an MCP server for the console** (the owner, 2026-11-12):
+  [CONSOLE-MCP.md](CONSOLE-MCP.md). One staff API with three clients (the console, `deets` on
+  the command line, a remote MCP server), under the same sign-in, roles and audit trail. The
+  CLI first, for us to debug; the MCP server later, for a hospital's analysts. No protected
+  data through MCP unless the hospital turns it on for one client its own BAA covers.
+- **Access levels by role** (the owner, 2026-11-12): [ACCESS-ROLES.md](ACCESS-ROLES.md).
+  Open ended; the owner designs and builds it. Each role is custom: a hospital creates and
+  names it, built from levers that become clear as we build. The doc collects the levers.
 - **Spanish and other languages.** Cartesia's Ink-2 is English only (VOICE-AGENT.md §8.6).
 - **Running on Epic's Agent Factory** once Epic opens external connectors (VOICE-AGENT.md §5).
 - **Other health products in this repo** (the owner, 2026-10-19: "if we ever get more health

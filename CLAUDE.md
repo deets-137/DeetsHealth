@@ -44,7 +44,8 @@ above it, it is the code. A new doc gets front matter (DOCS-ORG.md §2) and one 
 `PATIENT-APP-EPIC.md` — its Epic registration and sandbox findings. `PATIENT-APP-DEBUGGING.md` —
 its fetch ledger, inspector and the first Epic fetch. `HOME-AND-HUBS.md` — the patient portal's layout. `ENDPOINT-DIRECTORY.md` — Epic's Brands
 bundle and the worker that re-hosts it. `IDENTITY-WORKER.md` — the patient-sharing worker idea.
-`SURFACES-AND-CARDS.md` — the patient app's card engine and shell.
+`SURFACES-AND-CARDS.md` — the patient app's card engine and shell. `GLOBALS.md` — the patient
+app's chart globals in DeetsEngine (archived 2026-11-12: the phone agent keeps no chart).
 
 **`archive/`** (repo root) — the patient app's code, not built, not checked
 (`archive/README.md`): the Tauri host, its scripts, its front end and the old toolkit
@@ -82,8 +83,6 @@ the branch `archive/patient-app`.
   the plan, the idea to poke at (the model never chooses a patient), the questions.
 - `ERRORS.md` — the one `app-error` event and its codes (the patient app's; the pattern
   carries).
-- `GLOBALS.md` — a draft: DeetsHealth's globals in DeetsEngine, from Camila's record. Waits on
-  the store (Postgres, VOICE-AGENT.md §8.7).
 - `FUTURE-SETTINGS.md` — what each hospital will configure (what follows the emergency line, the
   medical-question line, the emergency phrase list), each with its default now. Not built.
 - `CONSOLE.md` — the web console as built: where it runs (a browser; installable as a web
@@ -114,6 +113,11 @@ the branch `archive/patient-app`.
 
 **`docs/ideas/`** — not built; never tell a user the app does these.
 - `README.md` — the short list of ideas without a doc of their own.
+- `CONSOLE-MCP.md` — a CLI and a remote MCP server on the console's staff API: one API, three
+  clients, the same roles and audit; protected data off unless a hospital's BAA covers the
+  client; setting changes as drafts.
+- `ACCESS-ROLES.md` — access levels by role, open ended: the owner designs and builds it.
+  Custom-named roles built from levers; a list of the levers seen so far.
 
 ## Privacy rules (this project only — read before any code)
 The full rules are SECURITY.md (the phone agent's, 2026-10-19). In short:

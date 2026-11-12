@@ -175,7 +175,8 @@ call loop; the sealed store.
   place. Multi-factor sign-in is the hospital provider's.
 - **Roles (a draft for the owner to edit):** admin (settings, recording rules, roles),
   supervisor (call log, transcripts), viewer (call log and dashboards, no transcripts), auditor
-  (the audit trail).
+  (the audit trail). These are examples only: each role is custom, named by the hospital and
+  built from levers (the owner, 2026-11-12; open ended, ideas/ACCESS-ROLES.md).
 - **Each transcript view, recording play and export is a row in the audit trail.**
 - **Our own staff have no standing access to a hospital's protected data.** Support uses
   time-limited emergency access that the hospital approves and that is audited.
