@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: none
-sources: [agent/deets_agent/flow.py]
+sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/prompts/AGENT-PROMPT.md]
 updated: 2026-11-12
 ---
 # Future settings — what a hospital will configure
@@ -34,6 +34,8 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
 - The medical-question line — §2 (default built).
 - The emergency phrase list — §3 (default built).
 - The greeting and its disclosures — §4 (default built).
+- Staff flags: the kinds, the criteria for the model, the code triggers, where each kind goes
+  and what it starts — §5 (default built).
 
 **Caller verification**
 - Stronger checks above the floor: a code on every call, a call back only. Never below two
@@ -79,6 +81,9 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
 **The default now** (the owner's option A, 2026-11-11): the agent speaks a fixed line
 (`line.emergency` in AGENT-PROMPT.md). The call stays open, and the task goes on: a caller who
 was only worried keeps the time they chose. Code: `flow.py` `emergency_fn` (CALL-FLOW.md §3).
+A caller who has said they are safe and mentions the same danger again hears a one-sentence
+reminder that does not ask again, and the call goes on (the owner, 2026-11-12; `line.emergency_reminder`,
+`safety_reminder_fn`). Anything new or worse gets the full line again.
 
 **The choices a hospital needs:**
 - **Stay and go on** (the default).
@@ -100,7 +105,8 @@ the flag starts the hospital's chosen actions while the agent goes on with the t
 - **Add a note to the chart** that the caller raised a possible emergency, with the time.
 - **Show it in the console:** the call is marked, so staff can listen in or take over.
 
-A hospital chooses one or more of these. The flag carries no protected data out of the wall:
+This flag is now built as one kind of staff flag (`possible_emergency`); its settings,
+its routing and its actions are §5. A hospital chooses one or more of these. The flag carries no protected data out of the wall:
 the alert says "a caller on line N raised a possible emergency"; the details stay in the call
 record and the chart (SECURITY.md §4). Open: the words that raise the flag (the model decides
 today, from the prompt), and whether a staff member must acknowledge the alert.
@@ -174,7 +180,78 @@ kept, VOICE-AGENT.md §8.7).
 **Every place it runs:** the call (spoken first, on any phone); the console (the edit box,
 audited, with the floor check); the deploy (A2 and B the same); each EHR (none).
 
-## 5. Open questions
+## 5. Staff flags
+> **Part:** built · 2026-11-12 (the default only)
+
+**What it controls:** when the agent marks a call for a nurse or a staff member, what the flag
+holds, and what happens next. A flag is silent to the caller (the owner, fork 2A). It carries
+the model's summary and the caller's own words as evidence, and the code checks each quote
+against what the caller said (fork 1A). A flag can start work in the background: a rules
+engine acts on a kind, and a nurse may choose to join the call. §1's emergency flag is one kind
+of staff flag.
+
+**The default now (2026-11-12).** Every piece points to the code (DOCS-ORG.md §1, rule 8):
+- **The kinds:** `FLAG_KINDS` in `agent/deets_agent/flow.py` (a draft list, the owner's to
+  edit).
+- **Flags the code raises,** with no model: the 911 line (`emergency_fn`, `safety_reminder_fn`,
+  and `CallerScreen` in `agent/deets_agent/screen.py`, which keeps the caller's line as
+  evidence); a locked verification (`_check_code_fn`); no code left to send
+  (`_resend_code_fn`). Each kind is raised once per call (`CallFlow.raise_flag`).
+- **Flags the model raises:** `flag_for_staff_fn`, and `hand_off_fn`, whose optional fields
+  carry a flag, because a hand-off ends the call.
+- **The criteria for the model:** the `flag_for_staff` rule in `role`, and `tool.flag_for_staff`,
+  `arg.flag_for_staff.*` and `arg.hand_off.*`, all in AGENT-PROMPT.md.
+- **The evidence check:** `CallFlow._caller_said`. A quote the caller did not say is dropped
+  and counted (`StaffFlag.unverified`).
+- **Silent to the caller:** nothing is spoken; `note.after_flag` tells the model to go on.
+- **Where a flag goes:** `CallFlow.on_flag`. Today that is the dev call record (a `staff_flag`
+  event, `agent/deets_agent/call.py`) and the catalog's label (`agent/deets_agent/catalog.py`).
+
+**The choices a hospital needs:**
+- **Its kinds.** Add, rename or turn off a kind. Each kind has a name that staff see and a
+  description that the model reads.
+- **The criteria for each kind,** in the hospital's own words: when the model raises it (for
+  example, "a caller over 65 who mentions a fall"). The words go into the model's prompt.
+- **Code triggers for each kind,** which need no model: the events that raise it (the 911
+  line, a lock, every hand-off), and a phrase list for each kind, like §3's.
+- **What a flag must hold:** whether a kind needs evidence before it is raised, and how long
+  the summary may be. The evidence check itself is always on (the floor below).
+- **What the caller hears:** nothing, by default. A hospital that staffs the action may add a
+  line for a kind ("I've let our nurse know"). It must never promise an action that no one
+  staffs.
+- **Where each kind goes, and what it starts** (the rules engine): who receives it (a nurse
+  pool, a role, an inbox); how fast (a live alert, or a queue to review); the actions (a nurse
+  joins the call, a transfer when the task ends, an EHR in-basket message, a chart note, a
+  call-back task); whether someone must acknowledge it; what happens if no one does within a
+  set time.
+- **Who may read the notes:** the roles (ideas/ACCESS-ROLES.md), and how long flags are kept
+  (§ Records kept).
+- **Overrides for each clinic** inside the hospital (§6).
+
+**The floor.** A hospital may never turn these off: the evidence check by code; the rule that
+an alert, a toast or a log line carries the kind only, never the summary or the evidence
+(SECURITY.md §4); one audit row for each time a person reads the notes.
+
+**Every place it runs:**
+- **The call:** no words to the caller by default. A nurse who joins the call needs Twilio
+  conferencing and a staffed number (Phase 5).
+- **The console:** a settings page for each kind (criteria, triggers, routing, actions), every
+  change audited; a flag queue; a notes view that shows the summary and the caller's lines,
+  with each view audited.
+- **The deploy:** A2 and B the same. The rules engine runs inside each hospital's deploy, so
+  the notes never leave it.
+- **Each EHR:** an in-basket message and a chart note are EHR writes (Epic first:
+  `Communication` or a note, as the hospital allows). The flag itself needs no EHR.
+
+**Open forks, for when the settings page is built:**
+- Whether a hospital may turn off the safety kinds (`possible_emergency`, `safety_concern`), or
+  whether they are a floor like the greeting's disclosures (§4).
+- How a hospital's criteria are tested before they go live. Its words change what the model
+  does, so they are a new place where the prompt can go wrong. One way: run them on the kept
+  scripts and simulated callers first, and show the result before they apply.
+- The flag queue in the console, and the nurse's controls (join, call back, dismiss).
+
+## 6. Open questions
 - Which settings a clinic inside a hospital may override, and which stay with the hospital.
 - Who in the hospital may change a setting that touches safety (the emergency line), and
   whether a change needs a second person to approve it.

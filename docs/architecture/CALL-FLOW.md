@@ -96,4 +96,4 @@ The verification limits are a floor: a hospital may make them stricter, never lo
 Every row in §3 and §4 is a candidate for a console setting. Each will move the same way: the
 code keeps the default, a per-hospital value comes from the settings store, and this doc
 keeps pointing at the code that reads it. Which pieces a hospital may change, and who may change
-them, is FUTURE-SETTINGS.md §5.
+them, is FUTURE-SETTINGS.md §6.
