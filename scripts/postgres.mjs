@@ -42,11 +42,16 @@ export function pgBin() {
     `/opt/homebrew/opt/postgresql@${PG_MAJOR}/bin`,
     `/usr/local/opt/postgresql@${PG_MAJOR}/bin`,
     `/usr/lib/postgresql/${PG_MAJOR}/bin`,
+    // The EDB installer on the Mac (postgresql.org's download).
+    `/Library/PostgreSQL/${PG_MAJOR}/bin`,
   ].filter(Boolean);
-  for (const p of places) if (existsSync(join(p, `pg_ctl${exe}`))) return p;
-  const which = spawnSync(process.platform === "win32" ? "where" : "which", ["pg_ctl"], { encoding: "utf8" });
-  const found = which.status === 0 ? which.stdout.split(/\r?\n/)[0].trim() : "";
-  return found ? dirname(found) : null;
+  // A folder counts only when it holds the server too: Homebrew's libpq ships pg_ctl and initdb
+  // without `postgres`, and it is often first on PATH (seen on the Mac, 2026-11-12).
+  const server = (p) => existsSync(join(p, `pg_ctl${exe}`)) && existsSync(join(p, `postgres${exe}`));
+  for (const p of places) if (server(p)) return p;
+  const which = spawnSync(process.platform === "win32" ? "where" : "which", ["-a", "pg_ctl"].slice(process.platform === "win32" ? 1 : 0), { encoding: "utf8" });
+  const found = which.status === 0 ? which.stdout.split(/\r?\n/).map((l) => dirname(l.trim())).find((d) => d && server(d)) : undefined;
+  return found ?? null;
 }
 
 function run(bin, tool, args, env = {}) {
