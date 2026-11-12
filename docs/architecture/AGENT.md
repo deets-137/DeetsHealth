@@ -46,7 +46,13 @@ real date, but the fake slots are then in the past.
 
 **Fake callers** (`ehr/src/verify.rs`): Jordan Ellis, 1984-03-12, has a visit on November 10.
 Priya Raman, 1971-11-30, has none. Casey Morgan and Casey Morgen share 1990-06-05, so neither
-verifies. The text code is always `246810`.
+verifies. The text code is always `246810`. No text is sent. The harness prints these at
+the start of every typed call (2026-11-11; the owner got stuck at the code step without them).
+
+**The kept scripts** (`tests/scripts/`, each one also a replay test in `test_typed_call.py`):
+`book_a_visit.txt` (verify, book, next visit, goodbye), `leave_at_greet.txt` and
+`leave_at_code.txt` (the caller says goodbye before and during verification; the call must
+end with the goodbye line and no hand off).
 
 ## 2. The parts
 | File | What it does |
@@ -119,8 +125,32 @@ verifies. The text code is always `246810`.
   own fix is a beta header, which the GA rule rules out. Test: `test_llm.py`.
 - **A failed Claude request ends the call at once** (`CallFailed`), not after the 60-second
   turn limit.
+- **`end_call` is global, like `hand_off`** (2026-11-11, the owner's second desk test). Before,
+  only the menu and schedule steps had it. In the call logs: "end call" at the code step got
+  `hand_off` ("connecting you with a member of our staff"); "goodbye" at the greeting got a
+  goodbye in the model's own words and the call stayed open; a caller who said "or I'm done"
+  got an unasked goodbye in the model's own words. The role prompt now says: on goodbye, use
+  `end_call`; never say goodbye in your own words; a caller who only wants to hang up does not
+  need a person.
+- **Words before a tool are checked, not held** (2026-11-11, the owner's fork C). On a voice
+  call the model's words are spoken as they stream; a tool call in the same reply comes after
+  them. Holding every reply until it ends would add 0.4 to 0.7 seconds to each one (the time
+  from first event to the end, in the typed-call records) and would remove "let me check"
+  before a slow tool. So: the role prompt says to say nothing with `end_call` or `hand_off`
+  (except in an emergency); `llm.py`'s `WordsBeforeTool` reads each reply's blocks (text, then
+  tool_use) and notes every tool call that came after words; the call record writes it as
+  `words_before_tool`, and `show_call.py` prints it with `!!`; the replay tests fail on any
+  words before a closing tool (`config.CLOSING_TOOLS`). The check reads the API's events, not
+  Pipecat's frames: the tool-call frame is a system frame and can overtake the text frames
+  before it (a frame-based first try passed on live runs and failed on replay).
 
 ## 4. Known gaps
+- **The model's words before a closing tool: held by the prompt, not by code** (fork C, §3).
+  A live call can still break the rule. The record and the tests find it, but the caller has
+  already heard it. The emergency line ("hang up and call 911", then `hand_off`) is the one
+  allowed case; making it a fixed line would close that gap.
+- **The model answers off-topic questions** (2026-11-11): "2+2", "7 factorial". It then steers
+  back to visits. Cheap, and it carries no record, but it is not in scope.
 - **The model fills a missing name: fixed in the prompt only, not tested live.** Given "Billy
   Bob" and no last name, it sent "Billy Bob" as both names once, and "Bob" once; once it told
   the caller it had "entered a placeholder" (2026-11-11). The prompt now forbids both. A

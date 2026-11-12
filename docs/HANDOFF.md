@@ -71,8 +71,13 @@ The product is built in six phases, each ending in a desk test (BUILD-ORDER.md �
   crashed after `identify` (stale thinking blocks, AGENT.md §3). Fixed, and each typed call now
   writes a dev call record (AGENT.md §1). From the test, built the same day: the code speaks
   each fixed line word for word (fork 1A), an impossible date of birth costs no try, a name
-  rule in the prompt, and "today" set per call (AGENT.md §3). **Waiting on the owner's second
-  desk test.** Next in Phase 1: the call timeline.
+  rule in the prompt, and "today" set per call (AGENT.md §3). **Second desk test, 2026-11-11:**
+  no crash; he stopped at the code step because the harness did not show the fake code. Built
+  the same day: the harness prints the test data (the code is `246810`); `end_call` is global,
+  so a caller can leave at any step without a hand-off; fork C, a prompt rule plus a check that
+  flags the model's words before a closing tool (AGENT.md §3). 24 agent tests. **Waiting on
+  the owner's third desk test.** Next in Phase 1: the call timeline. Phase 3 holds his offer
+  of audio cues (connect, goodbye, a hold sound for slow tools).
 - **Next sitting (the owner, 2026-10-21): start with a full rundown** before building more:
   every library we use and how we use it (Rust: tonic, prost, rustls/AWS-LC, tokio, rcgen,
   zeroize, getrandom; Python: Pipecat 1.13 and its Flows, the Anthropic SDK, grpcio, protobuf,

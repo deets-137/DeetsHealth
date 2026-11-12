@@ -1,0 +1,6 @@
+# A typed call: the caller leaves while asked for the text code. The agent says goodbye and ends
+# the call; it does not hand off to staff.
+# Run: uv run python harness/typed_call.py --script tests/scripts/leave_at_code.txt
+Hi, I'd like to book a check-up.
+Priya Raman, November 30, 1971
+I don't have my phone, I'll call back later. Bye.

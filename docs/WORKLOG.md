@@ -2,11 +2,29 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-10-20
+updated: 2026-11-11
 ---
 # DeetsHealth — Work log
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
+
+## 2026-11-11 (later) — the second desk test: the code step, ending a call
+- The owner's second typed call ran with no crash. He stopped at the code step: no text is
+  sent, and the harness did not say the fake code. The code step was wired; `ehr` accepts
+  `246810`. The harness now prints the fake callers and the code when a call starts.
+- From the call logs, the agent missed three chances to end a call. "End call" at the code
+  step was handed off to staff. "Goodbye" at the greeting got a goodbye in the model's words,
+  and the call stayed open. "Or I'm done" got an unasked goodbye in the model's words. Fixed:
+  `end_call` is global, and the prompt says to use it for every goodbye (AGENT.md §3).
+  Two kept scripts and tests cover it: `leave_at_greet`, `leave_at_code`.
+- The model's own words before a tool's fixed line, seen as "...Goodbye. Of course. I'm
+  connecting you with a member of our staff now." The owner chose C: a prompt rule, plus a
+  check in code that notes it in the call record and fails the tests (AGENT.md §3). Holding
+  every reply (A) was dropped: 0.4 to 0.7 seconds on each reply. The check catches the reply
+  from his call when run over its recording.
+- The owner offered short audio cues for call start, hand-off, goodbye and a hold sound for
+  long waits. Not built; it waits for Phase 3 (voice).
+- Spend: under a cent to record the three scripts twice. 24 agent tests pass.
 
 ## 2026-11-11 — the first desk test; the thinking-block crash; the dev call record
 - The owner ran two typed calls: one genuine, one to break the agent. Both crashed right after

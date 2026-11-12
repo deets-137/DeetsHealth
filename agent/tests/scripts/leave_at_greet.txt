@@ -1,0 +1,5 @@
+# A typed call: the caller leaves before giving a name. The agent says goodbye and ends the call;
+# it does not hand off to staff.
+# Run: uv run python harness/typed_call.py --script tests/scripts/leave_at_greet.txt
+Hi, is this the clinic?
+Never mind, goodbye.

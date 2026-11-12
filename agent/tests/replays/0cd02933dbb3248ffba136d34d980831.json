@@ -5,7 +5,7 @@
     "container": null,
     "content": [],
     "diagnostics": null,
-    "id": "msg_011CgwqPisAsZ2q7osJjSsjD",
+    "id": "msg_011Cgx59VyGnCnsiD8Fj4Ny7",
     "model": "claude-haiku-5-5",
     "role": "assistant",
     "stop_details": null,
@@ -15,13 +15,13 @@
     "usage": {
      "cache_creation": {
       "ephemeral_1h_input_tokens": 0,
-      "ephemeral_5m_input_tokens": 50
+      "ephemeral_5m_input_tokens": 118
      },
-     "cache_creation_input_tokens": 50,
-     "cache_read_input_tokens": 1192,
+     "cache_creation_input_tokens": 118,
+     "cache_read_input_tokens": 2364,
      "inference_geo": "global",
      "input_tokens": 4,
-     "output_tokens": 2,
+     "output_tokens": 16,
      "output_tokens_details": null,
      "server_tool_use": null,
      "service_tier": "standard",
@@ -32,57 +32,22 @@
   },
   {
    "content_block": {
-    "citations": null,
-    "text": "",
-    "type": "text"
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01QnNSME1kkYJzVKBKZhQtGm",
+    "input": {},
+    "name": "end_call",
+    "toolset_name": null,
+    "type": "tool_use"
    },
    "index": 0,
    "type": "content_block_start"
   },
   {
    "delta": {
-    "text": "I can",
-    "type": "text_delta"
-   },
-   "index": 0,
-   "type": "content_block_delta"
-  },
-  {
-   "delta": {
-    "text": " help with that. First",
-    "type": "text_delta"
-   },
-   "index": 0,
-   "type": "content_block_delta"
-  },
-  {
-   "delta": {
-    "text": ", I need to confirm who",
-    "type": "text_delta"
-   },
-   "index": 0,
-   "type": "content_block_delta"
-  },
-  {
-   "delta": {
-    "text": " you are. What",
-    "type": "text_delta"
-   },
-   "index": 0,
-   "type": "content_block_delta"
-  },
-  {
-   "delta": {
-    "text": " is",
-    "type": "text_delta"
-   },
-   "index": 0,
-   "type": "content_block_delta"
-  },
-  {
-   "delta": {
-    "text": " your first name?",
-    "type": "text_delta"
+    "partial_json": "",
+    "type": "input_json_delta"
    },
    "index": 0,
    "type": "content_block_delta"
@@ -95,13 +60,13 @@
    "delta": {
     "container": null,
     "stop_details": null,
-    "stop_reason": "end_turn",
+    "stop_reason": "tool_use",
     "stop_sequence": null
    },
    "type": "message_delta",
    "usage": {
-    "cache_creation_input_tokens": 50,
-    "cache_read_input_tokens": 1192,
+    "cache_creation_input_tokens": 118,
+    "cache_read_input_tokens": 2364,
     "input_tokens": 4,
     "output_tokens": 26,
     "output_tokens_details": {

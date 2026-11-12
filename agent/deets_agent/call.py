@@ -34,6 +34,7 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.services.anthropic.llm import AnthropicLLMService
 from pipecat.workers.runner import WorkerRunner
 
+from deets_agent import config
 from deets_agent.ehr_client import EhrClient
 from deets_agent.flow import FAKE_TODAY, CallFlow
 
@@ -153,7 +154,7 @@ class TypedCall:
             llm=llm,
             context_aggregator=self._aggregators,
             worker=self._worker,
-            global_functions=[self.flow.hand_off_fn()],
+            global_functions=[self.flow.hand_off_fn(), self.flow.end_call_fn()],
         )
         self._runner = WorkerRunner()
         self._run_task: asyncio.Task | None = None
@@ -169,6 +170,12 @@ class TypedCall:
             ehr.record = record
             if messages is not None and hasattr(messages, "record"):
                 messages.record = record
+        self._found: list[tuple[str, str]] = getattr(messages, "words_before_tool", [])
+
+    @property
+    def words_before_closing(self) -> list[tuple[str, str]]:
+        """The model's words that came before end_call or hand_off in the same reply (llm.py)."""
+        return [(n, t) for n, t in self._found if n in config.CLOSING_TOOLS]
 
     async def start(self) -> str | None:
         started = asyncio.Event()

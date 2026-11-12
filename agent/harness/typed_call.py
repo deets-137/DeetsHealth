@@ -38,6 +38,13 @@ from deets_agent.ehr_process import running_ehr
 from deets_agent.flow import FAKE_TODAY
 from deets_agent.llm import Mode, build_llm
 
+# The test data, shown when the call starts. All of it is synthetic (ehr/src/verify.rs); keep it
+# in step with that file. Nothing is texted: the code below is the only one ehr accepts.
+TEST_DATA = """(test data: Jordan Ellis, born March 12, 1984, has a visit on November 10
+ - Priya Raman, born November 30, 1971, has none
+ - Casey Morgan and Casey Morgen share June 5, 1990, so neither verifies
+ - the text code is always 246810; no text is sent - type /quit to hang up)"""
+
 
 async def _lines(script: Path | None):
     if script is not None:
@@ -76,6 +83,7 @@ async def main() -> int:
         ehr = await EhrClient.connect(target, config.CERTS)
         call = TypedCall(ehr, build_llm(Mode(args.mode)), record, today=today)
         try:
+            print(TEST_DATA)
             greeting = await call.start()
             print(f"agent > {greeting}")
             async for line in _lines(args.script):

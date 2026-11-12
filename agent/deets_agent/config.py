@@ -22,6 +22,10 @@ EFFORT = "low"
 # A spoken reply is a sentence or two. The cap holds cost inside the $100-a-month budget.
 MAX_TOKENS = 600
 
+# The tools whose fixed line ends the call (flow.py). Words from the model before one of these
+# contradict it ("Goodbye." then "I'm connecting you…"); the tests allow none (AGENT.md §3).
+CLOSING_TOOLS = frozenset({"end_call", "hand_off"})
+
 
 def anthropic_key() -> str | None:
     """The key from the git-ignored .env at the repo root. Never printed, never logged."""

@@ -26,6 +26,7 @@ async def test_book_a_visit(ehr):
     for line in script("book_a_visit.txt"):
         replies.append(await call.say(line))
     assert call.ended, "the call should end after the goodbye"
+    assert not call.words_before_closing, "the model spoke before the closing tool's fixed line"
     await call.hang_up()
 
     # Ask ehr directly, as a new call by the same fake patient.
@@ -34,3 +35,25 @@ async def test_book_a_visit(ehr):
     await ehr.check_code(handle, Shielded("246810"))
     visit = await ehr.next_visit(handle)
     assert visit is not None and visit.starts_at.reveal() == "2026-11-02T09:00"
+
+
+async def _leave(ehr, name: str) -> None:
+    """A caller who wants to hang up hears the goodbye line and the call ends, at any step."""
+    call = TypedCall(ehr, build_llm(Mode.REPLAY))
+    await call.start()
+    last = None
+    for line in script(name):
+        last = await call.say(line)
+    assert call.ended, "the call should end when the caller says goodbye"
+    assert last is not None and last.endswith("Thank you for calling. Goodbye.")
+    assert "staff" not in last, "a caller who only hangs up is not handed off"
+    assert not call.words_before_closing, "the model spoke before the closing tool's fixed line"
+    await call.hang_up()
+
+
+async def test_leave_at_greet(ehr):
+    await _leave(ehr, "leave_at_greet.txt")
+
+
+async def test_leave_at_code(ehr):
+    await _leave(ehr, "leave_at_code.txt")

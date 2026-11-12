@@ -127,10 +127,62 @@ class _Signatures:
                 self._bound[block.signature] = self._tools
 
 
+class WordsBeforeTool:
+    """Notes the model's words that come before a tool call in the same reply (the owner's fork
+    C, AGENT.md §3). On a voice call those words are spoken before the tool's fixed line.
+
+    It reads the reply as the API sends it: a text block, then a tool_use block. The pipeline's
+    frames cannot tell this: Pipecat's tool-call frame is a system frame and can overtake the
+    text frames before it.
+    """
+
+    def __init__(self, found: list[tuple[str, str]], record=None) -> None:
+        self._found = found
+        self._record = record
+        self._text: list[str] = []
+
+    def _tool(self, name: str) -> None:
+        spoken = "".join(self._text).strip()
+        if spoken:
+            self._found.append((name, spoken))
+            if self._record is not None:
+                closing = name in config.CLOSING_TOOLS
+                self._record.event("words_before_tool", name=name, closing=closing, text=spoken)
+
+    def see(self, event) -> None:
+        kind = getattr(event, "type", None)
+        if kind == "content_block_start" and getattr(event.content_block, "type", None) == "tool_use":
+            self._tool(event.content_block.name)
+        elif kind == "content_block_delta" and getattr(event.delta, "type", None) == "text_delta":
+            self._text.append(event.delta.text)
+
+    def see_message(self, message: Message) -> None:
+        for block in message.content:
+            if block.type == "text":
+                self._text.append(block.text)
+            elif block.type == "tool_use":
+                self._tool(block.name)
+
+
+class _Watch:
+    """Passes each event of a reply to every watcher."""
+
+    def __init__(self, *watchers) -> None:
+        self._watchers = watchers
+
+    def see(self, event) -> None:
+        for w in self._watchers:
+            w.see(event)
+
+    def see_message(self, message: Message) -> None:
+        for w in self._watchers:
+            w.see_message(message)
+
+
 class _Replay:
     """A recorded stream, played back as the SDK's own event objects."""
 
-    def __init__(self, events: list[dict], sigs: _Signatures | None = None, trace=None) -> None:
+    def __init__(self, events: list[dict], sigs: _Watch | None = None, trace=None) -> None:
         self._events = [_EVENT.validate_python(e) for e in events]
         self._sigs = sigs
         self._trace = trace
@@ -162,7 +214,7 @@ class _Recording:
     """A live stream, passed through. Kept on disk only when it ran to its end."""
 
     def __init__(
-        self, stream, path: Path | None, key: str, sigs: _Signatures | None = None, trace=None, on_failure=None
+        self, stream, path: Path | None, key: str, sigs: _Watch | None = None, trace=None, on_failure=None
     ) -> None:
         self._stream = stream
         self._path = path
@@ -223,6 +275,9 @@ class _Messages:
         self.record = None
         # Called with the exception when a request fails, so the call ends at once (call.py).
         self.on_failure = None
+        # Each tool call that came after words in the same reply: (tool name, the words).
+        # Kept on every call, so the replay tests can check it with no record open.
+        self.words_before_tool: list[tuple[str, str]] = []
 
     def _failed(self, e: BaseException, trace) -> None:
         if trace is not None:
@@ -237,7 +292,9 @@ class _Messages:
         key = request_key(params)
         path = self._replays / f"{key}.json"
         stream = bool(params.get("stream"))
-        sigs = _Signatures(self._bound, tools_key(params))
+        sigs = _Watch(
+            _Signatures(self._bound, tools_key(params)), WordsBeforeTool(self.words_before_tool, self.record)
+        )
         hit = self._mode is not Mode.LIVE and path.exists()
         trace = self.record.llm_request(key, params, hit=hit, dropped=dropped) if self.record else None
 
