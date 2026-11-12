@@ -75,8 +75,13 @@ The product is built in six phases, each ending in a desk test (BUILD-ORDER.md �
   no crash; he stopped at the code step because the harness did not show the fake code. Built
   the same day: the harness prints the test data (the code is `246810`); `end_call` is global,
   so a caller can leave at any step without a hand-off; fork C, a prompt rule plus a check that
-  flags the model's words before a closing tool (AGENT.md §3). 24 agent tests. **Waiting on
-  the owner's third desk test.** Next in Phase 1: the call timeline. Phase 3 holds his offer
+  flags the model's words before a closing tool (AGENT.md §3). **Third desk test, 2026-11-11:**
+  an emergency during a booking lost the booking; now an `emergency` tool speaks a fixed 911
+  line and the call goes on (option A; FUTURE-SETTINGS.md §1 holds the hospital settings and
+  the emergency flag). Then the prompt rules moved into code where they could (1A, 2A): a
+  fixed medical-question line, an emergency phrase screen on every caller line, a name guard,
+  and an invented-value check (AGENT.md §3; FUTURE-SETTINGS.md §2, §3). 32 agent tests.
+  **Waiting on the owner's next desk test.** Next in Phase 1: the call timeline. Phase 3 holds his offer
   of audio cues (connect, goodbye, a hold sound for slow tools).
 - **Next sitting (the owner, 2026-10-21): start with a full rundown** before building more:
   every library we use and how we use it (Rust: tonic, prost, rustls/AWS-LC, tokio, rcgen,

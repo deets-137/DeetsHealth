@@ -81,6 +81,20 @@ def _visit_words(v: Slot | Visit) -> str:
     )
 
 
+# The fixed 911 line (the owner's option A, 2026-11-11). Spoken by the `emergency` tool and by
+# the phrase screen (screen.py). Working words; the hospital sets its own later
+# (FUTURE-SETTINGS.md §1).
+EMERGENCY_LINE = (
+    "If this might be an emergency, please hang up and call 911 now. "
+    "If you're safe to go on, would you like me to keep helping with your call?"
+)
+
+
+def _words(text: str) -> set[str]:
+    """Lowercase words with only their letters and digits ("O'Brien," -> "obrien")."""
+    return {w for w in ("".join(c for c in part if c.isalnum()) for part in text.lower().split()) if w}
+
+
 def role(today: date) -> str:
     """The role prompt. `today` is its only part that changes, once a day, so the prompt cache
     misses once a day per clinic, not once a call."""
@@ -102,9 +116,15 @@ Never repeat or rephrase them. If you speak next, go on from there in one short 
 say goodbye in your own words; end_call says it.
 - If the caller asks for a person, is upset, or needs something your tools cannot do, use \
 hand_off. A caller who only wants to hang up does not need a person.
-- When you use end_call or hand_off, say nothing in the same reply: the tool speaks for you. \
-The one exception is an emergency.
-- If the caller describes an emergency, tell them to hang up and call 911 now, then use hand_off."""
+- If the caller describes an emergency, or may be in danger, use emergency at once. It comes \
+before every other rule.
+- If the caller asks a medical question (what is wrong with them, what a symptom means, what to \
+take, whether something is serious), use medical_question. Never answer it yourself. Then go on \
+with the task.
+- You help only with this clinic's visits. If the caller asks about anything else, say in one \
+sentence that you can help them book a visit or hear about their visits.
+- When you use end_call, hand_off, emergency or medical_question, say nothing in the same \
+reply: the tool speaks for you."""
 
 
 @dataclass
@@ -119,6 +139,8 @@ class CallFlow:
     book_keys: dict[int, str] = field(default_factory=dict)
     # Set when the Flow moves to a node that ends the call (goodbye, hand off).
     closing: bool = False
+    # Every caller line on this call, for the name guard. Protected data: Shielded, call-long.
+    caller_lines: list[Shielded[str]] = field(default_factory=list)
 
     async def start(self) -> None:
         self.handle = await self.ehr.open_call()
@@ -238,6 +260,49 @@ class CallFlow:
 
     # ---- global (every node has these) ----
 
+    def medical_question_fn(self) -> FlowsFunctionSchema:
+        # The owner's option 1A (2026-11-11): a fixed line, so no medical wording of the model's
+        # own reaches a patient. A tool, so the hospital can set the words and what follows (a
+        # nurse line) later (FUTURE-SETTINGS.md §2). The line is a statement, so the model goes
+        # on with the task after it.
+        async def handler(args, flow_manager: FlowManager):
+            logger.info("medical question line spoken")
+            return await self._say(
+                flow_manager,
+                "I can't answer medical questions, but a clinician can talk with you about that at your visit.",
+            )
+
+        return FlowsFunctionSchema(
+            name="medical_question",
+            description=(
+                "Tell the caller you cannot answer medical questions. Use when they ask what is "
+                "wrong with them, what a symptom means, what to take, or whether something is serious."
+            ),
+            properties={},
+            required=[],
+            handler=handler,
+        )
+
+    def emergency_fn(self) -> FlowsFunctionSchema:
+        # The owner's option A (2026-11-11): the 911 line is fixed, and the call stays open, so a
+        # caller who is only worried keeps their place (a chosen option stays offered). What
+        # follows the line is a hospital setting later (FUTURE-SETTINGS.md): a nurse line, or
+        # an end to the call. The words are working words; the owner sets the final ones.
+        async def handler(args, flow_manager: FlowManager):
+            logger.info("emergency line spoken")
+            return await self._say(flow_manager, EMERGENCY_LINE)
+
+        return FlowsFunctionSchema(
+            name="emergency",
+            description=(
+                "Tell the caller to hang up and call 911. Use at once when they describe an "
+                "emergency or may be in danger, at any step."
+            ),
+            properties={},
+            required=[],
+            handler=handler,
+        )
+
     def end_call_fn(self) -> FlowsFunctionSchema:
         # Global, so a caller can leave at any step, verified or not; before, "end call" in the
         # verify step had only hand_off, and "goodbye" in greet had no tool at all.
@@ -270,6 +335,21 @@ class CallFlow:
 
     # ---- verification ----
 
+    def heard(self, text: str) -> None:
+        """Keep a caller line for the name guard (screen.py feeds every line). Protected data:
+        held as Shielded, for this call only."""
+        self.caller_lines.append(Shielded(text))
+
+    def _was_said(self, name: str) -> bool:
+        """True when every word of `name` is a word the caller said on this call."""
+        words = _words(name)
+        if not words:
+            return False
+        said: set[str] = set()
+        for line in self.caller_lines:
+            said |= _words(line.reveal())
+        return words <= said
+
     def _possible_birth(self, text: str) -> bool:
         try:
             born = date.fromisoformat(text)
@@ -288,8 +368,19 @@ class CallFlow:
                     "I'm sorry, that date of birth doesn't sound right. Could you say it again, "
                     "with the month, the day and the year?",
                 )
-            given = Shielded(str(args.get("given_name", "")).strip())
-            family = Shielded(str(args.get("family_name", "")).strip())
+            given_text = str(args.get("given_name", "")).strip()
+            family_text = str(args.get("family_name", "")).strip()
+            if not (self._was_said(given_text) and self._was_said(family_text)):
+                # The name guard (2026-11-11): the model may only send names the caller said. A
+                # filled-in or guessed name ("Billy Bob" as both names) is caught here, costs no
+                # try, and the caller is asked again.
+                logger.info("identify: a name the caller did not say; asked again")
+                return await self._say(
+                    flow_manager,
+                    "I'm sorry, I didn't catch your full name. Could you tell me your first and last name?",
+                )
+            given = Shielded(given_text)
+            family = Shielded(family_text)
             birth = Shielded(birth_text)
             try:
                 left = await self.ehr.identify(self.handle, given, family, birth)

@@ -36,8 +36,8 @@ free port.
 file to `agent/calls/` (committed to the private repo since 2026-11-11, the owner's call;
 synthetic only, so never type a real person's details), and the harness prints its path and a cost line at the
 end. It holds both sides of the conversation, each Flow node, each tool call with its
-arguments, result and time, each Claude request (replayed or live, time to first event, total
-time, tokens, thinking blocks dropped, or the full error), each `ehr` call (name, time,
+arguments, result and time, each Claude request (replayed or live, time to first event, time to
+the first word and to the first tool call, total time, tokens, thinking blocks dropped, or the full error), each `ehr` call (name, time,
 outcome), and the full text of library warnings and errors. `--no-record` turns it off.
 **Synthetic callers only**: the record holds what the PHI wall keeps out of the logs. Only the
 harness opens one (`deets_agent/call_record.py`); a deployed call has no path to it.
@@ -64,6 +64,7 @@ end with the goodbye line and no hand off).
 | `deets_agent/llm.py` | Pipecat's Anthropic service behind our client: GA only, the replay cache, stale thinking blocks dropped. |
 | `deets_agent/call_record.py` | The dev call record: one JSON Lines file per typed call. |
 | `deets_agent/redact.py` | The PHI-free log processor; `redacted_text` for a wire message. |
+| `deets_agent/screen.py` | The caller screen: the emergency phrase list, and each caller line to the name guard. |
 | `deets_agent/shielded.py` | The Python wrapper for protected data. |
 | `deets_agent/ehr_process.py` | Starts `ehr` on a free port and reads its address. |
 | `harness/typed_call.py` | The typed call for the owner's desk test. |
@@ -112,9 +113,18 @@ end with the goodbye line and no hand off).
   its text. Our own lines carry kinds and counts only. An exception keeps its type, never its
   message.
 - **`NextVisit`** was added to the contract for S5 (EHR-SERVICE.md §6a).
-- **One line on emergencies** in the role prompt: "tell them to hang up and call 911 now, then
-  hand off." C5 (emergency transfer) is not in Phase 1; this line is a stopgap the owner may
-  remove.
+- **The `emergency` tool** (2026-11-11, the owner's option A, from his third desk test). Global,
+  like `end_call`. It speaks a fixed line: "If this might be an emergency, please hang up and
+  call 911 now. If you're safe to go on, would you like me to keep helping with your call?" The
+  call stays open and the node does not change, so a chosen option is still offered. Before, the
+  model said the 911 line itself and then used `hand_off`, so the caller heard "call 911" and
+  then "connecting you to staff", and the booking was lost. What follows the line, and the
+  emergency flag that can start several actions at once (a nurse joined to the call, a message,
+  a chart note), are hospital settings for later: FUTURE-SETTINGS.md §1. Test:
+  `emergency_then_book`.
+- **Time to the first word** (2026-11-11). Each live `llm` event now has `first_text_ms` and
+  `first_tool_ms`; `show_call.py` prints them as `words` and `tool`. With thinking on,
+  `first_event_ms` can be a thinking block, so it is not what a caller waits for.
 - **The turn ends** when a response ends, no tool call is still running, and no new response
   starts within 0.4 seconds.
 - **Stale thinking blocks are dropped** (2026-11-11). Effort `low` lets Haiku think when a turn
@@ -137,28 +147,60 @@ end with the goodbye line and no hand off).
   call the model's words are spoken as they stream; a tool call in the same reply comes after
   them. Holding every reply until it ends would add 0.4 to 0.7 seconds to each one (the time
   from first event to the end, in the typed-call records) and would remove "let me check"
-  before a slow tool. So: the role prompt says to say nothing with `end_call` or `hand_off`
-  (except in an emergency); `llm.py`'s `WordsBeforeTool` reads each reply's blocks (text, then
+  before a slow tool. So: the role prompt says to say nothing with `end_call`, `hand_off` or
+  `emergency`; `llm.py`'s `WordsBeforeTool` reads each reply's blocks (text, then
   tool_use) and notes every tool call that came after words; the call record writes it as
   `words_before_tool`, and `show_call.py` prints it with `!!`; the replay tests fail on any
-  words before a closing tool (`config.CLOSING_TOOLS`). The check reads the API's events, not
+  words before a fixed-line tool (`config.SILENT_TOOLS`). The check reads the API's events, not
   Pipecat's frames: the tool-call frame is a system frame and can overtake the text frames
   before it (a frame-based first try passed on live runs and failed on replay).
+- **Code before prompt: the caller screen, the medical line, the name guard** (2026-11-11, the
+  owner's 1A and 2A: "tools give us a route to add more config and more levers later").
+  - **`medical_question`** (global): a fixed line, "I can't answer medical questions, but a
+    clinician can talk with you about that at your visit." The line is a statement, so the model
+    goes on with the task. The agent never screens symptoms: that is clinical triage, for a
+    hospital-approved script only. Test: `medical_question`.
+  - **The caller screen** (`screen.py`, first in the pipeline): it reads each caller line before
+    the model does. A phrase on the emergency list ("chest pain", "can't breathe", "am I dying",
+    "overdose", "911", …) makes the code speak the 911 line itself: the caller's line and the 911
+    line go into the context, and the model does not run. It fires once per call; later matches
+    are recorded and left to the model's tool. "I'm dying to get in" does not match. The list is
+    a hospital setting later (FUTURE-SETTINGS.md §3). Tests: `test_screen.py`,
+    `emergency_then_book` (the screen now speaks that line, not the model).
+  - **The name guard**: `identify` runs only when each word of both names is a word the caller
+    said on this call (the screen feeds every line to `CallFlow.heard`, kept as `Shielded`). If
+    not, the agent asks for the full name again, and no try is used. This replaces the prompt
+    rule alone ("Billy Bob" sent as both names). Test: `test_gate.py`.
+  - **Off-topic**: one prompt rule. The agent says in one sentence what it can help with.
+  - **The invented-value check** (`TurnCollector`): each model reply is checked for a number,
+    a time, a month or a day that is in none of the role prompt, the caller's lines or the
+    fixed lines. A hit is an `invented_value` event (`!!` in `show_call.py`); every replay test
+    fails on one.
+- **How many tools** (2026-11-11). Anthropic's tool-search page: selection accuracy degrades
+  past 30 to 50 tools; standard tool calling fits fewer than 10. Each node now offers 5 to 7
+  (4 global: `hand_off`, `end_call`, `emergency`, `medical_question`). Anthropic's server-side
+  tool search is **not HIPAA-eligible**, so it is ruled out on the PHI path; past about 10 tools a
+  node, the answer is our own client-side search or smaller nodes. Each node change also
+  changes the tool list, which rewrites the prompt cache (about 2,000 tokens) and caused the
+  thinking-block crash; the API's mid-conversation tool changes would avoid it but are beta.
 
 ## 4. Known gaps
-- **The model's words before a closing tool: held by the prompt, not by code** (fork C, §3).
-  A live call can still break the rule. The record and the tests find it, but the caller has
-  already heard it. The emergency line ("hang up and call 911", then `hand_off`) is the one
-  allowed case; making it a fixed line would close that gap.
-- **The model answers off-topic questions** (2026-11-11): "2+2", "7 factorial". It then steers
-  back to visits. Cheap, and it carries no record, but it is not in scope.
-- **The model fills a missing name: fixed in the prompt only, not tested live.** Given "Billy
-  Bob" and no last name, it sent "Billy Bob" as both names once, and "Bob" once; once it told
-  the caller it had "entered a placeholder" (2026-11-11). The prompt now forbids both. A
-  prompt is not a lock: watch for it in desk tests.
-- **The model's own lines are not checked.** The greeting, the questions it asks and its
-  replies between tools come from the model. They carry no value from the record (it never
-  sees one it was not given in `spoken_to_caller`), but their wording is not fixed.
+- **The model's words before a fixed-line tool: held by the prompt, not by code** (fork C,
+  §3). A live call can still break the rule. The record and the tests find it, but the caller
+  has already heard it.
+- **The emergency screen is a phrase list.** It catches the phrases on it and nothing else;
+  the model's `emergency` tool covers the rest. It reads English text only; another language
+  needs its own list. It fires once per call (§3).
+- **The model decides what is a medical question.** The fixed line is in code (§3); the choice
+  to use it is the model's.
+- **Off-topic questions: held by the prompt only** (2026-11-11: "2+2", "7 factorial"). Cheap,
+  and it carries no record.
+- **The model's own words: values checked, wording not.** The invented-value check (§3) finds
+  a number, month or day that no one gave the model, in the record and in the tests; it does
+  not stop a live caller hearing it. A value said in words ("three thirty") is not caught.
+- **The name guard checks words, not spelling.** On a voice call it compares the model's names
+  with the speech-to-text words, so a name the transcriber spells one way passes only if the
+  model spells it the same way.
 - **No call timeline yet** (OpenTelemetry across the agent and `ehr`, VOICE-AGENT.md §9). The
   dev call record covers the agent's side for typed calls; the timeline is still the main
   debugging tool for a voice call.

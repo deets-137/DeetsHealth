@@ -12,6 +12,7 @@ and no new response starts within a short grace.
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import date
 
 from pipecat.flows import FlowManager
@@ -36,7 +37,8 @@ from pipecat.workers.runner import WorkerRunner
 
 from deets_agent import config
 from deets_agent.ehr_client import EhrClient
-from deets_agent.flow import FAKE_TODAY, CallFlow
+from deets_agent.flow import FAKE_TODAY, CallFlow, role
+from deets_agent.screen import CallerScreen
 
 # After a response ends, how long to wait for a tool call or a new response before the turn
 # counts as over. Tool calls to ehr take milliseconds; this only covers frame ordering.
@@ -52,6 +54,17 @@ class CallFailed(Exception):
     the full error is in the dev call record."""
 
 
+_MONTHS_DAYS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+_VALUE = re.compile(r"\d+(?::\d+)?|\b(?:" + "|".join(_MONTHS_DAYS) + r")\b", re.IGNORECASE)
+
+
+def invented_values(said: str, sources: list[str]) -> list[str]:
+    """The numbers, times, months and days in `said` that appear in none of `sources`."""
+    known = {m.group(0).lower() for s in sources for m in _VALUE.finditer(s)}
+    found = [m.group(0) for m in _VALUE.finditer(said)]
+    return sorted({v for v in found if v.lower() not in known})
+
+
 class TurnCollector(FrameProcessor):
     """Collects the bot's words for one turn and reports when the turn is over."""
 
@@ -63,6 +76,13 @@ class TurnCollector(FrameProcessor):
         self._pending_calls = 0
         self._in_response = False
         self._settle: asyncio.Task | None = None
+        # The invented-value check (2026-11-11): the model's own words in the current response,
+        # every fixed line spoken so far, and each value the model said that no one gave it.
+        self._model_text: list[str] = []
+        self._fixed_lines: list[str] = []
+        self.invented: list[tuple[str, list[str]]] = []
+        # The call's Flow (for the role prompt and the caller's lines), set by TypedCall.
+        self.flow: CallFlow | None = None
         # The dev call record and the Flow manager, set by TypedCall when a record is open.
         self.record = None
         self.manager: FlowManager | None = None
@@ -72,15 +92,18 @@ class TurnCollector(FrameProcessor):
         if direction is FrameDirection.DOWNSTREAM:
             if isinstance(frame, LLMFullResponseStartFrame):
                 self._in_response = True
+                self._model_text.clear()
                 self._cancel_settle()
                 if self.record is not None and self.manager is not None:
                     self.record.node(self.manager.current_node)
             elif isinstance(frame, LLMTextFrame):
                 self._add(frame.text)
+                self._model_text.append(frame.text)
             elif isinstance(frame, TTSSpeakFrame):
                 # A fixed line the Flow speaks itself (flow.py `_say`). If the model goes on, its
                 # response starts within the grace and joins this turn; if not, the turn ends.
                 self._add(frame.text, whole=True)
+                self._fixed_lines.append(frame.text)
                 self._cancel_settle()
                 self._settle = asyncio.create_task(self._settle_turn())
             elif isinstance(frame, FunctionCallsStartedFrame):
@@ -97,6 +120,7 @@ class TurnCollector(FrameProcessor):
                     )
             elif isinstance(frame, LLMFullResponseEndFrame):
                 self._in_response = False
+                self._check_values()
                 self._cancel_settle()
                 self._settle = asyncio.create_task(self._settle_turn())
             elif isinstance(frame, EndFrame):
@@ -104,6 +128,22 @@ class TurnCollector(FrameProcessor):
                 self._flush()
                 await self.turns.put(ENDED)
         await self.push_frame(frame, direction)
+
+    def _check_values(self) -> None:
+        """Flag each value in the model's own words that no one gave it: a number, a month or a
+        day that is not in the role prompt, a caller's line or a fixed line. It finds an invented
+        date or time; it does not stop the caller hearing it (AGENT.md §3)."""
+        said = "".join(self._model_text).strip()
+        self._model_text.clear()
+        if not said or self.flow is None:
+            return
+        values = invented_values(
+            said, [role(self.flow.today), *self._fixed_lines, *(x.reveal() for x in self.flow.caller_lines)]
+        )
+        if values:
+            self.invented.append((said, values))
+            if self.record is not None:
+                self.record.event("invented_value", values=values, text=said)
 
     def _add(self, text: str, whole: bool = False) -> None:
         """Add words to the turn. A whole line (spoken by the Flow) is set apart by a space from
@@ -140,12 +180,15 @@ class TypedCall:
         self.flow = CallFlow(ehr, today=today)
         self._llm = llm
         self._collector = TurnCollector()
+        self._collector.flow = self.flow
+        # Reads each caller line before the model does (screen.py).
+        self._screen = CallerScreen(self.flow)
         # The dev call record (call_record.py): the typed harness passes one; tests do not.
         self.record = record
         context = LLMContext()
         self._aggregators = LLMContextAggregatorPair(context)
         pipeline = Pipeline(
-            [self._aggregators.user(), llm, self._collector, self._aggregators.assistant()]
+            [self._screen, self._aggregators.user(), llm, self._collector, self._aggregators.assistant()]
         )
         self._worker = PipelineWorker(
             pipeline, params=PipelineParams(), cancel_on_idle_timeout=False, enable_rtvi=False
@@ -154,7 +197,12 @@ class TypedCall:
             llm=llm,
             context_aggregator=self._aggregators,
             worker=self._worker,
-            global_functions=[self.flow.hand_off_fn(), self.flow.end_call_fn()],
+            global_functions=[
+                self.flow.hand_off_fn(),
+                self.flow.end_call_fn(),
+                self.flow.emergency_fn(),
+                self.flow.medical_question_fn(),
+            ],
         )
         self._runner = WorkerRunner()
         self._run_task: asyncio.Task | None = None
@@ -167,15 +215,26 @@ class TypedCall:
         if record is not None:
             self._collector.record = record
             self._collector.manager = self._manager
+            self._screen.record = record
             ehr.record = record
             if messages is not None and hasattr(messages, "record"):
                 messages.record = record
         self._found: list[tuple[str, str]] = getattr(messages, "words_before_tool", [])
 
     @property
-    def words_before_closing(self) -> list[tuple[str, str]]:
-        """The model's words that came before end_call or hand_off in the same reply (llm.py)."""
-        return [(n, t) for n, t in self._found if n in config.CLOSING_TOOLS]
+    def words_before_silent_tool(self) -> list[tuple[str, str]]:
+        """The model's words that came before end_call, hand_off or emergency in one reply (llm.py)."""
+        return [(n, t) for n, t in self._found if n in config.SILENT_TOOLS]
+
+    @property
+    def invented(self) -> list[tuple[str, list[str]]]:
+        """Each reply of the model's that held a value no one gave it (TurnCollector)."""
+        return self._collector.invented
+
+    @property
+    def screen_fired(self) -> bool:
+        """True once the caller screen spoke the 911 line on this call (screen.py)."""
+        return self._screen.fired
 
     async def start(self) -> str | None:
         started = asyncio.Event()

@@ -5,7 +5,7 @@
     "container": null,
     "content": [],
     "diagnostics": null,
-    "id": "msg_011Cgx5Asv9y7Ke1nSrf1SD2",
+    "id": "msg_011Cgx8dSY25gp5yMneUtY98",
     "model": "claude-haiku-5-5",
     "role": "assistant",
     "stop_details": null,
@@ -15,10 +15,10 @@
     "usage": {
      "cache_creation": {
       "ephemeral_1h_input_tokens": 0,
-      "ephemeral_5m_input_tokens": 495
+      "ephemeral_5m_input_tokens": 58
      },
-     "cache_creation_input_tokens": 495,
-     "cache_read_input_tokens": 1380,
+     "cache_creation_input_tokens": 58,
+     "cache_read_input_tokens": 1714,
      "inference_geo": "global",
      "input_tokens": 4,
      "output_tokens": 16,
@@ -35,7 +35,7 @@
     "caller": {
      "type": "direct"
     },
-    "id": "toolu_01TqCd4k1eq5sJ848zjQnpqB",
+    "id": "toolu_01NHrXWzHNeZspSnh1MbsZUP",
     "input": {},
     "name": "end_call",
     "toolset_name": null,
@@ -65,8 +65,8 @@
    },
    "type": "message_delta",
    "usage": {
-    "cache_creation_input_tokens": 495,
-    "cache_read_input_tokens": 1380,
+    "cache_creation_input_tokens": 58,
+    "cache_read_input_tokens": 1714,
     "input_tokens": 4,
     "output_tokens": 26,
     "output_tokens_details": {

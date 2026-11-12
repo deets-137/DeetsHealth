@@ -5,7 +5,7 @@
     "container": null,
     "content": [],
     "diagnostics": null,
-    "id": "msg_011Cgx591ynVzatyhNnt7p2h",
+    "id": "msg_011Cgx8dMCJdvBbVnVTRUwTe",
     "model": "claude-haiku-5-5",
     "role": "assistant",
     "stop_details": null,
@@ -15,13 +15,13 @@
     "usage": {
      "cache_creation": {
       "ephemeral_1h_input_tokens": 0,
-      "ephemeral_5m_input_tokens": 50
+      "ephemeral_5m_input_tokens": 45
      },
-     "cache_creation_input_tokens": 50,
-     "cache_read_input_tokens": 1375,
+     "cache_creation_input_tokens": 45,
+     "cache_read_input_tokens": 1669,
      "inference_geo": "global",
      "input_tokens": 4,
-     "output_tokens": 1,
+     "output_tokens": 7,
      "output_tokens_details": null,
      "server_tool_use": null,
      "service_tier": "standard",
@@ -41,7 +41,7 @@
   },
   {
    "delta": {
-    "text": "I",
+    "text": "Yes, this is",
     "type": "text_delta"
    },
    "index": 0,
@@ -49,7 +49,7 @@
   },
   {
    "delta": {
-    "text": " can",
+    "text": " Main Street Clinic's",
     "type": "text_delta"
    },
    "index": 0,
@@ -57,7 +57,7 @@
   },
   {
    "delta": {
-    "text": " help with",
+    "text": " automated assistant. I can",
     "type": "text_delta"
    },
    "index": 0,
@@ -65,7 +65,7 @@
   },
   {
    "delta": {
-    "text": " that. First",
+    "text": " help you book a visit or h",
     "type": "text_delta"
    },
    "index": 0,
@@ -73,7 +73,7 @@
   },
   {
    "delta": {
-    "text": ", I need to confirm who",
+    "text": "ear about your vis",
     "type": "text_delta"
    },
    "index": 0,
@@ -81,7 +81,7 @@
   },
   {
    "delta": {
-    "text": " you are. What",
+    "text": "its. What can",
     "type": "text_delta"
    },
    "index": 0,
@@ -89,15 +89,7 @@
   },
   {
    "delta": {
-    "text": " is",
-    "type": "text_delta"
-   },
-   "index": 0,
-   "type": "content_block_delta"
-  },
-  {
-   "delta": {
-    "text": " your first name?",
+    "text": " I do for you?",
     "type": "text_delta"
    },
    "index": 0,
@@ -116,10 +108,10 @@
    },
    "type": "message_delta",
    "usage": {
-    "cache_creation_input_tokens": 50,
-    "cache_read_input_tokens": 1375,
+    "cache_creation_input_tokens": 45,
+    "cache_read_input_tokens": 1669,
     "input_tokens": 4,
-    "output_tokens": 26,
+    "output_tokens": 46,
     "output_tokens_details": {
      "thinking_tokens": 0
     },

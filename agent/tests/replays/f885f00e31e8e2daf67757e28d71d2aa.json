@@ -5,7 +5,7 @@
     "container": null,
     "content": [],
     "diagnostics": null,
-    "id": "msg_011Cgx5A5nFrTQwu5LB3D7qb",
+    "id": "msg_011Cgx8cN961pztW7yXxtPtG",
     "model": "claude-haiku-5-5",
     "role": "assistant",
     "stop_details": null,
@@ -15,13 +15,13 @@
     "usage": {
      "cache_creation": {
       "ephemeral_1h_input_tokens": 0,
-      "ephemeral_5m_input_tokens": 46
+      "ephemeral_5m_input_tokens": 49
      },
-     "cache_creation_input_tokens": 46,
-     "cache_read_input_tokens": 1375,
+     "cache_creation_input_tokens": 49,
+     "cache_read_input_tokens": 1669,
      "inference_geo": "global",
      "input_tokens": 4,
-     "output_tokens": 8,
+     "output_tokens": 1,
      "output_tokens_details": null,
      "server_tool_use": null,
      "service_tier": "standard",
@@ -41,7 +41,7 @@
   },
   {
    "delta": {
-    "text": "Yes, this is Main",
+    "text": "I",
     "type": "text_delta"
    },
    "index": 0,
@@ -49,7 +49,7 @@
   },
   {
    "delta": {
-    "text": " Street Clinic's autom",
+    "text": " can",
     "type": "text_delta"
    },
    "index": 0,
@@ -57,7 +57,7 @@
   },
   {
    "delta": {
-    "text": "ated assistant. What",
+    "text": " help you book a check-up.",
     "type": "text_delta"
    },
    "index": 0,
@@ -65,7 +65,47 @@
   },
   {
    "delta": {
-    "text": " can I help you with today?",
+    "text": " First",
+    "type": "text_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": ", could you",
+    "type": "text_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " t",
+    "type": "text_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "ell me your first name,",
+    "type": "text_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " last name, and date",
+    "type": "text_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " of birth?",
     "type": "text_delta"
    },
    "index": 0,
@@ -84,10 +124,10 @@
    },
    "type": "message_delta",
    "usage": {
-    "cache_creation_input_tokens": 46,
-    "cache_read_input_tokens": 1375,
+    "cache_creation_input_tokens": 49,
+    "cache_read_input_tokens": 1669,
     "input_tokens": 4,
-    "output_tokens": 31,
+    "output_tokens": 32,
     "output_tokens_details": {
      "thinking_tokens": 0
     },

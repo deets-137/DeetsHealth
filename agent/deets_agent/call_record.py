@@ -44,6 +44,11 @@ class _LlmTrace:
         self._fields = fields
         self._start = time.perf_counter()
         self._first: float | None = None
+        # The first spoken word and the first tool call. With thinking on, the first event can
+        # be a thinking block, so `first_event_ms` is not what a caller waits for; on a voice call
+        # `first_text_ms` is (Phase 3 measures it).
+        self._first_text: float | None = None
+        self._first_tool: float | None = None
         self._closed = False
 
     def _ms(self, at: float) -> int:
@@ -53,6 +58,16 @@ class _LlmTrace:
         if self._first is None:
             self._first = time.perf_counter()
 
+    def see(self, event) -> None:
+        """Note the time of the first text and the first tool call in a live reply."""
+        kind = getattr(event, "type", None)
+        delta = getattr(getattr(event, "delta", None), "type", None)
+        block = getattr(getattr(event, "content_block", None), "type", None)
+        if self._first_text is None and kind == "content_block_delta" and delta == "text_delta":
+            self._first_text = time.perf_counter()
+        if self._first_tool is None and kind == "content_block_start" and block == "tool_use":
+            self._first_tool = time.perf_counter()
+
     def done(self, usage: dict[str, int], replayed: bool) -> None:
         if self._closed:
             return
@@ -61,6 +76,10 @@ class _LlmTrace:
         fields = dict(self._fields, usage=usage, total_ms=self._ms(now))
         if self._first is not None:
             fields["first_event_ms"] = self._ms(self._first)
+        if self._first_text is not None:
+            fields["first_text_ms"] = self._ms(self._first_text)
+        if self._first_tool is not None:
+            fields["first_tool_ms"] = self._ms(self._first_tool)
         if not replayed:
             self._record.add_spend(usage)
         self._record.event("llm", **fields)

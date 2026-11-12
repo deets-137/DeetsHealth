@@ -45,7 +45,24 @@ def handler(node, name):
 
 
 def new_flow(ehr) -> CallFlow:
-    return CallFlow(ehr, today=FAKE_TODAY)
+    flow = CallFlow(ehr, today=FAKE_TODAY)
+    # The caller's lines, as the screen feeds them, so the name guard lets these names through.
+    flow.heard("Jordan Ellis, March 12, 1984")
+    flow.heard("Nobody Here")
+    return flow
+
+
+async def test_the_name_guard_asks_again_for_a_name_never_said(ehr):
+    flow = new_flow(ehr)
+    await flow.start()
+    fm = manager()
+    result, nxt = await handler(flow.greet(), "identify")(dict(JORDAN, family_name="Smith"), fm)
+    assert nxt is NO_RESPONSE and "full name" in result["spoken_to_caller"]
+    # No try was used: the real name still verifies after it.
+    _, node = await handler(flow.greet(), "identify")(JORDAN, manager())
+    result, _ = await handler(node, "check_code")(CODE, manager())
+    assert "verified" in result["spoken_to_caller"]
+    await flow.close()
 
 
 async def test_no_chart_tool_exists_before_verification(ehr):

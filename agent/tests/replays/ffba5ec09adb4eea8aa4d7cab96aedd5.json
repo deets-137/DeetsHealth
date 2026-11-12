@@ -5,7 +5,7 @@
     "container": null,
     "content": [],
     "diagnostics": null,
-    "id": "msg_011Cgx58w5qoGxnQwaL6W4QA",
+    "id": "msg_011Cgx8cGAQgeMzyyy7W3AZm",
     "model": "claude-haiku-5-5",
     "role": "assistant",
     "stop_details": null,
@@ -15,9 +15,9 @@
     "usage": {
      "cache_creation": {
       "ephemeral_1h_input_tokens": 0,
-      "ephemeral_5m_input_tokens": 1375
+      "ephemeral_5m_input_tokens": 1669
      },
-     "cache_creation_input_tokens": 1375,
+     "cache_creation_input_tokens": 1669,
      "cache_read_input_tokens": 0,
      "inference_geo": "global",
      "input_tokens": 4,
@@ -73,7 +73,7 @@
   },
   {
    "delta": {
-    "text": " automated assistant for",
+    "text": " Main Street Clinic autom",
     "type": "text_delta"
    },
    "index": 0,
@@ -81,7 +81,7 @@
   },
   {
    "delta": {
-    "text": " Main Street Clinic",
+    "text": "ated assistant. How",
     "type": "text_delta"
    },
    "index": 0,
@@ -89,7 +89,7 @@
   },
   {
    "delta": {
-    "text": ". How can I help you today?",
+    "text": " can I help you today?",
     "type": "text_delta"
    },
    "index": 0,
@@ -108,10 +108,10 @@
    },
    "type": "message_delta",
    "usage": {
-    "cache_creation_input_tokens": 1375,
+    "cache_creation_input_tokens": 1669,
     "cache_read_input_tokens": 0,
     "input_tokens": 4,
-    "output_tokens": 33,
+    "output_tokens": 32,
     "output_tokens_details": {
      "thinking_tokens": 0
     },

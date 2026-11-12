@@ -1,0 +1,22 @@
+{"t_ms": 0, "kind": "call_start", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-11T16:34:37"}
+{"t_ms": 402, "kind": "ehr", "call": "OpenCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 406, "kind": "llm", "key": "1e27ed53", "hit": true, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 33, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 1456}, "total_ms": 1}
+{"t_ms": 406, "kind": "node", "name": "greet"}
+{"t_ms": 821, "kind": "agent", "text": "Hello, you've reached the automated assistant for Main Street Clinic. How can I help you today?"}
+{"t_ms": 822, "kind": "caller", "text": "Hi, I'd like to book a check-up."}
+{"t_ms": 823, "kind": "llm", "key": "ada47d54", "hit": true, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 30, "cache_read_input_tokens": 1456, "cache_creation_input_tokens": 50}, "total_ms": 1}
+{"t_ms": 1226, "kind": "agent", "text": "I can help you book a check-up. First, I need to confirm who you are. What is your first name?"}
+{"t_ms": 1226, "kind": "caller", "text": "Priya Raman, November 30, 1971"}
+{"t_ms": 2135, "kind": "llm", "key": "d577e1b0", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 104, "cache_read_input_tokens": 1506, "cache_creation_input_tokens": 46}, "total_ms": 908, "first_event_ms": 691, "first_tool_ms": 699}
+{"t_ms": 2137, "kind": "tool_call", "name": "identify", "arguments": {"given_name": "Priya", "family_name": "Raman", "birth_date": "1971-11-30"}}
+{"t_ms": 2139, "kind": "ehr", "call": "Identify", "ms": 2, "outcome": "ok"}
+{"t_ms": 2140, "kind": "tool_result", "name": "identify", "result": {"spoken_to_caller": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}, "ms": 3}
+{"t_ms": 2545, "kind": "agent", "text": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}
+{"t_ms": 2545, "kind": "caller", "text": "I don't have my phone, I'll call back later. Bye."}
+{"t_ms": 2547, "kind": "node", "name": "verify"}
+{"t_ms": 3151, "kind": "llm", "key": "b57c5a0e", "hit": false, "messages": 7, "tools": ["hand_off", "end_call", "emergency", "check_code", "resend_code", "identify"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 26, "cache_read_input_tokens": 1461, "cache_creation_input_tokens": 499}, "total_ms": 606, "first_event_ms": 579, "first_tool_ms": 580}
+{"t_ms": 3153, "kind": "tool_call", "name": "end_call", "arguments": {}}
+{"t_ms": 3154, "kind": "tool_result", "name": "end_call", "result": {"spoken_to_caller": "Thank you for calling. Goodbye."}, "ms": 1}
+{"t_ms": 3156, "kind": "agent", "text": "Thank you for calling. Goodbye."}
+{"t_ms": 3158, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 3158, "kind": "call_end", "reason": "the agent ended it", "turns": 3, "requests": {"live": 2, "replayed": 2, "failed": 0}, "tokens": {"input_tokens": 8, "output_tokens": 130, "cache_read_input_tokens": 2967, "cache_creation_input_tokens": 545}, "cost_usd": 0.000164}

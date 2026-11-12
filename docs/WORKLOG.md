@@ -8,6 +8,29 @@ updated: 2026-11-11
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-11 (evening) — the third desk test: an emergency in the middle of a booking
+- The repo is confirmed private. On the owner's word, the dev call records in `agent/calls/` are
+  now committed (all synthetic; every caller line checked first). `.obsidian/` is ignored.
+- The third typed call: Casey Morgan (two fake patients share the name) got no code, as
+  designed; the caller switched to Priya Raman and verified. "What's my disease?" got no
+  answer. "Option 1. Am I dying?" got the model's own 911 line, then `hand_off`'s "connecting
+  you to staff"; the booking was lost and the call ended. The fork C check flagged it.
+- The owner chose A: an `emergency` tool with a fixed 911 line; the call stays open and the
+  booking goes on. Built with a kept script and test (`emergency_then_book`). What follows the
+  line becomes a hospital setting: new FUTURE-SETTINGS.md. The owner added the emergency flag:
+  several actions at once (a nurse joined to the call for a warm hand-off, a transfer when the
+  task ends, a message, a chart note), recorded there.
+- The call record now has the time to the first word and to the first tool call.
+- The prompt rules, with the owner: he chose 1A (a `medical_question` tool with a fixed line)
+  and 2A (code screens each caller line for emergency phrases and speaks the 911 line itself),
+  "tools give us a route to add more config and more levers later". Built with three more:
+  the name guard in code, an off-topic prompt rule, and the invented-value check in the record
+  and the tests. FUTURE-SETTINGS.md §2 and §3 hold the hospital settings for both.
+- He asked about tool limits. Anthropic: accuracy degrades past 30 to 50 tools; standard
+  calling fits under 10. Each node offers 5 to 7. Server-side tool search is not
+  HIPAA-eligible, so it is out on the PHI path (AGENT.md §3).
+- Spend: about a cent in all. 32 agent tests pass.
+
 ## 2026-11-11 (later) — the second desk test: the code step, ending a call
 - The owner's second typed call ran with no crash. He stopped at the code step: no text is
   sent, and the harness did not say the fake code. The code step was wired; `ehr` accepts

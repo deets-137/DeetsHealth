@@ -25,6 +25,9 @@ MAX_TOKENS = 600
 # The tools whose fixed line ends the call (flow.py). Words from the model before one of these
 # contradict it ("Goodbye." then "I'm connecting you…"); the tests allow none (AGENT.md §3).
 CLOSING_TOOLS = frozenset({"end_call", "hand_off"})
+# Tools that speak a fixed line the model must not speak before (the role prompt says so). The
+# tests allow no words before any of them. `emergency` does not end the call.
+SILENT_TOOLS = CLOSING_TOOLS | {"emergency", "medical_question"}
 
 
 def anthropic_key() -> str | None:

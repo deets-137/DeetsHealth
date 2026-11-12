@@ -146,8 +146,8 @@ class WordsBeforeTool:
         if spoken:
             self._found.append((name, spoken))
             if self._record is not None:
-                closing = name in config.CLOSING_TOOLS
-                self._record.event("words_before_tool", name=name, closing=closing, text=spoken)
+                silent = name in config.SILENT_TOOLS
+                self._record.event("words_before_tool", name=name, silent=silent, text=spoken)
 
     def see(self, event) -> None:
         kind = getattr(event, "type", None)
@@ -231,8 +231,10 @@ class _Recording:
         seen = []
         try:
             async for event in self._stream:
-                if not seen and self._trace is not None:
-                    self._trace.first_event()
+                if self._trace is not None:
+                    if not seen:
+                        self._trace.first_event()
+                    self._trace.see(event)
                 events.append(event.model_dump(mode="json"))
                 seen.append(event)
                 if self._sigs is not None:

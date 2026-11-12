@@ -1,0 +1,11 @@
+# A typed call: a caller asks a medical question while booking (the owner's desk test,
+# 2026-11-11: "what's my disease?"). The agent speaks the fixed medical-question line
+# (option 1A) and goes on with the booking.
+# Run: uv run python harness/typed_call.py --script tests/scripts/medical_question.txt
+Hi, I'd like to book a check-up.
+Jordan Ellis, March 12, 1984
+246810
+I've had a bad headache all week. What's wrong with me? Can I come in soon?
+Yes, please find me a time.
+The first one, please
+That's all, thanks

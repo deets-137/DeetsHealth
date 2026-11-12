@@ -41,9 +41,13 @@ def line(e: dict, show_all: bool) -> str | None:
         ms = f" {e['ms']} ms" if "ms" in e else ""
         err = f"  ERROR {e['error']}" if e.get("error") else ""
         return f"{t}    <-    {e['name']}{ms}: {_short(e['result'])}{err}"
+    if kind == "screen":
+        return f"{t}    !!    SCREEN {e['action']}"
+    if kind == "invented_value":
+        return f"{t}    !!    INVENTED VALUE {', '.join(e['values'])}: {_short(e['text'])}"
     if kind == "words_before_tool":
         # On a voice call these words are spoken before the tool runs (AGENT.md §3).
-        flag = "WORDS BEFORE A CLOSING TOOL" if e.get("closing") else "words before tool"
+        flag = "WORDS BEFORE A FIXED-LINE TOOL" if e.get("silent", e.get("closing")) else "words before tool"
         return f"{t}    !!    {flag} {e['name']}: {_short(e['text'])}"
     if kind == "ehr":
         return f"{t}    ehr   {e['call']} {e['ms']} ms {e['outcome']}" if show_all else None
@@ -57,6 +61,9 @@ def line(e: dict, show_all: bool) -> str | None:
         u = e.get("usage", {})
         src = "replay" if e.get("hit") else "live"
         first = f" first {e['first_event_ms']} ms," if "first_event_ms" in e else ""
+        # The first word is what a caller waits for on a voice call; the first event can be thinking.
+        first += f" words {e['first_text_ms']} ms," if "first_text_ms" in e else ""
+        first += f" tool {e['first_tool_ms']} ms," if "first_tool_ms" in e else ""
         dropped = f" dropped {e['thinking_dropped']} thinking," if e.get("thinking_dropped") else ""
         return (
             f"{t}    llm   [{e['key']}] {src},{first} total {e['total_ms']} ms,{dropped} "
