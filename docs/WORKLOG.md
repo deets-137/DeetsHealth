@@ -8,6 +8,21 @@ updated: 2026-11-11
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-11 — Pipecat 1.16
+- Raised `agent/` to `pipecat-ai[anthropic]>=1.16,<2`, locked at 1.16.0 (before the browser
+  caller over RTVI). The lock also moved `sentencex` 1.0.32 → 1.0.34, added
+  `pipecat-resampler` 0.2.0, and removed `resampy`, `numba`, `llvmlite` and `soxr`.
+- Read the 1.14, 1.15 and 1.16 changelogs and grepped our code for each deprecated name: no
+  hit. Diffed Pipecat's Anthropic service, 1.13 against 1.16: only the default for an unset
+  effort changed (Haiku 5.5: thinking off → `effort: low`). We already send `effort: low`.
+- Ruff and the 43 tests pass in replay mode. Every replay matched, so no request changed and
+  nothing was recorded again. API spend: $0.
+- The words-before-a-fixed-line gap (AGENT.md §4) is unchanged: the fix only sets the effort we
+  already set, and the replayed replies are the same.
+- The docs check fails in a worktree under `.claude/worktrees/` only: `../DeetsMusic` and
+  `../DeetsEngine` do not resolve there. With two temporary links to the sibling repos (removed
+  after), `npm run check` passed all 6 steps.
+
 ## 2026-11-11 (late night) — The console's skeleton
 - The owner asked for the console's skeleton in DeetsMotion's style: the look, the nav, the
   panels. Chat at the top of the nav, with a large panel and a rail of three, as in
