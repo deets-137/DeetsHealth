@@ -5,7 +5,7 @@ description = "DeetsHealth's phone agent: the Pipecat call loop and Flow. Every 
 requires-python = ">=3.12,<3.13"
 dependencies = [
     # The call loop and the Flow (VOICE-AGENT.md §8.1). Voice extras come in Phase 3.
-    "pipecat-ai[anthropic]>=1.13,<2",
+    "pipecat-ai[anthropic]>=1.16,<2",
     # The wire to ehr. The deploy image builds grpcio from source against a FIPS OpenSSL
     # (EHR-SERVICE.md §6); on dev, the wheel.
     "grpcio>=1.84,<2",

@@ -74,8 +74,12 @@ end with the goodbye line and no hand off).
 | `tests/` | The gate with no model, the PHI wall, the LLM client, a whole call from replays. |
 
 ## 3. What was decided while building (inside the owner's choices)
-- **Pipecat 1.13 with Flows built in** (`pipecat.flows`). The separate `pipecat-ai-flows`
-  package stopped at Pipecat 1.4, so it is not used.
+- **Pipecat 1.16 with Flows built in** (`pipecat.flows`). The separate `pipecat-ai-flows`
+  package stopped at Pipecat 1.4, so it is not used. Raised from 1.13 on 2026-11-11: every
+  replay still matched, so no request to Claude changed. 1.16 sends `effort: low` to Haiku 5.5
+  when no effort is set (before: thinking off, which made the model speak its reasoning before
+  a tool call). We already set `effort: low`, so this changes nothing for us. The 1.16 lock
+  also drops `resampy`, `numba`, `llvmlite` and `soxr` and adds `pipecat-resampler`.
 - **GA only.** Pipecat sends every request to `client.beta.messages.create` with the beta flag
   `interleaved-thinking-2025-05-14`. Our client drops the flag and calls the GA
   `messages.create`, so the PHI path never uses a beta feature (VOICE-AGENT.md §8.2).
@@ -209,7 +213,8 @@ end with the goodbye line and no hand off).
 ## 4. Known gaps
 - **The model's words before a fixed-line tool: held by the prompt, not by code** (fork C,
   §3). A live call can still break the rule. The record and the tests find it, but the caller
-  has already heard it.
+  has already heard it. Pipecat 1.16's Anthropic fix does not close it: that fix only sets the
+  effort we already set (§3).
 - **The emergency screen is a phrase list.** It catches the phrases on it and nothing else;
   the model's `emergency` tool covers the rest. It reads English text only; another language
   needs its own list. It fires once per call (§3).

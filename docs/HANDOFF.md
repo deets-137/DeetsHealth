@@ -106,7 +106,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   work (BUILD-ORDER.md §3.3).
 - **Next sitting (the owner, 2026-10-21): start with a full rundown** before building more:
   every library we use and how we use it (Rust: tonic, prost, rustls/AWS-LC, tokio, rcgen,
-  zeroize, getrandom; Python: Pipecat 1.13 and its Flows, the Anthropic SDK, grpcio, protobuf,
+  zeroize, getrandom; Python: Pipecat 1.16 and its Flows, the Anthropic SDK, grpcio, protobuf,
   loguru, uv, ruff, pytest), what exists in each that we do not use yet, the levers each
   gives (useful or not, e.g. Pipecat's evals and simulated callers, its observers, turn
   strategies, context strategies, Anthropic effort and caching), and links to each one's docs.

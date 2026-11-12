@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-10-19
+updated: 2026-11-11
 ---
 # Pipecat — the call loop
 
@@ -23,7 +23,10 @@ BAA, and it would break the deploy plan). The Python process holds a call's text
 one call (SECURITY.md §4.1).
 
 ## 3. Configuration
-- **Pin the version**, and read the changelog and open issues before each upgrade.
+- **Pin the version**, and read the changelog and open issues before each upgrade. Now
+  `pipecat-ai[anthropic]>=1.16,<2`, locked at 1.16.0 (2026-11-11; RTVI protocol 2.3.0), with
+  Flows built in (AGENT.md §3). The 1.16 upgrade changed no request we send to Claude: every
+  replay still matched.
 - **Our own processors** (the tuning order is VOICE-AGENT.md §8.6): the PHI redactor in front of
   every log and metric, the verify gate, a latency recorder per step.
 - **Tools call the Rust service only**, bound to the verified patient (SECURITY.md §4.9).
