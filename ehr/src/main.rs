@@ -11,6 +11,12 @@
 //! - Phase 1 runs the fake EHR only. A deploy (`DEETS_REQUIRE_FIPS=1`) refuses to start until
 //!   the real adapters exist, and refuses TLS that is not in FIPS mode.
 //!
+//!     ehr ingest [--calls DIR]
+//!
+//! - Files the dev call records and annotations in DIR (default `agent/calls`) into the call
+//!   store (store.rs; DATABASE.md): `DEETS_DATABASE_URL` and the dev sealing key file
+//!   `DEETS_SEAL_KEY_FILE`, both set by scripts/postgres.mjs. Idempotent.
+//!
 //! Output names ports, paths and fixed error strings. Never a request or a value.
 
 use std::{net::IpAddr, path::PathBuf, process::ExitCode, sync::Arc, time::Duration};
@@ -18,7 +24,9 @@ use std::{net::IpAddr, path::PathBuf, process::ExitCode, sync::Arc, time::Durati
 use deetshealth_ehr::{
     proto::v1::ehr_server::EhrServer,
     scheduler::FakeScheduler,
+    seal_key::SealKey,
     service::EhrService,
+    store::Store,
     texts::{TwilioCodes, TwilioConfig},
     transport,
     verify::{Codes, FakeCodes, FakePatients},
@@ -43,7 +51,33 @@ async fn main() -> ExitCode {
     }
 }
 
+async fn ingest(mut args: impl Iterator<Item = String>) -> Result<(), String> {
+    let mut calls = PathBuf::from("agent/calls");
+    while let Some(flag) = args.next() {
+        let value = args.next().ok_or(format!("{flag} needs a value"))?;
+        match flag.as_str() {
+            "--calls" => calls = value.into(),
+            _ => return Err(format!("unknown flag {flag}")),
+        }
+    }
+    let url = std::env::var("DEETS_DATABASE_URL").map_err(|_| "DEETS_DATABASE_URL is not set (npm run db:ingest sets it)")?;
+    let key_file = std::env::var("DEETS_SEAL_KEY_FILE").map_err(|_| "DEETS_SEAL_KEY_FILE is not set (npm run db:ingest sets it)")?;
+    let key = SealKey::from_dev_file(&PathBuf::from(key_file))?;
+    let store = Store::connect(&url, key).await?;
+    let filed = store.file_dir(&calls).await?;
+    println!(
+        "ehr ingest: {} calls filed, {} unchanged, {} new annotation lines",
+        filed.calls, filed.unchanged, filed.annotations
+    );
+    Ok(())
+}
+
 async fn run() -> Result<(), String> {
+    let mut first = std::env::args().skip(1).peekable();
+    if first.peek().map(String::as_str) == Some("ingest") {
+        first.next();
+        return ingest(first).await;
+    }
     let mut bind: IpAddr = [127, 0, 0, 1].into();
     let mut port: u16 = 0;
     let mut certs = PathBuf::from("dev-certs");

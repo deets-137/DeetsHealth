@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from deets_agent.call_record import CALLS
-from deets_agent.catalog import AnnotationError, Catalog, summarize
+from deets_agent.catalog import AnnotationError, Catalog, check_annotation, summarize
 
 
 def _write(folder: Path, name: str, events: list[dict]) -> None:
@@ -59,6 +59,7 @@ def test_annotations_survive_a_rebuild_and_the_latest_rating_wins(tmp_path):
                 "dimension": "intent_drift", "verdict": "pass", "score": 4})
     c.annotate({"kind": "rating", "call": "a", "grader_kind": "model", "grader": "claude-haiku-5-5",
                 "dimension": "intent_drift", "verdict": "pass"})
+    c.close()
     row = Catalog(tmp_path).build().list_calls()[0]
     assert (row["label"], row["keep"]) == ("clean booking", True)
     drift = {r["grader"]: (r["verdict"], r["score"]) for r in row["ratings"]}
@@ -90,6 +91,24 @@ def test_events_never_reach_outside_the_folder(tmp_path):
     c = Catalog(tmp_path).build()
     assert c.events("../a") is None
     assert c.events("a")[0]["kind"] == "call_start"
+
+
+def test_every_kept_annotation_passes_the_gate():
+    path = CALLS / "annotations.jsonl"
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        check_annotation(json.loads(line), stamped=True)
+
+
+def test_a_sender_never_sets_the_stamps(tmp_path):
+    _write(tmp_path, "a", BOOKED)
+    c = Catalog(tmp_path).build()
+    with pytest.raises(AnnotationError):
+        c.annotate({"kind": "keep", "call": "a", "value": True, "at": "2020-01-01T00:00:00"})
+    c.annotate({"kind": "keep", "call": "a", "value": True})
+    line = json.loads((tmp_path / "annotations.jsonl").read_text(encoding="utf-8"))
+    assert set(line) == {"kind", "call", "value", "at"}
 
 
 def test_every_kept_record_reads(tmp_path):

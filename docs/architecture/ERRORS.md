@@ -3,8 +3,13 @@ status: built
 desk_test: open
 sources: [archive/src-tauri/src/errors.rs, archive/src/app-errors.ts, archive/src-tauri/src/signin.rs, archive/src-tauri/src/fetch.rs, archive/src-tauri/src/sites.rs, archive/src-tauri/src/lib.rs]
 updated: 2026-09-24
+legacy: patient-app
 ---
 # DeetsHealth — App errors and their toasts
+
+> **The patient app's** (DOCS-ORG.md §2, `legacy`). Its code is all in `archive/`. The pattern
+> (one error event, fixed codes) carries to the console. This doc moves to `docs/archive/` when
+> the console has its own.
 
 > Every failure route in sign-in, the fetch and the store sends one event with a fixed code,
 > and the page shows a toast for it (the owner, 2026-09-21: "all failures and error routes

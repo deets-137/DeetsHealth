@@ -10,7 +10,9 @@ updated: 2026-11-12
 > narrated 2026-11-11 over his sketch. The shell it sits in is [CONSOLE.md](CONSOLE.md). The
 > connection is the hybrid (§5), built 2026-11-12 (§6); the catalog of calls is §7; the
 > sandbox patients in the rail and the code button are §8 (the text path itself is
-> [TEXTS.md](TEXTS.md)); the Tools panel is §9; per-tool latency across calls (an API) is §10; the Step panel is §11.
+> [TEXTS.md](TEXTS.md)); the Tools panel is §9; per-tool latency across calls (an API) is §10; the Step panel is §11; the Review panel is §12.
+> **Every route, message and refusal of the dev server is [DEV-API.md](DEV-API.md).** This doc
+> says what the page does with them.
 
 ![The owner's sketch of the Chat page, 2026-11-11](images/chat-sketch-2026-11-11.png)
 
@@ -191,8 +193,8 @@ which fits the evals (§7) and test layer 4 (VOICE-AGENT.md §9).
    running, and comes back by itself when you start it again.
 
 ## 7. The catalog of calls (the owner, 2026-11-12: SQLite; ratings per dimension)
-> **Part:** built · 2026-11-12 — the store and its API; the rating controls in the console are
-> not designed yet.
+> **Part:** built · 2026-11-12 — the store and its API (DEV-API.md §4); the rating controls are
+> the Review panel (§12).
 
 `agent/deets_agent/catalog.py`. Every dev call record is one row; ratings are kept for evals
 later (Anthropic's "Demystifying evals for AI agents": grade the outcome, one rubric per
@@ -225,11 +227,13 @@ dimension, an "unknown" answer, calibrate model graders against human ones).
   or doing things away from the clinic's business). Change `RUBRIC_VERSION` when a
   dimension's meaning changes.
 - **`tool_calls`:** one row per tool call with its spans, names and numbers only (§10).
-- **The API:** `GET /agent/catalog` (every row with its current ratings, the dimensions),
-  `GET /agent/calls/{id}` (the events, for Demo), `POST /agent/annotations` (one gate checks
-  every field: the kind, the call, the dimension, the verdict, the score 0–5).
-- **Not built:** where the rating controls sit in the console (the owner designs them), the
-  model and code graders.
+- **The API:** `GET /agent/catalog`, `GET /agent/calls/{call_id}` and
+  `POST /agent/annotations`: DEV-API.md §2 and §4 (the body of each kind, the gate, the
+  stamps).
+- **The rating controls** are the Review panel (§12, 2026-11-12).
+- **Not built:** a model grader or a code grader as code. The model ratings in
+  `annotations.jsonl` (`3376dca`, 2026-11-12) came from a one-off grading in a Claude session
+  (WORKLOG.md), not from a grader in the tree.
 
 ## 8. The sandbox patients and the code by text
 > **Part:** built · 2026-11-12 — the owner's choices: fork A (the fake Twilio now, Twilio itself
@@ -564,3 +568,77 @@ each build reports its name and tools.
 6. End the call: the last block gets its time; the faint blocks for the other ending go.
 7. Demo: play an older call: the blocks build from its steps, with the note that their times
    run late.
+
+## 12. The Review panel
+> **Part:** built · 2026-11-12 — the owner's choice A, the rubric itself: "each dimension can be
+> a row with sliders, 0 to 5 can be five dots, a star works. Not all of it is required. It
+> should match the design language of DeetsHealth."
+
+**What it writes:** the catalog's own structures (§7), through `POST /agent/annotations`,
+so every choice is one line of the committed `agent/calls/annotations.jsonl`, the newest line
+winning. Nothing new in the store: the call's `keep` (the star), `label` and `note`, and one
+`rating` per dimension (`grader_kind` human, `grader` "owner" until staff sign-in names each
+tester, the dimension, the verdict, an optional score 0–5, an optional note). It reads the
+call's row and the rubric's dimensions from `GET /agent/catalog`. The panel uses the HTTP API
+only, never the database, so the catalog's move to Postgres does not touch it.
+
+### 12.1 When it shows (`Review`, `showReview` in `chat.ts`)
+- **The 5th panel of the rail,** after Tools. It **slides in** when a test call ends (the dev
+  server adds the call to the catalog before it says "ended") and when a Demo playback runs to
+  its end: it rises `--slide-rise` and fades in over `--dur-slide` with the nav pill's easing
+  (`--ease-pill`), and the rail scrolls to it. With reduced motion it is simply there.
+- It stays until the next Start (Test) or Play (Demo). Each mode keeps its own call to review;
+  switching modes shows that mode's. A Demo stopped early asks for no review. PHI has none: a
+  watcher rates a call afterward, in Demo.
+
+### 12.2 What it holds
+- **The head:** "Review", a quiet status ("Saving…", "Saved", or "Not saved:" with the
+  reason: the gate's reason names a field, never a value; DEV-API.md §4), and the **star**: an outline in a 44 px glass button that fills with the accent
+  when the call is starred.
+- **The call's name** (as in Demo's picker), then **Label** and **Note** boxes in the text
+  box's look. Each saves when you leave it, and only when it changed.
+- **One row per dimension,** in the rubric's order, from the API, so a new dimension appears
+  with no console change:
+  - its words (a draft: `DIMENSION_WORDS`) in bold, its one-line description in small text, and
+    a **Note** button that opens a note box for that dimension;
+  - **the verdict, the "slider":** Pass · Fail · Unsure in the split button's shape, with one
+    pill that slides to the choice with the nav pill's motion (`--dur-pill`, `--ease-pill`), in
+    the call colors: Pass `--go`, Fail `--stop`, Unsure the accent;
+  - **the score:** five dots, lit up to the score in the accent, with "3/5" beside them ("—"
+    when unscored). A press on a dot sets that score; a press on the highest lit dot takes one
+    away, so 0 is reachable.
+- **Nothing is required.** A dimension left alone writes nothing, so a dimension that did not
+  apply stays empty rather than "unsure".
+- **The score and the note wait for a verdict** (dimmed until then), because a rating needs one
+  (`check_annotation`). A verdict can change, but not go back to none: the file only appends,
+  and it has no "cleared" rating.
+- **The model's rating stays hidden until yours has a verdict.** Then a muted line shows it
+  under the row ("Model (claude-opus-5-5): Fail · 2/5 — its note"), so it never leads the
+  tester, and the two sit side by side for calibration.
+- **Coming back** to a call shows what you set: the panel reads the latest "owner" rating of
+  each dimension.
+
+### 12.3 Tokens and files
+- New skin tokens: `--verdict-height`, `--verdict-min`, `--dot-size`, `--star-size`,
+  `--slide-rise`, `--dur-slide` (TOKENS.md). The colors are the existing roles.
+- `console/src/pages/chat.ts` (`Review`, `dimensionRow`, the wiring), `console/src/styles/chat.css`
+  (the Review panel).
+
+**Decided inside his choices** (for his review): the verdict words Pass · Fail · Unsure (the
+file's `unknown`); the dimension words (draft); the colors per verdict; the 0 rule on the dots;
+the score and note waiting for a verdict; save on each choice with a quiet status; the panel
+also after a full Demo playback; the star as a 44 px button at the head's right; the model's
+rating revealed after yours.
+
+**Desk test:**
+1. `npm run dev`, Test, Start, make a short call, End call → Confirm?. The Review panel slides
+   in at the bottom of the rail, and the rail scrolls to it.
+2. Press the star: it fills. Type a label, press Tab: "Saved".
+3. On "Verification", press Pass: the green pill slides in; the dots light. Press Fail: the pill
+   slides to Fail and turns red. Press dot 3: "3/5". Press dot 3 again: "2/5".
+4. Open Note on a row, type, press Tab: "Saved".
+5. Start a new call: the panel goes. Demo: play the call you rated to its end: the panel slides
+   in with your choices kept.
+6. Demo: play one of the four calls the model graded today (12:58 and the others): after you
+   pick a verdict on a dimension, the model's line shows under it.
+7. `agent/calls/annotations.jsonl` has one line per choice.

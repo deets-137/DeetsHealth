@@ -8,6 +8,20 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-12 (Windows, late night) — The Review panel
+- The Step panel passed its desk test; committed as 4b8b45d (this work's edits only; the other
+  session's edits to flow.py and call.py stay in the tree).
+- The owner chose A for the Review panel, the rubric itself: "each dimension can be a row with
+  sliders, 0 to 5 can be five dots, a star works. Not all of it is required." Built (CHAT.md
+  §12): the rail's 5th panel, sliding in when a test call or a full Demo playback ends; the
+  star, a label and a note for the call; a row per rubric dimension with a Pass · Fail · Unsure
+  control whose pill slides to the choice, five score dots and a note; each choice saved at
+  once to `annotations.jsonl`; the model's rating shown only after the tester's verdict.
+- The "Dev server setup" session is moving catalog.db to Postgres. The panel uses only the HTTP
+  API; sent that session the API shapes it reads, and the `tool_calls` table and latency query
+  to port.
+- Checks: front-end type check, docs check. Not run: the desk test (CHAT.md §12).
+
 ## 2026-11-12 (Windows, night) — The Step panel
 - Committed the Chat work as ec8c838. The other session's 38e08ee, made while this was being
   staged, had already taken the agent-side half (the fake Twilio, latency.py, record schema 4).
@@ -150,6 +164,25 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   (FLAGS.md §8), retries once. All 12 scripts recorded again (about $0.01). 76 tests pass.
 - The owner on the catalog: file each transcript into the database by a script, and shape it
   like the production store, ready for the cloud. Design on paper first (forks brought).
+- The owner chose native Postgres (Docker Desktop and WSL2 are fiddly on the PC), asked what it
+  takes to be demo ready, and asked `npm run dev` to start Postgres. Built: `scripts/postgres.mjs`
+  (one cluster per repo in `.pg/`, run by `pg_ctl` as the user, 127.0.0.1, scram, a free port
+  from 5433, kept up after Ctrl+C; `npm run db:start | db:stop | db:status`). Postgres 17 pinned
+  and installed on the PC with winget. New: DATABASE.md (decisions, the Chat page's contract
+  from the Review-panel session, the draft schema, the demo-ready list).
+- winget's download of the installer failed twice from EnterpriseDB's CDN (403 partway, then
+  very slow); no licence is involved. The owner installed 18.7 from EDB's site by hand; the
+  pin moved to 18 (AWS RDS has served 18 since November 2025, support to February 2031).
+- The owner confirmed `ehr` as the only writer, if it scales (DATABASE.md §2.1 says why it
+  does), and asked to build the wiring meanwhile. Built: `ehr/migrations/0001_calls.sql` (the
+  draft schema), `store.rs` (migrate, file a record idempotently, file annotations by line
+  hash), `seal_key.rs` (core's `Cipher` on AWS-LC; the dev key in `.pg/seal.key`), the
+  `ehr ingest` command, `npm run db:ingest | db:test`, and the ingest at each `npm run dev`.
+  40 ehr unit tests pass. After the install: `npm run db:start` hung on Windows (the server
+  `pg_ctl` starts held its pipes; fixed by giving `pg_ctl start` none). `npm run db:test`
+  passed against Postgres 18.7 (it builds into `target/store-test`, because a running dev server
+  holds `target/debug`'s ehr). First ingest: 128 calls and 46 annotation lines in 3.4 s; the
+  second filed nothing new.
 
 ## 2026-11-12 — The Mac set up; the Chat page wired to the agent; the catalog of calls
 - On the Mac: `npm install`, `uv` (Homebrew), the `wasm32` target, `uv sync`, `ehr` built, the

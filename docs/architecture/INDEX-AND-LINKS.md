@@ -3,8 +3,12 @@ status: built
 desk_test: none
 sources: [core/src/index.rs, core/src/fhir.rs, core/src/sync.rs]
 updated: 2026-09-21
+legacy: patient-app
 ---
 # DeetsHealth — The index and the links
+
+> **The patient app's** (DOCS-ORG.md §2, `legacy`). It describes how the patient app filed a
+> whole record. Its code is still in `core/`. This doc moves to `docs/archive/` with that code.
 
 > What the core reads from every resource to file it, find it, order it and tie it to other
 > rows. The reference for card design: which rows a card can pick, by what, and how they

@@ -22,6 +22,8 @@ dev-dumps/
 *.db-shm
 *.sealed
 *.key
+# The dev database cluster and its password (scripts/postgres.mjs; DATABASE.md §3)
+/.pg/
 
 # Local Claude Code settings
 .claude/settings.local.json

@@ -3,8 +3,12 @@ status: built
 desk_test: none
 sources: [core/src/store/mod.rs, core/src/store/sqlite.rs, core/src/seal.rs, archive/src-tauri/src/sites.rs, archive/src-tauri/src/keystore.rs, archive/src-tauri/src/cng.rs]
 updated: 2026-09-24
+legacy: patient-app
 ---
 # DeetsHealth — The sealed store
+
+> **The patient app's** (DOCS-ORG.md §2, `legacy`). It describes the patient app's on-disk
+> store. The phone agent's store is DATABASE.md. This doc moves to `docs/archive/` with its code.
 
 > Where a site's record lives on disk, what the file holds, what it shows, and how it is
 > erased. The design is DATA-MODEL.md (what goes where) and CORE-CRATE.md §5 (sealing and

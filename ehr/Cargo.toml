@@ -33,10 +33,16 @@ serde_json = "1"
 # as the wire, with Mozilla's roots. No provider of reqwest's own, so no ring.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots-no-provider"] }
 webpki-roots = "1"
+# The call store (store.rs; DATABASE.md): Postgres, migrations embedded in the binary. No TLS
+# feature yet: dev talks to 127.0.0.1. The cloud adds TLS on the same AWS-LC provider.
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "migrate", "macros"] }
+# Sealing the store's protected columns (seal_key.rs): AES-256-GCM and SHA-256 from AWS-LC, the
+# provider the wire already uses. Under `fips`, its FIPS module.
+aws-lc-rs = "1"
 
 [features]
 # The deploy build. Needs CMake and Go to build AWS-LC's FIPS module; not used on Windows dev.
-fips = ["rustls/fips"]
+fips = ["rustls/fips", "aws-lc-rs/fips"]
 
 [build-dependencies]
 # build.rs: protoc without an install, the generated code, the walk over the descriptors.

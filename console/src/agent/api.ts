@@ -1,14 +1,21 @@
-// The agent's dev server, through Vite's proxy (agent/deets_agent/dev_server.py; CHAT.md §5).
-// Every path is on the page's own origin; the proxy adds the launch token.
+// The agent's dev server, through Vite's proxy (agent/deets_agent/dev_server.py). The reference
+// for every route and message is docs/architecture/DEV-API.md; docs:check (12, 14) keeps this
+// file, the server and that doc in step. Every path is on the page's own origin; the proxy adds
+// the launch token.
 
 /** One line of a dev call record (agent/deets_agent/call_record.py). */
 export type CallEvent = { t_ms: number; kind: string; [field: string]: unknown };
 
+/** catalog.py › VERDICTS and GRADER_KINDS. */
+export const VERDICTS = ["pass", "fail", "unknown"] as const;
+export type Verdict = (typeof VERDICTS)[number];
+export type GraderKind = "human" | "model" | "code";
+
 export type Rating = {
-  grader_kind: "human" | "model" | "code";
+  grader_kind: GraderKind;
   grader: string;
   dimension: string;
-  verdict: "pass" | "fail" | "unknown";
+  verdict: Verdict;
   score: number | null;
   note: string | null;
   rubric_version: string;
@@ -45,6 +52,14 @@ export type Catalog = {
 /** Thrown when the dev server is not running (npm run dev:web) or refused. */
 export class AgentDown extends Error {}
 
+/** Thrown when the catalog's gate refuses an annotation. `reason` names a field, never a value
+ * (catalog.py › AnnotationError), so the page may show it. */
+export class AnnotationRefused extends Error {
+  constructor(readonly reason: string) {
+    super(reason);
+  }
+}
+
 async function get<T>(path: string): Promise<T> {
   let r: Response;
   try {
@@ -67,13 +82,42 @@ export const catalog = () => get<Catalog>("/agent/catalog");
 export const callEvents = (id: string) =>
   get<{ id: string; events: CallEvent[] }>(`/agent/calls/${encodeURIComponent(id)}`).then((r) => r.events);
 
-export async function annotate(a: Record<string, unknown>): Promise<void> {
-  const r = await fetch("/agent/annotations", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(a),
-  });
-  if (!r.ok) throw new AgentDown("the annotation was refused");
+/** One annotation: the body of `POST /agent/annotations`. One shape per kind, the same fields as
+ * catalog.py › FIELDS (docs:check 14). The catalog stamps `at` and `rubric_version` itself. */
+export type Annotation =
+  | { kind: "label" | "note"; call: string; text: string }
+  | { kind: "keep"; call: string; value: boolean }
+  | {
+      kind: "rating";
+      call: string;
+      grader_kind: GraderKind;
+      grader: string;
+      dimension: string;
+      verdict: Verdict;
+      score?: number | null;
+      note?: string | null;
+    };
+export type AnnotationKind = Annotation["kind"];
+/** An annotation before the call is named. */
+export type AnnotationDraft = WithoutCall<Annotation>;
+type WithoutCall<A> = A extends unknown ? Omit<A, "call"> : never; // one Omit per kind
+
+export async function annotate(a: Annotation): Promise<void> {
+  let r: Response;
+  try {
+    r = await fetch("/agent/annotations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(a),
+    });
+  } catch {
+    throw new AgentDown("the agent's dev server is not running");
+  }
+  if (r.status === 400) {
+    const body = (await r.json().catch(() => null)) as { detail?: unknown } | null;
+    throw new AnnotationRefused(typeof body?.detail === "string" ? body.detail : "the annotation does not fit");
+  }
+  if (!r.ok) throw new AgentDown("the agent's dev server refused");
 }
 
 export type WatchMessage =

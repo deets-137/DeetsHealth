@@ -38,8 +38,15 @@ shipped_in: 0.1.0          # omit unless status is shipped
 desk_test: passed 2026-09-21 | open | none
 sources: [src-tauri/src/fhir.rs]
 updated: 2026-09-21
+legacy: patient-app       # optional: see below
 ---
 ```
+
+**`legacy: patient-app`** (2026-11-12) marks a doc that describes the patient app's code while
+that code is still in the tree (`core/`). Its `status` stays the state of that code. The doc
+says so in one line under its title, and it moves to `docs/archive/` with its code (§5). The
+checker (DEV-API.md §7, check 6) lists a legacy doc whose sources are all archived: that doc is
+ready to move.
 
 | value | meaning |
 |---|---|
@@ -68,9 +75,22 @@ names the open forks: `> **Part:** project · 2026-09-21 · forks §9.6`. A head
 marker has the doc's own status.
 
 ## 4. Tooling
-`npm run docs:check` (links, mentions, § pointers, front matter, the ideas and archive rules)
-and `scripts/docs-move.mjs` (move a doc and re-point every link). Run `docs:check` after any
-doc edit, and never move a doc by hand.
+`npm run docs:check` (links, mentions, § pointers, front matter, the ideas and archive rules,
+and the drift checks below) and `scripts/docs-move.mjs` (move a doc and re-point every link).
+Run `docs:check` after any doc edit, and never move a doc by hand.
+
+**The drift checks** (2026-11-12) compare a doc with the code it maps. A fact fails the run; a
+suspicion is listed and never fails it.
+- **Check 12** (fact): the route ledger, DEV-API.md §2, equals the routes in `dev_server.py`.
+- **Check 13** (fact): the RPC ledger, EHR-SERVICE.md §3, equals the `rpc` lines in
+  `ehr.proto`, and each RPC has its two ends in the code.
+- **Check 14** (fact): the console and the agent agree on the annotation fields and the watch
+  messages, and every client that DEV-API.md names exists.
+- **Check 6** (suspicion): a `built` or `foundation` doc whose `sources` changed in git after
+  its `updated` date, and a `legacy` doc whose sources are all archived. Read the doc against
+  the change; then set `updated`, or fix the doc.
+A new ledger (a doc table that must equal a list in the code) gets its own numbered check in
+`scripts/docs-check.mjs` and a line here.
 
 ## 5. The archive (DeetsMusic's DOCS-ORG.md §5.3, 2026-10-19)
 A doc that no one needs any more moves to `docs/archive/` with

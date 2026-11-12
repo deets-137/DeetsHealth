@@ -81,6 +81,9 @@ the branch `archive/patient-app`.
   calls, the PHI tag in the contract, the edge, mTLS, tracing and tests.
 - `CALL-FLOW.md` — the default call flow as a map into the code: each step, fixed line, limit
   and code-held rule, by file and symbol. Never copies a word or value (DOCS-ORG.md §1, rule 8).
+- `DATABASE.md` — the dev database shaped like the production store: native Postgres that
+  `npm run dev` starts (`scripts/postgres.mjs`), the writer rule, the Chat page's contract, the
+  draft schema, and the work to be demo ready in the cloud.
 - `FLAGS.md` — staff flags: the agent marks a call for a nurse, silent to the caller, with the
   model's summary and the caller's own words as evidence (checked by code). Settings:
   FUTURE-SETTINGS.md §5.

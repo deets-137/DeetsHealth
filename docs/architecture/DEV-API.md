@@ -1,0 +1,151 @@
+---
+status: built
+desk_test: open
+sources: [agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, console/src/agent/api.ts, console/src/agent/transport.ts, console/vite.config.ts, scripts/docs-check.mjs, agent/tests/test_dev_server.py]
+updated: 2026-11-12
+---
+# DeetsHealth — The dev API (the console and the agent's dev server)
+
+> The one reference for every route between the console and the agent's dev server, and a map
+> to the other APIs. It is a map into the code, like [CALL-FLOW.md](CALL-FLOW.md): it names the
+> handler and the client for each route, and points to the symbol that holds each limit. It
+> never copies a limit (DOCS-ORG.md §1, rule 8). `npm run docs:check` (checks 12–14, §7) fails
+> when this doc and the code disagree.
+
+**Terms**
+- **The console:** the web page in `console/`. It reaches the agent only through Vite's proxy.
+- **The dev server:** `agent/deets_agent/dev_server.py`, started by `npm run dev`. Dev only,
+  synthetic callers only, on 127.0.0.1, on a free port.
+- **The launch token:** a fresh random value that `scripts/dev.mjs` makes at each launch. Only
+  Vite's proxy holds it; the page never does.
+- **The client:** the function in `console/src/agent/api.ts` (or the class in `transport.ts`)
+  that calls a route.
+
+## 1. The surfaces at a glance
+| From → to | Wire | Reference |
+|---|---|---|
+| Console → dev server | HTTP and WebSocket, through Vite's proxy | this doc, §2–6 |
+| Agent → `ehr` | gRPC over mTLS | EHR-SERVICE.md §3 (the RPC ledger) |
+| Agent → the model | Pipecat Flows functions (the tools) | CALL-FLOW.md, AGENT-PROMPT.md |
+| `ehr` → Twilio Messages | HTTPS (dev: the fake in the dev server, §2) | TEXTS.md, TWILIO.md |
+| Epic → the JWKS worker | HTTPS `GET` of a key set | EPIC.md, `ehr/jwks-worker/src/index.ts` |
+| Agent → Anthropic API | HTTPS | ANTHROPIC.md, AGENT.md |
+
+No production API exists yet: no staff API (ideas/CONSOLE-MCP.md), no Twilio voice webhook
+(Phase 3), no settings API (FUTURE-SETTINGS.md).
+
+## 2. The routes (the ledger)
+One row per route the dev server serves. Check 12 compares this table with the route
+decorators in `dev_server.py`, both ways. Check 14 asks that every client named here exists.
+
+| Route | Handler | Client | What it answers |
+|---|---|---|---|
+| `GET /agent/health` | `health` | `health()` | `key` (an Anthropic key is set) and `live` (the live call's id, or null) |
+| `GET /agent/sandbox` | `sandbox` | `sandbox()` | the sandbox patients and visits from `ehr/fixtures/sandbox.json` (CHAT.md §8.1) |
+| `GET /agent/catalog` | `catalog` | `catalog()` | every call row with its current ratings, and the rubric (CHAT.md §7) |
+| `GET /agent/calls/{call_id}` | `call_events` | `callEvents()` | one record's events, for Demo; 404 when there is no such call |
+| `GET /agent/latency` | `tool_latency` | none yet | latency per tool; the query and the reply are CHAT.md §10.3 |
+| `POST /agent/annotations` | `annotate` | `annotate()` | `{ok: true}`, or 400 with the gate's reason (§4) |
+| `WS /agent/watch` | `watch` | `watch()` | the watch stream (§5) |
+| `WS /agent/call` | `call` | `TextSeat` | the caller's seat (§6) |
+| `POST /2010-04-01/Accounts/{account}/Messages.json` | `twilio_messages` | none: `ehr` calls it | the fake Twilio (`fake_twilio.py`; TEXTS.md) |
+
+**The replies when a route refuses:**
+
+| Reply | When |
+|---|---|
+| HTTP 403 `{"error": "forbidden"}` | no launch token, a wrong one, or another origin (§3) |
+| WebSocket close 1008 | the same, on `/agent/watch` or `/agent/call` |
+| WebSocket close 1013 | `/agent/call` only: a call is already running, there is no Anthropic key, or `ehr` is not up yet. The close reason says which. |
+| HTTP 400 `{"detail": …}` | `/agent/annotations`: the body is not a JSON object, or the gate refused it (§4) |
+| HTTP 404 | `/agent/calls/{call_id}`: no such call |
+| HTTP 401 / 404 (Twilio's shape) | the fake Twilio: wrong Basic auth, a request with an `Origin`, or another account |
+
+## 3. The wall
+- **The token.** Every request through the proxy carries the header named by `TOKEN_HEADER` in
+  `dev_server.py`. The proxy adds it (`console/vite.config.ts`); `State.allowed` compares it in
+  constant time.
+- **The origin.** `State.allowed` also asks that the `Origin` header, when present, is one of
+  the console origins that `scripts/dev.mjs` passes with `--origin`. A WebSocket is not covered
+  by CORS, so this check is what keeps another page in the same browser out.
+- **Dev only.** The events on these routes carry caller lines and tool arguments. That is
+  safe only because every caller is synthetic (`call_record.py`). A real call has no path to
+  this server.
+- The fake Twilio route has its own check instead (`FakeTwilio.authorized`): Basic auth with
+  the launch's fake account, and never a request with an `Origin`.
+
+## 4. Annotations
+`POST /agent/annotations` takes one annotation. Each line goes to the committed file
+`agent/calls/annotations.jsonl`, then into the catalog (CHAT.md §7, §12).
+
+**The body.** One shape per `kind`. The fields of each kind are `FIELDS` in `catalog.py`; the
+console's type is `Annotation` in `api.ts`. Check 14 asks that the two list the same kinds and
+the same fields.
+
+| `kind` | Fields besides `kind` and `call` |
+|---|---|
+| `label`, `note` | `text` |
+| `keep` (the star) | `value` |
+| `rating` | `grader_kind`, `grader`, `dimension`, `verdict`, and optional `score` and `note` |
+
+**The gate** (`check_annotation` in `catalog.py`; the limits are `MAX_TEXT`, `MAX_GRADER`,
+`DIMENSIONS`, `GRADER_KINDS`, `VERDICTS` there):
+- A field that the kind does not take is refused. So nothing the gate has not checked reaches
+  the committed file, which keeps every line forever.
+- **The stamps are the catalog's.** `Catalog.annotate` sets `at` (the time) and, on a rating,
+  `rubric_version`. A sender that sets either is refused. The file's own lines carry the
+  stamps, so a rebuild reads them with `stamped=True`.
+- **A refusal names the field, never a value** (`AnnotationError`). The Review panel shows
+  the reason in its status line: "Not saved: the dev server refused it (…)"
+  (`AnnotationRefused` in `api.ts`).
+
+## 5. The watch stream (`WS /agent/watch`)
+The server sends; the page sends nothing. Each frame is one JSON message. The types are
+`WatchMessage` in `api.ts`, and check 14 asks that they match the `"type"` values that
+`dev_server.py` sends.
+
+| `type` | Fields | When |
+|---|---|---|
+| `hello` | `live` | at once, on connect. Then, if a call is live, each of its events so far. |
+| `started` | `call` | a test call starts |
+| `event` | `call`, `event` | one line of the live call's record (`CallEvent`: `t_ms`, `kind`, and the kind's fields; the kinds are CHAT.md §11.2 and `call_record.py`) |
+| `ended` | `call` | the call ended and joined the catalog |
+
+`watch()` opens it again after a close while the page is open. A watcher that falls behind
+loses lines; it never holds up the call (`State.broadcast`).
+
+## 6. The caller's seat (`WS /agent/call`)
+- **One test call at a time.** It is always live: every line goes to Claude (CHAT.md §6).
+- **The wire:** RTVI messages as JSON text, one message per frame, no audio. The client is
+  `TextSeat` in `console/src/agent/transport.ts`, driven by `PipecatClient.sendText` in
+  `chat.ts`. The server's half is `RtviJsonSerializer` in `rtvi_json.py`: it drops a binary
+  frame, a frame longer than `MAX_MESSAGE`, and a message whose label is not RTVI's.
+- **The seat gets no tool data:** RTVI's tool reports are off in the seat (CHAT.md §6, the
+  wall). The rail's panels get tool calls from the watch stream.
+- The call ends when the socket closes, when the agent ends it, or after the session timeout
+  in `dev_server.py › call`.
+
+## 7. How this doc stays true (`npm run docs:check`)
+- **Check 12, the route ledger:** every route decorator in `dev_server.py` is a row in §2, and
+  every row in §2 is a route. A new route without a row fails.
+- **Check 13, the RPC ledger:** every `rpc` in `ehr.proto` is a row in EHR-SERVICE.md §3, has
+  its handler in `ehr/src/service.rs` and its method in `agent/deets_agent/ehr_client.py`; and
+  every row is an `rpc`.
+- **Check 14, the console and the server agree:** the clients named in §2 exist in `api.ts`
+  or `transport.ts`; the annotation kinds and fields in `api.ts › Annotation` equal
+  `catalog.py › FIELDS`; the watch types in `api.ts › WatchMessage` equal the `"type"` values
+  `dev_server.py` sends.
+- **Check 6, stale docs (a warning, never a failure):** a `built` doc whose `sources` changed
+  after its `updated` date is listed, so a reader can check it.
+- **The tests:** `agent/tests/test_dev_server.py` runs every route over HTTP: the wall on each,
+  the close codes, the annotation gate's answers and the stamps.
+
+## 8. Desk test
+1. `npm run dev`; open the address Vite prints. Open Chat, then Demo, and play any call to its
+   end. The Review panel slides in.
+2. Star the call, type a label, and set a verdict on one dimension. Each time the status says
+   "Saved".
+3. Run `git diff agent/calls/annotations.jsonl`: each new line has only its kind's fields,
+   plus `at`, and on the rating `rubric_version`.
+4. Stop the dev server (Ctrl+C) and set another verdict: the status says "Not saved: the
+   agent's dev server is not running".

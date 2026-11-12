@@ -7,7 +7,22 @@
 // The connection is the hybrid (CHAT.md §5): Test's seat sends over RTVI (agent/transport.ts);
 // every mode draws its lines from the agent's events (agent/api.ts › watch, catalog).
 import { PipecatClient } from "@pipecat-ai/client-js";
-import { catalog, callEvents, sandbox, watch, type CallEvent, type CallRow, type Sandbox } from "../agent/api";
+import {
+  AgentDown,
+  AnnotationRefused,
+  annotate,
+  catalog,
+  callEvents,
+  sandbox,
+  VERDICTS,
+  watch,
+  type AnnotationDraft,
+  type CallEvent,
+  type CallRow,
+  type Rating,
+  type Sandbox,
+  type Verdict,
+} from "../agent/api";
 import { TextSeat } from "../agent/transport";
 import { reducedMotion, tokenMs } from "../tokens";
 import { el, type Page } from "./page";
@@ -22,7 +37,8 @@ const MODE_ABOUT: Record<Mode, string> = {
 };
 const MODE_KEY = "deets.console.chat.mode";
 
-const SEND_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg>`;
+const STAR_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>`;
+const SEND_ICON =`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg>`;
 
 const savedMode = (): Mode => {
   try {
@@ -127,6 +143,20 @@ export function chatPage(): Page {
                     `<p class="empty">No tool calls yet</p></div>`,
                 ).join("")}
               </section>
+              <section class="panel glass panel-review" id="chat-review" aria-labelledby="chat-review-title" hidden>
+                <div class="review-head">
+                  <h2 id="chat-review-title">Review</h2>
+                  <span class="review-status" id="review-status" role="status"></span>
+                  <button class="review-star" id="review-star" type="button" aria-pressed="false"
+                    aria-label="Star this call">${STAR_ICON}</button>
+                </div>
+                <p class="review-call" id="review-call"></p>
+                <input class="review-input" id="review-label" type="text" maxlength="200" autocomplete="off"
+                  placeholder="Label" aria-label="A label for this call" />
+                <textarea class="review-input" id="review-note" rows="2" maxlength="2000"
+                  placeholder="Note" aria-label="A note on this call"></textarea>
+                <div class="review-rows" id="review-rows"></div>
+              </section>
             </aside>
           </div>
         </section>`);
@@ -158,6 +188,7 @@ export function chatPage(): Page {
         });
         closeCode();
         renderCode(false);
+        showReview(false);
       };
       // ---- the wave (chat.css › the wave): the visible controls come in one after another,
       // top row first, left to right, as one wave.
@@ -203,6 +234,32 @@ export function chatPage(): Page {
         }, Math.max(tokenMs("--dur-flip") / 2, tokenMs("--dur-wave-out")));
       });
       shownHook = waveIn;
+
+      // ---- the Review panel (CHAT.md §12): the call each mode last finished, Test's from its
+      // own call, Demo's from the playback that ran to its end. PHI rates nothing.
+      const review = new Review(
+        $("chat-review"),
+        $("review-status"),
+        $<HTMLButtonElement>("review-star"),
+        $("review-call"),
+        $<HTMLInputElement>("review-label"),
+        $<HTMLTextAreaElement>("review-note"),
+        $("review-rows"),
+      );
+      const reviewFor: Record<Mode, string | null> = { phi: null, test: null, demo: null };
+      function showReview(slide: boolean) {
+        const id = reviewFor[mode];
+        if (!id) return review.close();
+        if (review.current !== id) void review.open(id, "", slide);
+      }
+      const finished = (m: Mode, id: string) => {
+        reviewFor[m] = id;
+        if (m === mode) showReview(true);
+      };
+      const unreview = (m: Mode) => {
+        reviewFor[m] = null;
+        if (m === mode) showReview(false);
+      };
 
       // ---- the sandbox patients (the rail, Test and Demo): from the dev server, which reads
       // the same file ehr's fakes read (ehr/fixtures/sandbox.json)
@@ -326,6 +383,7 @@ export function chatPage(): Page {
         start.disabled = true;
         testLines.replaceChildren(note("Calling the agent…"));
         clearTexts("test");
+        unreview("test");
         testView = new CallView(testLines, { onText: (e) => addText("test", e), ...panels("test") });
         myCall = null;
         seeking = true;
@@ -413,6 +471,8 @@ export function chatPage(): Page {
               setLive(false);
               void hangUp();
             }
+            // The dev server adds the call to the catalog before it says "ended".
+            if (m.call === myCall) finished("test", m.call);
             void loadCatalog();
           }
         },
@@ -473,10 +533,17 @@ export function chatPage(): Page {
         }
         demoLines.replaceChildren();
         clearTexts("demo");
+        unreview("demo");
+        const id = pick.value;
         const view = new CallView(demoLines, { onText: (e) => addText("demo", e), ...panels("demo") });
         const last = events.reduce((m, e) => Math.max(m, e.t_ms), 0);
         for (const e of events) timers.push(window.setTimeout(() => view.add(e), e.t_ms / speed));
-        timers.push(window.setTimeout(stopDemo, last / speed + 50));
+        timers.push(
+          window.setTimeout(() => {
+            stopDemo();
+            finished("demo", id); // played to its end: rate it
+          }, last / speed + 50),
+        );
       });
       stop.addEventListener("click", () => {
         stopDemo();
@@ -531,6 +598,280 @@ class CallView {
     this.box.append(node);
     this.box.scrollTop = this.box.scrollHeight;
   }
+}
+
+/** The words for each rubric dimension (a draft, CHAT.md §12). A dimension not listed shows
+ * its key in words. The dimensions themselves come from the catalog (catalog.py). */
+const DIMENSION_WORDS: Record<string, string> = {
+  right_outcome: "Right outcome",
+  verification: "Verification",
+  no_invented_values: "No invented values",
+  emergency: "Emergency",
+  hand_off: "Hand-off",
+  phone_style: "Phone style",
+  intent_drift: "Stayed on task",
+};
+const VERDICT_WORDS: Record<Verdict, string> = { pass: "Pass", fail: "Fail", unknown: "Unsure" };
+/** Who rates in the console, until staff sign-in names each tester (catalog.py: "owner"). */
+const GRADER = "owner";
+
+/** The Review panel (CHAT.md §12): the rubric for one call, the 5th panel of the rail. It
+ * slides in when a test call or a Demo playback ends. Every choice saves at once, as one line
+ * of the committed annotations file; nothing in it is required. */
+class Review {
+  private call: string | null = null;
+  /** Guards against an older load that finishes after a newer one. */
+  private gen = 0;
+  private saved = { label: "", note: "", keep: false };
+
+  constructor(
+    private readonly panel: HTMLElement,
+    private readonly status: HTMLElement,
+    private readonly star: HTMLButtonElement,
+    private readonly callLine: HTMLElement,
+    private readonly label: HTMLInputElement,
+    private readonly note: HTMLTextAreaElement,
+    private readonly rows: HTMLElement,
+  ) {
+    star.addEventListener("click", () => {
+      if (!this.call) return;
+      const keep = star.getAttribute("aria-pressed") !== "true";
+      this.setStar(keep);
+      this.saved.keep = keep;
+      void this.save({ kind: "keep", value: keep });
+    });
+    const saveText = (kind: "label" | "note", box: HTMLInputElement | HTMLTextAreaElement) => {
+      const text = box.value.trim();
+      if (!this.call || text === this.saved[kind]) return;
+      this.saved[kind] = text;
+      void this.save({ kind, text });
+    };
+    label.addEventListener("change", () => saveText("label", label));
+    note.addEventListener("change", () => saveText("note", note));
+  }
+
+  /** The call under review, or null when the panel is closed. */
+  get current(): string | null {
+    return this.call;
+  }
+
+  close(): void {
+    this.call = null;
+    this.gen += 1;
+    this.panel.classList.remove("is-in");
+    this.panel.hidden = true;
+  }
+
+  /** Show the review of `callId`. `slide`: the call just ended, so the panel slides in. */
+  async open(callId: string, name: string, slide: boolean): Promise<void> {
+    const mine = ++this.gen;
+    this.call = callId;
+    this.status.textContent = "";
+    this.callLine.textContent = name;
+    this.rows.replaceChildren(emptyNote("Loading the rubric"));
+    this.panel.hidden = false;
+    if (slide && !reducedMotion()) {
+      this.panel.classList.remove("is-in");
+      void this.panel.offsetWidth; // start from the hidden place
+      requestAnimationFrame(() => this.panel.classList.add("is-in"));
+      this.panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    } else {
+      this.panel.classList.add("is-in");
+    }
+
+    let found: CallRow | undefined;
+    let dimensions: Record<string, string> = {};
+    try {
+      const cat = await catalog();
+      found = cat.calls.find((c) => c.id === callId);
+      dimensions = cat.dimensions;
+    } catch {
+      if (mine === this.gen) this.rows.replaceChildren(emptyNote("The agent's dev server is not running"));
+      return;
+    }
+    if (mine !== this.gen) return;
+    if (!found) {
+      this.rows.replaceChildren(emptyNote("This call is not in the catalog yet"));
+      return;
+    }
+    this.callLine.textContent = callName(found);
+    this.saved = { label: found.label ?? "", note: found.note ?? "", keep: found.keep };
+    this.label.value = this.saved.label;
+    this.note.value = this.saved.note;
+    this.setStar(found.keep);
+    const latest = (kind: Rating["grader_kind"], dim: string) =>
+      found!.ratings.filter((r) => r.grader_kind === kind && r.dimension === dim && (kind !== "human" || r.grader === GRADER)).pop();
+    this.rows.replaceChildren(
+      ...Object.entries(dimensions).map(([key, about]) =>
+        dimensionRow(key, about, latest("human", key), latest("model", key), (r) =>
+          this.save({ kind: "rating", grader_kind: "human", grader: GRADER, dimension: key, ...r }),
+        ),
+      ),
+    );
+  }
+
+  private setStar(on: boolean): void {
+    this.star.setAttribute("aria-pressed", String(on));
+    this.star.setAttribute("aria-label", on ? "Starred. Press to remove the star" : "Star this call");
+  }
+
+  private async save(a: AnnotationDraft): Promise<void> {
+    const call = this.call;
+    if (!call) return;
+    this.status.textContent = "Saving…";
+    try {
+      await annotate({ ...a, call });
+      if (call === this.call) this.status.textContent = "Saved";
+    } catch (e) {
+      // The gate's reason names a field, never a value (api.ts › AnnotationRefused).
+      if (call === this.call)
+        this.status.textContent =
+          e instanceof AnnotationRefused
+            ? `Not saved: the dev server refused it (${e.reason})`
+            : e instanceof AgentDown
+              ? `Not saved: ${e.message}`
+              : "Not saved";
+    }
+  }
+}
+
+/** One rubric row: the dimension's words and description; a Pass · Fail · Unsure control whose
+ * pill slides to the choice; a score of 0 to 5 as five dots; a note. The score and the note
+ * wait for a verdict, because a rating needs one (catalog.py `check_annotation`). The model's
+ * rating of the same dimension stays hidden until this one has a verdict, so it never leads
+ * the tester. */
+function dimensionRow(
+  key: string,
+  about: string,
+  human: Rating | undefined,
+  model: Rating | undefined,
+  save: (r: { verdict: Verdict; score: number | null; note: string | null }) => void,
+): HTMLElement {
+  let verdict = human && (VERDICTS as readonly string[]).includes(human.verdict) ? (human.verdict as Verdict) : undefined;
+  let score: number | null = human?.score ?? null;
+  let note = human?.note ?? "";
+  const words = DIMENSION_WORDS[key] ?? key.replace(/_/g, " ");
+
+  const row = document.createElement("div");
+  row.className = "dim-row";
+  const head = document.createElement("div");
+  head.className = "dim-head";
+  const name = document.createElement("span");
+  name.className = "dim-name";
+  name.textContent = words;
+  const noteToggle = document.createElement("button");
+  noteToggle.type = "button";
+  noteToggle.className = "dim-note-toggle";
+  noteToggle.textContent = "Note";
+  noteToggle.setAttribute("aria-expanded", "false");
+  head.append(name, noteToggle);
+  const aboutLine = document.createElement("p");
+  aboutLine.className = "dim-about";
+  aboutLine.textContent = about;
+
+  // The verdict: a segmented control with a pill that slides to the choice (the nav pill's motion).
+  const seg = document.createElement("div");
+  seg.className = "verdict";
+  seg.setAttribute("role", "radiogroup");
+  seg.setAttribute("aria-label", `${words}: verdict`);
+  const pill = document.createElement("span");
+  pill.className = "verdict-pill";
+  pill.setAttribute("aria-hidden", "true");
+  seg.append(pill);
+  const choices = VERDICTS.map((v) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("role", "radio");
+    b.dataset.v = v;
+    b.textContent = VERDICT_WORDS[v];
+    b.addEventListener("click", () => {
+      if (verdict === v) return; // a verdict can change, not go back to none (the file appends)
+      verdict = v;
+      draw();
+      emit();
+    });
+    seg.append(b);
+    return b;
+  });
+
+  // The score: five dots, 0 to 5. A press on a dot sets that score; a press on the highest lit
+  // dot takes one away, so 0 is reachable.
+  const dots = document.createElement("div");
+  dots.className = "dots";
+  dots.setAttribute("role", "group");
+  dots.setAttribute("aria-label", `${words}: score from 0 to 5`);
+  const dotButtons = [1, 2, 3, 4, 5].map((n) => {
+    const d = document.createElement("button");
+    d.type = "button";
+    d.className = "dot";
+    d.setAttribute("aria-label", `Score ${n}`);
+    d.addEventListener("click", () => {
+      score = score === n ? n - 1 : n;
+      draw();
+      emit();
+    });
+    dots.append(d);
+    return d;
+  });
+  const dotsValue = document.createElement("span");
+  dotsValue.className = "dots-value";
+  dots.append(dotsValue);
+
+  const controls = document.createElement("div");
+  controls.className = "dim-controls";
+  controls.append(seg, dots);
+
+  const noteBox = document.createElement("input");
+  noteBox.type = "text";
+  noteBox.className = "review-input dim-note";
+  noteBox.maxLength = 2000;
+  noteBox.placeholder = `A note on ${words.toLowerCase()}`;
+  noteBox.setAttribute("aria-label", `${words}: note`);
+  noteBox.value = note;
+  noteBox.hidden = !note;
+  noteToggle.setAttribute("aria-expanded", String(!noteBox.hidden));
+  noteToggle.addEventListener("click", () => {
+    noteBox.hidden = !noteBox.hidden;
+    noteToggle.setAttribute("aria-expanded", String(!noteBox.hidden));
+    if (!noteBox.hidden) noteBox.focus();
+  });
+  noteBox.addEventListener("change", () => {
+    const text = noteBox.value.trim();
+    if (text === note) return;
+    note = text;
+    emit();
+  });
+
+  const modelLine = document.createElement("p");
+  modelLine.className = "dim-model";
+
+  function emit(): void {
+    if (verdict) save({ verdict, score, note: note || null });
+  }
+  function draw(): void {
+    const i = verdict ? VERDICTS.indexOf(verdict) : -1;
+    seg.dataset.verdict = verdict ?? "";
+    seg.style.setProperty("--choice", String(Math.max(0, i)));
+    choices.forEach((b, j) => b.setAttribute("aria-checked", String(j === i)));
+    const ready = verdict !== undefined;
+    dotButtons.forEach((d, j) => {
+      d.disabled = !ready;
+      d.setAttribute("aria-pressed", String(score !== null && j < score));
+    });
+    dotsValue.textContent = score === null ? "—" : `${score}/5`;
+    noteBox.disabled = !ready;
+    noteToggle.disabled = !ready;
+    // The model's rating, once this one has a verdict.
+    modelLine.hidden = !(ready && model);
+    if (ready && model) {
+      const parts = [`Model (${model.grader}): ${VERDICT_WORDS[model.verdict as Verdict] ?? model.verdict}`];
+      if (model.score !== null) parts.push(`${model.score}/5`);
+      modelLine.textContent = parts.join(" · ") + (model.note ? ` — ${model.note}` : "");
+    }
+  }
+  draw();
+  row.append(head, aboutLine, controls, noteBox, modelLine);
+  return row;
 }
 
 /** The words for each step (a draft, CHAT.md §11). A step not listed shows its own name. */

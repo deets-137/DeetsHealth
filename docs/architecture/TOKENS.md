@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
 | Theme (color roles) | themes.css | 27 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 71 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 77 tokens · overrides:  |
 
 ## Theme roles
 
@@ -128,6 +128,11 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--code-tracking` | `0.08em` | — | the six digits on the code button, a little apart |
 | `--chevron` | `14px` | — | the open-and-close arrow on a rail list (a patient's visits) |
 | `--tools-min` | `240px` | — | the Tools panel's least height; past it, its list scrolls inside it |
+| `--verdict-height` | `32px` | — | a Review row's Pass · Fail · Unsure control, and each score dot's press area |
+| `--verdict-min` | `180px` | — | the verdict control's least width before the dots wrap under it |
+| `--dot-size` | `12px` | — | a score dot |
+| `--star-size` | `20px` | — | the Review panel's star |
+| `--slide-rise` | `24px` | — | how far the Review panel rises as it slides in |
 | `--toggle-tracking` | `0.04em` | — | the mode toggle's word |
 | `--flip-depth` | `400px` | — | the perspective the toggle's word turns in |
 
@@ -152,6 +157,7 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--ease-pill` | `cubic-bezier(0.3, 0.7, 0.2, 1)` | — |  |
 | `--dur-flip` | `240ms` | — | the mode toggle's word turns over (half out, half in) |
 | `--dur-collapse` | `220ms` | — | the help box opens and closes |
+| `--dur-slide` | `320ms` | — | the Review panel slides in when a call ends |
 | `--dur-wave-out` | `120ms` | — | a mode change: the old controls fade out together, while the word turns away |
 | `--dur-wave-in` | `360ms` | — | then each new control rises and fades in... |
 | `--wave-step` | `60ms` | — | ...each one this much after the one before it, left to right |

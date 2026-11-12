@@ -3,8 +3,12 @@ status: built
 desk_test: open
 sources: [core/src/auth.rs, core/build.rs, core/src/net.rs, archive/src-tauri/src/signin.rs, archive/src-tauri/src/loopback.rs, archive/src-tauri/src/browser.rs, archive/src-tauri/src/lib.rs, archive/src-tauri/src/sites.rs]
 updated: 2026-10-13
+legacy: patient-app
 ---
 # DeetsHealth — Sign-in
+
+> **The patient app's** (DOCS-ORG.md §2, `legacy`). It describes the patient app's sign-in. The
+> phone agent does not run it. It moves to `docs/archive/` with its code.
 
 > How the app signs in to a site, step by step, with every value that can be changed and
 > where. For a user question, a bug, or a change. The design history is CORE-CRATE.md §6 and

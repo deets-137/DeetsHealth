@@ -37,6 +37,7 @@ import json
 import os
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import uvicorn
@@ -46,7 +47,7 @@ from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams, FastAPI
 
 from deets_agent import config, redact
 from deets_agent.call import CallFailed, TypedCall
-from deets_agent.call_record import CallRecord
+from deets_agent.call_record import CALLS, CallRecord
 from deets_agent.catalog import (
     DIMENSIONS,
     OUTCOMES,
@@ -68,11 +69,11 @@ SANDBOX = config.REPO / "ehr" / "fixtures" / "sandbox.json"
 
 
 class State:
-    def __init__(self, token: str, origins: set[str], port: int) -> None:
+    def __init__(self, token: str, origins: set[str], port: int, calls: Path = CALLS) -> None:
         self.token = token
         self.origins = origins
         self.twilio = FakeTwilio(port)
-        self.catalog = Catalog().build()
+        self.catalog = Catalog(calls).build()
         self.ehr: EhrClient | None = None
         # Test is always live (the owner, 2026-11-12: "limit replaying conversations only to the
         # Demo view"): every line goes to Claude, no replay cache. Without a key, no test call.
@@ -216,9 +217,13 @@ def build_app(state: State) -> FastAPI:
         if not state.allowed(ws.headers):
             await ws.close(code=1008)
             return
-        if state.live is not None or state.ehr is None:
+        if state.live is not None:
             await ws.accept()
             await ws.close(code=1013, reason="a test call is already running")
+            return
+        if state.ehr is None:
+            await ws.accept()
+            await ws.close(code=1013, reason="ehr is not up yet")
             return
         if not state.has_key:
             await ws.accept()

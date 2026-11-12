@@ -661,6 +661,302 @@
   color: var(--text-2);
 }
 
+/* ------------------------------------------------------------- the Review panel */
+
+/* The 5th panel (CHAT.md §12). It slides in from below when a call ends: it rises and fades
+   in with the nav pill's easing. With reduced motion it is simply there. */
+.rail > .panel-review {
+  flex: none;
+}
+
+.panel-review {
+  opacity: 0;
+  transform: translateY(var(--slide-rise));
+  transition: opacity var(--dur-slide) var(--ease-pill), transform var(--dur-slide) var(--ease-pill);
+}
+
+.panel-review.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+.panel-review[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-review {
+    transition: none;
+  }
+}
+
+.review-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.review-status {
+  margin-left: auto;
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+/* The star: an outline that fills with the accent when the call is starred (`keep`). */
+.review-star {
+  width: var(--control-height);
+  height: var(--control-height);
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-item);
+  background: var(--glass-fill-strong);
+  color: var(--text-2);
+  transition: background-color var(--dur-hover) var(--ease), color var(--dur-hover) var(--ease);
+}
+
+.review-star:hover {
+  background: var(--press);
+}
+
+.review-star svg {
+  width: var(--star-size);
+  height: var(--star-size);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.review-star[aria-pressed="true"] {
+  color: var(--accent);
+}
+
+.review-star[aria-pressed="true"] svg {
+  fill: currentColor;
+}
+
+.review-call {
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+/* The label, the call's note and each dimension's note: the text box's look. */
+.review-input {
+  width: 100%;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  padding: var(--space-3) var(--space-4);
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-item);
+  background: var(--canvas);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.review-input::placeholder {
+  color: var(--text-3);
+}
+
+.review-input:disabled {
+  opacity: 0.6;
+}
+
+.review-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.dim-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+}
+
+.dim-row + .dim-row {
+  border-top: var(--edge) solid var(--line);
+}
+
+.dim-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.dim-name {
+  font-weight: var(--weight-bold);
+}
+
+.dim-note-toggle {
+  margin-left: auto;
+  padding: var(--space-1) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text-2);
+  font-size: var(--text-small);
+  transition: background-color var(--dur-hover) var(--ease);
+}
+
+.dim-note-toggle:hover:not(:disabled) {
+  background: var(--press);
+}
+
+.dim-note-toggle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.dim-about,
+.dim-model {
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+.dim-model[hidden] {
+  display: none;
+}
+
+.dim-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+/* The verdict: the split button's shape, three equal parts, and one pill that slides to the
+   choice (the nav pill's motion), in the call colors: Pass in --go, Fail in --stop, Unsure in
+   the accent. With no verdict yet the pill is not shown. */
+.verdict {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  flex: 1 1 var(--verdict-min);
+  height: var(--verdict-height);
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-item);
+  background: var(--glass-fill-strong);
+  overflow: hidden;
+}
+
+.verdict-pill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(100% / 3);
+  border-radius: var(--radius-item);
+  opacity: 0;
+  transform: translateX(calc(var(--choice, 0) * 100%));
+  transition: transform var(--dur-pill) var(--ease-pill), background-color var(--dur-pill) var(--ease),
+    opacity var(--dur-hover) var(--ease);
+}
+
+.verdict[data-verdict="pass"] .verdict-pill {
+  opacity: 1;
+  background: var(--go);
+}
+
+.verdict[data-verdict="fail"] .verdict-pill {
+  opacity: 1;
+  background: var(--stop);
+}
+
+.verdict[data-verdict="unknown"] .verdict-pill {
+  opacity: 1;
+  background: var(--accent);
+}
+
+.verdict > button {
+  position: relative;
+  z-index: 1; /* above the sliding pill */
+  border: 0;
+  padding: 0 var(--space-2);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--text-small);
+  transition: color var(--dur-pill) var(--ease), background-color var(--dur-hover) var(--ease);
+}
+
+.verdict > button + button {
+  border-left: var(--edge) solid var(--line);
+}
+
+.verdict > button:hover:not([aria-checked="true"]) {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.verdict[data-verdict="pass"] > button[aria-checked="true"],
+.verdict[data-verdict="fail"] > button[aria-checked="true"] {
+  color: var(--on-call-button);
+  font-weight: var(--weight-bold);
+}
+
+.verdict[data-verdict="unknown"] > button[aria-checked="true"] {
+  color: var(--on-accent);
+  font-weight: var(--weight-bold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .verdict-pill,
+  .verdict > button {
+    transition: none;
+  }
+}
+
+/* The score: five dots, lit up to the score; the number beside them. */
+.dots {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.dot {
+  width: var(--verdict-height);
+  height: var(--verdict-height);
+  display: grid;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: none;
+}
+
+.dot::before {
+  content: "";
+  width: var(--dot-size);
+  height: var(--dot-size);
+  border-radius: 50%;
+  border: var(--edge) solid var(--text-3);
+  transition: background-color var(--dur-hover) var(--ease), border-color var(--dur-hover) var(--ease);
+}
+
+.dot[aria-pressed="true"]::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.dot:hover:not(:disabled)::before {
+  border-color: var(--text);
+}
+
+.dot:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.dots-value {
+  min-width: 3ch;
+  margin-left: var(--space-2);
+  font-size: var(--text-small);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ------------------------------------------------------------- the Tools panel */
 
 /* The last panel: it fills what the rail has left and scrolls inside itself, so a long call

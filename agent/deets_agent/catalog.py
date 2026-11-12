@@ -236,13 +236,40 @@ class AnnotationError(ValueError):
     """An annotation that does not fit the catalog. The message names the field, not a value."""
 
 
-def check_annotation(a: dict[str, Any]) -> dict[str, Any]:
-    """The one gate for every annotation, from the console or a grader."""
+# The fields each kind takes, besides `kind` and `call`. Nothing else reaches the committed file
+# (DEV-API.md §4). The console's `Annotation` type in console/src/agent/api.ts mirrors this
+# (docs:check 14).
+FIELDS = {
+    "label": {"text"},
+    "note": {"text"},
+    "keep": {"value"},
+    "rating": {"grader_kind", "grader", "dimension", "verdict", "score", "note"},
+}
+# Set by the catalog when it takes an annotation, never by the sender: they are on the file's
+# lines, so a rebuild reads them back.
+STAMPS = {"at", "rubric_version"}
+MAX_TEXT = 2000
+MAX_GRADER = 100
+_FIELD_NAME = re.compile(r"^[a-z_]{1,40}$")
+
+
+def check_annotation(a: dict[str, Any], *, stamped: bool = False) -> dict[str, Any]:
+    """The one gate for every annotation, from the console or a grader. `stamped` is for the
+    file's own lines, which carry the catalog's stamps. Returns a copy with only the kind's
+    fields."""
     kind = a.get("kind")
+    if kind not in FIELDS:
+        raise AnnotationError("kind: not label, note, keep or rating")
+    allowed = {"kind", "call"} | FIELDS[kind] | (STAMPS if stamped else set())
+    for name in a:
+        if name not in allowed:
+            # The name only if it looks like a field name: a key is the sender's text.
+            shown = name if isinstance(name, str) and _FIELD_NAME.match(name) else "a field"
+            raise AnnotationError(f"{shown}: not a field of {kind}")
     if not isinstance(a.get("call"), str) or not a["call"]:
         raise AnnotationError("call: missing")
     if kind == "label" or kind == "note":
-        if not isinstance(a.get("text"), str) or len(a["text"]) > 2000:
+        if not isinstance(a.get("text"), str) or len(a["text"]) > MAX_TEXT:
             raise AnnotationError("text: missing or too long")
     elif kind == "keep":
         if not isinstance(a.get("value"), bool):
@@ -250,8 +277,8 @@ def check_annotation(a: dict[str, Any]) -> dict[str, Any]:
     elif kind == "rating":
         if a.get("grader_kind") not in GRADER_KINDS:
             raise AnnotationError("grader_kind: not human, model or code")
-        if not isinstance(a.get("grader"), str) or not a["grader"]:
-            raise AnnotationError("grader: missing")
+        if not isinstance(a.get("grader"), str) or not a["grader"] or len(a["grader"]) > MAX_GRADER:
+            raise AnnotationError("grader: missing or too long")
         if a.get("dimension") not in DIMENSIONS:
             raise AnnotationError("dimension: not in the rubric")
         if a.get("verdict") not in VERDICTS:
@@ -259,11 +286,13 @@ def check_annotation(a: dict[str, Any]) -> dict[str, Any]:
         score = a.get("score")
         if score is not None and (not isinstance(score, int) or isinstance(score, bool) or not 0 <= score <= 5):
             raise AnnotationError("score: not a whole number from 0 to 5")
-        if a.get("note") is not None and (not isinstance(a["note"], str) or len(a["note"]) > 2000):
+        if a.get("note") is not None and (not isinstance(a["note"], str) or len(a["note"]) > MAX_TEXT):
             raise AnnotationError("note: too long")
-    else:
-        raise AnnotationError("kind: not label, note, keep or rating")
-    return a
+    if stamped:
+        for name in STAMPS & a.keys():
+            if not isinstance(a[name], str):
+                raise AnnotationError(f"{name}: not text")
+    return {name: a[name] for name in a if name in allowed}
 
 
 class Catalog:
@@ -291,11 +320,20 @@ class Catalog:
         if self.annotations_path.exists():
             for line in self.annotations_path.read_text(encoding="utf-8").splitlines():
                 try:
-                    self._apply(check_annotation(json.loads(line)))
+                    line_data = json.loads(line)
+                    if not isinstance(line_data, dict):
+                        continue
+                    self._apply(check_annotation(line_data, stamped=True))
                 except (json.JSONDecodeError, AnnotationError):
                     continue  # a bad line never stops the catalog; the file keeps it for a person
         self.db.commit()
         return self
+
+    def close(self) -> None:
+        """Let go of the database. On Windows another catalog cannot rebuild it while it is open."""
+        if self.db is not None:
+            self.db.close()
+            self.db = None
 
     def refresh(self, call_id: str) -> None:
         """Re-read one record (a call that just ended) without a full rebuild."""
@@ -316,11 +354,12 @@ class Catalog:
         self.db.commit()
 
     def annotate(self, annotation: dict[str, Any]) -> None:
-        """Check, append to the committed file, then apply."""
-        a = check_annotation(dict(annotation))
-        a.setdefault("at", datetime.now().isoformat(timespec="seconds"))
+        """Check, stamp, append to the committed file, then apply. The stamps are the catalog's
+        own: a sender's `at` or `rubric_version` is refused by the gate."""
+        a = check_annotation(annotation)
+        a["at"] = datetime.now().isoformat(timespec="seconds")
         if a["kind"] == "rating":
-            a.setdefault("rubric_version", RUBRIC_VERSION)
+            a["rubric_version"] = RUBRIC_VERSION
         if self.db is None or self.db.execute("SELECT 1 FROM calls WHERE id = ?", (a["call"],)).fetchone() is None:
             raise AnnotationError("call: no such call")
         with self.annotations_path.open("a", encoding="utf-8") as f:

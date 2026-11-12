@@ -17,6 +17,14 @@ starts the agent's dev server and Vite, each on a free port, and prints the addr
 next free one). It needs `ehr` built, the dev certificates and `uv sync` (below). `npm run dev:web`
 starts the console alone. **The typed call**: see AGENT.md §1. Nothing else runs end to end yet.
 
+**The dev database** ([architecture/DATABASE.md](architecture/DATABASE.md) §3): install Postgres
+at the pinned major version once (`PG_MAJOR` in `scripts/postgres.mjs`): on Windows, EDB's
+installer from postgresql.org (winget's download of it failed, 2026-11-12); on the Mac,
+`brew install postgresql@<major>`. `npm run dev` then starts the repo's own cluster in
+`.pg/` if it is not up, on a free port from 5433, and files the call records into it
+(`ehr ingest`). `npm run db:status` / `db:stop` / `db:ingest` / `db:test`. Without Postgres,
+`npm run dev` says how to install it and goes on.
+
 **The single check command** (`scripts/check.mjs`) runs only the checks that your changes need.
 "Changes" means the commits since the upstream branch (else `origin/main`) plus the working
 tree. It runs the docs check every time, and stops at the first failure with the tail of that
@@ -125,8 +133,9 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   console's view of a flag. Confirm before booking (choice A), stable option numbers and
   `change_visit` are built (CALL-FLOW.md §5). A reply cut off by the token cap now gets the
   holding line, a review flag and one retry (FLAGS.md §8). **Next: the production-shaped dev
-  database** (the owner, 2026-11-12: a script files each call into it; design on paper
-  first). Open, in order: REGULATIONS.md §10 (twins, limits across
+  database** (DATABASE.md): native Postgres, which `npm run dev` now starts (§3). `ehr` is the
+  only writer (confirmed; §2.1 says why it scales). Open: the draft schema (§4, the owner's),
+  then the store in `ehr` and the ingest. Open, in order: REGULATIONS.md §10 (twins, limits across
   calls, the confidential number, the code by keypad, and more). The map of every step, fixed
   line and limit, by file and symbol: CALL-FLOW.md.
 - **Gate on the first real call: split the call record** (the owner, 2026-11-12). Test mode
@@ -233,9 +242,10 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
 - **Epic's sandbox data is small and tidy.** Real site data is not.
 - **Windows holds `catalog.db` open** (2026-11-12): `Catalog.build()` deletes the file, which
   fails with WinError 32 while any process has it open. A leftover agent from a closed terminal
-  tab does that (stop the run with Ctrl+C, not by closing the tab), and
-  `test_annotations_survive_a_rebuild_and_the_latest_rating_wins` fails on Windows for the same
-  reason. Not fixed.
+  tab does that (stop the run with Ctrl+C, not by closing the tab). The test
+  `test_annotations_survive_a_rebuild_and_the_latest_rating_wins` failed for the same reason
+  until 2026-11-12: it now lets go of the first catalog first (`Catalog.close`). The leftover
+  process is still a cause.
 - **Casey Morgan never verifies, on purpose.** The fakes hold Casey Morgan and Casey Morgen on
   one date of birth, so no code goes out. Use Jordan Ellis, 1984-03-12, code `246810`.
 - **Several Deets* apps run at once on the owner's PC.** Never hard-code a dev port; Vite takes

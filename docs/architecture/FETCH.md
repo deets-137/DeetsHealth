@@ -3,8 +3,13 @@ status: built
 desk_test: open
 sources: [core/src/sync.rs, core/src/fhir.rs, core/src/net.rs, archive/src-tauri/src/fetch.rs]
 updated: 2026-09-24
+legacy: patient-app
 ---
 # DeetsHealth — The fetch
+
+> **The patient app's** (DOCS-ORG.md §2, `legacy`). It describes the patient app's whole-record
+> fetch. The phone agent keeps no chart (CLAUDE.md › Privacy rules). This doc moves to
+> `docs/archive/` with its code.
 
 > How the app downloads a patient's record from a site, step by step, with every value that
 > can be changed and where. The twin of [SIGN-IN.md](SIGN-IN.md). The design history is

@@ -3,8 +3,12 @@ status: built
 desk_test: none
 sources: []
 updated: 2026-09-24
+legacy: patient-app
 ---
 # DeetsHealth — Data architecture (the map)
+
+> **The patient app's** (DOCS-ORG.md §2, `legacy`). It maps the patient app's data path. The
+> phone agent's call path is CALL-FLOW.md. This doc moves to `docs/archive/` with its code.
 
 > The path of a patient's data, from sign-in to the card, one step per line. Each step
 > points to the doc that owns it. This file holds no rule of its own. Built: the Sites

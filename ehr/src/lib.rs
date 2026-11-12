@@ -13,6 +13,7 @@
 //! - [`service`]: the gRPC service.
 //! - [`sandbox`]: the synthetic patients and visits the fakes serve.
 //! - [`texts`]: the code by text, through Twilio's Messages API (the fake Twilio in dev).
+//! - [`store`]: the call store in Postgres, sealed by [`seal_key`] (DATABASE.md).
 //!
 //! Build state (BUILD-ORDER.md, Phase 1): the contract, the sessions, the fake scheduler ✓ ·
 //! verification (waits on the identification fork, §8) · the transport (waits on its fork, §6).
@@ -21,8 +22,10 @@ mod edge;
 pub mod proto;
 pub mod sandbox;
 pub mod scheduler;
+pub mod seal_key;
 pub mod service;
 pub mod session;
+pub mod store;
 pub mod texts;
 pub mod transport;
 pub mod verify;
