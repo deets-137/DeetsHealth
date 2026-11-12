@@ -58,12 +58,14 @@ end with the goodbye line and no hand off).
 ## 2. The parts
 | File | What it does |
 |---|---|
-| `deets_agent/flow.py` | The nodes: greet, verify, menu, schedule, goodbye, hand off. Each node's tools. The words that carry a value (`say`). |
+| `deets_agent/flow.py` | The nodes: greet, verify, menu, schedule, goodbye, hand off. Each node's tools and the global ones (`hand_off`, `end_call`, `emergency`, `medical_question`). The fixed lines (`_say`), the name guard. |
 | `deets_agent/call.py` | One typed call: the pipeline, the turn collector, `start()`, `say()`, `hang_up()`. |
 | `deets_agent/ehr_client.py` | The gRPC client: mTLS, a deadline on each call, the edge into `Shielded` types, error kinds. |
 | `deets_agent/llm.py` | Pipecat's Anthropic service behind our client: GA only, the replay cache, stale thinking blocks dropped. |
 | `deets_agent/call_record.py` | The dev call record: one JSON Lines file per typed call. |
 | `deets_agent/redact.py` | The PHI-free log processor; `redacted_text` for a wire message. |
+| `prompts/AGENT-PROMPT.md` | **Every word**: the role prompt, each step's task, each tool's description, every fixed line. The owner reads and edits it by hand; its top says how. |
+| `deets_agent/prompts.py` | Loads AGENT-PROMPT.md and checks it at start-up: every section there, no unknown one, the right `{placeholders}`. |
 | `deets_agent/screen.py` | The caller screen: the emergency phrase list, and each caller line to the name guard. |
 | `deets_agent/shielded.py` | The Python wrapper for protected data. |
 | `deets_agent/ehr_process.py` | Starts `ehr` on a free port and reads its address. |
@@ -157,27 +159,47 @@ end with the goodbye line and no hand off).
 - **Code before prompt: the caller screen, the medical line, the name guard** (2026-11-11, the
   owner's 1A and 2A: "tools give us a route to add more config and more levers later").
   - **`medical_question`** (global): a fixed line, "I can't answer medical questions, but a
-    clinician can talk with you about that at your visit." The line is a statement, so the model
-    goes on with the task. The agent never screens symptoms: that is clinical triage, for a
-    hospital-approved script only. Test: `medical_question`.
+    clinician can talk with you about that at your visit. Shall we go on with your visit?" It
+    first ended in a statement; the model then spoke next and said the line again, so it ends in
+    a question like every fixed line. The agent never screens symptoms: that is clinical triage,
+    for a hospital-approved script only. Test: `medical_question`.
   - **The caller screen** (`screen.py`, first in the pipeline): it reads each caller line before
     the model does. A phrase on the emergency list ("chest pain", "can't breathe", "am I dying",
     "overdose", "911", …) makes the code speak the 911 line itself: the caller's line and the 911
     line go into the context, and the model does not run. It fires once per call; later matches
     are recorded and left to the model's tool. "I'm dying to get in" does not match. The list is
-    a hospital setting later (FUTURE-SETTINGS.md §3). Tests: `test_screen.py`,
+    a hospital setting later; the full list is in FUTURE-SETTINGS.md §3, checked against the code by `test_screen.py`. Tests: `test_screen.py`,
     `emergency_then_book` (the screen now speaks that line, not the model).
   - **The name guard**: `identify` runs only when each word of both names is a word the caller
     said on this call (the screen feeds every line to `CallFlow.heard`, kept as `Shielded`). If
     not, the agent asks for the full name again, and no try is used. This replaces the prompt
     rule alone ("Billy Bob" sent as both names). Test: `test_gate.py`.
-  - **Off-topic**: one prompt rule. The agent says in one sentence what it can help with.
+  - **Off-topic**: one prompt rule. Small talk (a greeting, a thank-you) is fine; anything else
+    gets no answer, not even arithmetic, and the agent says kindly in one sentence that it can
+    only help with visits, then asks what the caller needs. The first version only said to name
+    what it can help with, and the model still gave sums ("17 plus 6 is 23"; the owner's desk
+    test, 2026-11-11). Test: `off_topic` (a sum fails the invented-value check).
   - **The invented-value check** (`TurnCollector`): each model reply is checked for a number,
     a time, a month or a day that is in none of the role prompt, the caller's lines or the
     fixed lines. A hit is an `invented_value` event (`!!` in `show_call.py`); every replay test
     fails on one.
+- **The read-back** (2026-11-11, the owner's option A, from "ellis jordan 21 3 1984": the name
+  order and the day were both wrong, so no code came). `identify` no longer looks anyone up: it
+  reads the name and date of birth back as a fixed line ("I have Jordan Ellis, born March 12,
+  1984. Is that right?") and keeps them as `Shielded`. Only `confirm_details`, after the caller
+  says yes, sends them to ehr. A correction is a new `identify` and a new read-back, so a slip
+  costs no try. It repeats only the caller's own words, so it tells them nothing about the
+  record. Cost: one short turn per call. Tests: `test_gate.py`, `read_back_correction`.
+- **The prompt file** (2026-11-11, the owner's ask: one file to read and hand-edit). Every word
+  the model reads and every fixed line is in `agent/prompts/AGENT-PROMPT.md`; `flow.py` holds the
+  logic only. `prompts.py` loads the file at start-up and stops with a message on a missing or
+  unknown section or a wrong placeholder (`test_prompts.py`). An edit changes the prompt, so the
+  kept scripts must be recorded again (a cent or so); the replay tests then show what changed.
+- **Worry is not a medical question** (2026-11-11). "I'm safe, I'm just worried. Please book
+  option 1." got `medical_question` and no booking. The rule now says worry alone is not a
+  medical question, and a request in the same sentence is done first with its own tool.
 - **How many tools** (2026-11-11). Anthropic's tool-search page: selection accuracy degrades
-  past 30 to 50 tools; standard tool calling fits fewer than 10. Each node now offers 5 to 7
+  past 30 to 50 tools; standard tool calling fits fewer than 10. Each node now offers 6 to 8
   (4 global: `hand_off`, `end_call`, `emergency`, `medical_question`). Anthropic's server-side
   tool search is **not HIPAA-eligible**, so it is ruled out on the PHI path; past about 10 tools a
   node, the answer is our own client-side search or smaller nodes. Each node change also
@@ -192,7 +214,9 @@ end with the goodbye line and no hand off).
   the model's `emergency` tool covers the rest. It reads English text only; another language
   needs its own list. It fires once per call (§3).
 - **The model decides what is a medical question.** The fixed line is in code (§3); the choice
-  to use it is the model's.
+  to use it is the model's. A medical question asked together with a booking request ("What's
+  wrong with me? Can I come in soon?") got `find_slots` first and the medical line a turn late
+  (2026-11-11). The kept script asks the two apart.
 - **Off-topic questions: held by the prompt only** (2026-11-11: "2+2", "7 factorial"). Cheap,
   and it carries no record.
 - **The model's own words: values checked, wording not.** The invented-value check (§3) finds

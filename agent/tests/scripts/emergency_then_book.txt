@@ -4,6 +4,7 @@
 # Run: uv run python harness/typed_call.py --script tests/scripts/emergency_then_book.txt
 Hi, I'd like to book a check-up.
 Jordan Ellis, March 12, 1984
+Yes, that's right.
 246810
 Just a routine check-up, any day is fine
 Option 1. Am I dying?

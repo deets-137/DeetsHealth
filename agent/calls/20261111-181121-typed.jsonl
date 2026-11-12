@@ -1,0 +1,24 @@
+{"t_ms": 0, "kind": "call_start", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-11T18:11:21"}
+{"t_ms": 601, "kind": "ehr", "call": "OpenCall", "ms": 3, "outcome": "ok"}
+{"t_ms": 607, "kind": "llm", "key": "2c3dad93", "hit": true, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 31, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 1907}, "total_ms": 1}
+{"t_ms": 607, "kind": "node", "name": "greet"}
+{"t_ms": 1016, "kind": "agent", "text": "Hello, this is the automated assistant for Main Street Clinic. How can I help you today?"}
+{"t_ms": 1016, "kind": "caller", "text": "17+6?"}
+{"t_ms": 2005, "kind": "llm", "key": "513d9aa4", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 24, "cache_read_input_tokens": 1907, "cache_creation_input_tokens": 37}, "total_ms": 987, "first_event_ms": 735, "first_text_ms": 759}
+{"t_ms": 2421, "kind": "agent", "text": "I can only help with visits here. Is there anything you need for your visit today?"}
+{"t_ms": 2421, "kind": "caller", "text": "2+2"}
+{"t_ms": 3244, "kind": "llm", "key": "e09da395", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 20, "cache_read_input_tokens": 1944, "cache_creation_input_tokens": 29}, "total_ms": 821, "first_event_ms": 517, "first_text_ms": 517}
+{"t_ms": 3660, "kind": "agent", "text": "I can only help with visits here. What do you need for your visit?"}
+{"t_ms": 3660, "kind": "caller", "text": "How do I say hello world in Python?"}
+{"t_ms": 4470, "kind": "llm", "key": "15d8bf61", "hit": false, "messages": 7, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 27, "cache_read_input_tokens": 1973, "cache_creation_input_tokens": 33}, "total_ms": 809, "first_event_ms": 532, "first_text_ms": 533}
+{"t_ms": 4885, "kind": "agent", "text": "I can only help with visits here. Is there anything you need for your clinic visit today?"}
+{"t_ms": 4885, "kind": "caller", "text": "Why can you help with math and not Python?"}
+{"t_ms": 5683, "kind": "llm", "key": "9e8761b8", "hit": false, "messages": 9, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 29, "cache_read_input_tokens": 2006, "cache_creation_input_tokens": 41}, "total_ms": 796, "first_event_ms": 511, "first_text_ms": 511}
+{"t_ms": 6075, "kind": "agent", "text": "I can only help with visits here at the clinic. Is there anything you need for your visit today?"}
+{"t_ms": 6075, "kind": "caller", "text": "Never mind, goodbye."}
+{"t_ms": 6804, "kind": "llm", "key": "867cd20e", "hit": false, "messages": 11, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 26, "cache_read_input_tokens": 2047, "cache_creation_input_tokens": 41}, "total_ms": 728, "first_event_ms": 500, "first_tool_ms": 500}
+{"t_ms": 6806, "kind": "tool_call", "name": "end_call", "arguments": {}}
+{"t_ms": 6807, "kind": "tool_result", "name": "end_call", "result": {"spoken_to_caller": "Thank you for calling. Goodbye."}, "ms": 1}
+{"t_ms": 6809, "kind": "agent", "text": "Thank you for calling. Goodbye."}
+{"t_ms": 6812, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 6812, "kind": "call_end", "reason": "the agent ended it", "turns": 5, "requests": {"live": 5, "replayed": 1, "failed": 0}, "tokens": {"input_tokens": 20, "output_tokens": 126, "cache_read_input_tokens": 9877, "cache_creation_input_tokens": 181}, "cost_usd": 0.000186}

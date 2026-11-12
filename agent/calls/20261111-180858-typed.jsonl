@@ -1,0 +1,24 @@
+{"t_ms": 0, "kind": "call_start", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-11T18:08:58"}
+{"t_ms": 404, "kind": "ehr", "call": "OpenCall", "ms": 3, "outcome": "ok"}
+{"t_ms": 410, "kind": "llm", "key": "10324b8b", "hit": true, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 32, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 1863}, "total_ms": 1}
+{"t_ms": 410, "kind": "node", "name": "greet"}
+{"t_ms": 815, "kind": "agent", "text": "Hello, I'm the automated assistant for Main Street Clinic. How can I help you today?"}
+{"t_ms": 816, "kind": "caller", "text": "17+6?"}
+{"t_ms": 1694, "kind": "llm", "key": "7c29ca06", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 25, "cache_read_input_tokens": 1863, "cache_creation_input_tokens": 38}, "total_ms": 876, "first_event_ms": 792, "first_text_ms": 808}
+{"t_ms": 2103, "kind": "agent", "text": "I can only help with visits at this clinic. What do you need for your visit today?"}
+{"t_ms": 2103, "kind": "caller", "text": "2+2"}
+{"t_ms": 2826, "kind": "llm", "key": "b0aff0c8", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 27, "cache_read_input_tokens": 1901, "cache_creation_input_tokens": 30}, "total_ms": 721, "first_event_ms": 609, "first_text_ms": 610}
+{"t_ms": 3239, "kind": "agent", "text": "I can only help with visits at this clinic. Is there anything you need for your visit?"}
+{"t_ms": 3240, "kind": "caller", "text": "How do I say hello world in Python?"}
+{"t_ms": 3928, "kind": "llm", "key": "c8c78e45", "hit": false, "messages": 7, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 27, "cache_read_input_tokens": 1931, "cache_creation_input_tokens": 40}, "total_ms": 687, "first_event_ms": 548, "first_text_ms": 548}
+{"t_ms": 4332, "kind": "agent", "text": "I can only help with visits at this clinic. Is there anything you need for your visit?"}
+{"t_ms": 4332, "kind": "caller", "text": "Why can you help with math and not Python?"}
+{"t_ms": 5218, "kind": "llm", "key": "774a82d1", "hit": false, "messages": 9, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 36, "cache_read_input_tokens": 1971, "cache_creation_input_tokens": 41}, "total_ms": 884, "first_event_ms": 685, "first_text_ms": 685}
+{"t_ms": 5617, "kind": "agent", "text": "I can only help with visits at this clinic, so I can't help with that question. Is there something I can do for your visit?"}
+{"t_ms": 5618, "kind": "caller", "text": "Never mind, goodbye."}
+{"t_ms": 6286, "kind": "llm", "key": "2723bea6", "hit": false, "messages": 11, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 26, "cache_read_input_tokens": 2012, "cache_creation_input_tokens": 48}, "total_ms": 667, "first_event_ms": 659, "first_tool_ms": 659}
+{"t_ms": 6287, "kind": "tool_call", "name": "end_call", "arguments": {}}
+{"t_ms": 6288, "kind": "tool_result", "name": "end_call", "result": {"spoken_to_caller": "Thank you for calling. Goodbye."}, "ms": 1}
+{"t_ms": 6290, "kind": "agent", "text": "Thank you for calling. Goodbye."}
+{"t_ms": 6292, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 6293, "kind": "call_end", "reason": "the agent ended it", "turns": 5, "requests": {"live": 5, "replayed": 1, "failed": 0}, "tokens": {"input_tokens": 20, "output_tokens": 141, "cache_read_input_tokens": 9678, "cache_creation_input_tokens": 197}, "cost_usd": 0.000194}

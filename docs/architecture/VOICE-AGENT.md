@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-10-19
+updated: 2026-11-11
 ---
 # The hospital phone agent — research, decisions, the stack
 
@@ -100,8 +100,10 @@ store on the PC, DPAPI keys, the patient's SMART sign-in.
 - **The non-goals of the patient app go** (PATIENT-APP-DESIGN.md §5): a server hears PHI, and booking is a
   write to the EHR. The conversion rewrites DESIGN.md and SECURITY.md.
 - **The caller's identity is checked before the agent says any PHI.**
-- **A person is always one step away.** Emergency words transfer the call at once. No
-  medical advice, no triage.
+- **A person is always one step away.** Emergency words get a fixed 911 line at once; what
+  follows (the call goes on, a transfer, a nurse joined to the call) is the hospital's setting
+  (FUTURE-SETTINGS.md §1; the owner, 2026-11-11). No medical advice, no triage: a medical
+  question gets a fixed line (FUTURE-SETTINGS.md §2).
 - **A chart answer is read from the record, not written by the model.** The model picks what
   to look up; the value comes from the normalized model (the rule already in ideas/README for
   the on-device model). It cannot say a number the chart does not hold.

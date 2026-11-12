@@ -79,6 +79,25 @@ async def test_emergency_then_book(ehr):
     await assert_booked_9am(ehr)
 
 
+async def test_read_back_correction(ehr):
+    """Option A (2026-11-11): the details are read back before the lookup, the caller corrects
+    the name order and the date, and the code then verifies."""
+    call, replies = await run(ehr, "read_back_correction.txt")
+    read_backs = [r for r in replies if r and r.startswith("I have ")]
+    assert len(read_backs) == 2, "one read-back for the slip, one for the correction"
+    assert "Jordan Ellis, born March 12, 1984" in read_backs[1]
+    assert any(r and "you're verified" in r for r in replies)
+    assert call.ended
+
+
+async def test_off_topic(ehr):
+    """The off-topic rule (2026-11-11): no answers to arithmetic or how-to; the call ends on goodbye.
+    `run` fails on an invented value, so a sum such as "23" fails here."""
+    call, replies = await run(ehr, "off_topic.txt")
+    assert not any(r and "print(" in r for r in replies), "the model gave a Python answer"
+    assert call.ended
+
+
 async def test_medical_question(ehr):
     """Option 1A (2026-11-11): a medical question gets the fixed line, and the booking goes on."""
     call, replies = await run(ehr, "medical_question.txt")

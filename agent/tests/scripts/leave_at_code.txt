@@ -3,4 +3,5 @@
 # Run: uv run python harness/typed_call.py --script tests/scripts/leave_at_code.txt
 Hi, I'd like to book a check-up.
 Priya Raman, November 30, 1971
+Yes, that's right.
 I don't have my phone, I'll call back later. Bye.

@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-10-19
+updated: 2026-11-11
 ---
 # DeetsHealth — Design Doc
 
@@ -105,7 +105,7 @@ Status: ✅ done · 🔵 designing · ⬜ todo · ❄️ deferred to later
 | C2 | Verify the caller, factor 1: date of birth, or a random chart fact whose question reveals nothing (SECURITY.md §4.4) | ⬜ |
 | C3 | Verify the caller, factor 2: a code by text or a call back to the number on file; needed for any chart answer or booking | ⬜ |
 | C4 | Hand off to a person, from any node | ⬜ |
-| C5 | Emergency words transfer at once | ⬜ |
+| C5 | Emergency words: a fixed 911 line at once, spoken by code (a phrase screen, then the model's tool); the call goes on. The transfer, a nurse joined to the call, and the emergency flag are hospital settings (FUTURE-SETTINGS.md §1; the owner's option A, 2026-11-11) | 🔵 (the line built in Phase 1; the transfer waits on Phase 3) |
 | C6 | Turn-taking and barge-in | ⬜ |
 | C7 | Filler speech while a slow EHR call runs | ⬜ |
 | C8 | Spanish | ❄️ (the Spanish path is an open risk, §1) |

@@ -4,8 +4,9 @@
 # Run: uv run python harness/typed_call.py --script tests/scripts/medical_question.txt
 Hi, I'd like to book a check-up.
 Jordan Ellis, March 12, 1984
+Yes, that's right.
 246810
-I've had a bad headache all week. What's wrong with me? Can I come in soon?
-Yes, please find me a time.
+I've had a bad headache all week. What's wrong with me?
+Yes, please find me a time soon.
 The first one, please
 That's all, thanks

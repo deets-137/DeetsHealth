@@ -68,7 +68,7 @@ follows.
 
 **The default now** (the owner's option 1A, 2026-11-11): the `medical_question` tool speaks a
 fixed line ("I can't answer medical questions, but a clinician can talk with you about that at
-your visit."), and the task goes on. Code: `flow.py` `medical_question_fn`.
+your visit. Shall we go on with your visit?"), and the task goes on. Code: `flow.py` `medical_question_fn`.
 
 **The choices a hospital needs:** the words; an offer to transfer to a nurse line, where the
 hospital staffs one; a message to the care team that the caller asked (an EHR in-basket
@@ -86,8 +86,31 @@ in-basket message writes to it).
 model runs (the owner's option 2A, 2026-11-11: code reads the caller's words live, as a point
 of customization). Code: `screen.py` `EMERGENCY_PHRASES`.
 
-**The default now:** an English list (chest pain, can't breathe, am I dying, overdose, suicide,
-stroke, seizure, passed out, heavy bleeding, 911, and a few more). It fires once per call.
+**The default now:** the English list below. It fires once per call. Each entry is a pattern
+matched against the caller's line in lower case (curly apostrophes made straight); `\b` marks a
+word edge, `'?` an apostrophe that may be missing, `(a|b)` one of several words. **This list
+is checked against the code:** `test_screen.py` fails if it and `screen.py` differ, so change
+both together.
+
+- `\bchest pains?\b` — chest pain, chest pains
+- `\bheart attack\b` — heart attack
+- `\b(can'?t|cannot|can not|couldn'?t) breathe?\b` — I can't breathe, couldn't breathe
+- `\b(trouble|difficulty|hard time) breathing\b` — trouble breathing, a hard time breathing
+- `\bnot breathing\b` — he's not breathing
+- `\bam i dying\b` — am I dying
+- `\bi'?m dying\b(?! to\b)` — I'm dying (but not "I'm dying to get in")
+- `\bgoing to die\b` — I'm going to die
+- `\boverdos(e|ed|ing)\b` — overdose, overdosed, overdosing
+- `\bkill(ing)? myself\b` — kill myself, killing myself
+- `\bend my life\b` — end my life
+- `\bwant to die\b` — I want to die
+- `\bsuicid(e|al)\b` — suicide, suicidal
+- `\b(having a |had a )?stroke\b` — a stroke (also "a stroke of luck": over-calling is the safe side)
+- `\bseizures?\b` — a seizure, seizures
+- `\bunconscious\b` — unconscious
+- `\bpassed out\b` — she passed out
+- `\b(bleeding a lot|heavy bleeding|won'?t stop bleeding)\b` — heavy bleeding, it won't stop bleeding
+- `\b911\b` — should I call 911
 
 **The choices a hospital needs:** phrases to add or remove; a list for each language it
 serves; whether a match also raises the emergency flag (§1); whether it fires more than once

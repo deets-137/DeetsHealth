@@ -1,0 +1,15 @@
+{"t_ms": 0, "kind": "call_start", "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-11T18:10:02"}
+{"t_ms": 661, "kind": "ehr", "call": "OpenCall", "ms": 3, "outcome": "ok"}
+{"t_ms": 668, "kind": "llm", "key": "2c3dad93", "hit": true, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 31, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 1907}, "total_ms": 1}
+{"t_ms": 668, "kind": "node", "name": "greet"}
+{"t_ms": 1084, "kind": "agent", "text": "Hello, this is the automated assistant for Main Street Clinic. How can I help you today?"}
+{"t_ms": 1086, "kind": "caller", "text": "Hi, is this the clinic?"}
+{"t_ms": 2044, "kind": "llm", "key": "7f88e9d0", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 33, "cache_read_input_tokens": 1907, "cache_creation_input_tokens": 44}, "total_ms": 956, "first_event_ms": 712, "first_text_ms": 738}
+{"t_ms": 2454, "kind": "agent", "text": "Yes, this is Main Street Clinic's automated assistant. How can I help with your visit today?"}
+{"t_ms": 2455, "kind": "caller", "text": "Never mind, goodbye."}
+{"t_ms": 3246, "kind": "llm", "key": "ac119bcf", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 26, "cache_read_input_tokens": 1951, "cache_creation_input_tokens": 45}, "total_ms": 790, "first_event_ms": 554, "first_tool_ms": 555}
+{"t_ms": 3248, "kind": "tool_call", "name": "end_call", "arguments": {}}
+{"t_ms": 3250, "kind": "tool_result", "name": "end_call", "result": {"spoken_to_caller": "Thank you for calling. Goodbye."}, "ms": 1}
+{"t_ms": 3253, "kind": "agent", "text": "Thank you for calling. Goodbye."}
+{"t_ms": 3255, "kind": "ehr", "call": "CloseCall", "ms": 2, "outcome": "ok"}
+{"t_ms": 3256, "kind": "call_end", "reason": "the agent ended it", "turns": 2, "requests": {"live": 2, "replayed": 1, "failed": 0}, "tokens": {"input_tokens": 8, "output_tokens": 59, "cache_read_input_tokens": 3858, "cache_creation_input_tokens": 89}, "cost_usd": 8e-05}

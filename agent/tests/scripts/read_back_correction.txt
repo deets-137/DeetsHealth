@@ -1,0 +1,10 @@
+# A typed call: the caller gives the name in the wrong order and the wrong day (the owner's desk
+# test, 2026-11-11: "ellis jordan 21 3 1984"). The read-back (option A) lets them correct it
+# before the lookup, and they verify.
+# Run: uv run python harness/typed_call.py --script tests/scripts/read_back_correction.txt
+Hi, I'd like to check on my visits.
+My name is ellis jordan 21 3 1984
+No, my first name is Jordan and my last name is Ellis, and I was born March 12, 1984.
+Yes, that's right.
+246810
+That's all, thanks

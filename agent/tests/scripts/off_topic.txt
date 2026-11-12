@@ -1,0 +1,10 @@
+# A typed call: the caller asks off-topic questions (the owner's desk test, 2026-11-11: "17+6?",
+# "how do I say hello world in python"). The agent answers none of them, gently steers back to
+# visits, and ends the call on goodbye. The invented-value check fails the test if the model
+# gives a sum.
+# Run: uv run python harness/typed_call.py --script tests/scripts/off_topic.txt
+17+6?
+2+2
+How do I say hello world in Python?
+Why can you help with math and not Python?
+Never mind, goodbye.

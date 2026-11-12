@@ -30,6 +30,21 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   calling fits under 10. Each node offers 5 to 7. Server-side tool search is not
   HIPAA-eligible, so it is out on the PHI path (AGENT.md §3).
 - Spend: about a cent in all. 32 agent tests pass.
+- Later desk test: the model still answered sums. The off-topic rule now says to give no
+  answer, not even arithmetic, kindly, and steer back to visits (kept script `off_topic`).
+  "ellis jordan 21 3 1984" did not verify: the fake patient is Jordan Ellis, born March 12,
+  1984, so both the name order and the date were wrong, and the agent said the same words as for
+  a match, as designed. Re-recording found the medical line spoken twice: it ended in a
+  statement, so the model spoke next and repeated it; it now ends in a question.
+  The full emergency phrase list is in FUTURE-SETTINGS.md §3, checked against the code by a
+  test; DESIGN.md C5 and VOICE-AGENT.md now match option A. 34 agent tests pass.
+- The owner chose A: read back the name and date of birth before the lookup. Built: `identify`
+  reads back, `confirm_details` looks up. His slip now gets corrected and verifies (kept script
+  `read_back_correction`).
+- He asked to read and hand-edit the prompt. Every word moved to
+  `agent/prompts/AGENT-PROMPT.md`, loaded and checked at start-up (`prompts.py`). Its first edit:
+  "I'm just worried" had been taken as a medical question and the booking skipped; worry alone
+  is not a medical question now. 43 agent tests pass; about two cents spent this round.
 
 ## 2026-11-11 (later) — the second desk test: the code step, ending a call
 - The owner's second typed call ran with no crash. He stopped at the code step: no text is

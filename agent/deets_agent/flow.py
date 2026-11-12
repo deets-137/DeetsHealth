@@ -1,8 +1,8 @@
 """The call's shape (VOICE-AGENT.md §8.1): each node has its own instructions and its own tools.
 
-    greet ─► verify (name and birth date, then the code) ─► menu ─┬─► schedule (find, book)
-                                                                  └─► next visit
-    any node ─► hand off to a person            menu ─► goodbye
+    greet ─► verify (name and birth date, read back, then the code) ─► menu ─┬─► schedule (find, book)
+                                                                             └─► next visit
+    any node ─► hand off to a person            any node ─► goodbye
 
 Phase 1 features (BUILD-ORDER.md): C1 greet, C2 + C3 verify (C3 with ehr's fake code), C4 hand
 off, S1 find, S2 book, S5 next visit.
@@ -13,22 +13,30 @@ Two locks on the chart (SECURITY.md §4.9):
 - **ehr:** every chart and booking call is refused until ehr itself has seen both factors. A
   tool takes no patient argument; the call's handle lives in this object, never in a prompt.
 
+**Every word is in `agent/prompts/AGENT-PROMPT.md`** (the owner, 2026-11-11): the role prompt,
+each node's task, each tool's description and every fixed line. This file holds the logic only;
+`prompts.text(name, ...)` fetches the words.
+
 **The fixed lines are spoken by the code, not the model** (the owner, 2026-11-11, fork 1A).
 Every line a tool produces (`_say`) goes straight to the caller as a `TTSSpeakFrame`, word for
 word: the template rule of SECURITY.md §4.9 is held by code, not by the prompt. The tool result
 tells the model what the caller heard (`spoken_to_caller`). A line that ends in a question waits
 for the caller; any other line lets the model go on. Every line ends in a question except where
 the model must act next ("Let me look for others"), because a model that goes on after a fixed
-line tends to say it again (2026-11-11). The agent's final
-words, name and voice are the owner's to decide (DESIGN.md §B, Phase 3 at the latest); these
-are working words.
+line tends to say it again (2026-11-11).
+
+**The read-back** (the owner, 2026-11-11, option A): `identify` does not look the caller up. It
+reads the name and date of birth back as a fixed line and keeps them; only `confirm_details`,
+after the caller says yes, sends them to ehr. A slip ("Ellis Jordan, 21 3 1984") is caught
+before it costs a try or ends in a code that never comes. The read-back repeats only the
+caller's own words, so it tells them nothing about the record.
 
 **Today** is set per call (`today`), so the model's sense of "tomorrow" or "next Tuesday" is
 right on a real call. A typed call pins it to `FAKE_TODAY`, because ehr's fake slots are fixed
 to the weeks after it and the replay cache needs the same prompt on every run.
 
-Nothing protected goes into Flows' `state` or a log: the handle and the offered slots live on
-this object, as `Shielded`.
+Nothing protected goes into Flows' `state` or a log: the handle, the details waiting for the
+caller's yes and the offered slots live on this object, as `Shielded`.
 """
 
 from __future__ import annotations
@@ -43,6 +51,7 @@ from pipecat.flows import NO_RESPONSE, FlowManager, FlowsFunctionSchema, NodeCon
 from pipecat.frames.frames import TTSSpeakFrame
 
 from deets_agent.ehr_client import CheckOutcome, EhrClient, EhrError, ErrorKind, Slot, Visit
+from deets_agent.prompts import text
 from deets_agent.shielded import Shielded
 
 CLINIC = "Main Street Clinic"
@@ -64,6 +73,11 @@ def spoken_day(d: date) -> str:
     return f"{_DAYS[d.weekday()]}, {_MONTHS[d.month - 1]} {d.day}"
 
 
+def spoken_date(d: date) -> str:
+    """'1984-03-21' -> 'March 21, 1984' (a birth date, read back)."""
+    return f"{_MONTHS[d.month - 1]} {d.day}, {d.year}"
+
+
 def spoken_time(starts_at: str) -> str:
     """'2026-11-02T14:30' -> 'Monday, November 2, at 2:30 PM'."""
     t = datetime.strptime(starts_at, "%Y-%m-%dT%H:%M")
@@ -82,49 +96,35 @@ def _visit_words(v: Slot | Visit) -> str:
 
 
 # The fixed 911 line (the owner's option A, 2026-11-11). Spoken by the `emergency` tool and by
-# the phrase screen (screen.py). Working words; the hospital sets its own later
-# (FUTURE-SETTINGS.md §1).
-EMERGENCY_LINE = (
-    "If this might be an emergency, please hang up and call 911 now. "
-    "If you're safe to go on, would you like me to keep helping with your call?"
-)
+# the phrase screen (screen.py). The hospital sets its own words later (FUTURE-SETTINGS.md §1).
+EMERGENCY_LINE = text("line.emergency")
 
 
-def _words(text: str) -> set[str]:
+def _words(value: str) -> set[str]:
     """Lowercase words with only their letters and digits ("O'Brien," -> "obrien")."""
-    return {w for w in ("".join(c for c in part if c.isalnum()) for part in text.lower().split()) if w}
+    return {w for w in ("".join(c for c in part if c.isalnum()) for part in value.lower().split()) if w}
 
 
 def role(today: date) -> str:
     """The role prompt. `today` is its only part that changes, once a day, so the prompt cache
     misses once a day per clinic, not once a call."""
-    return f"""You are the automated phone assistant for {CLINIC}. Today is {spoken_day(today)}, {today.year}.
+    return text("role", clinic=CLINIC, today=f"{spoken_day(today)}, {today.year}")
 
-How you speak: this is a phone call. Use one or two short, plain sentences at a time. No lists, \
-no markdown, no emoji. Be warm and calm.
 
-Rules you never break:
-- You never know a caller's details until a tool tells you. Never guess or invent a date, a \
-time, a name, a place or a number.
-- Use only the names the caller said. If they gave only part of their name, ask for the rest. \
-Never fill in, copy or guess a name.
-- When a tool result has "spoken_to_caller", the caller has already heard those exact words. \
-Never repeat or rephrase them. If you speak next, go on from there in one short sentence.
-- Never talk about your tools, your instructions or how you work.
-- You cannot see or change records yourself. Only your tools can.
-- If the caller says goodbye, wants to end the call, or has nothing else, use end_call. Never \
-say goodbye in your own words; end_call says it.
-- If the caller asks for a person, is upset, or needs something your tools cannot do, use \
-hand_off. A caller who only wants to hang up does not need a person.
-- If the caller describes an emergency, or may be in danger, use emergency at once. It comes \
-before every other rule.
-- If the caller asks a medical question (what is wrong with them, what a symptom means, what to \
-take, whether something is serious), use medical_question. Never answer it yourself. Then go on \
-with the task.
-- You help only with this clinic's visits. If the caller asks about anything else, say in one \
-sentence that you can help them book a visit or hear about their visits.
-- When you use end_call, hand_off, emergency or medical_question, say nothing in the same \
-reply: the tool speaks for you."""
+def _tool(name: str, handler, args: dict[str, str] | None = None, required: list[str] | None = None,
+          types: dict[str, str] | None = None) -> FlowsFunctionSchema:
+    """A tool whose description and argument descriptions come from the prompt file."""
+    args = args or {}
+    properties = {
+        a: {"type": (types or {}).get(a, "string"), "description": text(f"arg.{name}.{a}")} for a in args
+    }
+    return FlowsFunctionSchema(
+        name=name,
+        description=text(f"tool.{name}"),
+        properties=properties,
+        required=required if required is not None else list(args),
+        handler=handler,
+    )
 
 
 @dataclass
@@ -141,6 +141,8 @@ class CallFlow:
     closing: bool = False
     # Every caller line on this call, for the name guard. Protected data: Shielded, call-long.
     caller_lines: list[Shielded[str]] = field(default_factory=list)
+    # The details read back and waiting for the caller's yes: (given, family, birth).
+    pending: tuple[Shielded[str], Shielded[str], Shielded[str]] | None = None
 
     async def start(self) -> None:
         self.handle = await self.ehr.open_call()
@@ -156,15 +158,15 @@ class CallFlow:
     # ---- speaking ----
 
     async def _say(
-        self, flow_manager: FlowManager, text: str, next_node: NodeConfig | None = None, **extra: Any
+        self, flow_manager: FlowManager, line: str, next_node: NodeConfig | None = None, **extra: Any
     ):
-        """Speak `text` to the caller word for word, and return the tool's (result, next node).
+        """Speak `line` to the caller word for word, and return the tool's (result, next node).
 
         A line that ends in a question waits for the caller; any other line lets the model go on.
         """
-        await flow_manager.worker.queue_frame(TTSSpeakFrame(text=text, append_to_context=False))
-        result = {"spoken_to_caller": text, **extra}
-        wait = text.rstrip().endswith("?")
+        await flow_manager.worker.queue_frame(TTSSpeakFrame(text=line, append_to_context=False))
+        result = {"spoken_to_caller": line, **extra}
+        wait = line.rstrip().endswith("?")
         if next_node is None:
             return result, (NO_RESPONSE if wait else None)
         if not next_node.get("closing"):
@@ -174,69 +176,41 @@ class CallFlow:
 
     # ---- nodes ----
 
+    @staticmethod
+    def _task(name: str, **values: str) -> list[dict[str, str]]:
+        return [{"role": "developer", "content": text(f"task.{name}", **values)}]
+
     def greet(self) -> NodeConfig:
         return {
             "name": "greet",
             "role_message": role(self.today),
-            "task_messages": [
-                {
-                    "role": "developer",
-                    "content": (
-                        f"Greet the caller: say you are {CLINIC}'s automated assistant and ask how "
-                        "you can help. To book a visit or hear about their own visits, the caller "
-                        "must first confirm who they are: ask for their first name, last name and "
-                        "date of birth, then use identify."
-                    ),
-                }
-            ],
-            "functions": [self._identify_fn()],
+            "task_messages": self._task("greet", clinic=CLINIC),
+            "functions": [self._identify_fn(), self._confirm_details_fn()],
         }
 
     def verify(self) -> NodeConfig:
         return {
             "name": "verify",
-            "task_messages": [
-                {
-                    "role": "developer",
-                    "content": (
-                        "The caller has been asked for the 6-digit code from the text message. When "
-                        "they read it, use check_code. If they got no text, offer to send it again "
-                        "with resend_code, or to try their name and date of birth again with identify."
-                    ),
-                }
+            "task_messages": self._task("verify"),
+            "functions": [
+                self._check_code_fn(),
+                self._resend_code_fn(),
+                self._identify_fn(),
+                self._confirm_details_fn(),
             ],
-            "functions": [self._check_code_fn(), self._resend_code_fn(), self._identify_fn()],
         }
 
     def menu(self) -> NodeConfig:
         return {
             "name": "menu",
-            "task_messages": [
-                {
-                    "role": "developer",
-                    "content": (
-                        "The caller is verified and has been asked what they need. To book a visit, "
-                        "use find_slots; to hear when their next visit is, use next_visit. When they "
-                        "are done, use end_call."
-                    ),
-                }
-            ],
+            "task_messages": self._task("menu"),
             "functions": [self._find_slots_fn(), self._next_visit_fn()],
         }
 
     def schedule(self) -> NodeConfig:
         return {
             "name": "schedule",
-            "task_messages": [
-                {
-                    "role": "developer",
-                    "content": (
-                        "The caller has heard the numbered options and been asked which one they "
-                        "want. When they choose, use book with the option number. If none suits "
-                        "them, use find_slots with another day."
-                    ),
-                }
-            ],
+            "task_messages": self._task("schedule"),
             "functions": [self._book_fn(), self._find_slots_fn()],
         }
 
@@ -263,82 +237,47 @@ class CallFlow:
     def medical_question_fn(self) -> FlowsFunctionSchema:
         # The owner's option 1A (2026-11-11): a fixed line, so no medical wording of the model's
         # own reaches a patient. A tool, so the hospital can set the words and what follows (a
-        # nurse line) later (FUTURE-SETTINGS.md §2). The line is a statement, so the model goes
-        # on with the task after it.
+        # nurse line) later (FUTURE-SETTINGS.md §2). It ends in a question, like every fixed line:
+        # a statement let the model speak next, and it said the line again (2026-11-11).
         async def handler(args, flow_manager: FlowManager):
             logger.info("medical question line spoken")
-            return await self._say(
-                flow_manager,
-                "I can't answer medical questions, but a clinician can talk with you about that at your visit.",
-            )
+            return await self._say(flow_manager, text("line.medical_question"))
 
-        return FlowsFunctionSchema(
-            name="medical_question",
-            description=(
-                "Tell the caller you cannot answer medical questions. Use when they ask what is "
-                "wrong with them, what a symptom means, what to take, or whether something is serious."
-            ),
-            properties={},
-            required=[],
-            handler=handler,
-        )
+        return _tool("medical_question", handler)
 
     def emergency_fn(self) -> FlowsFunctionSchema:
         # The owner's option A (2026-11-11): the 911 line is fixed, and the call stays open, so a
         # caller who is only worried keeps their place (a chosen option stays offered). What
         # follows the line is a hospital setting later (FUTURE-SETTINGS.md): a nurse line, or
-        # an end to the call. The words are working words; the owner sets the final ones.
+        # an end to the call.
         async def handler(args, flow_manager: FlowManager):
             logger.info("emergency line spoken")
             return await self._say(flow_manager, EMERGENCY_LINE)
 
-        return FlowsFunctionSchema(
-            name="emergency",
-            description=(
-                "Tell the caller to hang up and call 911. Use at once when they describe an "
-                "emergency or may be in danger, at any step."
-            ),
-            properties={},
-            required=[],
-            handler=handler,
-        )
+        return _tool("emergency", handler)
 
     def end_call_fn(self) -> FlowsFunctionSchema:
         # Global, so a caller can leave at any step, verified or not; before, "end call" in the
         # verify step had only hand_off, and "goodbye" in greet had no tool at all.
         async def handler(args, flow_manager: FlowManager):
-            return await self._say(flow_manager, "Thank you for calling. Goodbye.", self.goodbye())
+            return await self._say(flow_manager, text("line.goodbye"), self.goodbye())
 
-        return FlowsFunctionSchema(
-            name="end_call",
-            description="End the call: the caller says goodbye, wants to hang up, or has nothing else.",
-            properties={},
-            required=[],
-            handler=handler,
-        )
+        return _tool("end_call", handler)
 
     def hand_off_fn(self) -> FlowsFunctionSchema:
         async def handler(args, flow_manager: FlowManager):
             logger.info("hand off requested")
             # Phase 1 has no line to transfer to; the call ends with the words only.
-            return await self._say(
-                flow_manager, "Of course. I'm connecting you with a member of our staff now.", self.handed_off()
-            )
+            return await self._say(flow_manager, text("line.hand_off"), self.handed_off())
 
-        return FlowsFunctionSchema(
-            name="hand_off",
-            description="Connect the caller with a person. Use when they ask for one, or you cannot help.",
-            properties={},
-            required=[],
-            handler=handler,
-        )
+        return _tool("hand_off", handler)
 
     # ---- verification ----
 
-    def heard(self, text: str) -> None:
+    def heard(self, line: str) -> None:
         """Keep a caller line for the name guard (screen.py feeds every line). Protected data:
         held as Shielded, for this call only."""
-        self.caller_lines.append(Shielded(text))
+        self.caller_lines.append(Shielded(line))
 
     def _was_said(self, name: str) -> bool:
         """True when every word of `name` is a word the caller said on this call."""
@@ -350,9 +289,9 @@ class CallFlow:
             said |= _words(line.reveal())
         return words <= said
 
-    def _possible_birth(self, text: str) -> bool:
+    def _possible_birth(self, value: str) -> bool:
         try:
-            born = date.fromisoformat(text)
+            born = date.fromisoformat(value)
         except ValueError:
             return False
         return EARLIEST_BIRTH <= born <= self.today
@@ -363,11 +302,7 @@ class CallFlow:
             if not self._possible_birth(birth_text):
                 # Caught here, so a slip of the tongue costs no try (ehr refuses it too).
                 logger.info("identify: birth date not possible; asked again")
-                return await self._say(
-                    flow_manager,
-                    "I'm sorry, that date of birth doesn't sound right. Could you say it again, "
-                    "with the month, the day and the year?",
-                )
+                return await self._say(flow_manager, text("line.birth_not_possible"))
             given_text = str(args.get("given_name", "")).strip()
             family_text = str(args.get("family_name", "")).strip()
             if not (self._was_said(given_text) and self._was_said(family_text)):
@@ -375,77 +310,54 @@ class CallFlow:
                 # filled-in or guessed name ("Billy Bob" as both names) is caught here, costs no
                 # try, and the caller is asked again.
                 logger.info("identify: a name the caller did not say; asked again")
-                return await self._say(
-                    flow_manager,
-                    "I'm sorry, I didn't catch your full name. Could you tell me your first and last name?",
-                )
-            given = Shielded(given_text)
-            family = Shielded(family_text)
-            birth = Shielded(birth_text)
+                return await self._say(flow_manager, text("line.name_not_said"))
+            # The read-back (option A): nothing goes to ehr until the caller says yes.
+            self.pending = (Shielded(given_text), Shielded(family_text), Shielded(birth_text))
+            logger.info("identify: details read back")
+            line = text(
+                "line.read_back",
+                given=given_text,
+                family=family_text,
+                birth=spoken_date(date.fromisoformat(birth_text)),
+            )
+            return await self._say(flow_manager, line)
+
+        return _tool("identify", handler, {"given_name": "", "family_name": "", "birth_date": ""})
+
+    def _confirm_details_fn(self) -> FlowsFunctionSchema:
+        async def handler(args, flow_manager: FlowManager):
+            if self.pending is None:
+                logger.info("confirm_details: nothing read back yet; asked for details")
+                return await self._say(flow_manager, text("line.ask_details"))
+            given, family, birth = self.pending
+            self.pending = None
             try:
                 left = await self.ehr.identify(self.handle, given, family, birth)
             except EhrError as e:
                 return await self._ehr_trouble(flow_manager, e, "identify")
             logger.info("identify sent, {} tries left", left)
             # The same words whether or not a patient matched (SECURITY.md §4.4).
-            return await self._say(
-                flow_manager,
-                "Thank you. If those details match our records, we've just sent a 6-digit code "
-                "by text to the phone number we have on file. Could you read it to me?",
-                self.verify(),
-            )
+            return await self._say(flow_manager, text("line.code_sent"), self.verify())
 
-        return FlowsFunctionSchema(
-            name="identify",
-            description=(
-                "Look up the caller by first name, last name and date of birth, and text them a code. "
-                "Use only names the caller said; ask for any part they did not give."
-            ),
-            properties={
-                "given_name": {"type": "string", "description": "The caller's first name, as they said it."},
-                "family_name": {"type": "string", "description": "The caller's last name, as they said it."},
-                "birth_date": {"type": "string", "description": "Date of birth as YYYY-MM-DD."},
-            },
-            required=["given_name", "family_name", "birth_date"],
-            handler=handler,
-        )
+        return _tool("confirm_details", handler)
 
     def _check_code_fn(self) -> FlowsFunctionSchema:
         async def handler(args, flow_manager: FlowManager):
             digits = "".join(c for c in str(args.get("code", "")) if c.isdigit())
             if len(digits) != 6:
-                return await self._say(flow_manager, "The code has 6 digits. Could you read it again?")
+                return await self._say(flow_manager, text("line.code_length"))
             try:
                 outcome, left = await self.ehr.check_code(self.handle, Shielded(digits))
             except EhrError as e:
                 return await self._ehr_trouble(flow_manager, e, "check_code")
             logger.info("code check: {}", outcome.value)
             if outcome is CheckOutcome.PASS:
-                return await self._say(
-                    flow_manager,
-                    "Thank you, you're verified. Would you like to book a visit, or hear when your next visit is?",
-                    self.menu(),
-                )
+                return await self._say(flow_manager, text("line.verified"), self.menu())
             if outcome is CheckOutcome.LOCKED:
-                return await self._say(
-                    flow_manager,
-                    "I'm sorry, I can't confirm your identity on this call. Let me connect you with a person.",
-                    self.handed_off(),
-                )
-            return await self._say(
-                flow_manager,
-                "That code didn't match. If no text came, the details may not match our records. "
-                "Could you read the code again, or would you like me to send a new one?",
-                tries_left=left,
-            )
+                return await self._say(flow_manager, text("line.locked"), self.handed_off())
+            return await self._say(flow_manager, text("line.code_wrong"), tries_left=left)
 
-        return FlowsFunctionSchema(
-            name="check_code",
-            description="Check the 6-digit code the caller read from their text message.",
-            properties={"code": {"type": "string", "description": "The 6 digits the caller read."}},
-            required=["code"],
-            handler=handler,
-        )
+        return _tool("check_code", handler, {"code": ""})
 
     def _resend_code_fn(self) -> FlowsFunctionSchema:
         async def handler(args, flow_manager: FlowManager):
@@ -453,25 +365,11 @@ class CallFlow:
                 left = await self.ehr.resend_code(self.handle)
             except EhrError as e:
                 if e.kind is ErrorKind.NOT_ALLOWED_NOW:
-                    return await self._say(
-                        flow_manager,
-                        "I can't send another code on this call. Let me connect you with a person.",
-                        self.handed_off(),
-                    )
+                    return await self._say(flow_manager, text("line.no_more_codes"), self.handed_off())
                 return await self._ehr_trouble(flow_manager, e, "resend_code")
-            return await self._say(
-                flow_manager,
-                "I've sent the code again. It can take a minute to arrive. Could you read it to me when it does?",
-                resends_left=left,
-            )
+            return await self._say(flow_manager, text("line.code_resent"), resends_left=left)
 
-        return FlowsFunctionSchema(
-            name="resend_code",
-            description="Send the text code again to the number on file.",
-            properties={},
-            required=[],
-            handler=handler,
-        )
+        return _tool("resend_code", handler)
 
     # ---- the chart and booking (only in menu and schedule) ----
 
@@ -487,28 +385,15 @@ class CallFlow:
             self.offered = slots
             self.book_keys.clear()
             if not slots:
-                return await self._say(flow_manager, "I don't see any open times then. Would another day work?")
-            options = [f"Option {i}: {_visit_words(s)}." for i, s in enumerate(slots, 1)]
+                return await self._say(flow_manager, text("line.no_slots"))
+            options = " ".join(
+                text("line.slot_option", number=str(i), visit=_visit_words(s)) for i, s in enumerate(slots, 1)
+            )
             return await self._say(
-                flow_manager,
-                "Here are the times I have. " + " ".join(options) + " Which one would you like?",
-                self.schedule(),
-                options=len(slots),
+                flow_manager, text("line.slots", options=options), self.schedule(), options=len(slots)
             )
 
-        return FlowsFunctionSchema(
-            name="find_slots",
-            description="Find open visit times for the caller.",
-            properties={
-                "reason": {"type": "string", "description": "What the visit is for, in the caller's words."},
-                "earliest_day": {
-                    "type": "string",
-                    "description": "The earliest day they can come, YYYY-MM-DD. Leave empty for the next open day.",
-                },
-            },
-            required=["reason"],
-            handler=handler,
-        )
+        return _tool("find_slots", handler, {"reason": "", "earliest_day": ""}, required=["reason"])
 
     def _book_fn(self) -> FlowsFunctionSchema:
         async def handler(args, flow_manager: FlowManager):
@@ -517,7 +402,7 @@ class CallFlow:
             except (TypeError, ValueError):
                 option = 0
             if not 1 <= option <= len(self.offered):
-                return await self._say(flow_manager, "Which option would you like?")
+                return await self._say(flow_manager, text("line.which_option"))
             key = self.book_keys.setdefault(option, secrets.token_urlsafe(24))
             chosen = self.offered[option - 1]
             try:
@@ -526,20 +411,12 @@ class CallFlow:
                 return await self._ehr_trouble(flow_manager, e, "book")
             if booked is None:
                 logger.info("book: slot taken")
-                return await self._say(flow_manager, "I'm sorry, that time was just taken. Let me look for others.")
+                return await self._say(flow_manager, text("line.slot_taken"))
             logger.info("book: booked")
             self.offered = []
-            return await self._say(
-                flow_manager, f"You're booked for {_visit_words(booked)}. Is there anything else?", self.menu()
-            )
+            return await self._say(flow_manager, text("line.booked", visit=_visit_words(booked)), self.menu())
 
-        return FlowsFunctionSchema(
-            name="book",
-            description="Book the option the caller chose.",
-            properties={"option": {"type": "integer", "description": "The option number the caller chose."}},
-            required=["option"],
-            handler=handler,
-        )
+        return _tool("book", handler, {"option": ""}, types={"option": "integer"})
 
     def _next_visit_fn(self) -> FlowsFunctionSchema:
         async def handler(args, flow_manager: FlowManager):
@@ -548,39 +425,19 @@ class CallFlow:
             except EhrError as e:
                 return await self._ehr_trouble(flow_manager, e, "next_visit")
             if visit is None:
-                return await self._say(
-                    flow_manager, "I don't see any visits coming up for you. Would you like to book one?"
-                )
-            return await self._say(
-                flow_manager, f"Your next visit is {_visit_words(visit)}. Is there anything else I can help with?"
-            )
+                return await self._say(flow_manager, text("line.no_visits"))
+            return await self._say(flow_manager, text("line.next_visit", visit=_visit_words(visit)))
 
-        return FlowsFunctionSchema(
-            name="next_visit",
-            description="Tell the caller when their next visit is.",
-            properties={},
-            required=[],
-            handler=handler,
-        )
+        return _tool("next_visit", handler)
 
     # ---- trouble ----
 
     async def _ehr_trouble(self, flow_manager: FlowManager, e: EhrError, call: str):
         logger.warning("ehr {} failed: {}", call, e.kind.value)
         if e.kind in (ErrorKind.NOT_VERIFIED, ErrorKind.NO_SUCH_CALL):
-            return await self._say(
-                flow_manager,
-                "I'm sorry, I can't do that on this call. Let me connect you with a person.",
-                self.handed_off(),
-            )
+            return await self._say(flow_manager, text("line.not_on_this_call"), self.handed_off())
         if e.kind is ErrorKind.NOT_ALLOWED_NOW:
-            return await self._say(
-                flow_manager, "I can't do that right now. Let me connect you with a person.", self.handed_off()
-            )
+            return await self._say(flow_manager, text("line.not_now"), self.handed_off())
         if e.kind is ErrorKind.BAD_INPUT:
-            return await self._say(flow_manager, "I didn't catch that clearly. Could you say it again?")
-        return await self._say(
-            flow_manager,
-            "Our scheduling system isn't answering right now. Let me connect you with a person.",
-            self.handed_off(),
-        )
+            return await self._say(flow_manager, text("line.say_again"))
+        return await self._say(flow_manager, text("line.ehr_down"), self.handed_off())

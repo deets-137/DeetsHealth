@@ -52,6 +52,38 @@ def new_flow(ehr) -> CallFlow:
     return flow
 
 
+async def identify(flow: CallFlow, args: dict, fm=None):
+    """`identify` reads the details back; the caller says yes; `confirm_details` looks them up."""
+    fm = fm or manager()
+    _, nxt = await handler(flow.greet(), "identify")(args, fm)
+    assert nxt is NO_RESPONSE, "the read-back waits for the caller"
+    return await handler(flow.greet(), "confirm_details")({}, fm)
+
+
+async def test_identify_reads_back_and_looks_up_nothing_until_yes(ehr):
+    flow = new_flow(ehr)
+    await flow.start()
+    fm = manager()
+    result, nxt = await handler(flow.greet(), "identify")(dict(JORDAN, birth_date="1984-03-21"), fm)
+    assert nxt is NO_RESPONSE
+    assert result["spoken_to_caller"] == "I have Jordan Ellis, born March 21, 1984. Is that right?"
+    # The caller corrects the date: identify again, a new read-back, then yes.
+    _, node = await identify(flow, JORDAN, fm)
+    assert node["name"] == "verify"
+    # Only one try went to ehr, and it matched: the code verifies.
+    result, _ = await handler(node, "check_code")(CODE, manager())
+    assert "verified" in result["spoken_to_caller"]
+    await flow.close()
+
+
+async def test_confirm_with_nothing_read_back_asks_for_details(ehr):
+    flow = new_flow(ehr)
+    await flow.start()
+    result, nxt = await handler(flow.greet(), "confirm_details")({}, manager())
+    assert nxt is NO_RESPONSE and "first name, last name and date of birth" in result["spoken_to_caller"]
+    await flow.close()
+
+
 async def test_the_name_guard_asks_again_for_a_name_never_said(ehr):
     flow = new_flow(ehr)
     await flow.start()
@@ -59,7 +91,7 @@ async def test_the_name_guard_asks_again_for_a_name_never_said(ehr):
     result, nxt = await handler(flow.greet(), "identify")(dict(JORDAN, family_name="Smith"), fm)
     assert nxt is NO_RESPONSE and "full name" in result["spoken_to_caller"]
     # No try was used: the real name still verifies after it.
-    _, node = await handler(flow.greet(), "identify")(JORDAN, manager())
+    _, node = await identify(flow, JORDAN)
     result, _ = await handler(node, "check_code")(CODE, manager())
     assert "verified" in result["spoken_to_caller"]
     await flow.close()
@@ -88,7 +120,7 @@ async def test_a_whole_call_through_the_handlers(ehr):
     flow = new_flow(ehr)
     fm = manager()
     await flow.start()
-    result, node = await handler(flow.greet(), "identify")(JORDAN, fm)
+    result, node = await identify(flow, JORDAN, fm)
     assert node["name"] == "verify" and node["respond_immediately"] is False
     result, node = await handler(node, "check_code")(CODE, fm)
     assert node["name"] == "menu"
@@ -107,7 +139,7 @@ async def test_a_whole_call_through_the_handlers(ehr):
     assert "Monday, November 2" in result["spoken_to_caller"]
 
     # Every line the model was told about is a line the caller heard, word for word.
-    assert len(spoken(fm)) == 6
+    assert len(spoken(fm)) == 7  # the read-back, then six lines
     assert spoken(fm)[-1] == result["spoken_to_caller"]
     await flow.close()
 
@@ -115,9 +147,7 @@ async def test_a_whole_call_through_the_handlers(ehr):
 async def test_a_wrong_identity_never_verifies_and_three_wrong_codes_hand_off(ehr):
     flow = new_flow(ehr)
     await flow.start()
-    _, node = await handler(flow.greet(), "identify")(
-        {"given_name": "Nobody", "family_name": "Here", "birth_date": "2000-01-01"}, manager()
-    )
+    _, node = await identify(flow, {"given_name": "Nobody", "family_name": "Here", "birth_date": "2000-01-01"})
     # The same words as a match (SECURITY.md §4.4).
     assert node["name"] == "verify"
     check = handler(node, "check_code")
@@ -133,12 +163,12 @@ async def test_an_impossible_birth_date_costs_no_try(ehr):
     # The 2026-11-11 desk test: "2056" sent to identify used one of the three tries.
     flow = new_flow(ehr)
     await flow.start()
-    identify = handler(flow.greet(), "identify")
+    read_back = handler(flow.greet(), "identify")
     for _ in range(4):
-        result, nxt = await identify(dict(JORDAN, birth_date="2056-02-27"), manager())
+        result, nxt = await read_back(dict(JORDAN, birth_date="2056-02-27"), manager())
         assert nxt is NO_RESPONSE and "doesn't sound right" in result["spoken_to_caller"]
     # All three tries are still there: the real date still verifies.
-    _, node = await identify(JORDAN, manager())
+    _, node = await identify(flow, JORDAN)
     _, node = await handler(node, "check_code")(CODE, manager())
     assert node["name"] == "menu"
     await flow.close()
@@ -147,7 +177,7 @@ async def test_an_impossible_birth_date_costs_no_try(ehr):
 async def test_the_model_never_sees_a_slot_token(ehr):
     flow = new_flow(ehr)
     await flow.start()
-    _, node = await handler(flow.greet(), "identify")(JORDAN, manager())
+    _, node = await identify(flow, JORDAN)
     _, node = await handler(node, "check_code")(CODE, manager())
     result, _ = await handler(node, "find_slots")({"reason": "a check-up"}, manager())
     for slot in flow.offered:

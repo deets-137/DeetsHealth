@@ -69,6 +69,9 @@ bundle and the worker that re-hosts it. `IDENTITY-WORKER.md` — the patient-sha
   retention, the model, staff access), vendors and BAAs, the law. S1 and S2 decided.
 - `AGENT.md` — the agent (`agent/`) as built: run it, the parts, the GA-only LLM client and the
   replay cache, the decisions made while building, the known gaps.
+- **`agent/prompts/AGENT-PROMPT.md`** — every word of the agent: the role prompt, each step's
+  task, each tool's description, every fixed line. The owner edits it by hand; never put prompt
+  words in `flow.py`. After an edit, record the kept scripts again (AGENT.md §3).
 - `EHR-SERVICE.md` — the Rust `ehr` service and its gRPC wire to the agent: the handle, the
   calls, the PHI tag in the contract, the edge, mTLS, tracing and tests.
 - `SECURITY-BRIEF.md` — the one-pager for an outside security engineer: the stack, the threats,
