@@ -18,6 +18,10 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - Forks: F1 A (a recent sign-in with MFA before protected data), configurable by the hospital;
   F2 C (a reason for access is a hospital setting, restricted calls only by default). Both on
   FUTURE-SETTINGS.md's index, with the idle logoff. Six levers added to ACCESS-ROLES.md §3.
+- He asked how hard the SSO wiring is, and said to build it with the roles. STAFF-SIGN-IN.md
+  §10: the staff API (Phase 4) comes first; OIDC is days; SCIM and SAML are weeks; developer
+  tenants are free. He chose OIDC only for now, with a SAML plan kept ready for a hospital
+  that needs it (§8).
 
 ## 2026-11-12 (Windows, evening) — Per-tool latency, an API
 - The owner asked whether a call's record keeps how long each tool took. It does: his 12:58

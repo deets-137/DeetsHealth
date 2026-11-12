@@ -20,6 +20,9 @@ updated: 2026-11-12
   product gets closer to finished.
 - **Open ended for now.** Nothing more is decided.
 
+**Staff sign-in is built with the roles** (the owner, 2026-11-12): STAFF-SIGN-IN.md, its plan
+and sizes in §10.
+
 SECURITY.md §4.10's four roles (admin, supervisor, viewer, auditor) are examples, not a fixed
 list.
 

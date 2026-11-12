@@ -10,7 +10,8 @@ updated: 2026-11-12
 > that the console signs in through its directory yet. The owner and Claude design this
 > together (the owner, 2026-11-12: "keep it in ideas/ until we build it out"). The roles
 > themselves are the owner's (ACCESS-ROLES.md). This doc is the sign-in, the checks and the
-> records around them.
+> records around them. **Built together with the roles** (the owner, 2026-11-12: "we can plan
+> to build this when we get to building out RBAC"). The plan and the sizes are §10.
 
 ## 1. Terms
 - **IdP (identity provider):** the system that holds the hospital's staff accounts. A hospital
@@ -18,8 +19,11 @@ updated: 2026-11-12
   Ping. We connect to the IdP, never to the on-site directory.
 - **SSO (single sign-on):** staff sign in to the console with their hospital account. We never
   see or keep a staff password.
-- **OIDC / SAML:** the two standard ways an IdP tells us who signed in. OIDC fits a web console.
-  Some hospitals require SAML.
+- **OIDC / SAML:** the two standard ways an IdP tells us who signed in. OIDC (OpenID Connect,
+  2014) sends a signed JSON token and fits a web console. SAML (Security Assertion Markup
+  Language, 2005) sends a signed XML document through the browser. It is older and still
+  common in hospitals: ADFS before 2016 and many older IdPs speak only SAML. Both carry the
+  same facts: who the user is, how they signed in, and their groups or roles.
 - **Claim:** one fact in the sign-in token (the user's stable id, their roles, how and when they
   signed in).
 - **SCIM:** a standard by which the IdP tells us when a user is added, changed or disabled.
@@ -126,7 +130,7 @@ in the console's screen.
 - **M1 · Hospital identity settings.** Per hospital: the IdP's issuer and metadata, the client
   id, the protocol (OIDC or SAML), which claim carries roles, the session lengths. Changed only
   by a lever, and each change is audited.
-- **M2 · Sign-in and sessions.** OIDC with PKCE (SAML where the hospital requires it). The
+- **M2 · Sign-in and sessions.** OIDC with PKCE only (SAML later, §8). The
   user's id is the IdP's stable id (Entra's object id), never the email. Server-side sessions,
   an idle logoff, and a full session limit. A new sign-in on the same shared workstation (tap
   badge, for example Imprivata) replaces the session at once. On each refresh the IdP is asked
@@ -203,6 +207,22 @@ The defaults' numbers and any floor are §8. The options as brought:
 ## 8. Later (not forks now)
 - F1's default age of a sign-in, and whether there is a ceiling a hospital may not pass. The
   idle logoff's default, and its ceiling. Both go in FUTURE-SETTINGS.md when M2 is built.
+- **How we support SAML.** **Decided for now (the owner, 2026-11-12): OIDC only.** A plan for
+  SAML is kept ready here, to build when a hospital needs it. A hospital whose IdP has an OIDC
+  side (Entra ID, Okta, Ping, ADFS 2016 and later) needs no SAML. When one does not, the owner
+  picks from these options, with this plan made ready first:
+  - Build SAML in Rust. Bugs in XML signature checks have caused many sign-in bypasses in other
+    products' libraries, and Rust's SAML libraries are less mature than its OIDC ones.
+  - Run an identity broker inside our deploy (for example a self-hosted Keycloak). It speaks
+    SAML to the hospital and OIDC to us. No new vendor, but one more service to patch.
+  - OIDC only. A SAML-only hospital uses its IdP's OIDC side, or a broker of its own.
+  First find out how many target hospitals have no OIDC side. *confirm*.
+
+  **To make the SAML plan ready (before it is needed):** choose and review a Rust SAML library,
+  or a broker, against the known XML signature attacks; write the test list (signature
+  wrapping, unsigned assertions, replay, wrong audience, expired assertions); and keep M2's
+  session code apart from the protocol, so a SAML entry point adds a way in, not a second
+  session system.
 - What an exported audit row may carry, and whether a call id is enough for the hospital's
   privacy tool to match a patient (it would need the hospital's own lookup).
 - How a hospital marks a restricted call, if F2 needs it (from the chart's own flag, or the
@@ -212,8 +232,40 @@ The defaults' numbers and any floor are §8. The options as brought:
 
 ## 9. Where it runs
 - **The call:** no staff sign-in. Caller verification is separate (SECURITY.md §4.4).
-- **The console (a browser):** OIDC with PKCE; server-side sessions.
+- **The console (a browser):** OIDC with PKCE only (SAML later, §8); server-side sessions.
 - **Deploy A2 (our cloud) and B (the hospital's cloud):** the same sign-in, because the IdP is
   reached over the internet in both. B also lets the hospital put the console behind its own
   network rules.
 - **The EHR:** not affected. Epic access uses the backend-services key, not a staff identity.
+
+## 10. Building it
+> **Part:** idea · 2026-11-12 · built with the roles (ACCESS-ROLES.md)
+
+**What must exist first.** The console has no server of its own today: it calls the agent's dev
+server (`console/src/agent/api.ts`), and the `ehr` service speaks only gRPC. Sign-in needs the
+staff API and the store (BUILD-ORDER.md, Phase 4): the sessions, the audit rows and every check
+live there. This is the largest dependency, and it is not sign-in work.
+
+**The sizes, after the staff API exists** (rough, 2026-11-12):
+| Piece | Size | Why |
+|---|---|---|
+| M2 for Entra ID: OIDC code flow with PKCE, discovery, key checks, state and nonce, the session cookie, logout | days | A standard flow; the `openidconnect` Rust crate covers it |
+| M2 for Okta and Ping | a day or two each | The same code; the claims differ, so mostly tests |
+| M1, the IdP settings per hospital | small | One row per hospital |
+| F1, a recent sign-in | small | Send `max_age`; check `auth_time` and the MFA claim (`amr`). *confirm* that Entra always sends `amr` |
+| M3, groups or app roles to roles | the roles design | The mapping is small; the check behind it is ACCESS-ROLES.md |
+| M4, SCIM | one to two weeks | Users and groups, PATCH rules, each IdP's quirks; Entra has a SCIM validator |
+| SAML, not planned now (§8) | one to two weeks | The most risk: XML signature checks |
+| The live watch (`/agent/watch`) under the session | small | Same origin, so the cookie goes with it; checked on connect and on refresh |
+
+M5 to M8 are sized with the roles, because their size follows the levers.
+
+**Cost: none.** Entra and Okta give free developer tenants. We build against them with test
+users only (synthetic first). No FHIR calls, no minutes.
+
+**The hospital's side.** Its admin needs about an hour to register the console. Its change
+approval can take weeks. Start the request early in each sale.
+
+**The order** (a draft, for when the roles are built): the staff API and the store; M1 and M2
+on an Entra developer tenant; M3 with the roles; M5 with the first audited view; F1; M4; Okta;
+M6, M7, M8. OIDC only (the owner, 2026-11-12); SAML waits for a hospital that needs it (§8).
