@@ -146,6 +146,9 @@ the branch `archive/patient-app`.
   (sign-in, roles, provisioning, audit, emergency access, reviews, change control); the work
   with a hospital's security team; F1 and F2 decided (step-up and reason for access, both
   hospital settings).
+- `PROMPT-EDITOR.md` — edit the agent's prompt in the console: how the prompt loads now, how a
+  save reaches every call that starts after it (versions, a call keeps its own copy), Record
+  and test as an explicit button, and the analyst's test path later.
 
 ## Privacy rules (this project only — read before any code)
 The full rules are SECURITY.md (the phone agent's, 2026-10-19). In short:
