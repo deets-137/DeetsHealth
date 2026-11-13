@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import enum
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import grpc
@@ -79,6 +79,13 @@ class Visit:
     minutes: int
     clinician: Shielded[str]
     place: Shielded[str]
+    # The record's visit type and reason ("" for none), after ehr's sensitive screen
+    # (FUTURE-SETTINGS.md §9). `reason_private`: ehr dropped both, and the agent may say only
+    # that it cannot share what the visit is for.
+    visit_type: Shielded[str] = field(default_factory=lambda: Shielded(""))
+    reason: Shielded[str] = field(default_factory=lambda: Shielded(""))
+    online: bool = False
+    reason_private: bool = False
 
 
 def _slot(s) -> Slot:
@@ -265,4 +272,8 @@ class EhrClient:
             minutes=v.minutes,
             clinician=Shielded(v.clinician),
             place=Shielded(v.place),
+            visit_type=Shielded(v.visit_type),
+            reason=Shielded(v.reason),
+            online=v.online,
+            reason_private=v.reason_private,
         )

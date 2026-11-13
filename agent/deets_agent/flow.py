@@ -105,6 +105,11 @@ def _visit_words(v: Slot | Visit) -> str:
 EMERGENCY_LINE = text("line.emergency")
 
 
+# Why the agent offers a person (offer_staff): it cannot do or see what was asked, or the record
+# holds it but it is private (ehr's sensitive screen, FUTURE-SETTINGS.md §9).
+OFFER_REASONS = ("cannot_help", "private")
+
+
 # The kinds of staff flag (FLAGS.md §3; a draft list, the owner's to edit). A flag carries its
 # kind out of the wall; its summary and evidence stay inside it.
 FLAG_KINDS = (
@@ -695,9 +700,47 @@ class CallFlow:
                 return await self._ehr_trouble(flow_manager, e, "next_visit")
             if visit is None:
                 return await self._say(flow_manager, text("line.no_visits"))
-            return await self._say(flow_manager, text("line.next_visit", visit=_visit_words(visit)))
+            # The time, then what the visit is, as the record says (the owner, 2026-11-13: an
+            # online visit keeps its place). The line ends without a question, so the model goes
+            # on and answers the rest of what the caller asked (Camila's call, 2026-11-13).
+            words = [text("line.next_visit", visit=_visit_words(visit))]
+            if visit.online:
+                words.append(text("line.visit_online"))
+            elif visit.visit_type:
+                words.append(text("line.visit_type", visit_type=visit.visit_type.reveal()))
+            if visit.reason:
+                words.append(text("line.visit_reason", reason=visit.reason.reveal()))
+            # For the model only: what the record holds, so it answers from facts and offers
+            # staff for the rest (offer_staff). Never the words of a private visit: ehr dropped them.
+            if visit.reason_private:
+                reason = "private"
+            elif visit.reason:
+                reason = "said"
+            else:
+                reason = "none on record"
+            return await self._say(
+                flow_manager, " ".join(words), reason_for_visit=reason, next_step=text("note.after_next_visit")
+            )
 
         return _tool("next_visit", handler)
+
+    def offer_staff_fn(self) -> FlowsFunctionSchema:
+        # The owner's option A (2026-11-13), after Camila's call: when the agent cannot do what the
+        # caller asks, it says so and offers a person; the caller chooses. A yes is hand_off; a no,
+        # the call goes on. A caller who asks for a person, or whose code fails, still goes at once.
+        # The words are a hospital setting (FUTURE-SETTINGS.md §10).
+        async def handler(args, flow_manager: FlowManager):
+            why = args.get("why")
+            logger.info("staff offered ({})", why if why in OFFER_REASONS else "cannot_help")
+            line = "line.offer_staff_private" if why == "private" else "line.offer_staff"
+            return await self._say(flow_manager, text(line))
+
+        return _tool(
+            "offer_staff",
+            handler,
+            {"why": ""},
+            schemas={"why": {"type": "string", "enum": list(OFFER_REASONS)}},
+        )
 
     # ---- trouble ----
 

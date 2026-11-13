@@ -125,8 +125,14 @@ async def test_a_whole_call_through_the_handlers(ehr):
     result, node = await handler(node, "check_code")(CODE, fm)
     assert node["name"] == "menu"
 
-    result, _ = await handler(node, "next_visit")({}, fm)
+    result, nxt = await handler(node, "next_visit")({}, fm)
     assert "Tuesday, November 10, at 10 AM" in result["spoken_to_caller"]
+    # What the visit is, from the record (FUTURE-SETTINGS.md §9); no question at the end, so
+    # the model goes on and answers the rest of what the caller asked.
+    assert "It is listed as Office Visit." in result["spoken_to_caller"]
+    assert "The reason on record is Blood pressure follow-up." in result["spoken_to_caller"]
+    assert result["reason_for_visit"] == "said" and nxt is None
+    assert not result["spoken_to_caller"].rstrip().endswith("?")
 
     result, node = await handler(flow.menu(), "find_slots")({"reason": "a check-up"}, fm)
     assert node["name"] == "schedule" and result["options"] == [1, 2, 3]
@@ -141,6 +147,8 @@ async def test_a_whole_call_through_the_handlers(ehr):
 
     result, _ = await handler(node, "next_visit")({}, fm)
     assert "Monday, November 2" in result["spoken_to_caller"]
+    # A visit booked on this call has no type or reason on record.
+    assert result["reason_for_visit"] == "none on record"
 
     # Every line the model was told about is a line the caller heard, word for word.
     assert len(spoken(fm)) == 8  # the read-back, then seven lines
@@ -161,6 +169,25 @@ async def test_a_wrong_identity_never_verifies_and_three_wrong_codes_hand_off(eh
     result, nxt = await check(CODE, manager())
     assert nxt["name"] == "hand_off" and nxt["pre_actions"] == [{"type": "end_conversation"}]
     await flow.close()
+
+
+async def test_offer_staff_asks_and_the_call_goes_on(ehr):
+    """The owner's option A (2026-11-13): a fixed offer that waits for the caller; the node does
+    not change, so a "no" goes on with the call. Private has its own words."""
+    flow = new_flow(ehr)
+    fm = manager()
+    menu = flow.menu()
+    offer = next(f for f in flow_globals(flow) if f.name == "offer_staff").handler
+    result, nxt = await offer({"why": "cannot_help"}, fm)
+    assert nxt is NO_RESPONSE and result["spoken_to_caller"].endswith("?")
+    assert "member of our staff" in result["spoken_to_caller"]
+    private, _ = await offer({"why": "private"}, fm)
+    assert private["spoken_to_caller"] != result["spoken_to_caller"]
+    assert menu["name"] == "menu"
+
+
+def flow_globals(flow: CallFlow):
+    return [flow.hand_off_fn(), flow.offer_staff_fn(), flow.end_call_fn()]
 
 
 async def test_an_impossible_birth_date_costs_no_try(ehr):

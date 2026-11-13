@@ -184,6 +184,16 @@ message Visit {
   uint32 minutes = 2;
   string clinician = 3 [(phi) = true];
   string place = 4 [(phi) = true];
+  // The visit type as the record names it ("Office Visit"); "" when the record has none or
+  // the visit is private.
+  string visit_type = 5 [(phi) = true];
+  // The reason for the visit; "" when the record has none or the visit is private.
+  string reason = 6 [(phi) = true];
+  // An online visit (video or phone). The place is still the record's.
+  bool online = 7;
+  // The type or reason named sensitive care (FUTURE-SETTINGS.md §9): both were dropped in ehr
+  // and are "". The agent may say only that it cannot share what the visit is for.
+  bool reason_private = 8;
 }
 
 message NextVisitReply {

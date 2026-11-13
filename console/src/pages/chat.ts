@@ -1526,7 +1526,9 @@ function sandboxRows(s: Sandbox): HTMLElement[] {
     const ul = document.createElement("ul");
     for (const v of visits) {
       const li = document.createElement("li");
-      li.textContent = `${visitTime(v.starts_at)} · ${v.minutes} min · ${v.clinician} · ${v.place ?? s.place}`;
+      li.textContent = [visitTime(v.starts_at), `${v.minutes} min`, v.visit_type, v.reason, v.clinician, v.place ?? s.place]
+        .filter(Boolean)
+        .join(" · ");
       ul.append(li);
     }
     const rest = more[p.id] ?? 0;

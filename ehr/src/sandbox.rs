@@ -36,6 +36,12 @@ pub struct Visit {
     pub starts_at: String,
     pub minutes: u32,
     pub clinician: String,
+    /// The visit type, as a record names it ("Office Visit"). Optional.
+    #[serde(default)]
+    pub visit_type: Option<String>,
+    /// The reason for the visit. Optional.
+    #[serde(default)]
+    pub reason: Option<String>,
 }
 
 /// The sandbox. A bad fixture fails the tests, so it never reaches a run.

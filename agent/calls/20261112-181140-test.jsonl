@@ -1,0 +1,22 @@
+{"t_ms": 0.0, "kind": "call_start", "schema_version": 6, "call_id": "20261112-181140-test", "source": "test", "scenario": null, "ehr": "epic", "mode": "live", "model": "claude-haiku-5-5", "started": "2026-11-12T18:11:40"}
+{"t_ms": 68.3, "kind": "ehr", "call": "OpenCall", "ms": 2.4, "outcome": "ok", "left": {"identify": 3, "resend": 2, "code": 3}}
+{"t_ms": 73.4, "kind": "step", "name": "greet", "tools": ["identify", "confirm_details"], "global_tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff"], "steps": ["greet", "verify", "menu", "schedule", "goodbye", "hand_off"], "closing_steps": ["goodbye", "hand_off"]}
+{"t_ms": 479.9, "kind": "agent", "text": "Hello, you've reached Main Street Clinic. I'm an automated assistant, not a person, and this call is transcribed for our records. You can ask for a member of our staff at any time. How can I help you today?", "first_ms": 76.6}
+{"t_ms": 16570.8, "kind": "caller", "text": "Hi, my name is Warren McGinnis. Can I book a video appointment?"}
+{"t_ms": 16573.9, "kind": "node", "name": "greet"}
+{"t_ms": 17798.6, "kind": "llm", "key": "957a66ee", "hit": false, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 52, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 2956}, "total_ms": 1226, "first_event_ms": 788, "first_text_ms": 1223}
+{"t_ms": 18182.7, "kind": "agent", "text": "Thanks, Warren. What is your date of birth?", "first_ms": 17797.1}
+{"t_ms": 25709.7, "kind": "caller", "text": "May 24th, 1952"}
+{"t_ms": 26880.4, "kind": "llm", "key": "aced4c09", "hit": false, "messages": 3, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 106, "cache_read_input_tokens": 2956, "cache_creation_input_tokens": 64}, "total_ms": 1169, "first_event_ms": 760, "first_tool_ms": 760}
+{"t_ms": 26881.3, "kind": "tool_call", "name": "identify", "arguments": {"given_name": "Warren", "family_name": "McGinnis", "birth_date": "1952-05-24"}, "trigger_ms": 1171.7}
+{"t_ms": 26882.7, "kind": "tool_result", "name": "identify", "result": {"spoken_to_caller": "I have Warren McGinnis, born May 24, 1952. Is that right?"}, "ms": 1.4}
+{"t_ms": 27275.3, "kind": "agent", "text": "I have Warren McGinnis, born May 24, 1952. Is that right?", "first_ms": 26884.7}
+{"t_ms": 28864.5, "kind": "caller", "text": "Yes"}
+{"t_ms": 29639.4, "kind": "llm", "key": "0de0d14b", "hit": false, "messages": 5, "tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 28, "cache_read_input_tokens": 3020, "cache_creation_input_tokens": 157}, "total_ms": 773, "first_event_ms": 756, "first_tool_ms": 756}
+{"t_ms": 29640.4, "kind": "tool_call", "name": "confirm_details", "arguments": {}, "trigger_ms": 775.9}
+{"t_ms": 30071.8, "kind": "ehr", "call": "Identify", "ms": 431.1, "outcome": "ok", "left": {"identify": 2}}
+{"t_ms": 30072.0, "kind": "step", "name": "verify", "tools": ["check_code", "resend_code", "identify", "confirm_details"], "global_tools": ["hand_off", "end_call", "emergency", "safety_reminder", "medical_question", "flag_for_staff"], "steps": ["greet", "verify", "menu", "schedule", "goodbye", "hand_off"], "closing_steps": ["goodbye", "hand_off"]}
+{"t_ms": 30072.9, "kind": "tool_result", "name": "confirm_details", "result": {"spoken_to_caller": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?"}, "ms": 432.5}
+{"t_ms": 30482.0, "kind": "agent", "text": "Thank you. If those details match our records, we've just sent a 6-digit code by text to the phone number we have on file. Could you read it to me?", "first_ms": 30074.5}
+{"t_ms": 61082.4, "kind": "ehr", "call": "CloseCall", "ms": 1.4, "outcome": "ok"}
+{"t_ms": 61082.6, "kind": "call_end", "reason": "the caller hung up", "turns": 3, "requests": {"live": 3, "replayed": 0, "failed": 0}, "tokens": {"input_tokens": 12, "output_tokens": 186, "cache_read_input_tokens": 5976, "cache_creation_input_tokens": 3177}, "cost_usd": 0.000551}

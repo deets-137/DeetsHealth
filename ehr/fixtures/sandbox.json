@@ -8,6 +8,6 @@
     { "id": "fake-patient-4", "given": "Casey", "family": "Morgen", "birth_date": "1990-06-05", "phone": "+15555550104" }
   ],
   "visits": [
-    { "patient": "fake-patient-1", "starts_at": "2026-11-10T10:00", "minutes": 30, "clinician": "Dr. Sam Okafor" }
+    { "patient": "fake-patient-1", "starts_at": "2026-11-10T10:00", "minutes": 30, "clinician": "Dr. Sam Okafor", "visit_type": "Office Visit", "reason": "Blood pressure follow-up" }
   ]
 }

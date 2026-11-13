@@ -228,6 +228,7 @@ class TypedCall:
             )
         global_functions = [
             self.flow.hand_off_fn(),
+            self.flow.offer_staff_fn(),
             self.flow.end_call_fn(),
             self.flow.emergency_fn(),
             self.flow.safety_reminder_fn(),

@@ -8,7 +8,7 @@ use std::{collections::HashSet, future::Future, sync::Mutex};
 
 use deetshealth_core::Shielded;
 
-use crate::{sandbox::sandbox, session::PatientKey};
+use crate::{sandbox::sandbox, session::PatientKey, visit_about::VisitAbout};
 
 /// The EHR's own id for a slot. It never leaves this service: the agent gets a token.
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -24,6 +24,9 @@ pub struct Slot {
     pub minutes: u32,
     pub clinician: Shielded<String>,
     pub place: Shielded<String>,
+    /// Its type and reason, after the sensitive screen (visit_about.rs). Empty for an open
+    /// slot.
+    pub about: VisitAbout,
 }
 
 /// What the caller asked for.
@@ -130,6 +133,7 @@ impl FakeScheduler {
             minutes,
             clinician: Shielded::new(clinician.to_string()),
             place: Shielded::new(self.place.clone()),
+            about: VisitAbout::default(),
         }
     }
 
@@ -178,6 +182,7 @@ impl Scheduler for FakeScheduler {
                 minutes: v.minutes,
                 clinician: Shielded::new(v.clinician.clone()),
                 place: Shielded::new(sandbox.place.clone()),
+                about: VisitAbout::from_record(v.visit_type.as_deref(), v.reason.as_deref()),
             };
             (key, visit)
         });

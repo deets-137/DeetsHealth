@@ -140,6 +140,10 @@ pub fn visit(slot: &Slot) -> pb::Visit {
         minutes: slot.minutes,
         clinician: slot.clinician.reveal(&pass).clone(),
         place: slot.place.reveal(&pass).clone(),
+        visit_type: slot.about.visit_type.as_ref().map(|s| s.reveal(&pass).clone()).unwrap_or_default(),
+        reason: slot.about.reason.as_ref().map(|s| s.reveal(&pass).clone()).unwrap_or_default(),
+        online: slot.about.online,
+        reason_private: slot.about.private,
     }
 }
 

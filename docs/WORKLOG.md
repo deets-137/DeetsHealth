@@ -8,6 +8,40 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-13 (Windows, last) — When no code can go out: words true for every caller
+- The owner's call as Warren McGinnis (`agent/calls/20261112-181140-test.jsonl`): his chart has
+  no mobile number, so no code went out, yet he heard "we've just sent a 6-digit code". He
+  waited 30 s and hung up. The owner: "We shouldn't have gaslit the patient."
+- The exact reason ("no mobile number on file") would tell anyone with a name and date of birth
+  that he is a patient here (SECURITY.md §4.4), so it was a fork. FUTURE-SETTINGS.md §11 sets
+  out A (true for every caller), B (the exact reason), C (A, with B as a hospital setting).
+  The owner chose A.
+- Built: `line.code_sent` and `line.code_resent` say a code is on its way only if the details
+  match and a mobile number is on file, and promise a person if no text comes; `task.verify`
+  sends "no text" to a person at once, with a new code only if the caller asks. New kept script
+  `no_text_to_person.txt`; `no_code_after_resend.txt` now asks for the new code in words. All
+  14 kept scripts recorded again (about 3 cents). All 7 check steps pass.
+- FUTURE-SETTINGS.md §7 and §11 updated; B stays a setting, off, not built.
+
+## 2026-11-13 (Windows, later still) — What a visit is; the offer of a person
+- From the owner's call as Camila Lopez: she asked twice what her visit was for, heard nothing,
+  and was moved to staff at once. Three causes: `ehr` dropped Epic's visit type; the fixed
+  next-visit line ended with a question, so the model never answered the rest of her turn; and
+  `hand_off` gave no reason and no choice.
+- Probed her 284 visits: `serviceType` on all, `reasonCode` on none, `comment` full of other
+  developers' test notes (EPIC.md §5.2).
+- The owner chose option A (say why, then offer a person; the words a setting) and said an
+  online visit keeps its place ("we can't ignore what's on the record").
+- Built: `ehr/src/visit_about.rs` (the sensitive screen, a draft list; online by the type's
+  words); `Visit` gains `visit_type`, `reason`, `online`, `reason_private`; Epic reads
+  `serviceType` and `reasonCode`, never `comment`; the fixture's visit has a type and reason;
+  `next_visit` speaks them and ends without a question, with `note.after_next_visit`;
+  `offer_staff` (global, silent) with `line.offer_staff` and `line.offer_staff_private`; the
+  rail shows each visit's type. Prompt drafts in AGENT-PROMPT.md for the owner to edit.
+- Tests: 57 `ehr` unit tests (4 new for the screen), 104 agent (a new gate test, a new kept script
+  `visit_reason_offer.txt`). All 13 kept scripts recorded again (about 3 cents of Haiku).
+- Docs: FUTURE-SETTINGS.md §9, §10 (new); CALL-FLOW.md; EHR-SERVICE.md; EPIC.md §5.2; AGENT.md.
+
 ## 2026-11-13 (Windows, later) — Chat: its own nav; the verdict pill
 - Chat has its own nav, as Analytics does: Testing, Demo, PHI, one item per mode, in the
   owner's order. It replaces the mode toggle. The Epic / Local button moved to the canvas's top
@@ -22,6 +56,14 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   `--tools-min` became `--rail-panel-min`; `--slide-rise` and `--dur-slide` are gone.
 - Committed without the visit-type work in flight in the same tree: `chat.ts`'s sandbox-row
   line for the visit type stays uncommitted with it.
+
+## 2026-11-13 (Windows) — Epic mode: desk test passed
+- The owner desk-tested Epic mode (CHAT.md §13) and passed it: a test call as Camila Lopez
+  (`agent/calls/20261112-172937-test.jsonl`, record schema 6, `ehr: epic`). Epic found her by
+  name and date of birth, the code went to her mobile number on file, it passed, and
+  `next_visit` read her next visit from Epic (Friday, November 13, 8 AM, 30 minutes). She then
+  asked the visit's reason and whether it was a primary checkup; the agent cannot see the visit
+  type and handed off with a staff flag.
 
 ## 2026-11-13 (Windows) — Console pages with their own nav; Chat's edges and corners
 - New pages: Teams (Org Chart, People) and Config (Agent, System) under Analytics; Security

@@ -264,6 +264,13 @@ each test call picks one with the Chat page's Epic / Local button (CHAT.md §13)
 - **Times:** Epic sends instants in UTC; `ehr` shows them in the place's time zone
   (`ehr/fixtures/epic-sandbox.json` › `time_zone`, America/Chicago; the `jiff` crate, which
   carries its own time zone data).
+- **What a visit is** (2026-11-13, FUTURE-SETTINGS.md §9): the type from `serviceType`, the
+  reason from `reasonCode`, through the sensitive screen in `ehr/src/visit_about.rs`. **Never
+  `comment`.** On Camila Lopez's 284 visits: `serviceType` on all (281 "MyChart Video Visit",
+  and one each of "New Patient Appointment", "X-Ray Exam", "Transthoracic Echocardiogram
+  Complete"); `reasonCode` on none; `comment` on 274, holding other developers' test notes
+  ("Synthetic sandbox booking latency test"), which also shows they book through `$book` here;
+  `patientInstruction` on 3 (not read yet).
 - **The rail's list:** `ehr epic-sandbox` reads each test patient in `epic-sandbox.json` and
   their visits in the next 60 days (10 shown, the rest counted), about 2 reads per patient. The
   dev server runs it and keeps the answer for 5 minutes.

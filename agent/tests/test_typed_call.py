@@ -165,6 +165,30 @@ async def test_no_code_after_a_resend(ehr):
     assert call.ended
 
 
+async def test_visit_reason_then_an_offer(ehr):
+    """Camila's call (2026-11-13): the visit's type and reason are said in the same turn as its
+    time; a request the agent cannot do gets the offer of a person (option A), not a hand-off;
+    a "no" keeps the call going to the caller's own goodbye."""
+    call, replies = await run(ehr, "visit_reason_offer.txt")
+    assert any(r and "The reason on record is Blood pressure follow-up." in r for r in replies)
+    assert text("line.offer_staff") in replies, "the agent should offer a person, not hand off"
+    assert not any(r and "member of our staff now" in r for r in replies), "no hand-off"
+    assert any(r and "Here are the times I have" in r for r in replies), "after a no, the call goes on"
+    last = replies[-1] or ""
+    assert last.endswith("Thank you for calling. Goodbye.") and call.ended
+
+
+async def test_no_text_goes_to_a_person_at_once(ehr):
+    """FUTURE-SETTINGS.md §11, option A (the owner, 2026-11-13, after Warren's call): the code
+    line is true for every caller and promises a person if no text comes; "no text" is a
+    hand-off at once, with no new code. The words never say whether the details matched."""
+    call, replies = await run(ehr, "no_text_to_person.txt")
+    assert text("line.code_sent") in replies
+    assert text("line.code_resent") not in replies, "no new code unless the caller asks"
+    assert replies[-1] == text("line.hand_off_code")
+    assert call.ended
+
+
 async def test_medical_question(ehr):
     """Option 1A (2026-11-11): a medical question gets the fixed line, and the booking goes on."""
     call, replies = await run(ehr, "medical_question.txt")

@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: []
-updated: 2026-11-12
+updated: 2026-11-13
 ---
 # DeetsHealth — The agent (`agent/`), as built
 
@@ -53,7 +53,10 @@ the start of every typed call (2026-11-11; the owner got stuck at the code step 
 **The kept scripts** (`tests/scripts/`, each one also a replay test in `test_typed_call.py`):
 `book_a_visit.txt` (verify, book, next visit, goodbye), `leave_at_greet.txt` and
 `leave_at_code.txt` (the caller says goodbye before and during verification; the call must
-end with the goodbye line and no hand off).
+end with the goodbye line and no hand off). The full list is `tests/scripts/`; the newest,
+`visit_reason_offer.txt` (2026-11-13), asks for the next visit and its reason in one turn, then
+for something the agent cannot do: the offer of a person, a "no", and the call goes on
+(FUTURE-SETTINGS.md §9, §10). All 13 were recorded again on 2026-11-13 for the new prompt.
 
 ## 2. The parts
 | File | What it does |

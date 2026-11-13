@@ -1,0 +1,9 @@
+# A typed call, from the owner's test call as Warren McGinnis (2026-11-13): no code can go out
+# (here, two near-identical records; for Warren, no mobile number on file). The caller hears
+# words that are true whatever the reason (FUTURE-SETTINGS.md §11, option A), says no text
+# came, and goes to a person at once, with no new code and no second try.
+# Run: uv run python harness/typed_call.py --script tests/scripts/no_text_to_person.txt
+Hi, this is Casey Morgan, I'd like to book a visit.
+June 5th 1990
+Yes, that's right.
+I didn't get any text.

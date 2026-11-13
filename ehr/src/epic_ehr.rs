@@ -25,6 +25,7 @@ use crate::{
     scheduler::{BookResult, FakeScheduler, Scheduler, SchedulerDown, Slot, SlotId, SlotWish},
     session::PatientKey,
     verify::{Candidate, Claimed, Down, Patients},
+    visit_about::VisitAbout,
 };
 
 /// The list of Epic's public test patients, built into the binary.
@@ -115,6 +116,8 @@ impl EpicEhr {
                     "minutes": v.minutes,
                     "clinician": v.clinician,
                     "place": v.place,
+                    "visit_type": v.visit_type,
+                    "reason": v.reason,
                 }));
             }
         }
@@ -201,16 +204,22 @@ struct Visit {
     minutes: u32,
     clinician: String,
     place: String,
+    /// `serviceType`: Epic's visit type ("MyChart Video Visit").
+    visit_type: Option<String>,
+    /// `reasonCode`: the reason for the visit, when the scheduler entered one.
+    reason: Option<String>,
 }
 
 impl Visit {
     fn into_slot(self) -> Slot {
+        let about = VisitAbout::from_record(self.visit_type.as_deref(), self.reason.as_deref());
         Slot {
             id: SlotId(format!("epic-appointment-{}", self.id)),
             starts_at: Shielded::new(self.starts_at),
             minutes: self.minutes,
             clinician: Shielded::new(self.clinician),
             place: Shielded::new(self.place),
+            about,
         }
     }
 }
@@ -343,8 +352,19 @@ fn appointment(a: &Value, tz: &TimeZone, default_place: &str) -> Option<(Timesta
             minutes,
             clinician: actor("Practitioner/").unwrap_or_default(),
             place: actor("Location/").unwrap_or_else(|| default_place.to_string()),
+            visit_type: concept_words(&a["serviceType"][0]),
+            reason: concept_words(&a["reasonCode"][0]),
         },
     ))
+}
+
+/// A CodeableConcept's words: its text, else its first coding's display. Never `comment`
+/// (visit_about.rs).
+fn concept_words(c: &Value) -> Option<String> {
+    c["text"]
+        .as_str()
+        .or_else(|| c["coding"].as_array()?.iter().find_map(|x| x["display"].as_str()))
+        .map(str::to_string)
 }
 
 /// Builds the Epic adapters from the dev files, or says why not.
@@ -397,6 +417,8 @@ mod tests {
         let a = json!({
             "resourceType": "Appointment", "id": "a1", "status": "booked",
             "start": "2026-11-12T14:00:00Z", "end": "2026-11-12T14:30:00Z", "minutesDuration": 30,
+            "serviceType": [{"coding": [{"code": "1400000001", "display": "MyChart Video Visit"}]}],
+            "comment": "Synthetic sandbox booking latency test\n",
             "participant": [
                 {"actor": {"reference": "Patient/p1", "display": "Lopez, Camila Maria"}},
                 {"actor": {"reference": "Practitioner/d1", "display": "Physician Family Medicine, MD"}},
@@ -408,6 +430,10 @@ mod tests {
         assert_eq!(v.minutes, 30);
         assert_eq!(v.clinician, "Physician Family Medicine, MD");
         assert_eq!(v.place, "EMC Family Medicine");
+        // The visit type from serviceType's coding; no reasonCode, so no reason; the
+        // scheduler's comment is never read.
+        assert_eq!(v.visit_type.as_deref(), Some("MyChart Video Visit"));
+        assert_eq!(v.reason, None);
         let cancelled = json!({"id": "a2", "status": "cancelled", "start": "2026-11-12T14:00:00Z", "minutesDuration": 30});
         assert!(appointment(&cancelled, &tz, "Epic sandbox").is_none());
     }

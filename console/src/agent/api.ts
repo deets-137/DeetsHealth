@@ -82,7 +82,17 @@ export type EhrSource = "local" | "epic";
  * visit's `place` is its own (Epic); without one, the sandbox's. `more`: per patient id, the
  * visits past the ones listed. */
 export type SandboxPatient = { id: string; given: string; family: string; birth_date: string; phone: string };
-export type SandboxVisit = { patient: string; starts_at: string; minutes: number; clinician: string; place?: string };
+/** `visit_type` and `reason`: as the record has them (a dev view of test patients; the call
+ * itself hears them after ehr's sensitive screen, FUTURE-SETTINGS.md §9). */
+export type SandboxVisit = {
+  patient: string;
+  starts_at: string;
+  minutes: number;
+  clinician: string;
+  place?: string;
+  visit_type?: string | null;
+  reason?: string | null;
+};
 export type Sandbox = { place: string; patients: SandboxPatient[]; visits: SandboxVisit[]; more: Record<string, number> };
 export const sandbox = (ehr: EhrSource) => get<Sandbox>(`/agent/sandbox?ehr=${ehr}`);
 export const catalog = () => get<Catalog>("/agent/catalog");

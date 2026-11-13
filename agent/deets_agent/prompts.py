@@ -84,6 +84,16 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "line.booked": {"visit"},
     "line.no_visits": set(),
     "line.next_visit": {"visit"},
+    # What the visit is, as the record says (FUTURE-SETTINGS.md §9; the owner, 2026-11-13).
+    "line.visit_online": set(),
+    "line.visit_type": {"visit_type"},
+    "line.visit_reason": {"reason"},
+    "note.after_next_visit": set(),
+    # When the agent cannot help: it says so and offers a person (FUTURE-SETTINGS.md §10).
+    "tool.offer_staff": set(),
+    "arg.offer_staff.why": set(),
+    "line.offer_staff": set(),
+    "line.offer_staff_private": set(),
     "line.goodbye": set(),
     "line.hand_off": set(),
     # The hand-off after the code did not work (FUTURE-SETTINGS.md §7, the owner, 2026-11-12).

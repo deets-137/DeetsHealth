@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: none
-sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/prompts/AGENT-PROMPT.md, ehr/src/epic_ehr.rs, ehr/src/verify.rs]
+sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/prompts/AGENT-PROMPT.md, ehr/src/epic_ehr.rs, ehr/src/verify.rs, ehr/src/visit_about.rs]
 updated: 2026-11-13
 ---
 # Future settings — what a hospital will configure
@@ -46,6 +46,9 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
   an instant transfer when no single record matches (twins, duplicates) — §7 (default built).
 - Which numbers on file may receive the code: the kinds of number, ended numbers, the order,
   countries, shared numbers — §8 (default built: mobile only).
+- When no code can go out (no match, twins, or no number for a code): words that are true for
+  every caller, or the exact reason, which reveals that the person is a patient — §11
+  (default built: option A, true for every caller; B a setting, not built).
 
 **What the agent may say**
 - The sensitive-results list: a hospital may add to it, never remove from it. Not built
@@ -54,6 +57,10 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
   Not built (CARTESIA.md).
 - The holding line, spoken when a reply is slow to come because it ran into the token cap (the
   owner, 2026-11-12: configurable). Default built: `line.one_moment` (CALL-FLOW.md §3).
+- What the agent says about a visit: its type, reason and online, and the sensitive list that
+  keeps a visit's type and reason private — §9 (default built).
+- When the agent cannot help: the words of the offer of a person, and when to offer or
+  transfer at once — §10 (default built).
 
 **Booking**
 - Hours, visit types and transfer numbers. Not built (DESIGN.md K2).
@@ -284,11 +291,13 @@ matches out there."
   duplicates): the caller hears the same words at every step, so nothing shows whether a name
   and date of birth matched (SECURITY.md §4.4). The owner chose this over an instant transfer
   for twins (2026-11-12).
-- **When the agent offers more tries:** a caller with no text is offered a new code, or their
-  name and date of birth again (`task.verify`). `line.code_resent` says a new code went out
-  only if the details match our records.
-- **When a person takes over:** at once, when the caller still has no text after a new code,
-  or a code did not match and they ask why or say it is right (`task.verify`). The limits in
+- **When the agent offers more tries** (since 2026-11-13, §11): only when the caller asks. A new
+  code if they ask for one; their name and date of birth again if they say a detail was wrong
+  (`task.verify`). `line.code_resent` says a new code is on its way only if the details match
+  and a mobile number is on file.
+- **When a person takes over:** at once, when the caller says no text came (§11: the code line
+  promised it), when they still have no text after a new code, or when a code did not match and
+  they ask why or say it is right (`task.verify`). The limits in
   `ehr/src/service.rs` (`MAX_RESENDS`, `MAX_CODE_FAILURES`, `MAX_IDENTIFIES`) hand off in code
   (CALL-FLOW.md §3, §4).
 - **The apology:** a model hand-off of kind `verification_failed` speaks `line.hand_off_code`
@@ -437,3 +446,164 @@ pub enum PhoneUse { Mobile, Home, Work, Temp }
   states the cost before it applies.
 - **The deploy:** A2 and B read it from the settings store the same way.
 - **Each EHR:** each adapter applies the same setting to its own phone fields.
+
+## 9. What the agent says about a visit: its type, its reason, and the sensitive screen
+> **Part:** built (the default only) · 2026-11-13 — after the owner's test call as Camila Lopez:
+> she asked twice what her visit was for and heard nothing. "We can't ignore what's on the
+> record": an online visit keeps its place.
+
+**What it controls:** what the caller hears about their next visit besides its time, clinician
+and place: the visit type, the reason, whether it is online, and which visits are too sensitive
+to describe by phone.
+
+**The rules no setting changes:**
+- Only what the record holds. The model never guesses what a visit is for (`task.menu`).
+- **Never the scheduler's own notes** (Epic's `Appointment.comment`): they are for staff and can
+  hold anything. In Epic's sandbox they hold other developers' test notes (EPIC.md §5.2).
+- A sensitive type or reason is dropped **in `ehr`**, before the wire. The agent and the model
+  never receive its words; they learn only that the reason is private.
+
+### 9.1 The default now
+- **The fields** (Epic): the visit type from `Appointment.serviceType`, the reason from
+  `reasonCode`, each as its text or its first coding's display (`epic_ehr.rs` › `concept_words`).
+  Epic's sandbox fills `serviceType` ("MyChart Video Visit") and never `reasonCode`. The local
+  fixture's visit has both ("Office Visit", "Blood pressure follow-up").
+- **Online:** a type that names video, virtual, telehealth, telemedicine, online or e-visit
+  (`ONLINE` in `ehr/src/visit_about.rs`). The caller hears the place the record names, then
+  "It is an online visit." (`line.visit_online`) in place of the type's own words.
+- **The words** (AGENT-PROMPT.md, drafts): `line.next_visit` ("Your next visit is {visit}."),
+  then `line.visit_online` or `line.visit_type` ("It is listed as {visit_type}."), then
+  `line.visit_reason` ("The reason on record is {reason}."). The line ends without a question:
+  the model goes on and answers the rest of the caller's turn (`note.after_next_visit`).
+- **The model's facts:** the tool result's `reason_for_visit` is `said`, `none on record` or
+  `private`. On a question the record does not answer, the model uses `offer_staff` (§10).
+- **The screen** — `ehr/src/visit_about.rs` › `VisitAbout::from_record`, `SENSITIVE`: a type or
+  reason that holds one of these words or phrases (whole words, any case) makes the visit
+  private: behavioral health, mental health, psychiatry, psychiatric, psychology,
+  psychotherapy, counseling, substance, addiction, detox, opioid, methadone, suboxone, HIV,
+  pre-exposure, sexual health, STD, STI, reproductive, obstetric(s), OB, OBGYN, OB/GYN,
+  prenatal, pregnancy, abortion, family planning, fertility, IVF, genetic(s), gender,
+  transgender. **A draft, the owner's to edit.** Left out on purpose: "aids" (hearing aids) and
+  "prep" (bowel prep).
+- **The private words:** if the caller asks what a private visit is for, `offer_staff` with
+  `why: private` speaks `line.offer_staff_private`: "I can't share what that visit is for by
+  phone. Would you like me to connect you with a member of our staff who can?"
+- **Tests:** `visit_about.rs` (the screen, whole words, online); `epic_ehr.rs` (the type from
+  `serviceType`, `comment` never read); `test_gate.py` (the words and `reason_for_visit`);
+  `test_typed_call.py` › `test_visit_reason_then_an_offer`.
+
+### 9.2 The choices a hospital needs
+| Choice | Default | Options | What each costs |
+|---|---|---|---|
+| The sensitive list | the draft above | add words; never remove the floor | More words keep more visits private; each one also hides an ordinary visit that holds the word. |
+| Whether the visit type is said | yes | no | Without it, "what is this visit for?" goes to staff more often. |
+| Whether the reason is said | yes | no | The same; the reason helps the caller most. |
+| The spoken name of each visit type | the record's words | a hospital's own words per type ("MyChart Video Visit" → "a video visit") | Plainer words for the caller; a list to keep current. |
+| Which types count as online | the word list above | the hospital's own list of type codes | Codes are exact; words can miss a type. |
+
+### 9.3 Open
+- **A private visit still says its time, clinician and place.** A clinician's title or a
+  place's name ("Behavioral Health Clinic") can reveal the same thing. Whether the screen also
+  withholds them, and what the caller hears then, is open.
+- **Patient instructions** (Epic's `patientInstruction`, "Bring a list of your medicines"):
+  meant for the patient, and useful on a call. Not read yet; its own design.
+- **Other EHRs:** each adapter maps its own type and reason fields to the same screen.
+
+**Every place it runs:** the call (the same on any phone); the console (one control per choice,
+every change audited); the deploy (A2 and B read it from the settings store); each EHR (the
+adapter reads its fields, and the screen in `ehr` is shared).
+
+## 10. When the agent cannot help: the offer of a person
+> **Part:** built (the default only) · 2026-11-13 — the owner's option A, after Camila's call:
+> the agent said nothing about her question and moved her to staff at once.
+
+**What it controls:** what happens when the caller asks for something the agent cannot do or
+see, and what the caller hears.
+
+**The default now:**
+- **The offer:** the model uses `offer_staff` (a global tool, `flow.py` › `offer_staff_fn`). It
+  speaks a fixed line that says why and asks, then waits:
+  - `line.offer_staff`: "I'm not able to see that here. Would you like me to connect you with a
+    member of our staff who can help?"
+  - `line.offer_staff_private` (a private visit, §9): "I can't share what that visit is for by
+    phone. Would you like me to connect you with a member of our staff who can?"
+- **A yes** is `hand_off`, with its staff flag (kind, summary, the caller's words), as before.
+  **A no** goes on with the call (the kept script asks for a booking next).
+- **Still at once, with no offer:** a caller who asks for a person, a caller who is upset, and a
+  code that did not work (§7). `role` and `tool.hand_off` say so.
+- The model says nothing in the same reply as `offer_staff` (it is a silent tool; the words
+  check in `call.py` flags any).
+
+**The choices a hospital needs:**
+- **The words** of both offers. They must say that the agent cannot help with this, never that
+  something is broken, and must ask before a transfer.
+- **When to offer and when to transfer at once:** some hospitals may want every "cannot help"
+  to go straight to a person (fewer turns, no choice for the caller), or a "no" to be asked
+  once more before the call ends.
+- **What a "no" offers next:** go on (the default), or offer a call back from staff (needs the
+  call-back design, SECURITY.md §4.4).
+
+**Every place it runs:** the call (the same on any phone; a real transfer needs Twilio and a
+staffed number, Phase 5); the console (the words and the choice, every change audited); the
+deploy (from the settings store).
+
+## 11. When no code can go out: what the caller is told
+> **Part:** designed · 2026-11-13 — after the owner's test call as Warren McGinnis
+> (`agent/calls/20261112-181140-test.jsonl`): his chart has no mobile number, so no code went
+> out, yet he heard "we've just sent a 6-digit code". He waited 30 seconds and hung up. The
+> owner: "We shouldn't have gaslit the patient." **The owner chose option A, 2026-11-13:**
+> words true for every caller, built the same day; B (the exact reason) stays a hospital
+> setting, off, not built (that is option C).
+
+**Built (option A):** `line.code_sent` and `line.code_resent` in AGENT-PROMPT.md (drafts, the
+owner's to edit) say a code is on its way only if the details match **and a mobile number is on
+file**, and promise a person if no text comes. `task.verify`: "no text" is `hand_off` at once
+(kind `verification_failed`, so `line.hand_off_code`); a new code only when the caller asks.
+Kept script `no_text_to_person.txt` (`test_no_text_goes_to_a_person_at_once`).
+
+**What it controls:** what the caller hears after they confirm their name and date of birth,
+when `ehr` knows no code will go out, and how fast they reach a person.
+
+**Why no code goes out — three cases `ehr` knows and the agent does not:**
+1. No record matches the name and date of birth.
+2. Two or more records match (twins, duplicates, §7).
+3. One record matches, but it has no number that may take a code (§8): Warren's case. Epic's
+   sandbox has three such patients; in a real hospital, often older patients with a landline
+   only.
+
+**The tension.** Telling the caller the exact reason tells them which case it is. Case 3 says
+"this person is a patient here, and their chart has no mobile number" to anyone who knows a
+name and a date of birth, which are easy to find. That a person is a patient is protected data
+(SECURITY.md §2). So the floor today (SECURITY.md §4.4) is that no reply says whether the details
+matched. But today's words go further than the floor needs: "we've just sent a 6-digit code"
+sounds like a fact even when `ehr` knows it is not one.
+
+**The options for the words** (each one said the same way to every caller unless it says
+otherwise):
+| Option | What the caller hears after "Yes, that's right" | What it reveals | What it costs |
+|---|---|---|---|
+| **A. True for every caller** | "Thank you. If those details match our records and we have a mobile number on file, a 6-digit code is on its way by text. If no text comes in a minute, just tell me and I'll connect you with a member of our staff. Could you read me the code when it arrives?" (a draft) | Nothing: the same words in all three cases. | Longer. Warren still waits a minute before he says so; he is never told the true reason. |
+| **B. Tell the exact reason** | Case 3: "I found your record, but there's no mobile number on file I can text a code to, so I can't finish the check by phone. Let me connect you with a member of our staff." Cases 1 and 2 hear A. | That this person is a patient here, and that their chart has no mobile number, to anyone with a name and date of birth. | The most honest and the fastest for Warren. A disclosure of protected data to a caller who has passed one factor only. |
+| **C. Both: A by default, B as a hospital setting** | A, unless the hospital turns B on. | As A, or as B where turned on. | B's cost is stated on the settings page when a hospital turns it on, and the audit trail records who did; the same pattern as §7's instant transfer. |
+
+**What a no-text caller gets next:** before 2026-11-13, `task.verify` offered a new code or the
+details again first, then a person. Now the words promise a person, and the rule matches: a
+person at once, one new code only if the caller asks for it.
+
+**The choices a hospital needs** (once built):
+- Which words: A or B (C makes this a setting).
+- How fast a person takes over when no text comes (§7 holds the counts).
+- **A voice code to a landline**: `ehr` calls the home number on file and reads the code (the
+  call back of SECURITY.md §4.4; §8 for which numbers count). It would get a patient with a
+  landline through on their own, with no disclosure. Not for Warren: his chart has no number
+  at all. Not designed yet.
+- **A time to wait** before the agent offers a person on its own when the caller says nothing.
+
+**Every place it runs:**
+- **The call:** the same on any phone. A real transfer needs Twilio and a staffed number
+  (Phase 5).
+- **The console:** one control for the words, with B's cost stated before it applies; every
+  change audited.
+- **The deploy:** A2 and B read it from the settings store.
+- **Each EHR:** each adapter reports case 3 the same way (a match with no number for a code;
+  `Candidate.phone` is `None`, §8.1).

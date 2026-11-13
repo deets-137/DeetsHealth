@@ -1,0 +1,12 @@
+# A typed call, from the owner's test call as Camila Lopez (2026-11-13): the caller asks for
+# the next visit and its reason in one turn, then asks for something the agent cannot do. The
+# agent says the visit with its type and reason, answers the rest, then offers a person
+# (offer_staff); the caller says no and the call goes on to a goodbye (the owner's option A).
+# Run: uv run python harness/typed_call.py --script tests/scripts/visit_reason_offer.txt
+Jordan Ellis, March 12, 1984
+Yes, that's right.
+246810
+When is my next visit, and what is it for?
+Can you send me a reminder text the day before?
+No, that's okay. Can I also book a check-up?
+Actually, that's all, thanks

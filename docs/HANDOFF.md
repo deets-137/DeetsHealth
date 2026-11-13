@@ -105,14 +105,26 @@ and the console starts; each next step follows from what the console needs (the 
 
 Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-ORDER.md §3.4).
 
-- **In flight: Epic's sandbox patients on the Chat page** (branch `epic-time`; forks 1A and
-  2A, 2026-11-12). Done: the Backend Services sign-in (E-2, EPIC.md §5.1). **Built, desk test
-  open (CHAT.md §13):** Epic mode. The Epic / Local button left of Test; `OpenCall` names the
+- **Done: Epic's sandbox patients on the Chat page** (branch `epic-time`; forks 1A and 2A,
+  2026-11-12). The Backend Services sign-in (E-2, EPIC.md §5.1), and Epic mode, **desk test
+  passed 2026-11-13** (CHAT.md §13): the Epic / Local button left of Test; `OpenCall` names the
   EHR; `ehr` finds the caller and their next visit in Epic's sandbox (EPIC.md §5.2); the rail
   lists Epic's 7 test patients and their visits. Booking stays on the stand-in slots until
   E-4: the sandbox serves STU3 `$find`, but the parameters it needs are open. Open: the
   medicine, refill and lab reads (R2–R4), and recording Epic's replies for the tests. Epic's
   sandbox rules and the steps for a hospital: EPIC.md §3.1, §4.
+- **Built, desk test open: what a visit is, and the offer of a person** (2026-11-13, after
+  Camila's call; the owner's option A). `next_visit` says the visit type, the reason and
+  "online" from the record (never the scheduler's notes), and its line ends without a question
+  so the model answers the rest of the turn. A sensitive type or reason is dropped in `ehr`
+  (`visit_about.rs`, a draft list). When the agent cannot help, `offer_staff` says so and asks;
+  a yes is `hand_off`, a no goes on. FUTURE-SETTINGS.md §9, §10. Desk test: Epic, Test, call as
+  Camila, ask "when is my next visit and what is it for?", then something it cannot do.
+- **Built, desk test open: the code step's words are true for every caller** (2026-11-13, after
+  Warren's call; the owner's option A, FUTURE-SETTINGS.md §11). The code is "on its way" only
+  if the details match and a mobile number is on file, and a person is promised if no text
+  comes; "no text" goes to a person at once. Nothing says whether the details matched. Desk
+  test: Epic, Test, call as Warren McGinnis (May 24, 1952), say "I didn't get a text".
 - **In flight: the Chat page** (branch `chat-what-we-doin`, CHAT.md). The UI passed its first
   desk test (2026-11-12). **The connection is built, desk test open** (CHAT.md §6): `npm run
   dev` starts both; Test calls the agent through client-js and our own text transport (not

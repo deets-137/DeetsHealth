@@ -734,6 +734,8 @@ mod tests {
             ("Visit", "starts_at"),
             ("Visit", "clinician"),
             ("Visit", "place"),
+            ("Visit", "visit_type"),
+            ("Visit", "reason"),
         ];
         assert_eq!(pb::MARKED_FIELDS, want);
     }

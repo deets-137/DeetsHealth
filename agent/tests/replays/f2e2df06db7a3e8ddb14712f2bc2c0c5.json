@@ -1,0 +1,131 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Cgz9JUTxhgxpumT8eNQpK",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 3193
+     },
+     "cache_creation_input_tokens": 3193,
+     "cache_read_input_tokens": 0,
+     "inference_geo": "global",
+     "input_tokens": 4,
+     "output_tokens": 7,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSrgUKEAgTGAI4AUIIdGhpbmtpbmcSDKLkpYWfSnrfN9HDIxoMziSfSL3Cbi/sBgQXIjD1RyM7m/+odVMQSp537BkLoHQllQkLFwa7/KN7jx7ottsG93+rUN0pzB15+oL+y6cqywRaeonoqLf1wM1fewYD5Slw66Glob3Es7FVRNT6Up48FaNtSP/56R2zPdvN+3e41BhqgJKjiz72lKKLiSddluIbsjOMOwH432NTpLaMYw8njDyd2jAYZLdqUmxdlPhIzrfoPGEoQoTh53irJ/k6ZQRc/phbrNK0crxibL06YUnOUcGpBbIiLRHU1rQ+K29TT4b+ZgsU3IDV4NYoE0XZWy/KAe4foRJSP7rE1/+OUH4QPVocaMZmXHnuCi8FMx7lT8saP5IbUqZa8Lil5D5kEaermeqpuMu5FQap4YHAE+s8RhFC9cix5cOGy/a1l2SRzH9yDiMzE1p7BBTDoTxitupixfio0FvsQ8zxPr7emTcjomdlKUjn3np3ZgbBTrKTXck8AztNz1knhLVAP01WitbLRXT1safz/weJSL6Tvpx3Cj9RGftaINo3Cs7TtQHw1nAp7q7SrhPMpsjZj+AHyCWz0p8ENdwbQc6L9hecHVIT3njnfR0nsUUiNWKJVYDf9Y1sBKMbWWZDarRS9/Q+XHdnHgJKhgCeB3AlNO/qyc78zPY/bBxbjSOj9ugWZD4X7z0pkYOVxZmc1q24LQ1hw5O4W+BpG+WFoKZ6fg5hezBiyG1XPKs3dhSk/Hb75v9sWa2q7RiyLGI2X3xHuQj0DBMtcM3s4SFoz+/goPKRjEQpmQaGlMGWk9KsaEWr3yZ2NaNOWu9gpWyuQvmRKEhb2AZ6kqAiSuwLA8542hPXGpV5zFkkm2LYqAgoBJVX8lJKvlKjz8SCbq4aKxZHbRgB",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "Th",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "anks, Casey. What",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " is",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " your date of birth?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 3193,
+    "cache_read_input_tokens": 0,
+    "input_tokens": 4,
+    "output_tokens": 52,
+    "output_tokens_details": {
+     "thinking_tokens": 33
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

@@ -149,6 +149,11 @@ is ignored. So nothing past the edge sees a wire type.
   dev; EPIC.md §5.2). It names a server, never a patient; the session keeps it for the call.
   The Epic adapters are `ehr/src/epic_ehr.rs`, with the sixth pass, `EhrPass`, held to that
   file (2026-11-12).
+- **`Visit`** carries what the visit is (2026-11-13): `visit_type` and `reason` (both marked
+  `phi`), `online`, and `reason_private`. Each adapter builds a `VisitAbout`
+  (`ehr/src/visit_about.rs`) from the record's plain words; a sensitive type or reason is
+  dropped there, so it never crosses the wire, and `reason_private` is set
+  (FUTURE-SETTINGS.md §9).
 - **The contract** has eight calls: `OpenCall`, `CloseCall`, `Identify`, `ResendCode`,
   `CheckCode`, `FindSlots`, `Book`, `NextVisit` (S5: the soonest visit, from fixed fake visits
   and this run's bookings). There is no separate `SendCode`: `Identify` sends the first

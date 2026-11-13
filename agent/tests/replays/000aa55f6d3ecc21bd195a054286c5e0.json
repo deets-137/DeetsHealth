@@ -1,0 +1,516 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Cgz6pc4qWsT6qsTZyqMHE",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 481
+     },
+     "cache_creation_input_tokens": 481,
+     "cache_read_input_tokens": 4091,
+     "inference_geo": "global",
+     "input_tokens": 4,
+     "output_tokens": 8,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "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",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01RfTaDn38d22aydkVUa1fTF",
+    "input": {},
+    "name": "medical_question",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_018uXdc5XGgZRBuz4Njrepw7",
+    "input": {},
+    "name": "choose_option",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 2,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"optio",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "n\": 1}",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 2,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01CG98Kgp45pR4XYGeW3ApyP",
+    "input": {},
+    "name": "flag_for_staff",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 3,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"kind\"",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ": \"call",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "er_dist",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ressed\"",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"summ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ary\": \"",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "Caller ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "asked w",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "hether ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "they ar",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "e dying",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " and sa",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "id they",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " are wo",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "rried. ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "Caller ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "was tol",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "d to ca",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ll 911 ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "if it m",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ight be",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " an eme",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "rgency ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "and sai",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "d they ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "are saf",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "e. Call",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "er is b",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ooking ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "a routi",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ne chec",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "k-up.\"",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"evid",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ence\": ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "[\"Am I ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "dying?\"",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ",\"Yes, ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "I'm saf",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "e, I'm ",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "just wo",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "rried.\"",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "]}",
+    "type": "input_json_delta"
+   },
+   "index": 3,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 3,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 481,
+    "cache_read_input_tokens": 4091,
+    "input_tokens": 4,
+    "output_tokens": 652,
+    "output_tokens_details": {
+     "thinking_tokens": 399
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

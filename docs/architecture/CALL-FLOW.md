@@ -53,6 +53,8 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | The greeting, with the disclosures | `CallFlow.greet` (its `pre_actions`), `greeting()` | `line.greeting` | FUTURE-SETTINGS.md §4 |
 | The goodbye (the disconnect) | `end_call_fn` → `goodbye()` | `line.goodbye` | not yet listed |
 | The hand-off (it may carry a staff flag) | `hand_off_fn` → `handed_off()` | `line.hand_off`; its flag fields: `arg.hand_off.*` | the transfer number: FUTURE-SETTINGS.md › Booking |
+| The offer of a person when the agent cannot help (a yes is `hand_off`, a no goes on) | `offer_staff_fn`, `OFFER_REASONS` | `tool.offer_staff`, `arg.offer_staff.why`, `line.offer_staff`, `line.offer_staff_private`; the rule: `role`, `task.menu` | FUTURE-SETTINGS.md §10 |
+| What the next visit is: its type, reason, online | `_next_visit_fn`; the screen in `ehr/src/visit_about.rs` | `line.visit_online`, `line.visit_type`, `line.visit_reason`; the model's next step: `note.after_next_visit` | FUTURE-SETTINGS.md §9 |
 | A caller for someone else goes to a person | the rule in `role` | — | — |
 | A staff flag (silent to the caller) | `flag_for_staff_fn`, `CallFlow.raise_flag`, `FLAG_KINDS` (FLAGS.md) | `tool.flag_for_staff`, `arg.flag_for_staff.*`; the model's next step: `note.after_flag` | FUTURE-SETTINGS.md §5 |
 | A hand-off after the code did not work (the model's `hand_off` with kind `verification_failed`; the same for every caller, matched or not) | `hand_off_fn` | `line.hand_off_code`; the rule: `task.verify` | FUTURE-SETTINGS.md §7 |
@@ -104,6 +106,7 @@ The verification limits are a floor: a hospital may make them stricter, never lo
 | An impossible date of birth costs no try | `CallFlow._possible_birth` |
 | Chart and booking tools exist only after a pass | the node table in §2; `ehr` refuses them too (`ehr/src/service.rs`) |
 | The code check is constant time | `check_code` (`ehr/src/service.rs`) |
+| A sensitive visit type or reason never leaves `ehr`; the agent learns only that it is private | `VisitAbout::from_record`, `SENSITIVE` (`ehr/src/visit_about.rs`) |
 | A value the model says that no one gave it is flagged | `invented_values`, `TurnCollector._check_values` (`call.py`) |
 | The model's words before a silent tool are flagged | `words_before_silent_tool` (`call.py`; `agent/deets_agent/llm.py`) |
 

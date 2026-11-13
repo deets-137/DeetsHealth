@@ -1,0 +1,155 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Cgz6ueDy2KfGRNyhXynXk",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 255
+     },
+     "cache_creation_input_tokens": 255,
+     "cache_read_input_tokens": 2918,
+     "inference_geo": "global",
+     "input_tokens": 4,
+     "output_tokens": 9,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSlQcKEAgTGAI4AUIIdGhpbmtpbmcSDJ1h6bo3r3mT7pt8NhoMtylLKQBC0eLkEdXnIjAhY0Ztu8EPcInGJuS261oPXkJ3G5uPv7KUoKY9r6rasT6Cn05IkZqRDRlZgwhMGAMqsgaXvyMj4a9x1XTW3jCtVV1PAgB1EBaLgEn6TI04eWLG7r4sYGf/1+Gi9hwfpUe0xPK50PEE0C2qcFxtQjFyvYbF5bNfEm/KnlESmh+0gCIdZe48Jy5zMMO98aEbiDCtI6NK3GsOePDOcFGQUacAEPS+kMBVNTEeS+NdUD1+gzuxVGDeutTi1B+GfCaNDg21akej/9zxfLrBbme4p22QN/C4cnEOcMWLQTBrvgWkQsCFT0UTgs/LCypy6Ukhtx4ygm0Yc2FszXS/9NzVfniWKoM9Cxv4MHe6EJRumLUc2RfJ8S+QkvXTZCQKYabDc1ar5X/hJvWsPkiqeztzOnpVSgq3DjOyM3S2F16LlkdJk67EQ3dQ2f2TmzaXWQsssIIbxilB1POQNdFH2wuEs6nAIiOO4Y4wUS3GmDTgBlfTCtoYIPyFP1VuFt8Eb6WStd/Hn63fm8IYpbGx0vQ5EJlYLxWNwi/wHpjehTH3if0pd7OlIPjnRBP/2Zg4OrEE/hDfGckkwtS5G+eZomTIg+yz0ePmZDDuWRkR6CKI2hnbehX9KIRPN2BS3tGjGgU/c7TJjuH5gniytjSkgnTMhcCx79jxeLrYQFTjrhuu/oYm4WyqNVFcRvwgj24eE9Cn1Ubyk/VNXH9l3NIppl3G21iVNOJbSLmGTdESK5NldGJcYT6+ikWaRvDhV06XRZoByoXtQ1WpxIMZ3McDL5DLLmxrfdnPFQLqNzBdcvFgHY69SB1db9Xn/r7ot1tvne5EJ7GxumRU+VdqIKtLPJGWEtpvoH3Y+TUzRLpRTyRc0GCvy3ULPyixLpwR2XDa2go6HzD6ZTZbkXU1YOcheXxww+O0e7DPY0iWd67wD3wxVTr5ne1H0dlu/l1Wn4JvkT2SzPpv+9udwCecf97zotV4J7B4XpUVl1/yH2FYfeQx49pA2u2KFpi08h8Y3vEriaAHZN7hXvO/crshEj5oRjy/ucOS5BCXU/4os1yMU3quSJ78luO3uOQ3IkNroTTW9vnsrh2ldu9b8Bb4u/vLejaBVz0A8lf5+1HpXVwyHArh1hlQjekK9T3VWhwPXAQJZxEu6a8Mz1RfwxgB",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "I can only help",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " with visits here",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " at",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " Main Street Clinic",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": ". What do",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " you need for your visit today",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 255,
+    "cache_read_input_tokens": 2918,
+    "input_tokens": 4,
+    "output_tokens": 141,
+    "output_tokens_details": {
+     "thinking_tokens": 111
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}
