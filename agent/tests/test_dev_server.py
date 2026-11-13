@@ -31,7 +31,9 @@ def client(tmp_path: Path) -> TestClient:
     return TestClient(build_app(state))  # not entered: no lifespan, no ehr
 
 
-@pytest.mark.parametrize("path", ["/agent/health", "/agent/catalog", "/agent/sandbox", "/agent/latency", "/agent/calls/a"])
+@pytest.mark.parametrize(
+    "path", ["/agent/health", "/agent/catalog", "/agent/sandbox", "/agent/latency", "/agent/calls/a", "/agent/resources"]
+)
 def test_the_wall_refuses_without_the_token_or_from_another_origin(client, path):
     assert client.get(path).status_code == 403
     assert client.get(path, headers={TOKEN_HEADER: "x" * 40, "origin": ORIGIN}).status_code == 403
@@ -50,6 +52,29 @@ def test_a_call_waits_for_ehr(client):
     with pytest.raises(WebSocketDisconnect) as e, client.websocket_connect("/agent/call", headers=OK) as ws:
         ws.receive_text()
     assert e.value.code == 1013
+
+
+def test_the_voice_seat_has_the_wall_and_waits_for_ehr(client):
+    offer = {"type": "offer", "sdp": "v=0"}
+    assert client.post("/agent/voice", json=offer).status_code == 403
+    assert client.post("/agent/voice", json=offer, headers={TOKEN_HEADER: TOKEN, "origin": "https://evil.example"}).status_code == 403
+    r = client.post("/agent/voice", json=offer, headers=OK)
+    assert r.status_code == 409 and r.json()["detail"] == "ehr is not up yet"
+
+
+def test_the_resources_count_this_cycles_voice_calls(client, tmp_path):
+    voice = [
+        {"t_ms": 0, "kind": "call_start", "schema_version": 7, "seat": "voice"},
+        {"t_ms": 9, "kind": "call_end", "reason": "x", "cartesia": {"ink_s": 100.0, "sonic_chars": 500, "credits": 800}},
+    ]
+    from datetime import date
+
+    stamp = date.today().strftime("%Y%m%d")
+    (tmp_path / f"{stamp}-120000-test.jsonl").write_text("\n".join(json.dumps(e) for e in voice) + "\n", encoding="utf-8")
+    (tmp_path / "19990101-120000-test.jsonl").write_text("\n".join(json.dumps(e) for e in voice) + "\n", encoding="utf-8")
+    c = client.get("/agent/resources", headers=OK).json()["cartesia"]
+    assert (c["used"], c["calls"], c["ink_s"], c["sonic_chars"]) == (800, 1, 100.0, 500)
+    assert c["left"] == c["plan"] - 800 and c["live"] is None
 
 
 def test_the_sandbox_list_takes_local_or_epic_only(client):

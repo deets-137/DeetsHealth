@@ -1,6 +1,6 @@
 """One call with text in and text out: the real Flow, the real LLM service, the real ehr, no
-audio (test layer 3, VOICE-AGENT.md §9). Phase 3 swaps the text ends for Cartesia and Twilio;
-the middle stays.
+audio (test layer 3, VOICE-AGENT.md §9). A voice seat adds Cartesia's Ink and Sonic at the ends
+(voice.py); Twilio comes later. The middle stays.
 
     user text ─► user aggregator ─► Claude ─► TurnCollector ─► assistant aggregator
 
@@ -44,6 +44,7 @@ from deets_agent.ehr_client import EhrClient
 from deets_agent.flow import CLOSING_STEPS, FAKE_TODAY, STEPS, CallFlow, role
 from deets_agent.prompts import text
 from deets_agent.screen import CallerScreen
+from deets_agent.voice import Voice
 
 # After a response ends, how long to wait for a tool call or a new response before the turn
 # counts as over. Tool calls to ehr take milliseconds; this only covers frame ordering.
@@ -192,10 +193,13 @@ class TypedCall:
         today: date = FAKE_TODAY,
         transport: BaseTransport | None = None,
         ehr_source: str = "local",
+        voice: Voice | None = None,
     ) -> None:
         """`transport`: the caller's seat in the console (dev_server.py). The caller's lines then
         come over RTVI, and `serve()` runs the call in place of `start()` and `say()`.
-        `ehr_source`: `local` or `epic` (flow.py); an Epic call uses the real date."""
+        `ehr_source`: `local` or `epic` (flow.py); an Epic call uses the real date.
+        `voice`: Ink and Sonic (voice.py), for a voice seat; the caller then speaks, and typed
+        lines still come over RTVI."""
         # A typed call pins "today" to the day ehr's fake slots are built around (flow.py).
         if ehr_source == "epic":
             today = date.today()
@@ -210,6 +214,19 @@ class TypedCall:
         context = LLMContext()
         self._aggregators = LLMContextAggregatorPair(context)
         middle = [self._screen, self._aggregators.user(), llm, self._collector, self._aggregators.assistant()]
+        self.voice = voice
+        if voice is not None:
+            # The turn collector reads the model's text before Sonic takes it; the assistant
+            # aggregator comes after the seat, so it keeps only the words the caller heard.
+            middle = [
+                voice.stt,
+                self._screen,
+                self._aggregators.user(),
+                llm,
+                self._collector,
+                voice.tts,
+                voice.meter,
+            ]
         if transport is None:
             self._worker = PipelineWorker(
                 Pipeline(middle), params=PipelineParams(), cancel_on_idle_timeout=False, enable_rtvi=False
@@ -218,8 +235,9 @@ class TypedCall:
             # The caller's seat (CHAT.md §2.4): RTVI carries the caller's lines in and the call's
             # state out. Tool reports stay at NONE, so the browser never gets a tool's arguments
             # or result through RTVI; the watch stream carries those, from the record.
+            tail = [transport.output(), self._aggregators.assistant()] if voice else [transport.output()]
             self._worker = PipelineWorker(
-                Pipeline([transport.input(), *middle, transport.output()]),
+                Pipeline([transport.input(), *middle, *tail]),
                 params=PipelineParams(enable_metrics=True, enable_usage_metrics=True),
                 enable_rtvi=True,
                 rtvi_observer_params=RTVIObserverParams(
@@ -336,10 +354,17 @@ class TypedCall:
         await asyncio.wait_for(started.wait(), timeout=10)
         await self._manager.initialize(self.flow.greet())
         reason = "the caller hung up"
+        # A voice call ends at its limits (voice.py): no speech for a while, or its full length.
+        limit = asyncio.create_task(self._watch_limits()) if self.voice is not None else None
         try:
             while True:
                 getter = asyncio.create_task(self._collector.turns.get())
-                done, _ = await asyncio.wait({getter, self._run_task}, return_when=asyncio.FIRST_COMPLETED)
+                waits = {getter, self._run_task} | ({limit} if limit else set())
+                done, _ = await asyncio.wait(waits, return_when=asyncio.FIRST_COMPLETED)
+                if limit is not None and limit in done:
+                    getter.cancel()
+                    reason = limit.result()
+                    break
                 if getter not in done:
                     getter.cancel()
                     break  # the pipeline stopped: the caller's socket closed
@@ -354,6 +379,8 @@ class TypedCall:
                     self.record.agent(turn)
         finally:
             self.ended = True
+            if limit is not None:
+                limit.cancel()
             if not self._run_task.done():
                 await self._worker.queue_frame(EndFrame())
                 try:
@@ -362,6 +389,15 @@ class TypedCall:
                     self._run_task.cancel()
             await self.flow.close()
         return reason
+
+    async def _watch_limits(self) -> str:
+        """Wait until the voice call passes a limit; return why it must end."""
+        assert self.voice is not None
+        while True:
+            await asyncio.sleep(1)
+            why = self.voice.meter.over_limit()
+            if why is not None:
+                return why
 
     async def cancel(self) -> None:
         """Stop a served call at once: the caller's socket closed."""

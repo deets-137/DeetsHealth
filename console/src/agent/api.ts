@@ -71,8 +71,53 @@ async function get<T>(path: string): Promise<T> {
   return (await r.json()) as T;
 }
 
-/** `epic`: whether the dev server gave ehr Epic's sandbox (CHAT.md §13). */
-export const health = () => get<{ key: boolean; live: string | null; epic: boolean }>("/agent/health");
+/** `epic`: whether the dev server gave ehr Epic's sandbox (CHAT.md §13). `voice`: whether
+ * the Cartesia key is in .env (CHAT.md §17). */
+export const health = () =>
+  get<{ key: boolean; live: string | null; epic: boolean; voice: boolean }>("/agent/health");
+
+/** A voice call's use of Cartesia so far (agent/deets_agent/voice.py › VoiceMeter). */
+export type CartesiaUse = { ink_s: number; sonic_chars: number; credits: number; seconds?: number };
+
+/** Cartesia's credits this cycle (agent/deets_agent/resources.py; CHAT.md §17). Counted from
+ * this machine's voice calls only: a floor, not Cartesia's own count. */
+export type CartesiaCycle = {
+  plan: number;
+  used: number;
+  left: number;
+  calls: number;
+  ink_s: number;
+  sonic_chars: number;
+  cycle_start: string;
+  renews: string;
+  live: CartesiaUse | null;
+  rates: { ink_per_s: number; sonic_per_char: number };
+  limits: { idle_s: number; max_s: number };
+};
+export const resources = () => get<{ cartesia: CartesiaCycle; voice: boolean }>("/agent/resources");
+
+/** The voice seat's offer (CHAT.md §17): the browser's WebRTC offer, with every ICE candidate in
+ * it; the answer comes back. A refusal's reason names no value, so the page may show it. */
+export async function voiceOffer(
+  ehr: EhrSource,
+  offer: RTCSessionDescriptionInit,
+): Promise<RTCSessionDescriptionInit> {
+  let r: Response;
+  try {
+    r = await fetch(`/agent/voice?ehr=${ehr}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: offer.type, sdp: offer.sdp }),
+    });
+  } catch {
+    throw new AgentDown("the agent did not answer");
+  }
+  if (!r.ok) {
+    const body = (await r.json().catch(() => null)) as { detail?: unknown } | null;
+    throw new AgentDown(typeof body?.detail === "string" ? body.detail : "the agent refused the call");
+  }
+  return (await r.json()) as RTCSessionDescriptionInit;
+}
 
 /** The EHR a test call reads: ehr's fakes, or Epic's public sandbox (CHAT.md §13). */
 export type EhrSource = "local" | "epic";

@@ -12,8 +12,11 @@ On a hit the screen adds the caller's line and the 911 line to the context, spea
 and does not run the model: the line ends in a question, so the caller answers next. It fires
 once per call; after that a match is only recorded, and the model's tool covers the rest.
 
-Typed calls arrive as an `LLMMessagesAppendFrame` with one user message. Phase 3 adds the voice
-path's `TranscriptionFrame` here. Logs carry the kind of event only, never the words.
+Typed calls arrive as an `LLMMessagesAppendFrame` with one user message; a voice call's line is
+Ink's final `TranscriptionFrame` for the turn (voice.py). On a hit in a voice call the screen
+keeps the transcription from the user aggregator, so the model does not run on it. The 911 line
+cannot be interrupted: a caller who keeps talking still hears all of it. Logs carry the kind of
+event only, never the words.
 """
 
 from __future__ import annotations
@@ -21,10 +24,10 @@ from __future__ import annotations
 import re
 
 from loguru import logger
-from pipecat.frames.frames import Frame, LLMMessagesAppendFrame, TTSSpeakFrame
+from pipecat.frames.frames import Frame, LLMMessagesAppendFrame, TranscriptionFrame
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
-from deets_agent.flow import EMERGENCY_LINE, CallFlow
+from deets_agent.flow import EMERGENCY_LINE, CallFlow, emergency_frame
 
 # The default phrase list: the one copy (CALL-FLOW.md §3 points here; FUTURE-SETTINGS.md §3 holds
 # what a hospital will change). Each entry is a regular expression matched against the caller's
@@ -78,6 +81,8 @@ class CallerScreen(FrameProcessor):
 
     @staticmethod
     def _caller_line(frame: Frame) -> str | None:
+        if isinstance(frame, TranscriptionFrame):
+            return frame.text if frame.text.strip() else None
         if isinstance(frame, LLMMessagesAppendFrame) and len(frame.messages) == 1:
             message = frame.messages[0]
             if message.get("role") == "user" and isinstance(message.get("content"), str):
@@ -121,4 +126,4 @@ class CallerScreen(FrameProcessor):
             ),
             direction,
         )
-        await self.push_frame(TTSSpeakFrame(text=EMERGENCY_LINE, append_to_context=False), direction)
+        await self.push_frame(emergency_frame(), direction)

@@ -105,6 +105,15 @@ and the console starts; each next step follows from what the console needs (the 
 
 Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-ORDER.md §3.4).
 
+- **Built, not yet run: voice on the Chat page** (2026-11-13; the owner's forks 1B with a tab
+  bar, and 2A). Testing's **Text | Voice** bar (Text each time); a voice call through the laptop
+  microphone, Ink in and Sonic out (`voice.py`; our own WebRTC seat, no remote code); barge-in,
+  and the 911 line that plays to its end; a voice test call ends at 60 s of silence or 6 min;
+  the bottom panel's **Resources** tab counts Cartesia credits this cycle. CHAT.md §17, every
+  lever in CARTESIA.md §9, the real-call design in FUTURE-SETTINGS.md §12. **His step first:** a
+  Free Cartesia account, then `CARTESIA_API_KEY` in `.env` (and `CARTESIA_CYCLE_DAY`, the day
+  the account was opened), then restart `npm run dev` and run CHAT.md §17's desk test. Open:
+  his voice (Skylar is a draft); Twilio later (BUILD-ORDER.md §3.3).
 - **Done: Epic's sandbox patients on the Chat page** (branch `epic-time`; forks 1A and 2A,
   2026-11-12). The Backend Services sign-in (E-2, EPIC.md §5.1), and Epic mode, **desk test
   passed 2026-11-13** (CHAT.md §13): the Epic / Local button left of Test; `OpenCall` names the

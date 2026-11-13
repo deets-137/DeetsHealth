@@ -13,8 +13,9 @@ Each line is one event: `t_ms` (from the call's start; to a tenth of a milliseco
 4, whole before), `kind`, and its fields.
 - `call_start`, `call_end` — the schema version, the call's id (the file's name), the source
   (`typed`, `test`), the scenario (a script's name, or none), the EHR it read (`ehr`: `local`
-  for ehr's fakes, `epic` for Epic's public sandbox; schema 6), the mode, the model; at the
-  end, the totals and the estimated cost.
+  for ehr's fakes, `epic` for Epic's public sandbox; schema 6), the seat (`text` or `voice`;
+  schema 7), the mode, the model; at the end, the totals and the estimated cost, and for a
+  voice call `cartesia`: Ink's seconds, Sonic's characters and their credits (schema 7).
 - `caller`, `agent` — what each side said. `first_ms` on `agent` (schema 4): when the line's
   first frame passed, on the call's clock; the event's own `t_ms` comes after the harness's
   turn grace (`TURN_GRACE_S` in call.py).
@@ -63,8 +64,10 @@ PRICES = {"claude-haiku-5-5": (0.10, 0.50)}
 # 2026-11-12, evening: every `t_ms` keeps a tenth of a millisecond, and `agent` has
 # `first_ms`. 5: since 2026-11-12, night: `step` events, stamped when the Flow moves, and
 # `left` on the ehr events that spend a verification limit. 6: since 2026-11-12, late night:
-# `ehr` on `call_start`, the EHR the call read (`local`, `epic`). The catalog reads all six.
-SCHEMA_VERSION = 6
+# `ehr` on `call_start`, the EHR the call read (`local`, `epic`). 7: since 2026-11-13: `seat` on
+# `call_start` (`text`, `voice`), and `cartesia` on a voice call's `call_end`. The catalog reads
+# all seven.
+SCHEMA_VERSION = 7
 
 
 def _ms(seconds: float) -> float:
@@ -138,6 +141,7 @@ class CallRecord:
         source: str = "typed",
         scenario: str | None = None,
         ehr: str = "local",
+        seat: str = "text",
     ) -> None:
         folder.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -168,6 +172,7 @@ class CallRecord:
             source=source,
             scenario=scenario,
             ehr=ehr,
+            seat=seat,
             mode=mode,
             model=model,
             started=datetime.now().isoformat(timespec="seconds"),
@@ -278,9 +283,13 @@ class CallRecord:
             f"{r['failed']} failed - {self.tokens['output_tokens']} tokens out - about ${self.cost():.4f}"
         )
 
-    def close(self, reason: str) -> None:
+    def close(self, reason: str, cartesia: dict[str, Any] | None = None) -> None:
+        """`cartesia`: a voice call's use of Ink and Sonic (voice.py `VoiceMeter.totals`)."""
         if self._file.closed:
             return
+        fields: dict[str, Any] = {}
+        if cartesia is not None:
+            fields["cartesia"] = cartesia
         self.event("call_end", reason=reason, turns=self.turns, requests=self.requests,
-                   tokens=self.tokens, cost_usd=round(self.cost(), 6))
+                   tokens=self.tokens, cost_usd=round(self.cost(), 6), **fields)
         self._file.close()

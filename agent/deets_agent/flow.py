@@ -105,6 +105,14 @@ def _visit_words(v: Slot | Visit) -> str:
 EMERGENCY_LINE = text("line.emergency")
 
 
+def emergency_frame() -> TTSSpeakFrame:
+    """The 911 line as a frame that no barge-in can cut: a caller who keeps talking still hears
+    all of it (CARTESIA.md §9). Interruptions drop every other line, as Pipecat does."""
+    frame = TTSSpeakFrame(text=EMERGENCY_LINE, append_to_context=False)
+    frame.interruptible = False
+    return frame
+
+
 # Why the agent offers a person (offer_staff): it cannot do or see what was asked, or the record
 # holds it but it is private (ehr's sensitive screen, FUTURE-SETTINGS.md §9).
 OFFER_REASONS = ("cannot_help", "private")
@@ -257,7 +265,8 @@ class CallFlow:
 
         A line that ends in a question waits for the caller; any other line lets the model go on.
         """
-        await flow_manager.worker.queue_frame(TTSSpeakFrame(text=line, append_to_context=False))
+        frame = emergency_frame() if line == EMERGENCY_LINE else TTSSpeakFrame(text=line, append_to_context=False)
+        await flow_manager.worker.queue_frame(frame)
         result = {"spoken_to_caller": line, **extra}
         wait = line.rstrip().endswith("?")
         if next_node is None:

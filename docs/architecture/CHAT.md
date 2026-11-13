@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
+sources: [console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/voice.py, agent/deets_agent/resources.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
 updated: 2026-11-13
 ---
 # DeetsHealth — The Chat page
@@ -929,3 +929,91 @@ the same height as the Epic button, in its place.
    rounded square: black in Dark, navy in Moonlight, orange in Light.
 4. Testing: Sandbox EPTs is back, and the Epic button is in the top row. PHI: no top row.
 5. Testing on Epic, then Demo, then Testing: the patient list never stays on "Loading".
+
+## 17. Voice: the seat bar, the voice seat and the Resources tab
+> **Part:** built · 2026-11-13 · desk test open (it needs a Cartesia key) — the owner's forks,
+> 2026-11-13: **1B "but with a tabbar like how we set up the speed of chat for the demo mode.
+> Can default to Text to require a manual click of voice every time."** **2A "with proposed
+> limits and a doc in future settings. We should closely track how many credits we use and have
+> left. Can add a Resources tab to the lower right panel in the chat page."** Cartesia's side and
+> every lever: integrations/CARTESIA.md §8–9.
+
+**The seat bar** (`#chat-seat`, `SEATS` and `showSeat` in `chat.ts`): **Text | Voice**, in the
+canvas's top row at the right, before the Epic button; Testing only. The speed bar's look (the
+rail's `.tabs`), two parts each `--seat-part` (64 px) wide; the pill slides to the chosen part.
+- **Text each time:** Text when the page opens and again after every call ends, so a voice call
+  always takes a fresh press of Voice. Never saved.
+- **Locked during a call**, with the hint "Fixed for the call in progress".
+- **Voice is off without the key:** dimmed, with the hint "A voice call needs a Cartesia key in
+  .env" (the dev server's `health` reports `voice`).
+
+**A voice call** (Start with Voice chosen):
+- The browser asks once for the microphone. The call is the same test call as a typed one: the
+  same canvas, line facts, rails, record and catalog. The caller's spoken lines show as caller
+  bubbles, from Ink's final words for each turn.
+- **The text box stays live:** "Speak, or type as the caller and press Enter". A typed line in
+  a voice call gets a spoken answer. The code button's send works the same way.
+- **The seat:** `VoiceSeat` in `transport.ts`: the browser's own WebRTC and nothing else (no
+  Pipecat or Daily package, so no remote code: §6's rule). One request sends the offer to `POST
+  /agent/voice` (DEV-API.md §6) and takes the answer. The agent's voice plays from a page audio
+  element.
+- **Barge-in:** speaking over the agent stops it. The 911 line alone plays to its end.
+- **It ends** at End call, when the agent ends it, or at a limit: **60 s with no speech from the
+  caller, or 6 minutes** (`config.VOICE_IDLE_S`, `config.VOICE_MAX_S`). No line is spoken; the
+  canvas shows "Call ended: …" with the limit. A guard for the Free plan's credits, not a
+  caller's experience (FUTURE-SETTINGS.md §12 holds the real-call design).
+
+**The Resources tab** (`#chat-resources`, `resourceRows` in `chat.ts`; the bottom panel's third
+tab, after Tools and Timeline):
+- **Cartesia credits:** the credits left of the plan's, in large type; a meter of the share used
+  (accent fill); then rows: used this cycle (and how many voice calls), Ink (minutes heard and
+  their credits), Sonic (characters and their credits), **this call** (its length and credits,
+  while a voice call runs), and the day the credits renew.
+- **Two notes:** the limits ("A voice test call ends after 60 s with no speech, or at 6:00"),
+  or "No Cartesia key in .env: voice calls are off"; and "Counts this machine's voice calls only.
+  Cartesia's dashboard has the full count."
+- **When it reads:** when the page opens, after each call, and every 3 s while a voice call runs
+  (`RESOURCES_LIVE_MS`).
+- **Where the numbers come from:** Cartesia has no API that reports usage, so the dev server
+  counts (`resources.py`): each voice call's record carries its `cartesia` totals on `call_end`
+  (record schema 7), summed for the cycle, plus the live call's meter (`voice.py › VoiceMeter`,
+  from Pipecat's usage metrics: Ink's seconds of audio, silence included, and Sonic's
+  characters). The plan's credits and the day they renew are `CARTESIA_PLAN_CREDITS` and
+  `CARTESIA_CYCLE_DAY` in `.env` (20,000 and the 1st by default). Counts and dates only: no
+  value from a call.
+
+**Tokens and files:** `--seat-part` (64 px), `--meter-height` (8 px) in `skin.css`; the
+accent, `--glass-fill-strong`, `--line`, `--text-2`, `--text-3` roles. `chat.ts`, `chat.css`,
+`transport.ts › VoiceSeat`, `api.ts › resources, voiceOffer`; the agent's `voice.py`,
+`resources.py`, `dev_server.py › voice, resources`, `call.py › TypedCall` (the voice pipeline
+and `_watch_limits`), `screen.py` (a spoken line), `flow.py › emergency_frame`.
+
+**Decided inside his choices** (for his review):
+- The words: "Text", "Voice", the hints, "Speak, or type as the caller and press Enter", the
+  Resources tab's heading, row names and two notes.
+- The seat bar sits left of the Epic button in the same row.
+- The text box stays live in a voice call, and a typed line gets a spoken answer.
+- A limit ends the call silently, with the reason on the canvas.
+- The Resources tab counts by cycle, with the cycle day in `.env`; the live call's row shows
+  only while one runs; the meter fills with the accent.
+- The draft voice is Skylar until he picks one (CARTESIA.md §3).
+
+**Gaps:**
+- Not run: no Cartesia key yet. The agent's tests cover the meter, the limits, the cycle, the
+  screen on a spoken line and the 911 frame (`tests/test_voice.py`), and the route's wall
+  (`tests/test_dev_server.py`).
+- The agent bubble shows the whole reply even when the caller cut it off; the model's memory
+  holds only the words played (Pipecat's word timestamps).
+- The line facts show text times only; speech times (Ink's turn end, Sonic's first audio) come
+  with the 800 ms tuning.
+
+**Desk test** (after the Cartesia key is in `.env` and `npm run dev` is restarted):
+1. Chat, Testing. The top row shows Text | Voice with the pill on Text, and the Epic button.
+   The bottom panel has a Resources tab: 20,000 left of 20,000, 0 voice calls.
+2. Press Voice, then Start. Allow the microphone. The agent greets you aloud. Say you want a
+   check-up. Your words show as a caller bubble; the agent answers aloud.
+3. Speak while the agent speaks: it stops. Type a line and press Enter: it answers aloud.
+4. Open Resources during the call: "This call" counts up every few seconds.
+5. Stay silent for 60 s: the call ends with "Call ended: 60 s with no speech from the caller".
+   The bar is back on Text, and Resources shows one voice call and the credits it used.
+6. Without the key in `.env`: Voice is dimmed, and its hint names the key.

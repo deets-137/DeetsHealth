@@ -15,18 +15,21 @@ import {
   catalog,
   callEvents,
   health,
+  resources,
   sandbox,
+  voiceOffer,
   VERDICTS,
   watch,
   type AnnotationDraft,
   type CallEvent,
   type CallRow,
+  type CartesiaCycle,
   type EhrSource,
   type Rating,
   type Sandbox,
   type Verdict,
 } from "../agent/api";
-import { TextSeat } from "../agent/transport";
+import { TextSeat, VoiceSeat } from "../agent/transport";
 import { reducedMotion, tokenMs } from "../tokens";
 import { el, type Page } from "./page";
 import { placePill } from "./subnav";
@@ -52,6 +55,15 @@ const EHR_ABOUT: Record<EhrSource, string> = {
   epic: "Test calls read Epic's public sandbox",
 };
 const EHR_KEY = "deets.console.chat.ehr";
+
+// The seat bar (CHAT.md §17): how the next test call is made. Text each time the page opens and
+// after each call ends (the owner, 2026-11-13: "require a manual click of voice every time"),
+// so it is never saved.
+type Seat = "text" | "voice";
+const SEATS: Seat[] = ["text", "voice"];
+const SEAT_WORD: Record<Seat, string> = { text: "Text", voice: "Voice" };
+// How often the Resources tab reads the credits while a voice call runs.
+const RESOURCES_LIVE_MS = 3000;
 const savedEhr = (): EhrSource => {
   try {
     const e = localStorage.getItem(EHR_KEY);
@@ -106,6 +118,12 @@ export function chatPage(): Page {
               <div class="chat-main">
               <div class="chat-canvas">
                 <div class="chat-top">
+                  <div class="tabs seat" data-wave id="chat-seat" role="radiogroup" aria-label="How you call">
+                    <span class="nav-highlight tab-pill" aria-hidden="true"></span>
+                    ${SEATS.map(
+                      (s) => `<button class="tab" type="button" role="radio" data-seat="${s}" aria-checked="${s === "text"}">${SEAT_WORD[s]}</button>`,
+                    ).join("")}
+                  </div>
                   <button class="flip-toggle ehr-toggle" data-wave id="chat-ehr" type="button"><span class="flip-word"></span></button>
                   <div class="tabs speed" data-wave id="demo-speed" role="radiogroup" aria-label="Playback speed">
                     <span class="nav-highlight tab-pill" aria-hidden="true"></span>
@@ -202,6 +220,7 @@ export function chatPage(): Page {
                   <span class="nav-highlight tab-pill" aria-hidden="true"></span>
                   <button class="tab" role="tab" type="button" data-tab="tools">Tools</button>
                   <button class="tab" role="tab" type="button" data-tab="timeline">Timeline</button>
+                  <button class="tab" role="tab" type="button" data-tab="resources">Resources</button>
                 </div>
                 <div class="tab-body" role="tabpanel" data-tab="tools">
                   ${MODES.map(
@@ -211,6 +230,9 @@ export function chatPage(): Page {
                 </div>
                 <div class="tab-body" role="tabpanel" data-tab="timeline" hidden>
                   <p class="empty">Empty for now</p>
+                </div>
+                <div class="tab-body resources" role="tabpanel" data-tab="resources" id="chat-resources" hidden>
+                  <p class="empty">Loading</p>
                 </div>
               </section>
             </aside>
@@ -440,8 +462,43 @@ export function chatPage(): Page {
             showSandbox();
           }
           showEhr();
+          voiceServed = h.voice;
+          showSeat(false);
         })
         .catch(() => {});
+
+      // ---- the seat bar (CHAT.md §17): Text | Voice, at the canvas's top right beside the EHR
+      // toggle, Testing only. Text each time the page opens and after each call; locked while a
+      // call runs; Voice is off without the Cartesia key.
+      const seatBar = $("chat-seat");
+      const seatPill = seatBar.querySelector<HTMLElement>(".tab-pill")!;
+      const seatParts = [...seatBar.querySelectorAll<HTMLButtonElement>("[data-seat]")];
+      let seat: Seat = "text";
+      let voiceServed = false; // until the dev server says it has the key
+      function showSeat(animate: boolean) {
+        seatParts.forEach((b) => {
+          const s = b.dataset.seat as Seat;
+          b.setAttribute("aria-checked", String(s === seat));
+          b.disabled = live || seeking || (s === "voice" && !voiceServed);
+          b.title =
+            s === "voice" && !voiceServed
+              ? "A voice call needs a Cartesia key in .env"
+              : live || seeking
+                ? "Fixed for the call in progress"
+                : s === "voice"
+                  ? "Speak through the microphone; you can still type"
+                  : "Type as the caller";
+        });
+        placePill(seatPill, seatParts.find((b) => b.dataset.seat === seat), animate);
+      }
+      seatBar.addEventListener("click", (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-seat]");
+        if (!b || b.disabled || live || seeking) return;
+        seat = b.dataset.seat as Seat;
+        showSeat(true);
+      });
+      // Places the pill once the bar has a size (it has none outside Testing).
+      new ResizeObserver(() => showSeat(false)).observe(seatBar);
 
       // ---- the code by text (CHAT.md §8): when the fake Twilio takes a text for a test call,
       // or a recorded call reaches its text, the code button comes in at the bottom left. Its
@@ -495,7 +552,8 @@ export function chatPage(): Page {
       codeSend.addEventListener("click", () => {
         const latest = texts.test[texts.test.length - 1];
         if (mode !== "test" || !live || !client || !latest) return;
-        void client.sendText(latest.code, { run_immediately: true, audio_response: false }).catch(() => {});
+        // In a voice call the agent speaks its answer to a typed line too.
+        void client.sendText(latest.code, { run_immediately: true, audio_response: callSeat === "voice" }).catch(() => {});
         closeCode();
         input.focus();
       });
@@ -525,9 +583,17 @@ export function chatPage(): Page {
         end.disabled = !on;
         input.disabled = !on;
         send.disabled = !on;
-        input.placeholder = on ? "Type as the caller, then press Enter" : "Start a call to type as the caller";
+        input.placeholder = !on
+          ? "Start a call to type as the caller"
+          : callSeat === "voice"
+            ? "Speak, or type as the caller and press Enter"
+            : "Type as the caller, then press Enter";
+        // Back to Text after each call: a voice call takes a fresh press of Voice.
+        if (!on) seat = "text";
         renderCode(false);
         showEhr();
+        showSeat(true);
+        watchResources();
       };
       const note = (text: string) => {
         const p = document.createElement("p");
@@ -539,6 +605,7 @@ export function chatPage(): Page {
       // The lines of a test call come back from the watch stream, the same path PHI and Demo
       // draw from; the seat only sends (CHAT.md §5).
       let client: PipecatClient | undefined;
+      let callSeat: Seat = "text"; // the seat of the call in progress
       let myCall: string | null = null;
       let seeking = false; // between Start and the dev server's "started"
       let testView: CallView | undefined;
@@ -556,11 +623,17 @@ export function chatPage(): Page {
         testView = new CallView(testLines, { onText: (e) => addText("test", e), ...panels("test") });
         myCall = null;
         seeking = true;
+        callSeat = seat;
         showEhr();
+        showSeat(false);
+        const callEhr = ehr;
         client = new PipecatClient({
-          // The EHR the toggle picks is fixed for the whole call (CHAT.md §13).
-          transport: new TextSeat(`/agent/call?ehr=${ehr}`),
-          enableMic: false,
+          // The EHR the toggle picks and the seat are fixed for the whole call (CHAT.md §13, §17).
+          transport:
+            callSeat === "voice"
+              ? new VoiceSeat((offer) => voiceOffer(callEhr, offer))
+              : new TextSeat(`/agent/call?ehr=${callEhr}`),
+          enableMic: callSeat === "voice",
           enableCam: false,
           callbacks: {
             onDisconnected: () => {
@@ -581,6 +654,7 @@ export function chatPage(): Page {
           client = undefined;
           seeking = false;
           showEhr();
+          showSeat(false);
           start.disabled = false;
           testLines.replaceChildren(
             note(e instanceof Error && e.message ? `No call: ${e.message}` : "No call: the agent did not answer"),
@@ -602,7 +676,7 @@ export function chatPage(): Page {
         e.preventDefault();
         const text = input.value.trim();
         if (!live || !text || !client) return;
-        void client.sendText(text, { run_immediately: true, audio_response: false }).catch(() => {});
+        void client.sendText(text, { run_immediately: true, audio_response: callSeat === "voice" }).catch(() => {});
         input.value = "";
       });
 
@@ -655,6 +729,25 @@ export function chatPage(): Page {
           if (up && !box) void loadSandbox();
         },
       );
+
+      // ---- the Resources tab (CHAT.md §17): Cartesia's credits this cycle. Read when the page
+      // opens and after each call; every few seconds while a voice call runs.
+      const resourcesBox = $("chat-resources");
+      let resourcesTimer = 0;
+      const loadResources = async () => {
+        try {
+          const r = await resources();
+          resourcesBox.replaceChildren(...resourceRows(r.cartesia, r.voice));
+        } catch {
+          resourcesBox.replaceChildren(note("The agent's dev server is not running"));
+        }
+      };
+      function watchResources() {
+        window.clearInterval(resourcesTimer);
+        void loadResources();
+        if (live && callSeat === "voice") resourcesTimer = window.setInterval(() => void loadResources(), RESOURCES_LIVE_MS);
+      }
+      void loadResources();
 
       // ---- Demo: a recorded call plays back as if live, from the catalog
       const play = $<HTMLButtonElement>("demo-play");
@@ -1448,6 +1541,68 @@ function agentFacts(llm: CallEvent[]): string | undefined {
   if (!live) return "replayed";
   const ms = (live.first_text_ms ?? live.total_ms) as number | undefined;
   return typeof ms === "number" ? `text ${(ms / 1000).toFixed(1)} s` : undefined;
+}
+
+/** The Resources tab's rows (CHAT.md §17): counts and dates only, never a value from a call. */
+function resourceRows(c: CartesiaCycle, keyed: boolean): HTMLElement[] {
+  const n = (x: number) => Math.round(x).toLocaleString("en-US");
+  const minutes = (s: number) => {
+    const whole = Math.round(s);
+    return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+  };
+  const day = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  };
+  const row = (term: string, value: string) => {
+    const r = document.createElement("div");
+    r.className = "res-row";
+    const t = document.createElement("span");
+    t.className = "res-term";
+    t.textContent = term;
+    const v = document.createElement("span");
+    v.className = "res-value";
+    v.textContent = value;
+    r.append(t, v);
+    return r;
+  };
+  const head = document.createElement("h2");
+  head.className = "res-head";
+  head.textContent = "Cartesia credits";
+
+  const left = document.createElement("p");
+  left.className = "res-left";
+  left.textContent = `${n(c.left)} left of ${n(c.plan)}`;
+
+  const meter = document.createElement("div");
+  meter.className = "res-meter";
+  meter.setAttribute("role", "meter");
+  meter.setAttribute("aria-label", "Credits used this cycle");
+  meter.setAttribute("aria-valuemin", "0");
+  meter.setAttribute("aria-valuemax", String(c.plan));
+  meter.setAttribute("aria-valuenow", String(Math.min(c.used, c.plan)));
+  const fill = document.createElement("span");
+  fill.className = "res-fill";
+  fill.style.setProperty("--used", String(Math.min(1, c.plan ? c.used / c.plan : 0)));
+  meter.append(fill);
+
+  const rows = [
+    row("Used this cycle", `${n(c.used)} (${c.calls} voice ${c.calls === 1 ? "call" : "calls"})`),
+    row("Ink, speech in", `${minutes(c.ink_s)} · ${n(c.ink_s * c.rates.ink_per_s)}`),
+    row("Sonic, speech out", `${n(c.sonic_chars)} characters · ${n(c.sonic_chars * c.rates.sonic_per_char)}`),
+  ];
+  if (c.live) rows.push(row("This call", `${minutes(c.live.seconds ?? 0)} · ${n(c.live.credits)}`));
+  rows.push(row("Renews", day(c.renews)));
+
+  const limits = document.createElement("p");
+  limits.className = "res-note";
+  limits.textContent = keyed
+    ? `A voice test call ends after ${c.limits.idle_s} s with no speech, or at ${minutes(c.limits.max_s)}.`
+    : "No Cartesia key in .env: voice calls are off.";
+  const floor = document.createElement("p");
+  floor.className = "res-note";
+  floor.textContent = "Counts this machine's voice calls only. Cartesia's dashboard has the full count.";
+  return [head, left, meter, ...rows, limits, floor];
 }
 
 function endNote(reason: string): HTMLElement {

@@ -82,18 +82,32 @@
 .chat-top {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-4);
   padding: var(--canvas-pad) var(--canvas-pad) 0;
 }
 
 /* The speed bar: the rail's tab bar (.tabs) split in three equal parts, 0.5×, 1×, 2×, each
-   --speed-part wide; the pill slides to the chosen speed. */
-.speed {
+   --speed-part wide; the pill slides to the chosen speed. The seat bar (CHAT.md §17) is the
+   same bar in two parts, Text and Voice, each --seat-part wide. */
+.speed,
+.seat {
   overflow: visible;
 }
 
 .speed .tab {
   width: var(--speed-part);
   text-align: center;
+}
+
+.seat .tab {
+  width: var(--seat-part);
+  text-align: center;
+}
+
+.seat .tab:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
 }
 
 .flip-word {
@@ -451,6 +465,7 @@
 .chat:not([data-mode="test"]) .chat-bar,
 .chat:not([data-mode="test"]) .split-call,
 .chat:not([data-mode="test"]) .ehr-toggle,
+.chat:not([data-mode="test"]) .seat,
 .chat:not([data-mode="demo"]) .split-play,
 .chat:not([data-mode="demo"]) .speed {
   display: none;
@@ -705,6 +720,72 @@
   background: var(--glass-fill-strong);
   font-size: var(--text-small);
   color: var(--text-2);
+}
+
+/* ------------------------------------------------------------- the Resources tab */
+
+/* The bottom panel's third tab (CHAT.md §17): Cartesia's credits this cycle. A heading, the
+   credits left in large type, a meter of the share used, then term and value rows. */
+.tab-body.resources {
+  gap: var(--space-3);
+}
+
+.res-head {
+  font-size: var(--text-panel);
+}
+
+.res-left {
+  font-size: var(--text-page);
+  font-weight: var(--weight-bold);
+  line-height: var(--line-height-tight);
+  color: var(--text);
+}
+
+.res-meter {
+  position: relative;
+  height: var(--meter-height);
+  border-radius: var(--meter-height);
+  background: var(--glass-fill-strong);
+  overflow: hidden;
+}
+
+.res-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform-origin: left center;
+  transform: scaleX(var(--used, 0));
+  transition: transform var(--dur-pill) var(--ease-pill);
+}
+
+.res-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: var(--edge) solid var(--line);
+  font-size: var(--text-small);
+}
+
+.res-term {
+  color: var(--text-2);
+}
+
+.res-value {
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.res-note {
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .res-fill {
+    transition: none;
+  }
 }
 
 /* ------------------------------------------------------------- the Review panel */

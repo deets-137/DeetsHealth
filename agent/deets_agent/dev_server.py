@@ -6,8 +6,13 @@ hybrid). Dev only, synthetic callers only, on 127.0.0.1.
 `npm run dev` (scripts/dev.mjs) starts it on a free port with a fresh token, then starts Vite,
 which proxies `/agent/*` here and adds the token. The page never holds the token.
 
-- `GET  /agent/health` — whether the Anthropic key is set. Test calls are always live: no
-  replay cache (replay is Demo's alone). Without a key there is no test call.
+- `GET  /agent/health` — whether the Anthropic key is set, and the Cartesia key (`voice`). Test
+  calls are always live: no replay cache (replay is Demo's alone). Without a key there is no
+  test call; without the Cartesia key, no voice call.
+- `GET  /agent/resources` — Cartesia's credits this cycle, counted from the records and the live
+  voice call (resources.py; CHAT.md §17).
+- `POST /agent/voice?ehr=local|epic` — the voice seat: a WebRTC offer in, the answer out; the
+  call runs over that connection (CHAT.md §17).
 - `GET  /agent/catalog` — every dev call record, its row and current ratings (catalog.py), and
   the rubric's dimensions.
 - `GET  /agent/calls/{id}` — one record's events, for Demo.
@@ -47,6 +52,9 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+from pipecat.transports.base_transport import BaseTransport, TransportParams
+from pipecat.transports.smallwebrtc.connection import SmallWebRTCConnection
+from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams, FastAPIWebsocketTransport
 
 from deets_agent import config, redact
@@ -64,9 +72,13 @@ from deets_agent.ehr_client import EhrClient, EhrError
 from deets_agent.ehr_process import running_ehr
 from deets_agent.fake_twilio import FakeTwilio
 from deets_agent.llm import Mode, build_llm
+from deets_agent.resources import cartesia_cycle
 from deets_agent.rtvi_json import RtviJsonSerializer
+from deets_agent.voice import Voice
 
 TOKEN_HEADER = "x-deets-token"
+# The longest SDP offer the voice route takes: a browser's audio offer is a few kilobytes.
+MAX_OFFER_BYTES = 64 * 1024
 
 
 SANDBOX = config.REPO / "ehr" / "fixtures" / "sandbox.json"
@@ -117,7 +129,11 @@ class State:
         self.token = token
         self.origins = origins
         self.twilio = FakeTwilio(port)
+        self.calls = calls
         self.catalog = Catalog(calls).build()
+        # Voice (CHAT.md §17): the Cartesia key's presence, and the live voice call's parts.
+        self.has_voice = config.cartesia_key() is not None
+        self.voice: Voice | None = None
         self.ehr: EhrClient | None = None
         # Test is always live (the owner, 2026-11-12: "limit replaying conversations only to the
         # Demo view"): every line goes to Claude, no replay cache. Without a key, no test call.
@@ -130,6 +146,8 @@ class State:
         self.epic = bool(epic_env())
         self.epic_list: tuple[float, dict[str, Any]] | None = None
         self.epic_lock = asyncio.Lock()
+        # Voice calls run as tasks after their route returns the answer; kept so none is lost.
+        self.tasks: set[asyncio.Task] = set()
 
     def allowed(self, headers) -> bool:
         """The launch token, compared in constant time, and the console's own origin."""
@@ -187,7 +205,21 @@ def build_app(state: State) -> FastAPI:
 
     @app.get("/agent/health")
     async def health():
-        return {"key": state.has_key, "live": state.live.call_id if state.live else None, "epic": state.epic}
+        return {
+            "key": state.has_key,
+            "live": state.live.call_id if state.live else None,
+            "epic": state.epic,
+            "voice": state.has_voice,
+        }
+
+    @app.get("/agent/resources")
+    async def resources():
+        """Cartesia's credits this cycle, from the records and the live voice call (CHAT.md §17)."""
+        voice = state.voice
+        live = None
+        if voice is not None:
+            live = {**voice.meter.totals(), "seconds": round(voice.meter.elapsed())}
+        return {"cartesia": cartesia_cycle(state.calls, live=live), "voice": state.has_voice}
 
     @app.get("/agent/sandbox")
     async def sandbox(ehr: str = "local"):
@@ -305,13 +337,6 @@ def build_app(state: State) -> FastAPI:
             await ws.close(code=1013, reason="Epic mode needs epic-client.json and the non-production key")
             return
         await ws.accept()
-        record = CallRecord(state.mode.value, config.MODEL, source="test", ehr=ehr_source)
-        state.live = record
-        redact.dev_tap = record.log
-        record.listeners.append(
-            lambda text: state.broadcast({"type": "event", "call": record.call_id, "event": json.loads(text)})
-        )
-        state.broadcast({"type": "started", "call": record.call_id})
         transport = FastAPIWebsocketTransport(
             ws,
             FastAPIWebsocketParams(
@@ -321,29 +346,108 @@ def build_app(state: State) -> FastAPI:
                 session_timeout=30 * 60,
             ),
         )
-        typed = TypedCall(state.ehr, build_llm(state.mode), record, transport=transport, ehr_source=ehr_source)
+        await _run_call(state, transport, ehr_source, None)
 
-        @transport.event_handler("on_client_disconnected")
-        async def _gone(transport, client):
-            await typed.cancel()
-
-        reason = "the caller hung up"
+    @app.post("/agent/voice")
+    async def voice(request: Request, ehr: str = "local"):
+        """The voice seat (CHAT.md §17): the browser's WebRTC offer in, the answer out. The call
+        then runs over that connection: the caller's microphone to Ink, Sonic to the speaker, and
+        RTVI on its data channel (typed lines too). The browser sends its offer with every ICE
+        candidate in it, so there is no trickle route. One call at a time, as on `/agent/call`."""
+        refused = _refuse_call(state, ehr)
+        if refused is None and not state.has_voice:
+            refused = "a voice call needs a Cartesia key in .env"
+        if refused is not None:
+            raise HTTPException(409, refused)
+        body = await request.body()
+        if len(body) > MAX_OFFER_BYTES:
+            raise HTTPException(413, "the offer is too long")
         try:
-            reason = await typed.serve()
-        except CallFailed as e:
-            reason = f"Claude's request failed ({e})"
-        except Exception as e:  # noqa: BLE001 - the record must close, and the server must live on
-            reason = f"the harness failed ({type(e).__name__})"
-            record.event("error", type=type(e).__name__, message=str(e))
-        finally:
-            record.close(reason)
-            redact.dev_tap = None
-            await _file(state.ehr, record)
-            state.live = None
-            state.catalog.refresh(record.call_id)
-            state.broadcast({"type": "ended", "call": record.call_id})
+            offer = json.loads(body)
+        except ValueError:
+            raise HTTPException(400, "not JSON") from None
+        if not (isinstance(offer, dict) and offer.get("type") == "offer" and isinstance(offer.get("sdp"), str)):
+            raise HTTPException(400, "an SDP offer: {type: offer, sdp}")
+        key = config.cartesia_key()
+        if key is None:
+            raise HTTPException(409, "a voice call needs a Cartesia key in .env")
+        # On this PC both ends are local: host candidates only, no STUN or TURN server.
+        connection = SmallWebRTCConnection()
+        await connection.initialize(sdp=offer["sdp"], type="offer")
+        answer = connection.get_answer()
+        if answer is None:
+            await connection.disconnect()
+            raise HTTPException(500, "no answer")
+        transport = SmallWebRTCTransport(
+            connection, TransportParams(audio_in_enabled=True, audio_out_enabled=True)
+        )
+        # Claim the seat now, so a second offer is refused while this one connects.
+        record = _open_record(state, ehr, "voice")
+        state.voice = Voice(key)
+        task = asyncio.create_task(_run_call(state, transport, ehr, state.voice, record))
+        state.tasks.add(task)
+        task.add_done_callback(state.tasks.discard)
+        return {"sdp": answer["sdp"], "type": answer["type"]}
 
     return app
+
+
+def _refuse_call(state: State, ehr_source: str) -> str | None:
+    """Why a new test call cannot start now, or None."""
+    if state.live is not None:
+        return "a test call is already running"
+    if state.ehr is None:
+        return "ehr is not up yet"
+    if not state.has_key:
+        return "a test call needs an Anthropic key in .env"
+    if ehr_source not in ("local", "epic"):
+        return "ehr: local or epic"
+    if ehr_source == "epic" and not state.epic:
+        return "Epic mode needs epic-client.json and the non-production key"
+    return None
+
+
+def _open_record(state: State, ehr_source: str, seat: str) -> CallRecord:
+    """Open the test call's record and make it the live call: the watch stream follows it."""
+    record = CallRecord(state.mode.value, config.MODEL, source="test", ehr=ehr_source, seat=seat)
+    state.live = record
+    redact.dev_tap = record.log
+    record.listeners.append(
+        lambda text: state.broadcast({"type": "event", "call": record.call_id, "event": json.loads(text)})
+    )
+    state.broadcast({"type": "started", "call": record.call_id})
+    return record
+
+
+async def _run_call(
+    state: State, transport: BaseTransport, ehr_source: str, voice: Voice | None, record: CallRecord | None = None
+) -> None:
+    """Run one test call on its seat until it ends, then close and file its record."""
+    if record is None:
+        record = _open_record(state, ehr_source, "text")
+    assert state.ehr is not None
+    typed = TypedCall(state.ehr, build_llm(state.mode), record, transport=transport, ehr_source=ehr_source, voice=voice)
+
+    @transport.event_handler("on_client_disconnected")
+    async def _gone(transport, client):
+        await typed.cancel()
+
+    reason = "the caller hung up"
+    try:
+        reason = await typed.serve()
+    except CallFailed as e:
+        reason = f"Claude's request failed ({e})"
+    except Exception as e:  # noqa: BLE001 - the record must close, and the server must live on
+        reason = f"the harness failed ({type(e).__name__})"
+        record.event("error", type=type(e).__name__, message=str(e))
+    finally:
+        record.close(reason, cartesia=voice.meter.totals() if voice is not None else None)
+        redact.dev_tap = None
+        state.voice = None
+        await _file(state.ehr, record)
+        state.live = None
+        state.catalog.refresh(record.call_id)
+        state.broadcast({"type": "ended", "call": record.call_id})
 
 
 async def _file(ehr: EhrClient, record: CallRecord) -> None:

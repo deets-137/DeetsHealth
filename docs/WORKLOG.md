@@ -8,6 +8,24 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-13 (Windows, voice) — Cartesia wired into the Chat page, ready for the Free plan
+- The owner asked how hard Sonic and Ink are to wire in, and the cost while we develop. Read
+  Cartesia's and Pipecat's docs and Pipecat 1.16's code. Corrected CARTESIA.md: turn detection
+  is on its own endpoint (`/stt/turns/websocket`); silence is billed; Ink takes μ-law and Sonic
+  sends 8 kHz μ-law; Ink-2 now lists five languages; Twilio's Media Streams fee is $0.004 a
+  minute. A 3-minute call is about 1,750 credits; the Free plan's 20,000 give about 11 calls.
+- Two forks. The owner: 1B with a tab bar like Demo's speed bar, Text by default every time;
+  2A, the proposed limits (60 s silence, 6 min), a FUTURE-SETTINGS doc, close tracking of the
+  credits, a Resources tab in the bottom panel. He asked for every Cartesia lever and our
+  setting: CARTESIA.md §9.
+- Pipecat's browser package for SmallWebRTC depends on daily-js (remote code, CHAT.md §6), so
+  `VoiceSeat` is our own, on the browser's RTCPeerConnection. Cartesia has no usage API, so the
+  dev server counts credits from Pipecat's usage metrics into the record (schema 7).
+- Built: `voice.py`, `resources.py`, `POST /agent/voice`, `GET /agent/resources`, the voice
+  pipeline in `call.py`, a spoken line in `screen.py`, the 911 line uninterruptible, the seat
+  bar, `VoiceSeat`, the Resources tab. New tests in `test_voice.py` and `test_dev_server.py`.
+  Not run with audio: no Cartesia key yet.
+
 ## 2026-11-13 (Windows, last) — When no code can go out: words true for every caller
 - The owner's call as Warren McGinnis (`agent/calls/20261112-181140-test.jsonl`): his chart has
   no mobile number, so no code went out, yet he heard "we've just sent a 6-digit code". He

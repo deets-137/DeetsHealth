@@ -44,3 +44,59 @@ def anthropic_key() -> str | None:
     load_dotenv(REPO / ".env", override=False)
     key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     return key or None
+
+
+# ---- voice: Cartesia Ink in, Sonic out (integrations/CARTESIA.md §9 lists every lever) ----
+
+# Pinned by name: Cartesia lists no dated snapshots (CARTESIA.md §3). Never `sonic-latest`.
+STT_MODEL = "ink-2"
+TTS_MODEL = "sonic-3.6"
+# Skylar, from Cartesia's list of stable voices for agents (CARTESIA.md §3): a draft until the
+# owner picks one by ear. CARTESIA_VOICE_ID in .env overrides it.
+DEFAULT_VOICE_ID = "db6b0ed5-d5d3-463d-ae85-518a07d3c2b4"
+
+# What Cartesia charges (docs.cartesia.ai/pricing, read 2026-11-12): Ink-2, 3 credits per second
+# of audio streamed, silence included; Sonic, about 1 credit per character.
+INK_CREDITS_PER_S = 3
+SONIC_CREDITS_PER_CHAR = 1
+
+# The limits of a voice test call (the owner, 2026-11-13: 60 s and 6 min). A dev guard for the
+# Free plan's credits, not a caller's experience: the call ends with no spoken line. What a
+# real call does is a hospital setting (FUTURE-SETTINGS.md §12).
+VOICE_IDLE_S = 60
+VOICE_MAX_S = 6 * 60
+
+# The Free plan's credits per month (cartesia.ai/pricing). CARTESIA_PLAN_CREDITS in .env sets
+# another plan's; CARTESIA_CYCLE_DAY the day of the month the credits renew (the day the
+# account was opened).
+FREE_PLAN_CREDITS = 20_000
+
+
+def cartesia_key() -> str | None:
+    """The Cartesia key from the git-ignored .env. Never printed, never logged."""
+    load_dotenv(REPO / ".env", override=False)
+    key = os.environ.get("CARTESIA_API_KEY", "").strip()
+    return key or None
+
+
+def voice_id() -> str:
+    load_dotenv(REPO / ".env", override=False)
+    return os.environ.get("CARTESIA_VOICE_ID", "").strip() or DEFAULT_VOICE_ID
+
+
+def _env_int(name: str, default: int, low: int, high: int) -> int:
+    load_dotenv(REPO / ".env", override=False)
+    try:
+        value = int(os.environ.get(name, "").strip())
+    except ValueError:
+        return default
+    return value if low <= value <= high else default
+
+
+def plan_credits() -> int:
+    return _env_int("CARTESIA_PLAN_CREDITS", FREE_PLAN_CREDITS, 1, 1_000_000_000)
+
+
+def cycle_day() -> int:
+    """The day of the month Cartesia's credits renew. 28 at most, so every month has it."""
+    return _env_int("CARTESIA_CYCLE_DAY", 1, 1, 28)

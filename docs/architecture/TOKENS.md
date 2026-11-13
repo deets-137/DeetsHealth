@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
 | Theme (color roles) | themes.css | 31 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 84 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 86 tokens · overrides:  |
 
 ## Theme roles
 
@@ -128,6 +128,8 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 |---|---|---|---|
 | `--control-height` | `44px` | — | every call control: large, and the same size in every state |
 | `--speed-part` | `56px` | — | one of the three parts of Demo's speed bar (0.5×, 1×, 2×) |
+| `--seat-part` | `64px` | — | one of the two parts of Testing's seat bar (Text, Voice) |
+| `--meter-height` | `8px` | — | the Resources tab's credit meter |
 | `--split-half` | `132px` | — | one half of a split button: wide enough for its longest word ("Confirm?") |
 | `--send-size` | `44px` | — | the send button, square |
 | `--canvas-pad` | `16px` | — |  |

@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, console/src/agent/api.ts, console/src/agent/transport.ts, console/vite.config.ts, scripts/docs-check.mjs, agent/tests/test_dev_server.py]
+sources: [agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/resources.py, console/src/agent/api.ts, console/src/agent/transport.ts, console/vite.config.ts, scripts/docs-check.mjs, agent/tests/test_dev_server.py]
 updated: 2026-11-13
 ---
 # DeetsHealth — The dev API (the console and the agent's dev server)
@@ -30,6 +30,8 @@ updated: 2026-11-13
 | `ehr` → Twilio Messages | HTTPS (dev: the fake in the dev server, §2) | TEXTS.md, TWILIO.md |
 | Epic → the JWKS worker | HTTPS `GET` of a key set | EPIC.md, `ehr/jwks-worker/src/index.ts` |
 | Agent → Anthropic API | HTTPS | ANTHROPIC.md, AGENT.md |
+| Agent → Cartesia (Ink, Sonic) | WebSocket over TLS | CARTESIA.md, `voice.py` |
+| Console ↔ dev server, voice | WebRTC (offer by HTTP, §2) | §6, CHAT.md §17 |
 
 No production API exists yet: no staff API (ideas/CONSOLE-MCP.md), no Twilio voice webhook
 (Phase 3), no settings API (FUTURE-SETTINGS.md).
@@ -40,7 +42,9 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 
 | Route | Handler | Client | What it answers |
 |---|---|---|---|
-| `GET /agent/health` | `health` | `health()` | `key` (an Anthropic key is set), `live` (the live call's id, or null) and `epic` (`ehr` was given Epic's sandbox) |
+| `GET /agent/health` | `health` | `health()` | `key` (an Anthropic key is set), `live` (the live call's id, or null), `epic` (`ehr` was given Epic's sandbox) and `voice` (a Cartesia key is set) |
+| `GET /agent/resources` | `resources` | `resources()` | Cartesia's credits this cycle, counted from the records' `cartesia` totals and the live voice call's meter (`resources.py`; CHAT.md §17). Counts and dates only |
+| `POST /agent/voice` | `voice` | `voiceOffer()` | the voice seat: a WebRTC offer `{type: "offer", sdp}` in, the answer `{type, sdp}` out; `?ehr=` as on `/agent/call`. The call then runs over that connection (§6, CHAT.md §17). 409 with the reason when a call cannot start, 413 for an offer over 64 KB |
 | `GET /agent/sandbox` | `sandbox` | `sandbox()` | the sandbox patients and visits, by `?ehr=`: `local` from `ehr/fixtures/sandbox.json` (CHAT.md §8.1); `epic` from Epic's sandbox through `ehr epic-sandbox`, kept 5 minutes (CHAT.md §13). `more`: per patient, the visits past those listed. 400 for another word, 503 with no Epic files, 502 when Epic did not answer |
 | `GET /agent/catalog` | `catalog` | `catalog()` | every call row with its current ratings, and the rubric (CHAT.md §7) |
 | `GET /agent/calls/{call_id}` | `call_events` | `callEvents()` | one record's events, for Demo; 404 when there is no such call |
@@ -59,6 +63,7 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 | WebSocket close 1013 | `/agent/call` only: a call is already running, there is no Anthropic key, or `ehr` is not up yet. The close reason says which. |
 | HTTP 400 `{"detail": …}` | `/agent/annotations`: the body is not a JSON object, or the gate refused it (§4) |
 | HTTP 404 | `/agent/calls/{call_id}`: no such call |
+| HTTP 409 `{"detail": …}` | `/agent/voice`: as close 1013 on `/agent/call`, or there is no Cartesia key. The detail says which |
 | HTTP 401 / 404 (Twilio's shape) | the fake Twilio: wrong Basic auth, a request with an `Origin`, or another account |
 
 ## 3. The wall
@@ -126,6 +131,20 @@ loses lines; it never holds up the call (`State.broadcast`).
   wall). The rail's panels get tool calls from the watch stream.
 - The call ends when the socket closes, when the agent ends it, or after the session timeout
   in `dev_server.py › call`.
+
+**The voice seat (`POST /agent/voice`, CHAT.md §17).** The same call with voice ends:
+- **The handshake:** one request. The browser gathers its ICE candidates first, then sends the
+  offer; the dev server answers with Pipecat's `SmallWebRTCConnection`. No STUN or TURN: both
+  ends are on this PC. No trickle route.
+- **The wire after it:** the microphone's audio to the agent, Sonic's audio back, and on the
+  data channel RTVI as JSON (typed lines, as on `/agent/call`) plus a ping each second, which
+  tells the server the page is still there. The client is `VoiceSeat` in `transport.ts`.
+- **The same rules:** one test call at a time across both seats; the wall (§3) on the request;
+  no tool data on RTVI.
+- **It ends** when the page hangs up or leaves, when the agent ends it, or at a limit: no
+  speech from the caller for `config.VOICE_IDLE_S`, or the call's length reaches
+  `config.VOICE_MAX_S` (`call.py › TypedCall._watch_limits`). The record's `call_end` says
+  which, with the Cartesia totals.
 
 ## 7. How this doc stays true (`npm run docs:check`)
 - **Check 12, the route ledger:** every route decorator in `dev_server.py` is a row in §2, and

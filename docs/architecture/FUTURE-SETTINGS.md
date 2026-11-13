@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: none
-sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/prompts/AGENT-PROMPT.md, ehr/src/epic_ehr.rs, ehr/src/verify.rs, ehr/src/visit_about.rs]
+sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/deets_agent/config.py, agent/prompts/AGENT-PROMPT.md, ehr/src/epic_ehr.rs, ehr/src/verify.rs, ehr/src/visit_about.rs]
 updated: 2026-11-13
 ---
 # Future settings — what a hospital will configure
@@ -61,6 +61,13 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
   keeps a visit's type and reason private — §9 (default built).
 - When the agent cannot help: the words of the offer of a person, and when to offer or
   transfer at once — §10 (default built).
+
+**The voice and the line**
+- Silence and length on a call: how long a caller may say nothing before the agent asks, and
+  then ends the call; the longest call — §12 (a dev guard built for test calls only; nothing
+  for a real call yet).
+- The voice, its speed and volume, and how Ink judges the end of a caller's turn: each lever
+  and our setting today is CARTESIA.md §9. Not a setting yet.
 
 **Booking**
 - Hours, visit types and transfer numbers. Not built (DESIGN.md K2).
@@ -607,3 +614,36 @@ person at once, one new code only if the caller asks for it.
 - **The deploy:** A2 and B read it from the settings store.
 - **Each EHR:** each adapter reports case 3 the same way (a match with no number for a code;
   `Candidate.phone` is `None`, §8.1).
+
+## 12. Silence and length on a call
+> **Part:** project · 2026-11-13 — the owner chose the dev guard (fork 2A, 2026-11-13: "with
+> proposed limits and a doc in future settings"). Built for voice test calls only. Nothing for a
+> real call is built.
+
+**What it controls:** what happens when the caller says nothing for a while, and the longest a
+call may run. Every second of an open call costs Ink credits, silence included (CARTESIA.md §4),
+and a line left open by mistake (a phone in a pocket, a dropped call that did not hang up) holds
+a line and spends money with no one helped.
+
+**The default now (dev only, voice test calls):** `config.VOICE_IDLE_S` (60 seconds with no
+speech from the caller) and `config.VOICE_MAX_S` (6 minutes) end the call with no spoken line;
+the record says which limit ended it (`call.py › TypedCall._watch_limits`). This guards the Free
+plan's credits. It is not what a caller should hear.
+
+**The choices a hospital needs** (a draft, for when a real call is built):
+- **The first silence:** after how many seconds of silence the agent asks "Are you still
+  there?" (a fixed line; its words go in AGENT-PROMPT.md).
+- **The end on silence:** after how many more seconds of silence the agent says goodbye and
+  ends the call. A caller who speaks again resets both.
+- **While a tool runs or the agent speaks:** never counted as the caller's silence.
+- **The longest call:** a ceiling, then a polite close, or a transfer to a person in place of a
+  close. Off is a valid choice: some callers need time.
+- **A caller who said an emergency phrase:** never ended for silence (§1, §3); the call stays
+  open, or goes to a person.
+
+**Every place it runs:**
+- **The call:** the same on any phone. Silence is measured from Ink's turn events, so it works
+  the same on Twilio as on the dev voice seat.
+- **The console:** one control per value; every change audited.
+- **The deploy:** A2 and B read it from the settings store.
+- **Each EHR:** no effect.

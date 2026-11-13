@@ -1,0 +1,86 @@
+"""The voice ends with no network: the credit count, the limits, the credit cycle, the screen on
+a spoken line, and the 911 line that no barge-in cuts (voice.py, resources.py, screen.py)."""
+
+from __future__ import annotations
+
+from datetime import date
+
+import pytest
+from pipecat.frames.frames import LLMMessagesAppendFrame, TranscriptionFrame, TTSSpeakFrame
+from pipecat.processors.frame_processor import FrameDirection
+
+from deets_agent import config
+from deets_agent.flow import EMERGENCY_LINE, CallFlow, emergency_frame
+from deets_agent.resources import cycle_start, next_cycle
+from deets_agent.screen import CallerScreen
+from deets_agent.voice import VoiceMeter, credits
+
+
+def test_credits_follow_cartesias_rates():
+    assert credits(0, 0) == 0
+    assert credits(60, 0) == 180  # Ink: 3 a second, silence included
+    assert credits(0, 750) == 750  # Sonic: 1 a character
+    assert credits(0.1, 0) == 1  # rounded up
+
+
+def test_the_limits():
+    m = VoiceMeter()
+    assert m.over_limit(m.started + 10) is None
+    assert "no speech" in m.over_limit(m.started + config.VOICE_IDLE_S)
+    m.last_speech = m.started + config.VOICE_MAX_S - 1
+    assert "limit" in m.over_limit(m.started + config.VOICE_MAX_S)
+
+
+@pytest.mark.parametrize(
+    ("today", "day", "start", "renews"),
+    [
+        (date(2026, 11, 13), 1, date(2026, 11, 1), date(2026, 12, 1)),
+        (date(2026, 11, 13), 20, date(2026, 10, 20), date(2026, 11, 20)),
+        (date(2026, 1, 5), 20, date(2025, 12, 20), date(2026, 1, 20)),
+        (date(2026, 12, 20), 20, date(2026, 12, 20), date(2027, 1, 20)),
+    ],
+)
+def test_the_credit_cycle(today, day, start, renews):
+    assert cycle_start(today, day) == start
+    assert next_cycle(start) == renews
+
+
+def test_the_911_line_cannot_be_interrupted():
+    frame = emergency_frame()
+    assert frame.text == EMERGENCY_LINE and frame.interruptible is False
+    assert TTSSpeakFrame(text="x").interruptible is True
+
+
+class _Screen(CallerScreen):
+    """The screen with its output caught, not sent down a pipeline."""
+
+    def __init__(self) -> None:
+        super().__init__(CallFlow(ehr=None))
+        self.out: list = []
+
+    async def push_frame(self, frame, direction=FrameDirection.DOWNSTREAM):
+        self.out.append(frame)
+
+
+def _spoken(text: str) -> TranscriptionFrame:
+    return TranscriptionFrame(text=text, user_id="caller", timestamp="")
+
+
+async def test_the_screen_hears_a_spoken_line():
+    s = _Screen()
+    heard: list[str] = []
+    s.on_line = heard.append
+    await s.process_frame(_spoken("I need a check-up"), FrameDirection.DOWNSTREAM)
+    assert heard == ["I need a check-up"]
+    assert isinstance(s.out[-1], TranscriptionFrame), "an ordinary line goes on to the model"
+
+
+async def test_a_spoken_emergency_speaks_the_line_and_keeps_the_model_out():
+    s = _Screen()
+    await s.process_frame(_spoken("I have chest pain"), FrameDirection.DOWNSTREAM)
+    assert s.fired
+    assert not any(isinstance(f, TranscriptionFrame) for f in s.out), "the model does not run on it"
+    context = next(f for f in s.out if isinstance(f, LLMMessagesAppendFrame))
+    assert context.run_llm is False
+    line = next(f for f in s.out if isinstance(f, TTSSpeakFrame))
+    assert line.text == EMERGENCY_LINE and line.interruptible is False
