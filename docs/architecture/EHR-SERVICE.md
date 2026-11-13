@@ -154,7 +154,9 @@ is ignored. So nothing past the edge sees a wire type.
 - **`OpenCall`'s request** names the EHR the call reads (`ehr`: local, or Epic's sandbox in
   dev; EPIC.md §5.2). It names a server, never a patient; the session keeps it for the call.
   The Epic adapters are `ehr/src/epic_ehr.rs`, with the sixth pass, `EhrPass`, held to that
-  file (2026-11-12).
+  file (2026-11-12). Since 2026-11-13 it also names the call's `prompt_version` (a version id,
+  never words): `ehr` reads that version's `text.code` once and texts the code with it; 0 uses
+  the prompt file compiled into `ehr` (CONSOLE.md §9.3).
 - **`Visit`** carries what the visit is (2026-11-13): `visit_type` and `reason` (both marked
   `phi`), `online`, and `reason_private`. Each adapter builds a `VisitAbout`
   (`ehr/src/visit_about.rs`) from the record's plain words; a sensitive type or reason is

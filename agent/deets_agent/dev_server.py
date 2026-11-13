@@ -14,6 +14,9 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
 - `GET  /agent/anthropic`, `POST /agent/anthropic` — Config › Anthropic (CONSOLE.md §8): the
   llm settings' versions, each model's rules and prices, this cycle's spend; a save makes a new
   active version for the next test call. Never the key.
+- `GET  /agent/prompt`, `POST /agent/prompt` — Config › Agent (CONSOLE.md §9): the versions of
+  the agent's words and each section's placeholders; a save makes a new active version for the
+  next test call and writes the prompt file. `POST /agent/prompt/record` — Record and test.
 - `GET  /agent/resources` — Cartesia's credits this cycle, counted from the records and the live
   voice call (resources.py; CHAT.md §17).
 - `POST /agent/voice?ehr=local|epic` — the voice seat: a WebRTC offer in, the answer out; the
@@ -49,6 +52,7 @@ import hmac
 import json
 import os
 import sys
+import tempfile
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -63,9 +67,9 @@ from pipecat.transports.smallwebrtc.connection import SmallWebRTCConnection
 from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams, FastAPIWebsocketTransport
 
-from deets_agent import config, redact
+from deets_agent import config, prompts, redact
 from deets_agent.call import CallFailed, TypedCall
-from deets_agent.call_record import CALLS, CallRecord
+from deets_agent.call_record import CALLS, CallRecord, replay_cost
 from deets_agent.catalog import (
     DIMENSIONS,
     OUTCOMES,
@@ -159,6 +163,11 @@ class State:
         self.epic_lock = asyncio.Lock()
         # Voice calls run as tasks after their route returns the answer; kept so none is lost.
         self.tasks: set[asyncio.Task] = set()
+        # The last Record and test (CONSOLE.md §9): its state, each script, the tests, the cost.
+        self.recording: dict[str, Any] | None = None
+        # The dry run's quote: the words it was made for, the scripts that need new replies, the
+        # dollars (estimate_record).
+        self.estimate: dict[str, Any] | None = None
 
     def allowed(self, headers) -> bool:
         """The launch token, compared in constant time, and the console's own origin."""
@@ -183,6 +192,8 @@ def build_app(state: State) -> FastAPI:
         # With Epic's sandbox as a second source when its dev files are here (CHAT.md §13).
         async with running_ehr(env={**state.twilio.ehr_env(), **epic_env()}, store=True) as target:
             state.ehr = await EhrClient.connect(target, config.CERTS)
+            # A hand edit to the prompt file becomes a new version (PROMPT-EDITOR.md §6.2).
+            await sync_prompt_file(state)
             try:
                 yield
             finally:
@@ -254,6 +265,66 @@ def build_app(state: State) -> FastAPI:
             raise HTTPException(400, str(e)) from None
         await save_settings(state, "voice", values)
         return await cartesia_view(state, 0)
+
+    @app.get("/agent/prompt")
+    async def prompt_settings(version: int = 0):
+        """The agent's words (CONSOLE.md §9): the versions and one version's sections, the
+        placeholders each section must hold, whether the kept recordings match the prompt file,
+        and the state of Record and test."""
+        if version < 0:
+            raise HTTPException(400, "version: not a version")
+        try:
+            return await prompt_view(state, version)
+        except LookupError:
+            raise HTTPException(404, "no such version") from None
+
+    @app.post("/agent/prompt")
+    async def save_prompt(request: Request):
+        """Save every section as a new, active version: ehr checks each one (its placeholders,
+        no stray brace, not empty); the next test call runs with it; the prompt file is
+        written, so git and the tests see it. 400 names the section that does not fit."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "not JSON") from None
+        values = body.get("values") if isinstance(body, dict) else None
+        if not isinstance(values, dict) or not all(isinstance(v, str) for v in values.values()):
+            raise HTTPException(400, "values: every section's words")
+        await save_settings(state, "prompt", values)
+        try:
+            prompts.write_file(values)
+        except prompts.PromptFileError:
+            # ehr checked the same rules, so this is a writer's fault, not the words'.
+            raise HTTPException(500, "saved, but the prompt file could not be written") from None
+        return await prompt_view(state, 0)
+
+    @app.post("/agent/prompt/record")
+    async def record_prompt():
+        """Record and test (PROMPT-EDITOR.md §5): record the kept scripts against the prompt file
+        (live requests to Claude for each new line), then run the agent's tests. It runs in the
+        background; GET /agent/prompt shows its state. 409 while one runs or without a key."""
+        if state.recording is not None and state.recording.get("state") == "running":
+            raise HTTPException(409, "Record and test is already running")
+        if state.estimate is not None and state.estimate.get("state") == "running":
+            raise HTTPException(409, "the cost is still being worked out")
+        if not state.has_key:
+            raise HTTPException(409, "Record and test needs an Anthropic key in .env")
+        task = asyncio.create_task(record_and_test(state))
+        state.tasks.add(task)
+        task.add_done_callback(state.tasks.discard)
+        return {"recording": state.recording}
+
+    @app.post("/agent/prompt/estimate")
+    async def estimate_prompt():
+        """Record and test's quote: a dry run with no Claude call (about 30 s, no tokens) finds
+        the kept scripts that need new replies. In the background; GET /agent/prompt shows it.
+        Kept until the words change, so a second press does not run it again."""
+        busy = any(r and r.get("state") == "running" for r in (state.estimate, state.recording))
+        if not busy and not (state.estimate and state.estimate.get("words") == _words_now()):
+            task = asyncio.create_task(estimate_record(state))
+            state.tasks.add(task)
+            task.add_done_callback(state.tasks.discard)
+        return {"estimate": state.estimate}
 
     @app.get("/agent/anthropic")
     async def anthropic_settings(version: int = 0):
@@ -464,10 +535,11 @@ def build_app(state: State) -> FastAPI:
             connection, TransportParams(audio_in_enabled=True, audio_out_enabled=True)
         )
         llm = await active_settings(state, "llm")
+        words = await active_words(state)
         # Claim the seat now, so a second offer is refused while this one connects.
-        record = _open_record(state, ehr, "voice", llm)
+        record = _open_record(state, ehr, "voice", llm, words)
         state.voice = Voice(key, values)
-        task = asyncio.create_task(_run_call(state, transport, ehr, state.voice, record, llm))
+        task = asyncio.create_task(_run_call(state, transport, ehr, state.voice, record, llm, words))
         state.tasks.add(task)
         task.add_done_callback(state.tasks.discard)
         return {"sdp": answer["sdp"], "type": answer["type"]}
@@ -476,7 +548,184 @@ def build_app(state: State) -> FastAPI:
 
 
 # Each settings service (ehr's settings.rs › service) and its code defaults: the Default version.
-DEFAULTS = {"voice": config.voice_defaults, "llm": config.llm_defaults}
+# The prompt's Default is the prompt file as it is when the store first sees it.
+DEFAULTS = {"voice": config.voice_defaults, "llm": config.llm_defaults, "prompt": prompts.load}
+
+# The kept scripts (AGENT.md §1) and the hash of the words they were last recorded and tested with.
+SCRIPTS = config.AGENT / "tests" / "scripts"
+RECORDED_STAMP = config.AGENT / "tests" / "RECORDED-PROMPT.sha256"
+# What recording each kept script cost the last time, in dollars: the dry run's quote.
+RECORDED_COSTS = config.AGENT / "tests" / "RECORDED-COSTS.json"
+# Record and test: the longest one script or the tests may run.
+RECORD_LIMIT_S = 180
+# The estimate Record and test shows before a run: about a cent a script (AGENT-PROMPT.md's own
+# note; not measured). After a run the page shows what it spent.
+RECORD_CENTS_PER_SCRIPT = 1
+
+
+async def sync_prompt_file(state: State) -> None:
+    """The prompt file and the active version agree (PROMPT-EDITOR.md §6.2). On a store with no
+    prompt version yet, the file becomes the Default. When the file differs from the active
+    version (an edit by hand, another branch), the file becomes a new active version, by "file".
+    Never the other way: the file is what git and the tests read."""
+    if state.ehr is None:
+        return
+    try:
+        await ensure_default(state, "prompt")
+        got = await state.ehr.get_settings("prompt")
+        if got is None or got[0] is None:
+            return
+        file = prompts.load()
+        if got[1] != file:
+            await state.ehr.save_settings("prompt", file, by="file")
+            print("prompt: the file differs from the active version; saved it as a new version", flush=True)
+    except (EhrError, prompts.PromptFileError) as e:
+        print(f"prompt: the file was not synced ({type(e).__name__})", file=sys.stderr, flush=True)
+
+
+async def active_words(state: State) -> prompts.Words:
+    """The words a test call runs with: the active prompt version, with its id and label; the
+    prompt file when there is no store. A version that fails the agent's own check (it never
+    should: ehr checked it) gives way to the file, and the start-up log says so."""
+    if state.ehr is None:
+        return prompts.FILE_WORDS
+    try:
+        await ensure_default(state, "prompt")
+        got = await state.ehr.get_settings("prompt")
+    except EhrError:
+        return prompts.Words(prompts.load())
+    if got is None or got[0] is None:
+        return prompts.Words(prompts.load())
+    version, values = got
+    try:
+        prompts.check(values)
+    except prompts.PromptFileError:
+        print("prompt: the active version failed the agent's check; the file is used", file=sys.stderr, flush=True)
+        return prompts.Words(prompts.load())
+    return prompts.Words(values, version.id, version.label)
+
+
+def recordings_match() -> bool:
+    """Whether the kept recordings were made, and tested, with the prompt file's words."""
+    try:
+        return RECORDED_STAMP.read_text(encoding="utf-8").strip() == prompts.digest(prompts.load())
+    except (OSError, prompts.PromptFileError):
+        return False
+
+
+async def prompt_view(state: State, version: int) -> dict[str, Any]:
+    """The Config page's Agent view (CONSOLE.md §9)."""
+    view = await settings_view(state, "prompt", version)
+    scripts = sorted(SCRIPTS.glob("*.txt"))
+    view.update(
+        placeholders={k: sorted(v) for k, v in prompts.PLACEHOLDERS.items()},
+        recordings={"match": recordings_match(), "scripts": len(scripts)},
+        # The dry run's quote for these words, or None while none is known (the page asks for one).
+        estimate=state.estimate if state.estimate and state.estimate.get("words") == _words_now() else None,
+        recording=state.recording,
+        key=state.has_key,
+    )
+    return view
+
+
+def _words_now() -> str | None:
+    try:
+        return prompts.digest(prompts.load())
+    except prompts.PromptFileError:
+        return None
+
+
+def _script_costs() -> dict[str, float]:
+    """What recording each kept script cost the last time, in dollars (RECORDED_COSTS)."""
+    try:
+        costs = json.loads(RECORDED_COSTS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {k: float(v) for k, v in costs.items() if isinstance(v, (int, float))}
+
+
+async def _dry(script: Path) -> tuple[bool, list[str]]:
+    """Replay one kept script with no Claude call (the typed harness in replay mode): whether
+    every reply it needs is already recorded, and the keys of the requests it made."""
+    with tempfile.TemporaryDirectory() as tmp:
+        keys_file = Path(tmp) / "keys.json"
+        ok = await _run(
+            [sys.executable, "harness/typed_call.py", "--mode", "replay", "--script", str(script), "--no-record",
+             "--keys-out", str(keys_file)]
+        )
+        try:
+            keys = json.loads(keys_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            keys = []
+    return ok, keys
+
+
+async def estimate_record(state: State) -> None:
+    """Record and test's quote (the owner, 2026-11-13: a free dry run first): replay each kept
+    script with no Claude call; a script that misses a reply needs recording, and its quote is
+    what recording it cost last time (RECORDED_COSTS; the mean of the others for a script with
+    none). About 30 s, no tokens. An over-estimate: the lines before the first changed one are
+    replayed for free."""
+    words = _words_now()
+    run: dict[str, Any] = {"words": words, "state": "running", "missing": [], "usd": None}
+    state.estimate = run
+    costs = _script_costs()
+    mean = sum(costs.values()) / len(costs) if costs else RECORD_CENTS_PER_SCRIPT / 100
+    for script in sorted(SCRIPTS.glob("*.txt")):
+        ok, _ = await _dry(script)
+        if not ok:
+            run["missing"].append(script.stem)
+    run["usd"] = round(sum(costs.get(s, mean) for s in run["missing"]), 2)
+    run["state"] = "done"
+
+
+async def _measure_costs() -> None:
+    """After a passing Record and test: each kept script's cost, from the replies it reads (a
+    dry run that logs its request keys), for the next quote."""
+    costs: dict[str, float] = {}
+    for script in sorted(SCRIPTS.glob("*.txt")):
+        ok, keys = await _dry(script)
+        if ok:
+            costs[script.stem] = round(sum(replay_cost(config.REPLAYS / f"{k}.json") for k in set(keys)), 4)
+    RECORDED_COSTS.write_text(json.dumps(costs, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+
+
+async def _run(args: list[str]) -> bool:
+    """Run one step of Record and test in the agent's folder; True when it passed."""
+    proc = await asyncio.create_subprocess_exec(
+        *args, cwd=config.AGENT, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+    )
+    try:
+        return await asyncio.wait_for(proc.wait(), timeout=RECORD_LIMIT_S) == 0
+    except TimeoutError:
+        proc.kill()
+        return False
+
+
+async def record_and_test(state: State) -> None:
+    """Record each kept script with the prompt file's words (the typed harness in record mode:
+    a line already recorded costs nothing; a new one calls Claude once), then run the agent's
+    tests. When every script ran and the tests pass, the recordings are stamped as made with
+    these words. Synthetic callers only: the scripts' fake patients. Counts only on the page."""
+    started = time.time()
+    words = prompts.digest(prompts.load())
+    run: dict[str, Any] = {"state": "running", "scripts": [], "tests": None, "spent_usd": None}
+    state.recording = run
+    for script in sorted(SCRIPTS.glob("*.txt")):
+        ok = await _run([sys.executable, "harness/typed_call.py", "--script", str(script), "--no-record"])
+        run["scripts"].append({"name": script.stem, "ok": ok})
+    # Every test but the stamp's own: the stamp is written only after the others pass.
+    stamp_test = "tests/test_dev_server.py::test_the_kept_recordings_match_the_prompt_file"
+    run["tests"] = await _run([sys.executable, "-m", "pytest", "-q", "--deselect", stamp_test])
+    run["spent_usd"] = round(
+        sum(replay_cost(p) for p in config.REPLAYS.glob("*.json") if p.stat().st_mtime >= started), 4
+    )
+    passed = run["tests"] and all(s["ok"] for s in run["scripts"])
+    if passed and prompts.digest(prompts.load()) == words:
+        RECORDED_STAMP.write_text(words + "\n", encoding="utf-8")
+        await _measure_costs()
+    state.estimate = None
+    run["state"] = "passed" if passed else "failed"
 
 
 async def active_settings(state: State, service: str) -> dict[str, Any]:
@@ -689,10 +938,15 @@ def _refuse_call(state: State, ehr_source: str) -> str | None:
     return None
 
 
-def _open_record(state: State, ehr_source: str, seat: str, llm: dict[str, Any]) -> CallRecord:
+def _open_record(
+    state: State, ehr_source: str, seat: str, llm: dict[str, Any], words: prompts.Words
+) -> CallRecord:
     """Open the test call's record and make it the live call: the watch stream follows it.
-    `llm`: the active llm settings the call runs with (CONSOLE.md §8)."""
-    record = CallRecord(state.mode.value, llm["model"], source="test", ehr=ehr_source, seat=seat, llm=llm)
+    `llm` and `words`: the llm settings and the agent's words the call runs with (CONSOLE.md §8,
+    §9)."""
+    record = CallRecord(
+        state.mode.value, llm["model"], source="test", ehr=ehr_source, seat=seat, llm=llm, prompt_version=words.label
+    )
     state.live = record
     redact.dev_tap = record.log
     record.listeners.append(
@@ -709,24 +963,31 @@ async def _run_call(
     voice: Voice | None,
     record: CallRecord | None = None,
     llm: dict[str, Any] | None = None,
+    words: prompts.Words | None = None,
 ) -> None:
     """Run one test call on its seat until it ends, then close and file its record. The whole
-    call runs with the llm settings active when it starts (Config › Anthropic, CONSOLE.md §8)."""
+    call runs with the llm settings and the agent's words active when it starts (Config ›
+    Anthropic and Agent, CONSOLE.md §8, §9): the words are this task's own (prompts.use), so a
+    save during the call changes nothing in it."""
     if llm is None:
         llm = await active_settings(state, "llm")
+    if words is None:
+        words = await active_words(state)
     if record is None:
-        record = _open_record(state, ehr_source, "text", llm)
+        record = _open_record(state, ehr_source, "text", llm, words)
     assert state.ehr is not None
-    typed = TypedCall(
-        state.ehr, build_llm(state.mode, values=llm), record, transport=transport, ehr_source=ehr_source, voice=voice
-    )
-
-    @transport.event_handler("on_client_disconnected")
-    async def _gone(transport, client):
-        await typed.cancel()
+    token = prompts.use(words)
 
     reason = "the caller hung up"
     try:
+        typed = TypedCall(
+            state.ehr, build_llm(state.mode, values=llm), record, transport=transport, ehr_source=ehr_source, voice=voice
+        )
+
+        @transport.event_handler("on_client_disconnected")
+        async def _gone(transport, client):
+            await typed.cancel()
+
         reason = await typed.serve()
     except CallFailed as e:
         reason = f"Claude's request failed ({e})"
@@ -734,6 +995,7 @@ async def _run_call(
         reason = f"the harness failed ({type(e).__name__})"
         record.event("error", type=type(e).__name__, message=str(e))
     finally:
+        prompts.reset(token)
         record.close(reason, cartesia=voice.meter.totals() if voice is not None else None)
         redact.dev_tap = None
         state.voice = None

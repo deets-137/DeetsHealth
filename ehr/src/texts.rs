@@ -187,9 +187,10 @@ impl Codes for TwilioCodes {
         random_code()
     }
 
-    async fn send(&self, phone: &Shielded<String>, code: &Shielded<String>) -> Result<(), Down> {
+    async fn send(&self, phone: &Shielded<String>, code: &Shielded<String>, template: Option<&str>) -> Result<(), Down> {
         let pass = TextPass::issue();
-        let body = Zeroizing::new(self.template.replace("{code}", code.reveal(&pass)));
+        let words = template.unwrap_or(&self.template);
+        let body = Zeroizing::new(words.replace("{code}", code.reveal(&pass)));
         let form = [
             ("To", phone.reveal(&pass).as_str()),
             ("MessagingServiceSid", self.messaging_service.as_str()),

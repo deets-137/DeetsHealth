@@ -28,7 +28,13 @@ pub enum Kind {
     /// A table of rows of `columns` short strings, at most `rows` rows and `chars` characters in
     /// all.
     Table { columns: usize, rows: usize, chars: usize },
+    /// A section of the agent's words: text that is not empty, at most `PROSE_MAX` characters,
+    /// with exactly these `{placeholders}` (as prompts.py › check reads them).
+    Prose { placeholders: &'static [&'static str] },
 }
+
+/// The longest section of the agent's words. The role prompt, the longest, is about 3,500.
+pub const PROSE_MAX: usize = 12_000;
 
 pub struct Setting {
     pub key: &'static str,
@@ -83,14 +89,156 @@ pub const LLM: &[Setting] = &[
     s("cycle_day", Kind::Whole { min: 1, max: 28 }),
 ];
 
+const fn p(key: &'static str, placeholders: &'static [&'static str]) -> Setting {
+    Setting { key, kind: Kind::Prose { placeholders } }
+}
+
+/// The agent's words (CONSOLE.md §9): every section of agent/prompts/AGENT-PROMPT.md and the
+/// placeholders it must hold. The agent's prompts.py › PLACEHOLDERS is the same list; a test
+/// fails if the two differ (test_prompts.py).
+pub const PROMPT: &[Setting] = &[
+    p("role", &["clinic", "today"]),
+    p("task.greet", &["clinic"]),
+    p("task.verify", &[]),
+    p("task.menu", &[]),
+    p("task.schedule", &[]),
+    p("tool.identify", &[]),
+    p("arg.identify.given_name", &[]),
+    p("arg.identify.family_name", &[]),
+    p("arg.identify.birth_date", &[]),
+    p("tool.confirm_details", &[]),
+    p("tool.check_code", &[]),
+    p("arg.check_code.code", &[]),
+    p("tool.resend_code", &[]),
+    p("tool.find_slots", &[]),
+    p("arg.find_slots.reason", &[]),
+    p("arg.find_slots.earliest_day", &[]),
+    p("tool.choose_option", &[]),
+    p("arg.choose_option.option", &[]),
+    p("tool.book", &[]),
+    p("tool.change_visit", &[]),
+    p("tool.next_visit", &[]),
+    p("tool.end_call", &[]),
+    p("tool.hand_off", &[]),
+    p("tool.offer_staff", &[]),
+    p("arg.offer_staff.why", &[]),
+    p("tool.flag_for_staff", &[]),
+    p("arg.flag_for_staff.kind", &[]),
+    p("arg.flag_for_staff.summary", &[]),
+    p("arg.flag_for_staff.evidence", &[]),
+    p("tool.safety_reminder", &[]),
+    p("arg.hand_off.kind", &[]),
+    p("arg.hand_off.summary", &[]),
+    p("arg.hand_off.evidence", &[]),
+    p("tool.emergency", &[]),
+    p("tool.medical_question", &[]),
+    p("line.greeting", &["clinic"]),
+    p("line.read_back", &["birth", "family", "given"]),
+    p("line.ask_details", &[]),
+    p("line.birth_not_possible", &[]),
+    p("line.name_not_said", &[]),
+    p("text.code", &["code"]),
+    p("line.code_sent", &[]),
+    p("line.code_length", &[]),
+    p("line.verified", &[]),
+    p("line.locked", &[]),
+    p("line.code_wrong", &[]),
+    p("line.no_more_codes", &[]),
+    p("line.code_resent", &[]),
+    p("line.no_slots", &[]),
+    p("line.slots", &["options"]),
+    p("line.slot_option", &["number", "visit"]),
+    p("line.which_option", &[]),
+    p("line.confirm_slot", &["number", "visit"]),
+    p("line.change_booked", &["visit"]),
+    p("line.change_visit", &[]),
+    p("line.slot_taken", &[]),
+    p("line.booked", &["visit"]),
+    p("line.no_visits", &[]),
+    p("line.next_visit", &["visit"]),
+    p("line.visit_online", &[]),
+    p("line.visit_type", &["visit_type"]),
+    p("line.visit_reason", &["reason"]),
+    p("note.after_next_visit", &[]),
+    p("line.offer_staff", &[]),
+    p("line.offer_staff_private", &[]),
+    p("line.goodbye", &[]),
+    p("line.hand_off", &[]),
+    p("line.hand_off_code", &[]),
+    p("note.after_reminder", &[]),
+    p("note.after_flag", &[]),
+    p("line.emergency_reminder", &[]),
+    p("line.emergency", &[]),
+    p("line.medical_question", &[]),
+    p("line.not_on_this_call", &[]),
+    p("line.not_now", &[]),
+    p("line.one_moment", &[]),
+    p("line.say_again", &[]),
+    p("line.ehr_down", &[]),
+];
+
 /// A service's name, its list and its table. The names come from here only, never from a
 /// request, so no request text reaches the SQL.
 pub fn service(name: &str) -> Option<(&'static str, &'static [Setting], &'static str)> {
     match name {
         "voice" => Some(("voice", VOICE, "settings_voice")),
         "llm" => Some(("llm", LLM, "settings_llm")),
+        "prompt" => Some(("prompt", PROMPT, "settings_prompt")),
         _ => None,
     }
+}
+
+/// The `{placeholders}` in a text, read as Python's `string.Formatter().parse` reads them:
+/// `{{` and `}}` are a plain brace; `{name}`, `{name:spec}` and `{name!r}` are the field `name`.
+/// None for a stray brace.
+pub fn placeholders(text: &str) -> Option<std::collections::BTreeSet<String>> {
+    let mut found = std::collections::BTreeSet::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '{' if chars.peek() == Some(&'{') => {
+                chars.next();
+            }
+            '}' if chars.peek() == Some(&'}') => {
+                chars.next();
+            }
+            '}' => return None,
+            '{' => {
+                let mut field = String::new();
+                loop {
+                    match chars.next() {
+                        Some('}') => break,
+                        Some('{') | None => return None,
+                        Some(ch) => field.push(ch),
+                    }
+                }
+                let name = field.split([':', '!']).next().unwrap_or("").to_string();
+                found.insert(name);
+            }
+            _ => {}
+        }
+    }
+    Some(found)
+}
+
+/// Why a section's text does not fit, or None. Named by the kind of problem, never the text.
+fn prose_problem(placeholders_wanted: &[&str], value: &Value) -> Option<&'static str> {
+    let Some(text) = value.as_str() else { return Some("not text") };
+    if text.trim().is_empty() {
+        return Some("empty");
+    }
+    if text.chars().count() > PROSE_MAX {
+        return Some("too long");
+    }
+    if text.chars().any(|c| c.is_control() && c != '\n') {
+        return Some("a control character");
+    }
+    let Some(found) = placeholders(text) else { return Some("a stray { or }") };
+    let wanted: std::collections::BTreeSet<String> = placeholders_wanted.iter().map(|s| s.to_string()).collect();
+    if found != wanted {
+        return Some("the wrong {placeholders}");
+    }
+    None
 }
 
 /// The rules between settings of one checked set, after `check`. The llm service: thinking is
@@ -155,6 +303,7 @@ pub fn fits(kind: Kind, value: &Value) -> bool {
             }
             total <= chars
         }
+        Kind::Prose { placeholders } => prose_problem(placeholders, value).is_none(),
     }
 }
 
@@ -176,7 +325,16 @@ pub fn check(list: &[Setting], values: &[(String, String)]) -> Result<Vec<(&'sta
             return Err(format!("{}: given twice", setting.key));
         }
         let value: Value = serde_json::from_str(raw).map_err(|_| format!("{}: not JSON", setting.key))?;
-        if !fits(setting.kind, &value) {
+        if let Kind::Prose { placeholders } = setting.kind {
+            // The page shows this, so it says what to fix: the kind of problem, never the text.
+            if let Some(problem) = prose_problem(placeholders, &value) {
+                let want = if placeholders.is_empty() { "none".to_string() } else { placeholders.join(", ") };
+                return Err(match problem {
+                    "the wrong {placeholders}" => format!("{}: needs the placeholders {want}, no others", setting.key),
+                    p => format!("{}: {p}", setting.key),
+                });
+            }
+        } else if !fits(setting.kind, &value) {
             return Err(format!("{}: out of range or the wrong kind", setting.key));
         }
         out.push((setting.key, value));
@@ -417,6 +575,31 @@ mod tests {
         assert_eq!(ok(llm("claude-sonnet-5-5", "xhigh", "off", 1200, 2400)).unwrap_err(), "thinking: off needs effort high or below");
         assert_eq!(ok(llm("claude-haiku-5-5", "low", "on", 2400, 1200)).unwrap_err(), "retry_max_tokens: below max_tokens");
         assert!(check(LLM, &llm("claude-haiku-4-5", "low", "on", 1200, 2400)).unwrap_err().starts_with("model:"));
+    }
+
+    #[test]
+    fn the_prompt_sections_are_checked() {
+        let set: Vec<(String, String)> = PROMPT
+            .iter()
+            .map(|s| {
+                let Kind::Prose { placeholders } = s.kind else { unreachable!() };
+                let words = placeholders.iter().map(|p| format!("{{{p}}}")).collect::<Vec<_>>().join(" ");
+                (s.key.to_string(), json!(format!("Words {words}.")).to_string())
+            })
+            .collect();
+        assert_eq!(check(PROMPT, &set).unwrap().len(), 78);
+
+        let with = |key: &str, text: &str| {
+            let mut s = set.clone();
+            s.iter_mut().find(|(k, _)| k == key).unwrap().1 = json!(text).to_string();
+            check(PROMPT, &s)
+        };
+        assert_eq!(with("line.booked", "You're booked.").unwrap_err(), "line.booked: needs the placeholders visit, no others");
+        assert_eq!(with("line.goodbye", "Bye {name}.").unwrap_err(), "line.goodbye: needs the placeholders none, no others");
+        assert_eq!(with("line.goodbye", "Bye { now.").unwrap_err(), "line.goodbye: a stray { or }");
+        assert_eq!(with("line.goodbye", "  ").unwrap_err(), "line.goodbye: empty");
+        assert!(with("line.goodbye", "Use {{braces}} freely.").is_ok());
+        assert!(with("line.booked", "Booked: {visit:>3}.").is_ok());
     }
 
     #[test]

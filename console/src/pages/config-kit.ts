@@ -36,7 +36,9 @@ export type Kit = {
   card: (title: string, name: string, ...rows: HTMLElement[]) => HTMLElement;
   /** Draw the cards again from the draft: for a change that alters other rows (a model that
    * allows other values). Edits stay. */
-  rerender: () => void;
+  rerender: (toTop?: boolean) => void;
+  /** Call after an edit the kit did not make (a text box): Discard and Save follow it. */
+  changed: () => void;
 };
 
 export type Spec<V, D, S extends SettingsBase<V>> = {
@@ -52,6 +54,8 @@ export type Spec<V, D, S extends SettingsBase<V>> = {
   /** The cards, and the layout's name (config.css › .cfg-body[data-layout]). `glow` may add
    * rows that glow with others (a profile with its sliders). */
   render: (s: S, d: D, kit: Kit) => { cards: HTMLElement[]; layout: string; glow?: (diff: Set<string>) => void };
+  /** Why Save must wait (a section with the wrong placeholders), or null. */
+  blocked?: (d: D) => string | null;
 };
 
 // The "i": the letter itself, lower case, in the console's one serif face (the owner,
@@ -118,8 +122,9 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         const n = saved && draft ? spec.differing(saved, draft).size : 0;
         // Discard | Save always show (the owner, 2026-11-13); each greys when it has nothing to do.
         discard.disabled = n === 0 || saving;
-        save.disabled = saving || mode !== "edit" || n === 0 || older() || !settings?.store;
-        save.title = !settings?.store ? "No settings store: start Postgres (npm run db:start), then restart npm run dev" : "";
+        const blocked = draft && spec.blocked ? spec.blocked(draft) : null;
+        save.disabled = saving || mode !== "edit" || n === 0 || older() || !settings?.store || !!blocked;
+        save.title = !settings?.store ? "No settings store: start Postgres (npm run db:start), then restart npm run dev" : (blocked ?? "");
         if (n) say("");
       };
       const showMode = () => {
@@ -135,7 +140,7 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         // control marked data-off (Listen; a value the model does not allow) stays off in both.
         scroll
           .querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>(
-            ".cfg-control input, .cfg-control select, .cfg-control button",
+            ".cfg-control input, .cfg-control select, .cfg-control button, .cfg-control textarea",
           )
           .forEach((x) => (x.disabled = mode === "read" || x.dataset.off !== undefined));
         pairs.forEach((p) => p());
@@ -428,11 +433,11 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         return c;
       };
 
-      const kit: Kit = { row, keyed, fixed, select, slider, number, pair, table, card, rerender: () => render() };
+      const kit: Kit = { row, keyed, fixed, select, slider, number, pair, table, card, rerender: (toTop) => render(toTop), changed };
 
       // ---- the view
 
-      function render() {
+      function render(toTop = false) {
         if (!settings || !draft) return;
         pairs.length = 0;
         const { cards, layout, glow } = spec.render(settings, draft, kit);
@@ -445,14 +450,14 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         if (older() && active) {
           const diff = spec.differing(active, draft);
           glow?.(diff);
-          body.querySelectorAll<HTMLElement>(".cfg-row[data-key]").forEach((r) => {
+          body.querySelectorAll<HTMLElement>("[data-key]").forEach((r) => {
             r.classList.toggle("cfg-changed", diff.has(r.dataset.key!));
           });
         }
         // Keep the scroll place when the cards are drawn again (a model change in Edit).
         const top = scroll.scrollTop;
         scroll.replaceChildren(body);
-        scroll.scrollTop = top;
+        scroll.scrollTop = toTop ? 0 : top;
         showMode();
       }
 

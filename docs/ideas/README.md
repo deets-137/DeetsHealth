@@ -48,10 +48,6 @@ hospital or a patient that the agent can do any of these things. The patient app
   build it out"): [STAFF-SIGN-IN.md](STAFF-SIGN-IN.md). Sign-in through the hospital's IdP,
   what each standard asks of staff access, the modules, and the work with a hospital's
   security team. Built together with the roles; the plan and sizes are its §10.
-- **Edit the agent's prompt in the console** (the owner, 2026-11-12):
-  [PROMPT-EDITOR.md](PROMPT-EDITOR.md). A save makes a new version, and every call that starts
-  after it uses it; a call in progress keeps its words. Record and test is an explicit button.
-  Later, a hospital's analyst tests a change through the same path, as a draft.
 - **Spanish and other languages.** Cartesia's Ink-2 is English only (VOICE-AGENT.md §8.6).
 - **Running on Epic's Agent Factory** once Epic opens external connectors (VOICE-AGENT.md §5).
 - **Other health products in this repo** (the owner, 2026-10-19: "if we ever get more health

@@ -45,6 +45,10 @@ from deets_agent import config
 
 _EVENT = TypeAdapter(RawMessageStreamEvent)
 
+# The key of every request this process made, in order, when a caller turns it on (the typed
+# harness's --keys-out: Record and test's dry run, CONSOLE.md §9.3). None: off.
+SEEN: list[str] | None = None
+
 
 class Mode(enum.Enum):
     REPLAY = "replay"
@@ -358,6 +362,8 @@ class _Messages:
         if dropped:
             logger.info("dropped {} thinking blocks made under another tool list", dropped)
         key = request_key(params)
+        if SEEN is not None:
+            SEEN.append(key)
         path = self._replays / f"{key}.json"
         stream = bool(params.get("stream"))
         sigs = _Watch(

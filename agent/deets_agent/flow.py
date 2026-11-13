@@ -55,6 +55,7 @@ from loguru import logger
 from pipecat.flows import NO_RESPONSE, FlowManager, FlowsFunctionSchema, NodeConfig
 from pipecat.frames.frames import TTSSpeakFrame
 
+from deets_agent import prompts
 from deets_agent.ehr_client import CheckOutcome, EhrClient, EhrError, ErrorKind, Slot, Visit
 from deets_agent.prompts import text
 from deets_agent.shielded import Shielded
@@ -102,13 +103,16 @@ def _visit_words(v: Slot | Visit) -> str:
 
 # The fixed 911 line (the owner's option A, 2026-11-11). Spoken by the `emergency` tool and by
 # the phrase screen (screen.py). The hospital sets its own words later (FUTURE-SETTINGS.md §1).
-EMERGENCY_LINE = text("line.emergency")
+def emergency_line() -> str:
+    """The 911 line in this call's words (prompts.current): read when spoken, never at import, so
+    a saved version reaches the next call."""
+    return text("line.emergency")
 
 
 def emergency_frame() -> TTSSpeakFrame:
     """The 911 line as a frame that no barge-in can cut: a caller who keeps talking still hears
     all of it (CARTESIA.md §9). Interruptions drop every other line, as Pipecat does."""
-    frame = TTSSpeakFrame(text=EMERGENCY_LINE, append_to_context=False)
+    frame = TTSSpeakFrame(text=emergency_line(), append_to_context=False)
     frame.interruptible = False
     return frame
 
@@ -246,7 +250,8 @@ class CallFlow:
     on_step: Callable[[str, list[str]], None] | None = None
 
     async def start(self) -> None:
-        self.handle = await self.ehr.open_call(self.ehr_source)
+        # The call's prompt version: ehr takes the text message's words from it (CONSOLE.md §9).
+        self.handle = await self.ehr.open_call(self.ehr_source, prompts.current().version_id)
 
     async def close(self) -> None:
         if self.handle is not None:
@@ -265,7 +270,7 @@ class CallFlow:
 
         A line that ends in a question waits for the caller; any other line lets the model go on.
         """
-        frame = emergency_frame() if line == EMERGENCY_LINE else TTSSpeakFrame(text=line, append_to_context=False)
+        frame = emergency_frame() if line == emergency_line() else TTSSpeakFrame(text=line, append_to_context=False)
         await flow_manager.worker.queue_frame(frame)
         result = {"spoken_to_caller": line, **extra}
         wait = line.rstrip().endswith("?")
@@ -446,7 +451,7 @@ class CallFlow:
             logger.info("emergency line spoken")
             self.warned = True
             self.raise_flag("possible_emergency", "code")
-            return await self._say(flow_manager, EMERGENCY_LINE)
+            return await self._say(flow_manager, emergency_line())
 
         return _tool("emergency", handler)
 
@@ -460,7 +465,7 @@ class CallFlow:
                 logger.info("safety reminder asked before any warning; full 911 line spoken")
                 self.warned = True
                 self.raise_flag("possible_emergency", "code")
-                return await self._say(flow_manager, EMERGENCY_LINE)
+                return await self._say(flow_manager, emergency_line())
             logger.info("safety reminder spoken")
             # A statement lets the model go on, and a model that goes on after a fixed line tends
             # to say it again (AGENT.md §3); it did on 2026-11-12. The result says what comes next.

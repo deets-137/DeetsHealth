@@ -14,7 +14,8 @@ Each line is one event: `t_ms` (from the call's start; to a tenth of a milliseco
 - `call_start`, `call_end` — the schema version, the call's id (the file's name), the source
   (`typed`, `test`), the scenario (a script's name, or none), the EHR it read (`ehr`: `local`
   for ehr's fakes, `epic` for Epic's public sandbox; schema 6), the seat (`text` or `voice`;
-  schema 7), the mode, the model, its `llm` settings and `inference_geo` (schema 8); at the end, the totals and the estimated cost, and for a
+  schema 7), the mode, the model, its `llm` settings and `inference_geo` (schema 8), its
+  `prompt_version` (schema 9); at the end, the totals and the estimated cost, and for a
   voice call `cartesia`: Ink's seconds, Sonic's characters and their credits (schema 7).
 - `caller`, `agent` — what each side said. `first_ms` on `agent` (schema 4): when the line's
   first frame passed, on the call's clock; the event's own `t_ms` comes after the harness's
@@ -65,8 +66,9 @@ CALLS = config.AGENT / "calls"
 # `call_start` (`text`, `voice`), and `cartesia` on a voice call's `call_end`. 8: since
 # 2026-11-13: `llm` on `call_start` (effort, thinking, the token caps, the cache's life: Config ›
 # Anthropic) and `inference_geo`; `cost_usd` counts the model's own prices and US-only
-# inference (1.1×). The catalog reads all eight.
-SCHEMA_VERSION = 8
+# inference (1.1×). 9: since 2026-11-13, evening: `prompt_version` on `call_start`, the label of
+# the words the call ran with ("MM-DD | n", "Default", or "file"). The catalog reads all nine.
+SCHEMA_VERSION = 9
 
 
 def cost_usd(tokens: dict[str, int], model: str, cache_ttl: str = "5m", geo: bool = True) -> float:
@@ -82,6 +84,23 @@ def cost_usd(tokens: dict[str, int], model: str, cache_ttl: str = "5m", geo: boo
         + tokens.get("output_tokens", 0) * price_out
     )
     return dollars / 1_000_000 * (config.GEO_PRICE if geo else 1.0)
+
+
+def replay_cost(path: Path, model: str = config.MODEL) -> float:
+    """What one recorded reply in tests/replays/ cost, from its usage events (cost_usd).
+    0 when the file is missing or unreadable."""
+    try:
+        body = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0.0
+    usage: dict[str, int] = {}
+    events = body.get("events") or [{"message": body.get("message") or {}}]
+    for e in events:
+        u = (e.get("message") or {}).get("usage") or e.get("usage") or {}
+        for name in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
+            if isinstance(u.get(name), int):
+                usage[name] = u[name]
+    return cost_usd(usage, model)
 
 
 def _ms(seconds: float) -> float:
@@ -157,6 +176,7 @@ class CallRecord:
         ehr: str = "local",
         seat: str = "text",
         llm: dict[str, Any] | None = None,
+        prompt_version: str = "file",
     ) -> None:
         """`llm`: the call's llm settings (Config › Anthropic, CONSOLE.md §8); the code's when
         none. Written on `call_start` (schema 8) and used for the cost."""
@@ -198,6 +218,7 @@ class CallRecord:
             model=model,
             llm={k: llm[k] for k in ("effort", "thinking", "max_tokens", "retry_max_tokens", "cache_ttl")},
             inference_geo=config.INFERENCE_GEO,
+            prompt_version=prompt_version,
             started=datetime.now().isoformat(timespec="seconds"),
         )
 

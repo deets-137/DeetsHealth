@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
 | Theme (color roles) | themes.css | 31 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 98 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 100 tokens · overrides:  |
 
 ## Theme roles
 
@@ -143,6 +143,8 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--cfg-label` | `168px` | — | a Config row's name column: room for its longest name ("Longest wait (ms)") |
 | `--info-size` | `28px` | — | a Config row's "i" button, a rounded square |
 | `--help-max` | `640px` | — | a Config row's help text, at its widest |
+| `--prompt-max` | `1100px` | — | Config › Agent: the column of sections, at its widest: the name column and about 110 characters of words, so long sections wrap less |
+| `--prompt-indent` | `28px` | — | Config › Agent: a field's name, inset under its action's (the "i"'s width) |
 | `--thumb-size` | `16px` | — | a Config slider's thumb |
 | `--track-height` | `6px` | — | a Config slider's track |
 | `--split-half` | `132px` | — | one half of a split button: wide enough for its longest word ("Confirm?") |

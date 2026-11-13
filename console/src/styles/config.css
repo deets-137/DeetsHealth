@@ -93,12 +93,12 @@
    looked "offset vertically"): the row's own box starts at its top padding, above the name and
    control, so the layer starts --glow-pad above the content and ends --glow-pad below it, and
    reaches --glow-pad past each side. */
-.cfg-row.cfg-changed {
+.cfg-changed {
   position: relative;
   isolation: isolate;
 }
 
-.cfg-row.cfg-changed::before {
+.cfg-changed::before {
   content: "";
   position: absolute;
   z-index: -1;
@@ -117,7 +117,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cfg-row.cfg-changed::before {
+  .cfg-changed::before {
     animation: none;
   }
 }
@@ -572,3 +572,238 @@ select.cfg-field {
   opacity: var(--disabled-opacity);
 }
 
+/* ---------------------------------------------------------------- Config › Agent */
+
+/* CONSOLE.md §9: one column of sections, no wider than --prompt-max, straight on the view's
+   frame (no card edge: the frame is the one edge). The rule's two attributes win over the
+   Cartesia layouts' columns and areas at every width. */
+.cfg-body[data-layout="prompt"] {
+  grid-template-columns: minmax(0, var(--prompt-max));
+  grid-template-areas: none;
+}
+
+.prompt-card {
+  gap: var(--space-4);
+  padding: 0;
+  border: 0;
+}
+
+/* The section groups at the left, Semantic | Flow at the right; they wrap when narrow. */
+.prompt-bars {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.prompt-bar {
+  max-width: 100%;
+}
+
+/* A dot after a tab's name: a changed section on an older version (the accent), or a section
+   that needs fixing (the error color). */
+.prompt-tab-changed::after,
+.prompt-tab-bad::after {
+  content: "";
+  display: inline-block;
+  width: calc(var(--dot-size) / 2);
+  height: calc(var(--dot-size) / 2);
+  margin-left: var(--space-2);
+  border-radius: 50%;
+  vertical-align: middle;
+  background: var(--accent);
+}
+
+.prompt-tab-bad::after {
+  background: var(--error);
+}
+
+/* Record and test: one quiet line; the button is a link, as Remove is on the Cartesia tables. */
+.prompt-record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+.prompt-record-old {
+  color: var(--error);
+}
+
+.prompt-record-result {
+  font-variant-numeric: tabular-nums;
+}
+
+.prompt-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Semantic's headings, with their count. */
+.prompt-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  font-size: var(--text-size);
+  font-weight: var(--weight-bold);
+  color: var(--title);
+}
+
+.prompt-heading:first-child {
+  margin-top: 0;
+}
+
+.prompt-count {
+  font-size: var(--text-small);
+  font-weight: var(--weight-regular);
+  color: var(--text-3);
+}
+
+/* A section: the name column of a Config row (--cfg-label) and the words beside it; a problem
+   line under the words only when there is one. The same edge and top space as a Config row, so
+   an older version's glow sits the same way (.cfg-changed). */
+.prompt-section {
+  display: grid;
+  grid-template-columns: var(--cfg-label) minmax(0, 1fr);
+  grid-template-areas:
+    "label words"
+    ".     problem";
+  align-items: start;
+  column-gap: var(--space-4);
+  min-width: 0;
+  padding-top: var(--space-3);
+  border-top: var(--edge) solid var(--line);
+}
+
+/* Narrower than one Cartesia card (the same width as its rows' rule): the name over the words. */
+@container cfg (max-width: 581px) {
+  .prompt-section {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "label"
+      "words"
+      "problem";
+  }
+}
+
+/* The name column: Flow's tag over the name, and the placeholders the section keeps under it.
+   It starts level with the words' first line (the words' top padding). */
+.prompt-label {
+  grid-area: label;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  min-width: 0;
+}
+
+.prompt-section[data-kind="field"] .prompt-label {
+  padding-left: var(--prompt-indent);
+}
+
+.prompt-tag,
+.prompt-keeps {
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+.prompt-tag[hidden],
+.prompt-keeps[hidden],
+.prompt-problem[hidden] {
+  display: none;
+}
+
+.prompt-name {
+  color: var(--text);
+}
+
+/* The words: two layers in one place, the text (Read) and the box (Edit). Same padding, edge
+   width, type and wrapping, so the box fades in over the text with no shift (the owner,
+   2026-11-13: "minimize jitter"). The fade is the help card's (--dur-collapse). */
+.prompt-control {
+  grid-area: words;
+  display: grid;
+  min-width: 0;
+}
+
+/* What the caller hears or reads: a bar at the left of the words, so speech reads as speech. */
+.prompt-section[data-kind="hears"] .prompt-control,
+.prompt-section[data-kind="text"] .prompt-control {
+  padding-left: var(--space-3);
+  border-left: calc(var(--edge) * 2) solid var(--glass-edge);
+}
+
+.prompt-words,
+.prompt-text {
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: var(--space-3) var(--space-4);
+  border: var(--edge) solid transparent;
+  border-radius: var(--radius-control);
+  font: inherit;
+  line-height: var(--line-height);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  transition: opacity var(--dur-collapse) var(--ease), visibility 0s linear var(--dur-collapse);
+}
+
+.prompt-words {
+  color: var(--text);
+}
+
+.prompt-text {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-color: var(--glass-edge);
+  resize: none;
+  overflow: hidden;
+}
+
+/* Read: the text shows, the box is hidden; Edit: the other way. The layer that appears does so
+   at once; the one that goes waits for its fade. Every other Config control greys in Read; the
+   words stay at full strength (the owner reads the prompt here). */
+.cfg[data-mode="read"] .prompt-control {
+  opacity: 1;
+}
+
+.cfg[data-mode="read"] .prompt-text,
+.cfg[data-mode="edit"] .prompt-words {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.cfg[data-mode="read"] .prompt-words,
+.cfg[data-mode="edit"] .prompt-text {
+  transition: opacity var(--dur-collapse) var(--ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prompt-words,
+  .prompt-text {
+    transition: none;
+  }
+}
+
+/* A placeholder in the text: a soft wash, no padding, so it takes the box's exact width. */
+.prompt-mark {
+  border-radius: var(--radius-control);
+  background: var(--glass-fill-strong);
+  color: var(--text-2);
+}
+
+.prompt-problem {
+  grid-area: problem;
+  padding-top: var(--space-2);
+  font-size: var(--text-small);
+  color: var(--error);
+}
+
+.prompt-bad .prompt-text {
+  border-color: var(--error);
+}

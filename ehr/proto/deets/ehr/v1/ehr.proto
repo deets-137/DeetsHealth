@@ -139,6 +139,10 @@ enum EhrSource {
 
 message OpenCallRequest {
   EhrSource ehr = 1;
+  // The version of the agent's words this call runs with (CONSOLE.md §9): ehr takes the text
+  // message's words (`text.code`) from it. 0: the prompt file compiled into ehr. A version id,
+  // never words.
+  int64 prompt_version = 2;
 }
 
 message OpenCallReply {

@@ -15,8 +15,12 @@ space; a blank line starts a new paragraph; a line that starts with "- " starts 
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import string
+from contextvars import ContextVar, Token
+from dataclasses import dataclass
 from pathlib import Path
 
 PROMPT_FILE = Path(__file__).resolve().parents[1] / "prompts" / "AGENT-PROMPT.md"
@@ -181,6 +185,118 @@ def load(path: Path = PROMPT_FILE) -> dict[str, str]:
 SECTIONS = load()
 
 
+@dataclass(frozen=True)
+class Words:
+    """The words one call runs with (CONSOLE.md §9): every section, and the version they came
+    from. `version_id` 0 and `label` "file": the prompt file, as the tests and the typed harness
+    run."""
+
+    sections: dict[str, str]
+    version_id: int = 0
+    label: str = "file"
+
+
+FILE_WORDS = Words(SECTIONS)
+
+# The words of the call this code runs in. A test call sets it once, when it starts (dev_server.py
+# › _run_call), and every task the call starts inherits it, so a save during the call changes
+# nothing in it. Unset: the prompt file.
+_CALL: ContextVar[Words | None] = ContextVar("deets_call_words", default=None)
+
+
+def current() -> Words:
+    return _CALL.get() or FILE_WORDS
+
+
+def use(words: Words) -> Token:
+    """Make `words` this call's words, until `reset` with the returned token."""
+    return _CALL.set(words)
+
+
+def reset(token: Token) -> None:
+    _CALL.reset(token)
+
+
 def text(name: str, **values: str) -> str:
-    """One section of the prompt file, with its placeholders filled."""
-    return SECTIONS[name].format(**values)
+    """One section of this call's words, with its placeholders filled."""
+    return current().sections[name].format(**values)
+
+
+# ---- writing a save back to the file (dev only; PROMPT-EDITOR.md §6.2)
+
+WRAP = 96
+
+
+def _wrap(paragraph_line: str) -> list[str]:
+    """One joined line, wrapped at `WRAP` columns so that `_join` makes it whole again: a
+    continuation never starts with "- " (it would start a list item) or "#" (a heading)."""
+    words = paragraph_line.split(" ")
+    lines: list[str] = []
+    current_line = ""
+    for word in words:
+        if current_line and len(current_line) + 1 + len(word) > WRAP and word != "-" and not word.startswith("#"):
+            lines.append(current_line)
+            current_line = word
+        else:
+            current_line = f"{current_line} {word}" if current_line else word
+    lines.append(current_line)
+    return lines
+
+
+def _raw_sections(source: str) -> dict[str, list[str]]:
+    """Each section's lines as written in the file."""
+    out: dict[str, list[str]] = {}
+    name: str | None = None
+    for line in source.split("\n"):
+        heading = re.match(r"^## (\S+)\s*$", line)
+        if heading:
+            name = heading.group(1)
+            out[name] = []
+        elif name is not None:
+            out[name].append(line)
+    return out
+
+
+def render(sections: dict[str, str], source: str) -> str:
+    """The prompt file with `sections` in place of its own: the notes above the first section and
+    the sections' order are kept; each section's words are wrapped. Raises PromptFileError when
+    the result would not read back as `sections`."""
+    source = source.replace("\r\n", "\n")
+    head = re.split(r"(?m)^## ", source, maxsplit=1)[0]
+    raw = _raw_sections(source)
+    order = list(raw) + [k for k in sections if k not in raw]
+    out = [head.rstrip("\n") + "\n"]
+    for name in order:
+        if name not in sections:
+            continue
+        # A section whose words did not change keeps its own lines, so a save's diff shows only
+        # what changed.
+        if name in raw and _join(raw[name]) == sections[name]:
+            body = raw[name]
+            while body and not body[-1].strip():
+                body = body[:-1]
+        else:
+            body = []
+            for paragraph in sections[name].split("\n\n"):
+                if body:
+                    body.append("")
+                for line in paragraph.split("\n"):
+                    body.extend(_wrap(line))
+        out.append(f"\n## {name}\n" + "\n".join(body) + "\n")
+    rendered = "".join(out)
+    if parse(rendered) != {k: sections[k] for k in order if k in sections}:
+        raise PromptFileError("the saved words would not read back the same from the file")
+    return rendered
+
+
+def write_file(sections: dict[str, str], path: Path = PROMPT_FILE) -> None:
+    """Write a saved version into the prompt file, so git, the tests and edits by hand keep
+    working (PROMPT-EDITOR.md §6.2)."""
+    check(sections)
+    path.write_text(render(sections, path.read_text(encoding="utf-8")), encoding="utf-8")
+
+
+def digest(sections: dict[str, str]) -> str:
+    """A hash of the words alone (not their wrapping): what the kept recordings were made with."""
+    canon = json.dumps(sections, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(canon.encode()).hexdigest()

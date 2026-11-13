@@ -122,6 +122,14 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   checked), three RPCs, `GET`/`POST /agent/cartesia`. Voice calls run with the active version.
   **Restart `npm run dev` first** (new `ehr`, the migration). Open: pronunciations need a
   Cartesia dictionary; Make active; Listen (CONSOLE.md §7.6).
+- **Built, desk test open: Config › Agent, the agent's words in the console** (2026-11-13; the
+  owner's five tabs, Semantic | Flow, the names list). Every section of AGENT-PROMPT.md, versioned
+  in the store (`prompt` service, migration 0005); a save writes the file and reaches the next
+  test call; each call keeps its own copy; ehr texts the code with the call's version; Record
+  and test re-records the kept scripts and runs the tests. **Restart `npm run dev` first**,
+  then CONSOLE.md §9.5. **New rule:** after any edit to the words, `npm run check` fails at
+  `test_the_kept_recordings_match_the_prompt_file` until Record and test passes. Open: CONSOLE.md
+  §9.4.
 - **Done: Config › Anthropic** (2026-11-13; the owner's option A, the page chooses the model;
   **desk test passed 2026-11-13** on wide screens). Model, Effort, Thinking, the token caps,
   Cache life, Budget and Dollars left; the store's `llm` service (migration 0004); test calls

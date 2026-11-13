@@ -102,7 +102,9 @@ Plain columns hold no protected data; sealed columns are bytes under `seal.rs`.
 - `audit`: who read what and when (each transcript view, each flag's notes). Plain ids only.
 - **The settings store** (`0002_settings.sql`, 2026-11-13; CONSOLE.md §7.3): `setting_versions`,
   one key–value table per service (`settings_voice`; `settings_llm` since `0004_settings_llm.sql`,
-  CONSOLE.md §8.3), and `setting_activations`. All plain and
+  CONSOLE.md §8.3; `settings_prompt`, the agent's words, since `0005_settings_prompt.sql`,
+  CONSOLE.md §9.3), and `setting_activations`. `calls.prompt_version` (0005) names the words
+  each call ran with, by the version's label. All plain and
   insert-only: a trigger refuses every UPDATE, DELETE and TRUNCATE. Written by `ehr`'s
   `SaveSettings` (`ehr/src/settings.rs`), checked there against the list of every setting.
 - **Migrations** in the repo, applied in order, the same files on both dev machines and in the

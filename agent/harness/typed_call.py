@@ -24,13 +24,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sys
 from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from deets_agent import config, redact
+from deets_agent import config, llm, redact
 from deets_agent.call import CallFailed, TypedCall
 from deets_agent.call_record import CallRecord
 from deets_agent.ehr_client import EhrClient, EhrError
@@ -66,11 +67,16 @@ async def main() -> int:
     parser.add_argument("--log", default="WARNING", help="log level (the logs carry no PHI)")
     parser.add_argument("--no-record", action="store_true", help="write no dev call record")
     parser.add_argument(
+        "--keys-out", type=Path, help="write the key of each Claude request, as JSON (Record and test's dry run)"
+    )
+    parser.add_argument(
         "--today",
         default=FAKE_TODAY.isoformat(),
         help="the agent's today, YYYY-MM-DD or 'real' (default: the day ehr's fake slots follow)",
     )
     args = parser.parse_args()
+    if args.keys_out is not None:
+        llm.SEEN = []
     today = date.today() if args.today == "real" else date.fromisoformat(args.today)
     record = (
         None
@@ -128,6 +134,8 @@ async def main() -> int:
                 except EhrError as e:
                     print(f"(not filed: {e.kind.value}; the next ingest files it)")
             await ehr.close()
+            if args.keys_out is not None:
+                args.keys_out.write_text(json.dumps(llm.SEEN or []), encoding="utf-8")
     return code
 
 

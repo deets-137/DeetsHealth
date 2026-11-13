@@ -183,12 +183,14 @@ class EhrClient:
 
     # ---- the calls ----
 
-    async def open_call(self, ehr: str = "local") -> Shielded[str]:
-        """`ehr`: `local` (ehr's fakes) or `epic` (Epic's public sandbox; dev only)."""
+    async def open_call(self, ehr: str = "local", prompt_version: int = 0) -> Shielded[str]:
+        """`ehr`: `local` (ehr's fakes) or `epic` (Epic's public sandbox; dev only).
+        `prompt_version`: the saved version of the agent's words the call runs with; 0 for the
+        prompt file. ehr takes the text message's words from it."""
         source = {"local": pb.EHR_SOURCE_LOCAL, "epic": pb.EHR_SOURCE_EPIC_SANDBOX}[ehr]
         reply = await self._call(
             "OpenCall",
-            pb.OpenCallRequest(ehr=source),
+            pb.OpenCallRequest(ehr=source, prompt_version=prompt_version),
             left=lambda r: {"identify": r.identifies_left, "resend": r.resends_left, "code": r.code_tries_left},
         )
         return Shielded(reply.handle)

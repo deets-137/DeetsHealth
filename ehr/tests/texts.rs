@@ -57,7 +57,7 @@ async fn the_request_is_twilios_messages_call() {
     let server = tokio::spawn(answer_once(listener, "201 Created"));
 
     let codes = sender(port);
-    let sent = codes.send(&Shielded::new("+15555550101".into()), &Shielded::new("482913".into())).await;
+    let sent = codes.send(&Shielded::new("+15555550101".into()), &Shielded::new("482913".into()), None).await;
     assert!(sent.is_ok());
 
     let req = server.await.unwrap();
@@ -78,7 +78,7 @@ async fn a_refusal_is_down_and_says_nothing() {
     let port = listener.local_addr().unwrap().port();
     let server = tokio::spawn(answer_once(listener, "400 Bad Request"));
     let codes = sender(port);
-    let sent = codes.send(&Shielded::new("+15555550101".into()), &Shielded::new("482913".into())).await;
+    let sent = codes.send(&Shielded::new("+15555550101".into()), &Shielded::new("482913".into()), None).await;
     assert!(sent.is_err());
     server.await.unwrap();
 }

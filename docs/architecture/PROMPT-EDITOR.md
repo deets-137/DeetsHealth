@@ -1,15 +1,15 @@
 ---
-status: idea
-desk_test: none
-sources: [agent/prompts/AGENT-PROMPT.md, agent/deets_agent/prompts.py, agent/deets_agent/flow.py, agent/deets_agent/dev_server.py, agent/deets_agent/llm.py, ehr/src/texts.rs, ehr/migrations/0001_calls.sql]
-updated: 2026-11-12
+status: built
+desk_test: open
+sources: [agent/prompts/AGENT-PROMPT.md, agent/deets_agent/prompts.py, agent/deets_agent/flow.py, agent/deets_agent/dev_server.py, agent/deets_agent/llm.py, ehr/src/texts.rs, ehr/src/service.rs, ehr/migrations/0005_settings_prompt.sql, console/src/pages/agent.ts]
+updated: 2026-11-13
 ---
-# DeetsHealth — Edit the agent's prompt in the console (idea)
+# DeetsHealth — Edit the agent's prompt in the console
 
-> Not built. The console cannot edit the prompt today. The owner edits
-> `agent/prompts/AGENT-PROMPT.md` by hand. This doc records the discussion of 2026-11-12: how
-> the prompt loads now, how a save would reach new calls, and what was decided. The editor's
-> design (its page, its layout, its save control) is not started.
+> **Built 2026-11-13 as Config › Agent** (CONSOLE.md §9 is the as-built record and the desk
+> test). This doc keeps the design of 2026-11-12: how a save reaches new calls, and what was
+> decided. §3 describes the code before the build; §4 to §6 are now built as written, with the
+> differences in CONSOLE.md §9.3. §7 and §8 are still open.
 
 ## 1. Terms
 - **The prompt file** — `agent/prompts/AGENT-PROMPT.md`: every word the model reads and every
@@ -32,7 +32,8 @@ onwards?"
 in progress keeps the words it started with. This works the same in dev, in A2 (our cloud) and
 in B (the hospital's cloud account).
 
-## 3. How the prompt loads today
+## 3. How the prompt loaded before the build (2026-11-12)
+> **Part:** archived · 2026-11-13 — replaced by CONSOLE.md §9.3. Kept as the reason for §4.
 - `prompts.py` reads the prompt file once, when the module loads (`SECTIONS = load()`), and
   checks it (`check()`). The dev server is one long process, so an edit reaches no call until
   `npm run dev` starts again.
@@ -90,6 +91,7 @@ in B (the hospital's cloud account).
    every other fix.
 
 ## 7. Not now (each waits for its own work)
+> **Part:** idea · 2026-11-13 — the editor's design is now built (CONSOLE.md §9); the rest waits.
 - Who may edit which sections (ideas/ACCESS-ROLES.md, the owner's design).
 - Whether a deploy needs the kept scripts to pass before a version becomes current.
 - The editor's design: its place in the nav, one box for the whole file or one per section,
@@ -100,6 +102,7 @@ in B (the hospital's cloud account).
   (FUTURE-SETTINGS.md). The owner's words named the prompt only.
 
 ## 8. The analyst's test path (open)
+> **Part:** idea · 2026-11-13
 An analyst changes some words and wants to know what the change does before it reaches a
 caller. What it needs:
 - **A draft version.** The analyst's edits are tested as a draft, never as the current

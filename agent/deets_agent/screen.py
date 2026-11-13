@@ -27,7 +27,7 @@ from loguru import logger
 from pipecat.frames.frames import Frame, LLMMessagesAppendFrame, TranscriptionFrame
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
-from deets_agent.flow import EMERGENCY_LINE, CallFlow, emergency_frame
+from deets_agent.flow import CallFlow, emergency_frame, emergency_line
 
 # The default phrase list: the one copy (CALL-FLOW.md §3 points here; FUTURE-SETTINGS.md §3 holds
 # what a hospital will change). Each entry is a regular expression matched against the caller's
@@ -120,7 +120,7 @@ class CallerScreen(FrameProcessor):
             LLMMessagesAppendFrame(
                 messages=[
                     {"role": "user", "content": line},
-                    {"role": "assistant", "content": EMERGENCY_LINE},
+                    {"role": "assistant", "content": emergency_line()},
                 ],
                 run_llm=False,
             ),

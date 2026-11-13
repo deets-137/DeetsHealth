@@ -1,0 +1,16 @@
+{
+ "book_a_visit": 0.0029,
+ "change_after_booking": 0.0014,
+ "code_confusion": 0.0008,
+ "emergency_reminder": 0.0016,
+ "emergency_then_book": 0.0027,
+ "flag_for_someone_else": 0.0002,
+ "leave_at_code": 0.0008,
+ "leave_at_greet": 0.0001,
+ "medical_question": 0.002,
+ "no_code_after_resend": 0.0007,
+ "no_text_to_person": 0.0009,
+ "off_topic": 0.0004,
+ "read_back_correction": 0.0009,
+ "visit_reason_offer": 0.0012
+}

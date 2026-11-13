@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: passed 2026-11-11
-sources: [console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
+sources: [console/src/pages/agent.ts, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
 updated: 2026-11-13
 ---
 # DeetsHealth — The console
@@ -631,3 +631,145 @@ Sonic: 1 credit per character"](images/config-rates-2026-11-13.png)
 8. Config, Cartesia: everything works as before (the shared frame moved to `config-kit.ts`).
 9. On both pages, each dropdown is only as wide as its longest option. Narrow the window to one
    thin column: no dropdown or number box runs past its card's edge.
+
+## 9. Config › Agent
+> **Part:** built · 2026-11-13 · desk test open — the owner, 2026-11-13: "have the agent subpage
+> contain our agent prompt segments", five tabs of sections, and a Semantic | Flow bar. The
+> design before it: PROMPT-EDITOR.md.
+
+### 9.1 The view as built (`pages/agent.ts`)
+> The owner's first look (2026-11-13): "visually cluttered", Semantic "a lot better for
+> reference but could be improved", the cost should be real. Then his forks: plain text in Read
+> with an animated change to Edit; the name left of the words; a free dry run for the cost; and
+> "minimize jitter and inconsistency … sticking to UI theming and prior precedence".
+
+- **Config's first item, Agent.** The same top row as the other Config pages (§7.1): Read |
+  Edit, the versions ("Active | [MM-DD | n]", Default last), Discard | Save. Under it, the
+  sections sit straight on the view's frame: no card edge inside it.
+- **The bars:** the five section groups at the left (General, Open and close, Verify, Visits,
+  Safety); **Semantic | Flow** at the right; they wrap when narrow. Both are the Read | Edit
+  bar's style. The tab and the order are kept in this browser (a way to read, not a change);
+  Read | Edit still opens on Read.
+- **Record and test, one quiet line** under the bars: "Recordings match the saved words", or
+  "Recordings are out of date" in the error color; then the button as a link (as Remove is on
+  the Cartesia tables) with its quote; then the last run ("Script 3 of 14", "Passed: 14
+  scripts, the tests pass. Spent under $0.01").
+- **The quote is a free dry run** (dev_server.py › `estimate_record`): when the recordings are
+  out of date, the page asks once for each set of words. The dev server replays each kept script
+  with no Claude call (about 30 s); a script that misses a reply needs recording, and its quote
+  is what recording it cost last time (`agent/tests/RECORDED-COSTS.json`, written after each
+  passing run). The button reads "Working out the cost", then "Record and test (3 of 14
+  scripts, about $0.01)" or "(nothing new to record)". It is an over-estimate: the lines before
+  the first changed one replay for free. Measured on 2026-11-13, recording all 14 scripts costs
+  about $0.017 (Haiku 5.5, with US-only inference); the old fixed quote said $0.14.
+- **Semantic:** the tab's sections under up to four headings, each with its count:
+  Instructions (role, step tasks, notes), When to act (each action, then its fields), Caller
+  hears, Text message. **Flow:** the same sections in the call's order, each with its tag over
+  the name (Instructions, When to act, Field, Caller hears, Text message).
+- **A section** is a Config row: its name in the row's name column (`--cfg-label`), its words
+  beside it, up to `--prompt-max` wide so long sections wrap less. A field's name is inset under
+  its action's (`--prompt-indent`); its words stay aligned with the rest. The key
+  (`line.greeting`) shows on hover over the name. Under the name, the placeholders the section
+  keeps ("Keeps {visit}"). Narrower than a Cartesia card, the name sits over the words.
+- **Read shows the words as text; Edit shows them as boxes.** The text and the box are two
+  layers in one place, with the same padding, edge width, type and wrapping, so the box fades in
+  over the text and nothing moves (the help card's fade, `--dur-collapse`; none with reduced
+  motion). In Read each placeholder is marked in the text with a soft wash and no padding, so
+  it takes its exact width in the box.
+- **What the caller hears or reads** (Caller hears, Text message) has a bar at the left of its
+  words, so speech reads as speech in either order.
+- **A problem** (a missing or extra placeholder, a stray brace, empty words) shows one line in
+  the error color under the words, the box's edge turns the error color, its tab shows a red
+  dot, and Save stays off with the reason on hover ("Verify › Read back details: Needs
+  {birth}"). With no problem, no line, so nothing moves while you type.
+- **An older version:** the changed sections glow (the same glow as §7.1), and each tab with a
+  change shows a dot in the accent, in either order.
+- **The names** are the owner's list of 2026-11-13 (`SECTIONS` in `agent.ts`; a test fails if a
+  section is missing or named twice).
+- **Tokens:** `--prompt-max` (1,100 px), `--prompt-indent` (new); every other value is an
+  existing token. **The shared frame** (`config-kit.ts`) gained: textareas follow Read; the
+  glow on any keyed section; a view may hold Save back with a reason (`blocked`); a redraw may
+  go to the top (a tab change).
+
+### 9.2 Decided inside his choices (for his review)
+- The heading and tag words; "Keeps {…}" under the name; the problem lines ("Needs {visit}",
+  "A { or } with no partner", "Empty", "{x} is not filled in by the agent"); the record line's
+  words.
+- **The placeholders are checked, not locked.** The design said a placeholder would be a tag
+  you cannot delete. A locked tag inside a text box is fragile in a browser (a paste or an undo
+  can still remove it), so the page names them under the section's name and refuses the save
+  until the words hold them. ehr checks the same rule on save.
+- **Fields stay in Semantic's "When to act"**, each under its action (the "How to fill in"
+  heading went: it repeated each action's name).
+- **The speech bar** is the frame's edge color, two hairlines wide; the console's type is
+  already the serif, so no other type marks speech.
+- **Under a cent** reads "under $0.01": most scripts cost a tenth of a cent.
+- Record and test runs every kept script with `--no-record` (no new call records in the
+  catalog), then the whole agent test suite except the stamp's own test, then a dry run that
+  writes each script's cost for the next quote. It cannot start while a quote is being worked
+  out.
+- The page opens on Semantic and General the first time.
+
+### 9.3 The store, ehr and the agent (as built, 2026-11-13)
+- **A third service, `prompt`** (`ehr/migrations/0005_settings_prompt.sql`): `settings_prompt`,
+  one row per section, insert-only. `settings.rs › PROMPT` lists the 78 sections and the
+  placeholders each must hold; `Kind::Prose` checks each one (not empty, at most 12,000
+  characters, no control character but a line break, the exact placeholders). A test fails if
+  it differs from `prompts.py › PLACEHOLDERS`.
+- **The words a save stores** are each section as the agent reads it: paragraphs apart by a
+  blank line, list items on their own lines, no wrapping.
+- **The prompt file stays the source for git and the tests.** A save also writes the file
+  (`prompts.write_file`): the notes and every unchanged section keep their own lines; a changed
+  section is wrapped at 96 columns, never so that a line starts a list item or a heading.
+- **The Default is the file**, the first time the store sees it. At start-up the dev server
+  compares the file with the active version; when they differ (an edit by hand, another
+  branch), the file becomes a new active version, saved by "file" (`sync_prompt_file`).
+- **Each test call takes its own copy** of the active version when it starts
+  (`dev_server.py › active_words`, `prompts.use`): every task of the call reads it, so a save
+  during the call changes nothing in it. The 911 line is read from the copy when spoken
+  (`flow.py › emergency_line`), no longer at import.
+- **ehr's text message:** `OpenCall` carries the call's `prompt_version`; ehr reads that
+  version's `text.code` once and sends the code with it (`service.rs › prompt_text_code`). 0
+  (the tests, the typed harness, no store) uses the file compiled into ehr.
+- **The record (schema 9):** `call_start` carries `prompt_version`, the version's label
+  ("MM-DD | n", "Default", "file"); the `calls` table has a `prompt_version` column.
+- **The recordings' stamp:** `agent/tests/RECORDED-PROMPT.sha256` is the hash of the words the
+  kept replies were recorded and tested with. A test fails while it differs from the file, so
+  `npm run check` says when Record and test is due. Record and test writes it when every script
+  ran and the tests pass.
+
+### 9.4 Open
+- Who may edit which sections (ideas/ACCESS-ROLES.md); each hospital's own sections on top of
+  ours; an analyst's draft and its test before it is used (PROMPT-EDITOR.md §7, §8).
+- **Make active** for an older version, as on the other pages (§7.6).
+- The old replies Record and test leaves behind (each changed request is a new file in
+  `tests/replays/`): a cleanup that keeps only the replies the tests read.
+- The audit row for each save (the activation row records who and when meanwhile).
+
+### 9.5 Desk test
+**First:** stop the dev server (Ctrl+C) and start it again with `npm run dev`. It builds the new
+`ehr` and runs migration 0005. The first view makes the Default from the prompt file.
+
+1. Config, Agent. The dropdown reads "Active | [Default]". The bars read General … Safety and
+   Semantic | Flow. "Recordings match the saved words".
+2. General shows "Instructions 1" with Role and rules, then "Caller hears 5". The names sit in
+   a column at the left; the words read as plain text, with no boxes. Hover a name: its key.
+3. Press Flow: the same sections in the call's order, each with its tag over the name. Open
+   Verify: the names First name, Last name and Date of birth sit inset under Read back details. Leave and come back to
+   Config: the page opens on Verify and Flow.
+4. Press Edit: boxes fade in over the words. In Verify › Read back details (Caller hears),
+   delete `{birth}`: "Needs {birth}" shows in red under the words, the box's edge is red, Verify's tab shows a red dot, Save stays off (hover
+   says why). Put it back: all clear.
+5. In Open and close › Goodbye, change the words. Press Save: "Saved as 11-13 | 1. Active from
+   the next call". "Recordings are out of date" shows in red. `git diff` shows only that
+   section changed in `AGENT-PROMPT.md`.
+6. Chat, Test, a typed call that ends: the agent says the new goodbye. The call's record (the
+   newest file in `agent/calls/`) has `"prompt_version": "11-13 | 1"` on its first line.
+7. Config, Agent: the record line reads "Working out the cost" for about 30 s, then "Record and
+   test (N of 14 scripts, about $…)". Press it. It counts the scripts, then says Passed or
+   Failed and what it spent. After a pass, "Recordings match the saved words".
+8. Choose "Default" in the dropdown: Goodbye glows, and the Open and close tab shows a dot.
+9. Read and Edit: press Edit and Read a few times on a long section (Role and rules). The box
+   fades in and out over the words; no word moves. Each placeholder in Read sits exactly where
+   it sits in the box.
+10. Narrow the window: under one Cartesia card's width, each name moves over its words.

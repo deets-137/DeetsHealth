@@ -224,6 +224,64 @@ export const anthropicSettings = (version = 0) =>
   get<AnthropicSettings>(version ? `/agent/anthropic?version=${version}` : "/agent/anthropic");
 export const saveAnthropic = (values: LlmValues) => saveSettings<AnthropicSettings>("/agent/anthropic", values);
 
+/** The last Record and test (dev_server.py › record_and_test): counts and names of kept
+ * scripts only. */
+export type Recording = {
+  state: "running" | "passed" | "failed";
+  scripts: { name: string; ok: boolean }[];
+  tests: boolean | null;
+  spent_usd: number | null;
+};
+
+/** Config › Agent (CONSOLE.md §9): the versions of the agent's words, one version's sections
+ * (by key, as the agent reads them), the placeholders each section must hold, and Record and
+ * test. */
+export type PromptSettings = {
+  key: boolean;
+  store: boolean;
+  versions: SettingVersion[];
+  version: SettingVersion | null;
+  values: Record<string, string>;
+  active: Record<string, string>;
+  placeholders: Record<string, string[]>;
+  /** `match`: the kept recordings were made and tested with the prompt file's words. */
+  recordings: { match: boolean; scripts: number };
+  /** The dry run's quote for the saved words; null until one is asked for (estimatePrompt). */
+  estimate: Estimate | null;
+  recording: Recording | null;
+};
+export const promptSettings = (version = 0) =>
+  get<PromptSettings>(version ? `/agent/prompt?version=${version}` : "/agent/prompt");
+export const savePrompt = (values: Record<string, string>) => saveSettings<PromptSettings>("/agent/prompt", values);
+
+/** Start Record and test. A refusal's reason is a fixed line the page may show. */
+/** Record and test's quote (dev_server.py › estimate_record): the kept scripts that need new
+ * replies, by name, and the dollars recording them cost last time. */
+export type Estimate = { state: "running" | "done"; missing: string[]; usd: number | null };
+
+/** Ask for the quote: a dry run with no Claude call, in the background. */
+export async function estimatePrompt(): Promise<Estimate | null> {
+  try {
+    const r = await fetch("/agent/prompt/estimate", { method: "POST" });
+    if (!r.ok) return null;
+    return ((await r.json()) as { estimate: Estimate | null }).estimate;
+  } catch {
+    return null;
+  }
+}
+
+export async function recordPrompt(): Promise<Recording> {
+  let r: Response;
+  try {
+    r = await fetch("/agent/prompt/record", { method: "POST" });
+  } catch {
+    throw new AgentDown("the agent's dev server is not running");
+  }
+  const body = (await r.json().catch(() => null)) as { detail?: unknown; recording?: Recording } | null;
+  if (!r.ok || !body?.recording) throw new AgentDown(typeof body?.detail === "string" ? body.detail : "not started");
+  return body.recording;
+}
+
 async function saveSettings<T>(path: string, values: unknown): Promise<T> {
   let r: Response;
   try {

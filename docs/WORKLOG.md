@@ -8,6 +8,29 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-13 (Mac, config, later) — Config › Agent: the agent's words in the console
+- Committed Config › Anthropic (`a1aa5c6`); desk test passed on wide screens, narrow screens
+  to redo.
+- The owner chose the Agent page for the prompt's sections. The design went through four
+  rounds: five tabs (General, Open and close, Verify, Visits, Safety) under the Config frame;
+  plain names an analyst can guess first try; grouped under headings so the names stay short;
+  then a Semantic | Flow bar for both orders. I first said 72 sections; there are 78.
+- Built: the store's `prompt` service (migration 0005, `settings.rs › PROMPT` and
+  `Kind::Prose`); `OpenCall` carries the call's prompt version, and ehr texts the code with its
+  words; each test call keeps its own copy (`prompts.use`), the 911 line read when spoken; a save
+  writes the file, changing only the edited sections; a hand edit becomes a version at start-up;
+  Record and test; `prompt_version` on the record (schema 9) and in `calls`; the page
+  (`agent.ts`) with placeholders checked under each box.
+- PROMPT-EDITOR.md moved from ideas/ to architecture/ (built). A stamp,
+  `tests/RECORDED-PROMPT.sha256`, makes `npm run check` say when the recordings are out of date.
+- His first look: "visually cluttered"; the cost quote was a fixed guess. His forks: plain text
+  in Read with a fade to Edit, the name left of the words, a free dry run for the quote, and
+  "minimize jitter and inconsistency". Rebuilt: no inner card edge; Config-row name column; the
+  text and the box as two layers in one place (nothing moves); fields under their action in
+  "When to act"; a speech bar on what the caller hears; the key on hover; one quiet record line.
+  The dry run (`--keys-out` in the typed harness, `RECORDED-COSTS.json`) measured a full
+  re-recording at about $0.017; the old quote said $0.14.
+
 ## 2026-11-13 (Mac, config) — Cartesia's unused levers; Config › Anthropic
 - Pulled `main` (12 commits). The owner asked for a review of Config › Cartesia for levers we did
   not use. Read Pipecat 1.16's Cartesia services: text aggregation (Token mode, about 200–300 ms

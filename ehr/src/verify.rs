@@ -49,10 +49,13 @@ pub trait Patients: Send + Sync + 'static {
 pub trait Codes: Send + Sync + 'static {
     /// A new code: six digits.
     fn issue(&self) -> Shielded<String>;
+    /// `template`: the call's text words with `{code}` (its prompt version); None for the
+    /// sender's own, from the prompt file.
     fn send(
         &self,
         phone: &Shielded<String>,
         code: &Shielded<String>,
+        template: Option<&str>,
     ) -> impl Future<Output = Result<(), Down>> + Send;
 }
 
@@ -103,7 +106,7 @@ impl Codes for FakeCodes {
         Shielded::new(FAKE_CODE.to_string())
     }
 
-    async fn send(&self, _: &Shielded<String>, _: &Shielded<String>) -> Result<(), Down> {
+    async fn send(&self, _: &Shielded<String>, _: &Shielded<String>, _: Option<&str>) -> Result<(), Down> {
         Ok(())
     }
 }

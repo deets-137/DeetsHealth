@@ -100,6 +100,9 @@ pub struct Session {
     pub code_failures: u32,
     /// The slots of the last FindSlots, by the token the agent got for each.
     pub offered: HashMap<Token, SlotId>,
+    /// The text message's words for this call, from its prompt version (OpenCall's
+    /// `prompt_version`); None: the prompt file compiled into ehr.
+    pub text_template: Option<String>,
     /// Each booking's answer, by its idempotency key, with the slot token it was for.
     pub booked: HashMap<String, (Token, BookResult)>,
     opened: Instant,
@@ -136,6 +139,7 @@ impl Sessions {
             resends: 0,
             code_failures: 0,
             offered: HashMap::new(),
+            text_template: None,
             booked: HashMap::new(),
             opened: Instant::now(),
         };

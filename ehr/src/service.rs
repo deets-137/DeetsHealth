@@ -98,6 +98,24 @@ impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
         self.store.as_ref().ok_or_else(|| Status::failed_precondition("ehr runs without a store"))
     }
 
+    /// `text.code` of one saved prompt version: the words were checked on save ({code} and no
+    /// other placeholder). NOT_FOUND for a version that does not exist.
+    async fn prompt_text_code(&self, id: i64) -> Result<String, Status> {
+        let store = self.settings_store()?;
+        let (_, _, table) = setting_service("prompt")?;
+        let found = settings::get(store.pool(), "prompt", table, id)
+            .await
+            .map_err(|_| Status::internal("the store could not read the prompt"))?;
+        let Some((_, values)) = found else {
+            return Err(Status::not_found("prompt_version: no such version"));
+        };
+        values
+            .into_iter()
+            .find(|(k, _)| k == "text.code")
+            .and_then(|(_, v)| serde_json::from_str::<String>(&v).ok())
+            .ok_or_else(|| Status::internal("the prompt version has no text.code"))
+    }
+
     fn epic(&self) -> Result<&Arc<EpicEhr>, Status> {
         self.epic.as_ref().ok_or_else(|| Status::failed_precondition("ehr does not serve Epic's sandbox"))
     }
@@ -141,7 +159,18 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         if source == Source::EpicSandbox {
             self.epic()?;
         }
+        // The text message's words from the call's prompt version (CONSOLE.md §9), read once:
+        // a save during the call does not change them.
+        let template = match req.get_ref().prompt_version {
+            0 => None,
+            id if id < 0 => return Err(Status::invalid_argument("prompt_version: not a version")),
+            id => Some(self.prompt_text_code(id).await?),
+        };
         let handle = self.sessions.open(source).await.map_err(refused)?;
+        if template.is_some() {
+            let session = self.sessions.get(&handle).await.map_err(refused)?;
+            session.lock().await.text_template = template;
+        }
         Ok(Response::new(pb::OpenCallReply {
             handle: handle.to_hex(),
             identifies_left: MAX_IDENTIFIES,
@@ -187,7 +216,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         // file, nothing is sent, the same as no match.
         if let Some(Candidate { patient, phone: Some(phone), .. }) = one_match(&claimed, found) {
             let code = self.codes.issue();
-            self.codes.send(&phone, &code).await.map_err(down)?;
+            self.codes.send(&phone, &code, session.text_template.as_deref()).await.map_err(down)?;
             session.stage = Stage::Unverified(Some(Pending {
                 patient,
                 phone,
@@ -213,10 +242,11 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             return Err(Status::failed_precondition("no resends left"));
         }
         session.resends += 1;
+        let template = session.text_template.clone();
         if let Stage::Unverified(Some(p)) = &mut session.stage {
             p.code = self.codes.issue();
             p.issued = std::time::Instant::now();
-            self.codes.send(&p.phone, &p.code).await.map_err(down)?;
+            self.codes.send(&p.phone, &p.code, template.as_deref()).await.map_err(down)?;
         }
         // The same reply whether or not a code went out.
         Ok(Response::new(pb::ResendCodeReply { resends_left: MAX_RESENDS - session.resends }))
@@ -718,11 +748,11 @@ mod tests {
     #[tokio::test]
     async fn an_epic_call_is_refused_when_ehr_does_not_serve_epic() {
         let s = svc();
-        let epic = pb::OpenCallRequest { ehr: pb::EhrSource::EpicSandbox.into() };
+        let epic = pb::OpenCallRequest { ehr: pb::EhrSource::EpicSandbox.into(), ..Default::default() };
         assert_eq!(s.open_call(Request::new(epic)).await.unwrap_err().code(), Code::FailedPrecondition);
-        let local = pb::OpenCallRequest { ehr: pb::EhrSource::Local.into() };
+        let local = pb::OpenCallRequest { ehr: pb::EhrSource::Local.into(), ..Default::default() };
         assert!(s.open_call(Request::new(local)).await.is_ok());
-        let unknown = pb::OpenCallRequest { ehr: 99 };
+        let unknown = pb::OpenCallRequest { ehr: 99, ..Default::default() };
         assert_eq!(s.open_call(Request::new(unknown)).await.unwrap_err().code(), Code::InvalidArgument);
     }
 
@@ -748,7 +778,7 @@ mod tests {
             fn issue(&self) -> deetshealth_core::Shielded<String> {
                 deetshealth_core::Shielded::new(FAKE_CODE.into())
             }
-            async fn send(&self, _: &deetshealth_core::Shielded<String>, _: &deetshealth_core::Shielded<String>) -> Result<(), Down> {
+            async fn send(&self, _: &deetshealth_core::Shielded<String>, _: &deetshealth_core::Shielded<String>, _: Option<&str>) -> Result<(), Down> {
                 self.0.fetch_add(1, Ordering::SeqCst);
                 Ok(())
             }

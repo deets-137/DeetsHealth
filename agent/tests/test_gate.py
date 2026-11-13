@@ -256,7 +256,7 @@ async def test_a_change_after_booking_names_the_visit_flags_and_hands_off(ehr):
 async def test_safety_reminder_holds_the_safe_side(ehr):
     """The owner, 2026-11-12: the reminder only after the caller heard the full 911 line. Before
     that, the code speaks the full line, whatever the model chose."""
-    from deets_agent.flow import EMERGENCY_LINE
+    from deets_agent.flow import emergency_line
     from deets_agent.prompts import text
 
     flow = new_flow(ehr)
@@ -264,7 +264,7 @@ async def test_safety_reminder_holds_the_safe_side(ehr):
     fm = manager()
     await remind({}, fm)
     await remind({}, fm)
-    assert spoken(fm) == [EMERGENCY_LINE, text("line.emergency_reminder")]
+    assert spoken(fm) == [emergency_line(), text("line.emergency_reminder")]
     # The full line raised one code flag; the reminder raised none.
     assert [(f.kind, f.source) for f in flow.flags] == [("possible_emergency", "code")]
 

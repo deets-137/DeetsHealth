@@ -10,7 +10,7 @@ from pipecat.frames.frames import LLMMessagesAppendFrame, TranscriptionFrame, TT
 from pipecat.processors.frame_processor import FrameDirection
 
 from deets_agent import config
-from deets_agent.flow import EMERGENCY_LINE, CallFlow, emergency_frame
+from deets_agent.flow import CallFlow, emergency_frame, emergency_line
 from deets_agent.resources import cycle_start, next_cycle
 from deets_agent.screen import CallerScreen
 from deets_agent.voice import VoiceMeter, credits
@@ -47,7 +47,7 @@ def test_the_credit_cycle(today, day, start, renews):
 
 def test_the_911_line_cannot_be_interrupted():
     frame = emergency_frame()
-    assert frame.text == EMERGENCY_LINE and frame.interruptible is False
+    assert frame.text == emergency_line() and frame.interruptible is False
     assert TTSSpeakFrame(text="x").interruptible is True
 
 
@@ -83,4 +83,4 @@ async def test_a_spoken_emergency_speaks_the_line_and_keeps_the_model_out():
     context = next(f for f in s.out if isinstance(f, LLMMessagesAppendFrame))
     assert context.run_llm is False
     line = next(f for f in s.out if isinstance(f, TTSSpeakFrame))
-    assert line.text == EMERGENCY_LINE and line.interruptible is False
+    assert line.text == emergency_line() and line.interruptible is False

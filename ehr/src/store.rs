@@ -46,6 +46,8 @@ pub struct Summary {
     pub source: String,
     pub mode: Option<String>,
     pub model: Option<String>,
+    /// The prompt version's label (schema 9), or "file".
+    pub prompt_version: Option<String>,
     pub scenario: Option<String>,
     pub outcome: &'static str,
     pub end_reason: Option<String>,
@@ -78,6 +80,7 @@ pub fn summarize(events: &[Value]) -> Summary {
                 s.source = text(e, "source").unwrap_or_else(|| "typed".into());
                 s.mode = text(e, "mode");
                 s.model = text(e, "model");
+                s.prompt_version = text(e, "prompt_version");
                 s.scenario = text(e, "scenario");
             }
             "node" | "step" => {
@@ -225,11 +228,11 @@ impl Store {
 
         let mut tx = self.pool.begin().await.map_err(|e| db("begin", e))?;
         sqlx::query(
-            "INSERT INTO calls (id, schema_version, started, source, mode, model, scenario, outcome, end_reason,
+            "INSERT INTO calls (id, schema_version, started, source, mode, model, prompt_version, scenario, outcome, end_reason,
                 reached, turns, tool_calls, duration_ms, tokens_in, tokens_out, cost_usd, record_sha256)
-             VALUES ($1, $2, $3::timestamp, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+             VALUES ($1, $2, $3::timestamp, $4, $5, $6, $18, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
              ON CONFLICT (id) DO UPDATE SET schema_version = EXCLUDED.schema_version, started = EXCLUDED.started,
-                source = EXCLUDED.source, mode = EXCLUDED.mode, model = EXCLUDED.model, scenario = EXCLUDED.scenario,
+                source = EXCLUDED.source, mode = EXCLUDED.mode, model = EXCLUDED.model, prompt_version = EXCLUDED.prompt_version, scenario = EXCLUDED.scenario,
                 outcome = EXCLUDED.outcome, end_reason = EXCLUDED.end_reason, reached = EXCLUDED.reached,
                 turns = EXCLUDED.turns, tool_calls = EXCLUDED.tool_calls, duration_ms = EXCLUDED.duration_ms,
                 tokens_in = EXCLUDED.tokens_in, tokens_out = EXCLUDED.tokens_out, cost_usd = EXCLUDED.cost_usd,
@@ -252,6 +255,7 @@ impl Store {
         .bind(s.tokens_out)
         .bind(s.cost_usd)
         .bind(&sha)
+        .bind(&s.prompt_version)
         .execute(&mut *tx)
         .await
         .map_err(|e| db("file a call", e))?;

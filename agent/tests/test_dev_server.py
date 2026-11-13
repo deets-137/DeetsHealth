@@ -151,6 +151,41 @@ def test_an_anthropic_save_waits_for_ehr_and_needs_values(client):
     assert r.status_code == 409 and r.json()["detail"] == "ehr is not up yet"
 
 
+def test_the_agent_view_shows_the_file_without_a_store(client):
+    c = client.get("/agent/prompt", headers=OK).json()
+    from deets_agent import prompts
+
+    assert (c["store"], c["versions"], c["version"]) == (False, [], None)
+    assert c["values"] == c["active"] == prompts.load()
+    assert c["placeholders"]["line.booked"] == ["visit"] and len(c["placeholders"]) == 78
+    assert c["recordings"]["scripts"] == 14 and isinstance(c["recordings"]["match"], bool)
+
+
+def test_a_prompt_save_waits_for_ehr_and_needs_words(client):
+    assert client.post("/agent/prompt", json={"values": {}}).status_code == 403
+    assert client.post("/agent/prompt", headers=OK, json={"values": {"role": 3}}).status_code == 400
+    r = client.post("/agent/prompt", headers=OK, json={"values": {"role": "Hi."}})
+    assert r.status_code == 409 and r.json()["detail"] == "ehr is not up yet"
+
+
+def test_the_kept_recordings_match_the_prompt_file():
+    """tests/RECORDED-PROMPT.sha256 names the words the replays were made with. After an edit,
+    press Record and test on Config › Agent (or record the scripts by hand and update it)."""
+    from deets_agent.dev_server import recordings_match
+
+    assert recordings_match()
+
+
+def test_every_kept_script_has_a_cost_for_the_quote():
+    """tests/RECORDED-COSTS.json: what recording each kept script cost (Record and test writes it
+    after a passing run), so the dry run's quote has a number for every script."""
+    from deets_agent.dev_server import RECORDED_COSTS, SCRIPTS
+
+    costs = json.loads(RECORDED_COSTS.read_text(encoding="utf-8"))
+    assert sorted(costs) == sorted(p.stem for p in SCRIPTS.glob("*.txt"))
+    assert all(0 <= v < 1 for v in costs.values())
+
+
 def test_the_spend_counts_this_cycles_records(tmp_path):
     from datetime import date
 
