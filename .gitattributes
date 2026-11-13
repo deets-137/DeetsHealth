@@ -1,0 +1,4 @@
+# sqlx checks each migration's checksum against the one the database recorded. A checkout that
+# turned LF into CRLF (core.autocrlf on Windows) would change it, and ehr would refuse to start.
+# So migrations keep LF on every machine.
+ehr/migrations/*.sql text eol=lf
