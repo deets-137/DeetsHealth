@@ -79,6 +79,12 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `Book` | `book` | `book` |
 | `NextVisit` | `next_visit` | `next_visit` |
 | `FileCall` | `file_call` | `file_call` |
+| `ListSettingVersions` | `list_setting_versions` | `list_setting_versions` |
+| `GetSettings` | `get_settings` | `get_settings` |
+| `SaveSettings` | `save_settings` | `save_settings` |
+
+The three settings RPCs are the settings store (CONSOLE.md §7.3; `ehr/src/settings.rs`): no
+handle, no protected data, `FAILED_PRECONDITION` when `ehr` runs without a store.
 
 ## 4. The PHI tag
 ```proto

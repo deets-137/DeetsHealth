@@ -51,10 +51,20 @@ def _cartesia(path: Path) -> dict[str, Any] | None:
     return None
 
 
-def cartesia_cycle(folder: Path, today: date | None = None, live: dict[str, Any] | None = None) -> dict[str, Any]:
-    """This cycle's credits from the records in `folder`, plus the live call's meter."""
+def cartesia_cycle(
+    folder: Path,
+    today: date | None = None,
+    live: dict[str, Any] | None = None,
+    plan: int | None = None,
+    offset: int = 0,
+    day: int | None = None,
+    limits: tuple[int, int] | None = None,
+) -> dict[str, Any]:
+    """This cycle's credits from the records in `folder`, plus the live call's meter. `plan`,
+    `offset`, `day` and `limits` come from the active voice settings (CONSOLE.md §7); `left` is
+    the plan less the offset less the use."""
     today = today or date.today()
-    start = cycle_start(today, config.cycle_day())
+    start = cycle_start(today, day or config.cycle_day())
     ink_s = 0.0
     sonic_chars = 0
     used = 0
@@ -78,11 +88,13 @@ def cartesia_cycle(folder: Path, today: date | None = None, live: dict[str, Any]
         used += int(totals.get("credits") or 0)
     if live is not None:
         used += int(live.get("credits") or 0)
-    plan = config.plan_credits()
+    plan = config.plan_credits() if plan is None else plan
+    idle_s, max_s = limits or (config.VOICE_IDLE_S, config.VOICE_MAX_S)
     return {
         "plan": plan,
+        "offset": offset,
         "used": used,
-        "left": max(0, plan - used),
+        "left": max(0, plan - offset - used),
         "calls": calls,
         "ink_s": round(ink_s, 1),
         "sonic_chars": sonic_chars,
@@ -90,5 +102,5 @@ def cartesia_cycle(folder: Path, today: date | None = None, live: dict[str, Any]
         "renews": next_cycle(start).isoformat(),
         "live": live,
         "rates": {"ink_per_s": config.INK_CREDITS_PER_S, "sonic_per_char": config.SONIC_CREDITS_PER_CHAR},
-        "limits": {"idle_s": config.VOICE_IDLE_S, "max_s": config.VOICE_MAX_S},
+        "limits": {"idle_s": idle_s, "max_s": max_s},
     }

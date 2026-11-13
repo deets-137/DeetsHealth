@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import enum
+import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -54,6 +55,34 @@ class EhrError(Exception):
     def __init__(self, kind: ErrorKind, call: str) -> None:
         super().__init__(f"{call}: {kind.value}")
         self.kind = kind
+        # SaveSettings only: which setting did not fit (settings.rs names it, never a value).
+        self.detail = ""
+
+
+class _NoStore(Exception):
+    """ehr runs without a store: the settings fall back to the code's defaults."""
+
+
+@dataclass(frozen=True)
+class SettingVersion:
+    """One saved version of a service's settings (CONSOLE.md §7.3). No value here is protected
+    data."""
+
+    id: int
+    day: str  # YYYY-MM-DD
+    seq: int
+    created_at: str
+    created_by: str
+    active: bool
+
+    @property
+    def label(self) -> str:
+        """The owner's label: "MM-DD | seq", or "Default" for number 0 (the code's defaults)."""
+        return "Default" if self.seq == 0 else f"{self.day[5:]} | {self.seq}"
+
+
+def _version(v) -> SettingVersion:
+    return SettingVersion(v.id, v.day, v.seq, v.created_at, v.created_by, v.active)
 
 
 class CheckOutcome(enum.Enum):
@@ -185,6 +214,56 @@ class EhrClient:
                 return None
             raise EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), "FileCall") from None
         return reply.filed
+
+    # ---- the settings store (CONSOLE.md §7.3) ----
+
+    async def list_setting_versions(self, service: str) -> list[SettingVersion] | None:
+        """Every saved version of a service's settings, newest first; None when ehr runs without
+        a store."""
+        try:
+            reply = await self._settings_call("ListSettingVersions", pb.ListSettingVersionsRequest(service=service))
+        except _NoStore:
+            return None
+        return [_version(v) for v in reply.versions]
+
+    async def get_settings(self, service: str, version_id: int = 0) -> tuple[SettingVersion | None, dict] | None:
+        """One version and its values (each parsed from JSON): the active one when `version_id`
+        is 0. (None, {}) when there is no version yet; None when ehr runs without a store."""
+        try:
+            reply = await self._settings_call("GetSettings", pb.GetSettingsRequest(service=service, version_id=version_id))
+        except _NoStore:
+            return None
+        version = _version(reply.version) if reply.HasField("version") else None
+        return version, {v.key: json.loads(v.value) for v in reply.values}
+
+    async def save_settings(self, service: str, values: dict, by: str, seed: bool = False) -> SettingVersion:
+        """Save a whole set as a new, active version; with `seed`, the Default version (active
+        only when nothing is). Raises EhrError: BAD_INPUT with the reason in `detail` (a
+        setting's name, never a value); NOT_ALLOWED_NOW without a store; OTHER when the Default
+        exists already."""
+        request = pb.SaveSettingsRequest(
+            service=service,
+            values=[pb.SettingValue(key=k, value=json.dumps(v)) for k, v in values.items()],
+            by=by,
+            seed=seed,
+        )
+        try:
+            reply = await self._stub.SaveSettings(request, timeout=DEADLINE_S)
+        except grpc.aio.AioRpcError as e:
+            error = EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), "SaveSettings")
+            if e.code() == grpc.StatusCode.INVALID_ARGUMENT:
+                # ehr's settings.rs names the setting only; safe to show.
+                error.detail = e.details() or ""
+            raise error from None
+        return _version(reply.version)
+
+    async def _settings_call(self, name: str, request):
+        try:
+            return await getattr(self._stub, name)(request, timeout=DEADLINE_S)
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.FAILED_PRECONDITION:
+                raise _NoStore from None
+            raise EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), name) from None
 
     async def identify(
         self,

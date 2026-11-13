@@ -15,6 +15,8 @@
 //! - [`texts`]: the code by text, through Twilio's Messages API (the fake Twilio in dev).
 //! - [`epic`]: the Epic sign-in, SMART Backend Services (EPIC.md §5, E-2).
 //! - [`store`]: the call store in Postgres, sealed by [`seal_key`] (DATABASE.md).
+//! - [`settings`]: the settings store: each service's settings, versioned, insert-only
+//!   (CONSOLE.md §7.3).
 //!
 //! Build state (BUILD-ORDER.md, Phase 1): the contract, the sessions, the fake scheduler ✓ ·
 //! verification (waits on the identification fork, §8) · the transport (waits on its fork, §6).
@@ -28,6 +30,7 @@ pub mod scheduler;
 pub mod seal_key;
 pub mod service;
 pub mod session;
+pub mod settings;
 pub mod store;
 pub mod texts;
 pub mod transport;

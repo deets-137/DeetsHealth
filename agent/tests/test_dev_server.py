@@ -32,7 +32,8 @@ def client(tmp_path: Path) -> TestClient:
 
 
 @pytest.mark.parametrize(
-    "path", ["/agent/health", "/agent/catalog", "/agent/sandbox", "/agent/latency", "/agent/calls/a", "/agent/resources"]
+    "path",
+    ["/agent/health", "/agent/catalog", "/agent/sandbox", "/agent/latency", "/agent/calls/a", "/agent/resources", "/agent/cartesia"],
 )
 def test_the_wall_refuses_without_the_token_or_from_another_origin(client, path):
     assert client.get(path).status_code == 403
@@ -75,6 +76,41 @@ def test_the_resources_count_this_cycles_voice_calls(client, tmp_path):
     c = client.get("/agent/resources", headers=OK).json()["cartesia"]
     assert (c["used"], c["calls"], c["ink_s"], c["sonic_chars"]) == (800, 1, 100.0, 500)
     assert c["left"] == c["plan"] - 800 and c["live"] is None
+
+
+def test_the_cartesia_view_shows_the_levers_and_never_the_key(client):
+    c = client.get("/agent/cartesia", headers=OK).json()
+    assert c["tts"]["model"] == "sonic-3.6" and c["stt"]["model"] == "ink-2"
+    # No ehr here: no store, no versions, the defaults shown and active.
+    assert (c["store"], c["versions"], c["version"]) == (False, [], None)
+    v = c["values"]
+    assert v["eager_end_of_turn"] is False and v["barge_in"] is True
+    assert (v["idle_s"], v["max_s"], v["offset"]) == (60, 360, 0)
+    assert c["active"] == v
+    assert isinstance(c["key"], bool)
+    from deets_agent import config
+
+    secret = config.cartesia_key()
+    assert secret is None or secret not in json.dumps(c)
+
+
+def test_a_save_waits_for_ehr_and_needs_values(client):
+    assert client.post("/agent/cartesia", json={"values": {}}).status_code == 403
+    assert client.post("/agent/cartesia", headers=OK, json={"x": 1}).status_code == 400
+    r = client.post("/agent/cartesia", headers=OK, json={"values": {"speed": 1.0}})
+    assert r.status_code == 409 and r.json()["detail"] == "ehr is not up yet"
+
+
+def test_the_voice_defaults_name_every_setting_ehr_checks():
+    """The agent's defaults and ehr's settings.rs › VOICE list the same settings."""
+    import re
+
+    from deets_agent import config
+
+    rust = (config.REPO / "ehr" / "src" / "settings.rs").read_text(encoding="utf-8")
+    block = rust.split("pub const VOICE: &[Setting] = &[", 1)[1].split("];", 1)[0]
+    keys = re.findall(r's\("([a-z_]+)"', block)
+    assert sorted(keys) == sorted(config.voice_defaults())
 
 
 def test_the_sandbox_list_takes_local_or_epic_only(client):

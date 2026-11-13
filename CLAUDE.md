@@ -30,6 +30,22 @@ above it, it is the code. A new doc gets front matter (DOCS-ORG.md §2) and one 
   goes to `docs/archive/` the same way (DOCS-ORG.md §5).
 - Generated docs — edit the source, never the output: `architecture/TOKENS.md` by
   `npm run tokens`; `architecture/probes/<site>.md` by `node scripts/fhir-probe.mjs`.
+- **Save every screenshot or sketch the owner sends, in the same sitting** (the owner,
+  2026-11-12). They are the record of his decisions and of the build. On 2026-11-12 only one
+  of five design screenshots was saved; four had to be dug out of the session transcripts.
+  - Where: `docs/architecture/images/<page>-<what>-<YYYY-MM-DD>.png` (lowercase, hyphens; the
+    date he sent it). Example: `chat-rail-alignment-2026-11-13.png`.
+  - How: a pasted image is in this session's transcript
+    (`~/.claude/projects/<this project>/<session id>.jsonl`) as a base64 `image` block. Decode
+    it to the file. Never draw or rebuild it.
+  - Link it in the doc section that the decision changes:
+    an image line whose alt text reads "The owner's screenshot, <date>: <what it shows and
+    asks>" and whose path is `images/<file>.png`. Add it to
+    that doc's `sources`. No doc fits yet? Link it from the sitting's WORKLOG entry.
+  - Name the saved files in the sitting's WORKLOG entry.
+  - **Protected data never goes in.** A screenshot that shows a real patient, a real phone
+    number, a key or a token is not saved; tell him why. Sandbox (synthetic) patients are
+    fine.
 
 **`docs/`** — `DESIGN.md` product intent and the v1 scope · `LESSONS.md` the owner's lessons ·
 `HANDOFF.md` · `WORKLOG.md` · `DOCS-ORG.md`.

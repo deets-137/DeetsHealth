@@ -63,6 +63,21 @@
   --speed-part: 56px; /* one of the three parts of Demo's speed bar (0.5×, 1×, 2×) */
   --pair-part: 64px; /* one of the two parts of Testing's seat bar (Text, Voice) and EHR bar (Local, Epic) */
   --meter-height: 8px; /* the Resources tab's credit meter */
+  --field-height: 36px; /* a field or small button on a Config page (select, number, text, Add) */
+  --cfg-control: 320px; /* a Config row's control column: every field, slider and list fits it */
+  --cfg-version: 216px; /* Config's versions dropdown: room for its longest label, "Active | [MM-DD | VVV]" */
+  --glow-pad: 6px; /* an older version's changed row: how far its glow reaches past the content */
+  --glow-blur: 12px; /* an older version's changed row: its glow's spread */
+  --glow-strength: 35%; /* ...the glow's share of the accent */
+  --glow-fill: 8%; /* ...the row's wash: its share of the accent */
+  --cfg-number: 112px; /* a number field */
+  --cfg-value: 56px; /* the value beside a slider ("5600", "1.00"), fixed so the track keeps its size */
+  --mark-height: 26px; /* a Config slider's default line: taller than the thumb, so it shows past it */
+  --cfg-label: 168px; /* a Config row's name column: room for its longest name ("Longest wait (ms)") */
+  --info-size: 28px; /* a Config row's "i" button, a rounded square */
+  --help-max: 640px; /* a Config row's help text, at its widest */
+  --thumb-size: 16px; /* a Config slider's thumb */
+  --track-height: 6px; /* a Config slider's track */
   --split-half: 132px; /* one half of a split button: wide enough for its longest word ("Confirm?") */
   --send-size: 44px; /* the send button, square */
   --canvas-pad: 16px;

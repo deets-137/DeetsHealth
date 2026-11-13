@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: open
-sources: [scripts/postgres.mjs, scripts/dev.mjs, agent/deets_agent/catalog.py, ehr/src/store.rs, ehr/src/seal_key.rs, ehr/src/service.rs, ehr/migrations/0001_calls.sql, ehr/tests/store.rs, agent/deets_agent/ehr_client.py, agent/deets_agent/ehr_process.py, agent/deets_agent/dev_server.py]
+sources: [scripts/postgres.mjs, scripts/dev.mjs, agent/deets_agent/catalog.py, ehr/src/store.rs, ehr/src/seal_key.rs, ehr/src/service.rs, ehr/migrations/0001_calls.sql, ehr/migrations/0002_settings.sql, ehr/src/settings.rs, ehr/tests/store.rs, agent/deets_agent/ehr_client.py, agent/deets_agent/ehr_process.py, agent/deets_agent/dev_server.py]
 updated: 2026-11-12
 ---
 # The database — dev today, shaped for production
@@ -100,6 +100,10 @@ Plain columns hold no protected data; sealed columns are bytes under `seal.rs`.
 - `annotations`: call, kind, grader, dimension, verdict, score, rubric version, time; the note
   sealed.
 - `audit`: who read what and when (each transcript view, each flag's notes). Plain ids only.
+- **The settings store** (`0002_settings.sql`, 2026-11-13; CONSOLE.md §7.3): `setting_versions`,
+  one key–value table per service (`settings_voice`), and `setting_activations`. All plain and
+  insert-only: a trigger refuses every UPDATE, DELETE and TRUNCATE. Written by `ehr`'s
+  `SaveSettings` (`ehr/src/settings.rs`), checked there against the list of every setting.
 - **Migrations** in the repo, applied in order, the same files on both dev machines and in the
   cloud.
 

@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: passed 2026-11-11
-sources: [scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
+sources: [console/src/pages/cartesia.ts, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
 updated: 2026-11-13
 ---
 # DeetsHealth — The console
@@ -96,7 +96,7 @@ web app cannot do.
   says "Empty for now". The last view is reopened on the next visit (`localStorage`,
   `deets.console.<page>`). The nav items, in order (the owner, 2026-11-13):
   - Teams: **Org Chart**, **People**.
-  - Config: **Agent**, **System**.
+  - Config: **Agent**, **System**, **Cartesia** (§7).
   - Security: **Auth**, **Roles**.
   - Audit Logs: **Config**, **Calls**, **Security**.
   - Settings: **Personalization** (its first item). Settings had one panel with "No settings
@@ -236,3 +236,273 @@ wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
 5. The radius trial: the toggles, Play / Stop, the picker, the text box, the bubbles, the nav
    pill, the theme menu and the help card all have 16 px corners, as the panels do. Decide if
    it stays.
+
+## 7. Config › Cartesia
+> **Part:** built · 2026-11-13 · desk test open — the owner, 2026-11-13: "a subpage under config
+> dedicated to Cartesia settings and items … At the top of the subpage, let's do a tabbar of
+> 'Read' and 'Edit' … On read mode, everything can be grayed out." Then the versions and the
+> settings store: "Set it up please, I'll desk test in the morning." Every lever: CARTESIA.md §9.
+
+### 7.1 The view as built (`pages/cartesia.ts`, `styles/config.css`)
+![The owner's screenshot, 2026-11-13: Config › Cartesia in Read, two columns, the first saved
+version Active](images/config-cartesia-2026-11-13.png)
+
+- **Config's third item, Cartesia**, after Agent and System.
+- **The top row** (the owner, 2026-11-13: "align the buttons in the title bar"): a **Read | Edit**
+  tab bar (the Chat page's pair bars, `--pair-part`); the **versions** dropdown right of it; a
+  status line that is empty unless a save says something; **Discard | Save** as one tab bar,
+  always shown (each greys when it has nothing to do; Save, when it can save, wears the chosen
+  part's colors). All three are `--control-height` tall with the tab bar's frame. The view opens
+  on Read each time. No line of help (the owner: "it's clear to a healthcare analyst").
+- **The versions** (the owner, 2026-11-13: "a version as determined by date + version of the day
+  … 11-12 | 1 for the first today, 11-12 | 2 for the second"): newest first; the one the agent
+  runs with reads **Active | [MM-DD | n]** ("for clarity's sake"), every other **MM-DD | n** (the
+  day's date on the database's clock, and its number that day). Its hint gives when it was saved.
+  The dropdown is `--cfg-version` wide: room for "Active | [MM-DD | VVV]".
+  - **Default** (the owner: "The 'Default' can be a version, the first ever in the dropdown for
+    every new implementation, but it's still a version"): number 0, the code's defaults, always
+    listed last. The dev server makes it the first time the page asks (`ensure_default`), and
+    it is active until the first save ("Active | [Default]"). There is never a state with no
+    Active version. A store that had saves before its Default (the owner's dev database) gets one
+    too, listed last and not active.
+  - Without Postgres: "No settings store", disabled, and Save is off with a hint to start
+    Postgres.
+  - **An older version** shows read only (Edit is off, with the hint "Choose Active to edit"),
+    and each row whose value differs from the active one glows (the owner: "a gentle glow"): a
+    soft wash and glow of the accent that fades in (`--glow-fill`, `--glow-strength`,
+    `--glow-blur`), on a layer centred on the row's content (`--glow-pad` past it on every side;
+    the owner: it "looks too offset vertically"). The turn profile glows with any turn value;
+    Plan credits with the offset.
+  - **Save** (Edit, on Active, with a change): the whole set becomes a new version, the active
+    one, and the page goes back to Read on it, with "Saved as MM-DD | n. Active from the next
+    call". A refusal shows "Not saved: …" with the setting it names.
+- **Read:** every control greyed (`--disabled-opacity`) and disabled. The "i" buttons still open.
+- **Each row** (the owner, 2026-11-13: "remove all the subtitle text … add an info icon 'i' in a
+  rounded square in the left most column before every setting"): the "i" (`--info-size`), the
+  setting's name, its control. A press on the "i" opens the setting's help under the name (its
+  edge takes the accent); a second press closes it. It rolls down and back up with a fade, over
+  `--dur-collapse` (the Chat page's help card's collapse; the owner, 2026-11-13), instant with
+  reduced motion. The help words are `HELP` in
+  `cartesia.ts`. The "i" is the letter itself, lower case, in the console's serif face
+  (Liberation Serif) at body size (the owner, 2026-11-13: "after a lower case classical serif
+  font"); its left edge sits on the card's text edge, under the card's title.
+- **Edit:** the controls open. A change stays on the page until Save. Discard puts every value
+  back. Choosing another version drops changes not saved. Edits made
+  in Edit stay when you go back to Read, greyed.
+- **The cards** (in a canvas: `.cfg-frame` draws the edge and clips; `.cfg-scroll` inside it
+  scrolls, and its scrollbar's track stops a radius short of each end, so the thumb stays inside
+  the rounded corners; the owner, 2026-11-13: "the scrollbar is leaving the panel"):
+  - **Model first in each card** (the owner, 2026-11-13).
+  - **Voice (Sonic):** Model (`sonic-3.6`, shown only); Voice (Cartesia's 10 stable voices for
+    agents; Listen shows, disabled: not built); Speed and Volume (sliders); Emotion (Cartesia's
+    default, or one of five); Number reading (Auto, Off); Pronunciations (a table).
+  - **Hearing (Ink)**, every row open (the owner, 2026-11-13: no "Advanced" fold), in the order a
+    turn happens: Model (`ink-2`, shown only); Turn profile; Start of a turn; End of a turn;
+    Longest wait (ms); Early end of turn (Off | On) with Early end guess under it, the value it
+    uses; Barge-in (Off | On); Keyterms (a table).
+  - **The turn profile moves the sliders.** Cartesia's docs: a profile is not an API parameter,
+    only a named set of the four turn values (CARTESIA.md §9). So choosing Balanced (Cartesia's
+    default), Responsive or Patient sets the four sliders to its values; moving any slider makes
+    the profile read the one the four now match, or Custom. Custom is shown, never chosen. The
+    draft holds only the four values; the profile is worked out from them.
+  - **Rows are one height:** each control is at least `--field-height`, and the Off | On bars
+    are a field's height.
+  - **Test-call guard:** Silence (s) and Longest call (s).
+  - **Usage** (the owner, 2026-11-13: "a box … where I can set a manual offset", and "Credits
+    Left" as plan credits − offset − usage): Plan credits, then "−" and an Offset box on the same
+    row; Cycle day; **Credits left**, in the page's normal type (the owner, 2026-11-13: a larger
+    figure belongs on Analytics, not Settings): the plan's credits, less the offset, less what
+    this cycle's voice calls used (`/agent/resources`). It updates as you type.
+  - **Key and facts:** the API key ("Set", or "Not set: add CARTESIA_API_KEY to .env"; never the
+    key), the API version, the rates.
+- **The sliders** (the owner, 2026-11-13: the bar changed size, and in place of the Default
+  button "a vertical line where 1.0 / the default is"): our own track and thumb
+  (`--track-height`, `--thumb-size`); a line at Cartesia's default, under the thumb's centre
+  there and taller than the thumb (`--mark-height`), so it still shows above and below the
+  thumb when the thumb sits on it; the value beside it as a number only, in a fixed width
+  (`--cfg-value`). Sliding back onto the line returns the setting to Cartesia's default. On the
+  default, the thumb is centred on the line both ways: the track's edge is an inset shadow, not
+  a border, because a border moves the thumb's travel in by its width (the owner, 2026-11-13).
+- **The tables** (the owner, 2026-11-13: "move the active list into a structured table below the
+  text boxes"): the add row first (one box per column, then Add; Enter adds too), the entries
+  under it as a table with a header row and Remove at each row's end. No table while it is
+  empty.
+- **The data:** `GET /agent/cartesia` (DEV-API.md §2): every value the next call runs with, and
+  each lever's range and Cartesia's default, from the constants `voice.py` uses
+  (`config.py`). A null value is "Cartesia's default": the agent sends nothing for it.
+- **The layout** (the owner, 2026-11-13: rows "wider than they need to be"; then option A, "hearing
+  and voice can be the two columns and their relevant settings below them"): each card is as
+  wide as its rows, which are fixed columns: the "i", the name (`--cfg-label`, 168 px) and the
+  control (`--cfg-control`, 320 px), so no field or slider stretches. One card is 582 px.
+  - **Two columns** when the view has room for two cards (1,176 px, a container query on the
+    view's own width): Voice | Hearing; the test-call guard under Hearing (silence is what Ink
+    hears); then Usage | Key and facts.
+  - **One column** below that, in the order Voice, Hearing, guard, Usage, Key and facts.
+  - **Narrower than one card:** the cards fill the width, and each row puts its control under
+    its name.
+  - The container query cannot read tokens, so `config.css` writes the sum out and names the
+    tokens it comes from.
+- **Tokens:** `--field-height`, `--cfg-label`, `--cfg-control`, `--cfg-number`, `--cfg-value`,
+  `--info-size`, `--help-max`, `--thumb-size`, `--track-height`, `--mark-height` (new), with `--pair-part`,
+  `--disabled-opacity` and the color roles.
+
+### 7.2 Decided inside his choices (for his review)
+- The cards' order and titles; every lever's name and its help text (`HELP` in `cartesia.ts`).
+- Read each time the view opens; edits kept on the page when you switch back to Read.
+- Booleans as Off | On bars, the same as Read | Edit; numbers with a range as sliders.
+- A slider within half a step of the default counts as the default.
+- One help open per press, several may be open at once; help opens in Read too.
+- The Hearing order: start, end, longest wait, then the early switch with its guess, then
+  barge-in and keyterms.
+- The profile select's words: "Balanced (Cartesia's default)", "Responsive", "Patient",
+  "Custom".
+- A voice outside the 10 with ids in Cartesia's docs gets its id from Cartesia's voice list by
+  name when saved (no credits; it needs the key).
+- The offset is one number for the cycle, with no note; Credits left may go below zero.
+- The versions' words: "Active | [MM-DD | n]", "MM-DD | n", "Default", "No settings store". The Default is made by the dev server on first view, by "default".
+- Save returns the page to Read on the new Active version.
+- An older version cannot be made Active again from the page yet: edit Active to match it and
+  save (a new version). A "Make active" button is a small follow-up.
+
+### 7.3 The settings store (as built, 2026-11-13)
+> **Part:** built · 2026-11-13 · desk test open. The design before it was a change table per
+> setting; the build keeps whole versions instead, which answers the same question exactly.
+
+- **One key–value table per service** (the owner, 2026-11-13: "A per service as we continue
+  (Core model provider, Voice model provider, etc)"): `settings_voice` today; `settings_llm` and
+  others join the same way. Each row: a version, a setting's name, its value (JSON).
+- **Whole versions:** a save sends every setting of the service, once each, and they become one
+  new version (`setting_versions`: the service, the day, its number that day, when, who). So a
+  version is the exact set the agent ran with.
+- **Exactly which value was live, and when** (the owner's question): `setting_activations` gets one
+  row each time a version becomes the active one, with when and who. The active version is the
+  newest row; the value live at any moment is in the version of the last activation before it.
+- **Insert-only:** a trigger on all three tables refuses every UPDATE, DELETE and TRUNCATE
+  (`ehr/migrations/0002_settings.sql`). The history can only grow.
+- **Checked in Rust:** `ehr/src/settings.rs › VOICE` lists every setting and what it may hold
+  (each range is Cartesia's; the same as `config.py`'s for the page). `ehr` refuses a set with a
+  setting missing, given twice, unknown, out of range or the wrong kind, and names the setting,
+  never its value. A test (`test_the_voice_defaults_name_every_setting_ehr_checks`) fails if
+  the agent's defaults and `VOICE` list different settings.
+- **The path:** the page → the dev server (`GET`/`POST /agent/cartesia`, DEV-API.md §2) →
+  `ehr`'s `ListSettingVersions`, `GetSettings`, `SaveSettings` (EHR-SERVICE.md §3) → Postgres. The
+  console never opens the database (DATABASE.md §1).
+- **The agent reads the active version** when a voice call starts (`dev_server.py ›
+  active_voice_settings`), so a save applies to the next call, never the one in progress. Every
+  lever is applied (`voice.py › build_stt`, `build_tts`, `VoiceMeter`) except the
+  pronunciations: they are stored, and need a Cartesia pronunciation dictionary before Sonic can
+  use them (§7.6). The Resources tab and Credits left take the plan's credits, the offset and the
+  cycle day from it. Without Postgres, or before a save, the code's defaults apply.
+- **Not yet:** the usage columns on `calls`; the `audit` row for each save (the activation row
+  records who and when meanwhile); staff ids in place of "dev".
+
+### 7.6 Open
+- **Pronunciations:** make or update a Cartesia pronunciation dictionary from the saved table,
+  and send its id with Sonic.
+- **Make active:** restore an older version as a new activation.
+- **Listen:** Cartesia's voice list can give each voice's preview file, which plays with no
+  credits; the dev server would fetch it, so the page loads no remote file.
+
+### 7.4 The API key, for a hospital
+The key never goes into the console or the database (SECURITY.md §4.6). Who sets it up depends on
+who holds the Cartesia contract:
+- **We hold it** (likely in A2, our cloud): we make one key for each hospital, so each one's use
+  shows apart, and put it in that hospital's secret manager, in its own cloud account. Only the
+  agent's role may read it. The hospital does nothing.
+- **The hospital holds its own contract and BAA** (likely in B, its own cloud account): its admin
+  makes the key in Cartesia and stores it in its own secret manager under the name our deploy
+  reads. We give them a short runbook (CLOUD.md, when the deploy is built) and a deploy step that
+  makes the empty secret and the read permission.
+- **On the page, in both:** "Key set", when the agent last read it, when it was last rotated, and
+  later a "Test the key" button that makes a call costing no credits. Never the key.
+- A write-only field that sends a key straight to the secret manager is possible, but it lets
+  the console's server write secrets; it stays an idea.
+- To find out: whether Cartesia offers one organization with a key and usage per hospital.
+
+### 7.5 Desk test
+**First:** stop the dev server (Ctrl+C) and start it again with `npm run dev`. It builds the new
+`ehr` and runs the settings migration in the dev database.
+
+**The versions and the store:**
+- A. Config, Cartesia. The dropdown reads "Active | [11-13 | 1]" (your save of 2026-11-13), and
+  "Default" sits last in its list. Read | Edit, the dropdown and Discard | Save are one height,
+  their tops in line; Discard and Save show, both grey. No help line.
+- B. Press Edit, set Offset to 270: Discard and Save light. Press Save. The page goes to Read;
+  the status says "Saved as MM-DD | n. Active from the next call"; the dropdown reads
+  "Active | [MM-DD | n]".
+- C. Choose the version before it: it shows read only, Edit is off, and the Plan credits row
+  glows, the glow centred on the row. Choose "Default": the Voice row glows too (Gemma against
+  Skylar). Choose Active again: no glow, and Edit is back.
+- D. On a new database (or another machine), the first view shows "Active | [Default]".
+- E. Chat, Resources: the credits left are 270 lower.
+- F. Optional, with Postgres stopped (`npm run db:stop`, then restart `npm run dev`): the
+  dropdown says "No settings store" and Save is off.
+
+**The page:**
+1. Config, Cartesia. The top shows Read | Edit on Read, and every control is
+   grey. No line sits under any setting's name.
+2. Press an "i": its help opens under the name, and its edge takes the accent. Press it again:
+   it closes. This works in Read.
+3. Press Edit. Move Speed: the value beside it changes, and the track keeps its size. Slide back
+   onto the line at 1.00: the line shows above and below the thumb. Discard showed after the
+   move and went when you slid back. Each "i" is a serif lower-case letter, its left edge under
+   the card title's.
+4. Add a keyterm (type it, press Add or Enter): a table appears under the box with a header and
+   the entry, with Remove. Remove it: the table goes.
+5. Usage: type 20000 in Plan credits and 270 in Offset. Credits left, in normal type, shows
+   19,730 and updates as you type.
+6. Discard: every value goes back. Press Read: all grey again; Save is off in Read.
+7. Widen the window: with room for two cards, Voice and Hearing sit side
+   by side, the test-call guard under Hearing, then Usage and Key and facts. Narrow it: one
+   column. No field or slider stretches past its column.
+
+### 7.7 The owner's screenshots (2026-11-13), in the order of his notes
+Kept so the reason for each change stays with it. Each one is what he saw before the change.
+
+![The owner's screenshot, 2026-11-13: the slider's track changes size, and a Default link; he
+asks for "a vertical line where 1.0 / the default is"](images/config-slider-ask-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: a list above its add boxes; he asks to "move the active list
+into a structured table below the text boxes"](images/config-list-ask-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: Usage with Plan credits; he draws the box for "a manual
+offset" beside it](images/config-offset-ask-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: the "i" icon reads as a pin; he asks for a classic serif
+lower-case i](images/config-info-pin-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: the "i" button's left edge against the card title's; he
+asks to align them](images/config-info-align-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: "default" beside each slider's value; he asks to remove the
+word and lengthen the line](images/config-slider-line-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: Credits left in large type; he asks for normal type,
+larger figures belong on Analytics](images/config-credits-size-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: the default line through each thumb; he asks that the thumb
+centre on the line at 1.00](images/config-slider-centre-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: the scrollbar in the panel's rounded corner; "the
+scrollbar is leaving the panel"](images/config-scrollbar-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: one column of cards whose rows are "wider than they need to
+be"; he asks for two columns, Voice and Hearing](images/config-wide-rows-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: the four turn rows inside an Advanced fold; he asks for
+them "permanently opened", Model first](images/config-advanced-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: a help line beside Read | Edit; he asks to remove it and
+put the versions dropdown there](images/config-status-line-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: the whole page after the settings store, his first save
+Active](images/config-cartesia-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: the title bar's controls at different heights; he asks to
+align them, with Discard | Save styled like Read | Edit](images/config-title-bar-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: an older version's changed row, its glow too low; he asks
+to centre it](images/config-glow-2026-11-13.png)
+
+![The owner's screenshot, 2026-11-13: the Rates row; he asks for "Ink: 3 credits per second |
+Sonic: 1 credit per character"](images/config-rates-2026-11-13.png)

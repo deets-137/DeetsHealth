@@ -114,6 +114,14 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   Free Cartesia account, then `CARTESIA_API_KEY` in `.env` (and `CARTESIA_CYCLE_DAY`, the day
   the account was opened), then restart `npm run dev` and run CHAT.md §17's desk test. Open:
   his voice (Skylar is a draft); Twilio later (BUILD-ORDER.md §3.3).
+- **Built, desk test open (his, the morning of 2026-11-14): Config › Cartesia and the settings
+  store** (CONSOLE.md §7). Read | Edit, the versions dropdown ("Active", "MM-DD | n"), Save, an
+  older version read only with its changed values glowing; every Cartesia lever with an "i" for
+  help; Credits left with a manual offset; the key's status. The store: `0002_settings.sql`
+  (versions, `settings_voice`, activations; insert-only), `ehr/src/settings.rs` (every setting
+  checked), three RPCs, `GET`/`POST /agent/cartesia`. Voice calls run with the active version.
+  **Restart `npm run dev` first** (new `ehr`, the migration). Open: pronunciations need a
+  Cartesia dictionary; Make active; Listen (CONSOLE.md §7.6).
 - **Done: Epic's sandbox patients on the Chat page** (branch `epic-time`; forks 1A and 2A,
   2026-11-12). The Backend Services sign-in (E-2, EPIC.md §5.1), and Epic mode, **desk test
   passed 2026-11-13** (CHAT.md §13): the Epic / Local button left of Test; `OpenCall` names the
@@ -317,6 +325,22 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   - **The check builds its own ehr** in `target/check` (2026-11-12): a running dev server holds
     `target/debug/deetshealth-ehr.exe`, and Windows will not replace a running .exe. The first
     check after a clean takes a few minutes to build it.
+- **Size each check to the change** (the owner, 2026-11-13: "feels like a small change since the
+  last test"). While working:
+  - a console CSS or page tweak: `npx tsc -p console --noEmit` only;
+  - one agent module: `ruff` and its one test file;
+  - Rust: `cargo test -p deetshealth-ehr --lib <module>`, and `npm run db:test` for a store
+    change;
+  - docs only: `npm run docs:check`.
+
+  The full `npm run check` runs once: before a commit or push, or at the end of a round that
+  touched the proto, the store schema or more than one side. Not after each small fix in a
+  feedback loop.
+- **Windows only: `npm run dev` locks `target/debug/deetshealth-ehr.exe`,** so the full check (its
+  `ehr` tests) and the pre-push hook fail with "Access is denied (os error 5)". Ask the owner to
+  stop the dev server, then run the check. Never build in another `CARGO_TARGET_DIR` to get
+  around it, and never start or stop his dev server unless he says so. macOS does not lock a
+  running program, so this does not happen there.
 - **Casey Morgan never verifies, on purpose.** The fakes hold Casey Morgan and Casey Morgen on
   one date of birth, so no code goes out. Use Jordan Ellis, 1984-03-12, code `246810`.
 - **Several Deets* apps run at once on the owner's PC.** Never hard-code a dev port; Vite takes

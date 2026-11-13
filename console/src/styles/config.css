@@ -1,0 +1,544 @@
+/* Config › Cartesia (pages/cartesia.ts; CONSOLE.md §7): the Read | Edit bar and the save row at
+   the top, then cards of rows that scroll. Each row (the owner, 2026-11-13): an "i" button in a
+   rounded square at the left, the setting's name, its control; the help opens under the name.
+   Read greys every control ("on read mode, everything can be grayed out"); the "i" buttons stay
+   live. */
+
+.cfg {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* The title bar (the owner, 2026-11-13: "align the buttons in the title bar"): Read | Edit, the
+   versions, the status, then Discard | Save, every part the same height (--control-height) and
+   the same look: the rail's tab bar. */
+.cfg-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.cfg-top > .tabs,
+.cfg-top > .cfg-version {
+  height: var(--control-height);
+  flex: none;
+}
+
+/* Discard | Save: the tab bar's parts. Save, when it can save, wears the chosen part's look
+   (the pill's colors); Discard is a plain part. */
+.cfg-actions .tab {
+  min-width: var(--pair-part);
+  text-align: center;
+}
+
+.cfg-actions .cfg-save:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.cfg-actions .tab:disabled {
+  color: var(--text-3);
+  background: transparent;
+  cursor: default;
+}
+
+.cfg-mode .tab,
+.cfg-pair .tab {
+  width: var(--pair-part);
+  text-align: center;
+}
+
+/* An Off | On bar in a row is a field's height, so its row is as tall as the others. */
+.cfg-pair {
+  height: var(--field-height);
+  padding: var(--space-1);
+}
+
+.cfg-pair .tab {
+  height: 100%;
+  padding-block: 0;
+  line-height: 1;
+}
+
+.cfg-status {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+/* The versions (CONSOLE.md §7.1): right of Read | Edit, a field's height, as wide as its
+   longest label. */
+.cfg-version {
+  /* The tab bar's frame: its edge, its radius, its canvas; as wide as "Active | [MM-DD | VVV]". */
+  width: var(--cfg-version);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  background: var(--canvas);
+  box-shadow: inset 0 var(--edge) 0 var(--glass-highlight);
+}
+
+.cfg-version:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+/* An older version's changed values (the owner, 2026-11-13: "a gentle glow"): the row takes a
+   soft wash and a soft glow of the accent, fading in. Read greys the control, not the row, so
+   the glow stays clear. */
+/* The glow sits on a layer behind the row, centred on its content (the owner, 2026-11-13: it
+   looked "offset vertically"): the row's own box starts at its top padding, above the name and
+   control, so the layer starts --glow-pad above the content and ends --glow-pad below it, and
+   reaches --glow-pad past each side. */
+.cfg-row.cfg-changed {
+  position: relative;
+  isolation: isolate;
+}
+
+.cfg-row.cfg-changed::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: calc(var(--space-3) - var(--glow-pad)) calc(-1 * var(--glow-pad)) calc(-1 * var(--glow-pad));
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--accent) var(--glow-fill), transparent);
+  box-shadow: 0 0 var(--glow-blur) color-mix(in srgb, var(--accent) var(--glow-strength), transparent);
+  pointer-events: none;
+  animation: cfg-glow-in var(--dur-enter) var(--ease) backwards;
+}
+
+@keyframes cfg-glow-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cfg-row.cfg-changed::before {
+    animation: none;
+  }
+}
+
+/* The frame holds the look (edge, radius, canvas) and clips; the scroller inside it scrolls.
+   Its scrollbar's track stops a radius short of each end, so the thumb never runs into the
+   frame's rounded corners (the owner, 2026-11-13: "the scrollbar is leaving the panel"). */
+.cfg-frame {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius);
+  background: var(--canvas);
+  box-shadow: inset 0 var(--edge) 0 var(--glass-highlight);
+}
+
+.cfg-scroll {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--canvas-pad);
+  /* The cards' layout follows this view's own width, not the window's (.cfg-body). */
+  container: cfg / inline-size;
+}
+
+.cfg-scroll::-webkit-scrollbar-track {
+  margin-block: var(--radius);
+}
+
+/* The cards (the owner, 2026-11-13: rows were "wider than they need to be"; "hearing and voice
+   can be the two columns and their relevant settings below them"). Each card is as wide as its
+   rows: the "i", the name column (--cfg-label) and the control column (--cfg-control), so no
+   control stretches. One column of cards; two when the view has room for two cards side by
+   side: Voice | Hearing, then the test-call guard under Hearing (silence is what Ink hears),
+   then Usage | Key and facts. */
+.cfg-body {
+  display: grid;
+  grid-template-columns: max-content;
+  grid-template-areas: "voice" "hearing" "guard" "usage" "facts";
+  align-items: start;
+  justify-content: start;
+  gap: var(--gap);
+}
+
+.cfg-card[data-card="voice"] { grid-area: voice; }
+.cfg-card[data-card="hearing"] { grid-area: hearing; }
+.cfg-card[data-card="guard"] { grid-area: guard; }
+.cfg-card[data-card="usage"] { grid-area: usage; }
+.cfg-card[data-card="facts"] { grid-area: facts; }
+
+/* Two cards side by side need 2 × a card's width plus the gap: a card is its padding (2 × 20),
+   its edges (2 × 1), the "i" (28), the name (168), the control (320) and two gaps (2 × 12) =
+   582 px; two are 1,176 px. A container query cannot read a token, so the sum is written out:
+   change it with --pad-panel-x, --info-size, --cfg-label, --cfg-control or --space-4. */
+@container cfg (min-width: 1176px) {
+  .cfg-body {
+    grid-template-columns: max-content max-content;
+    grid-template-areas:
+      "voice hearing"
+      "voice guard"
+      "usage facts";
+  }
+}
+
+/* Narrower than one card: the cards fill the width, and each row stacks its control under its
+   name (582 px, as above). */
+@container cfg (max-width: 581px) {
+  .cfg-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cfg-row {
+    grid-template-columns: var(--info-size) minmax(0, 1fr);
+    grid-template-areas:
+      "info name"
+      ".    control"
+      ".    help";
+  }
+}
+
+.cfg-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--pad-panel);
+  border: var(--edge) solid var(--line);
+  border-radius: var(--radius-item);
+}
+
+.cfg-card h2 {
+  font-size: var(--text-panel);
+  color: var(--title);
+}
+
+/* ---------------------------------------------------------------- a row */
+
+.cfg-row {
+  display: grid;
+  grid-template-columns: var(--info-size) var(--cfg-label) var(--cfg-control);
+  grid-template-areas:
+    "info name control"
+    ".    help help";
+  align-items: center;
+  column-gap: var(--space-4);
+  row-gap: 0; /* the closed help takes no room; its text carries its own space when open */
+  padding-top: var(--space-3);
+  border-top: var(--edge) solid var(--line);
+}
+
+/* The "i": a rounded square the size of --info-size. Pressed open, it takes the accent edge. */
+.cfg-info {
+  grid-area: info;
+  justify-self: start; /* its left edge on the card's text edge, under the title's */
+  margin: 0;
+  width: var(--info-size);
+  height: var(--info-size);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-control);
+  background: var(--glass-fill-strong);
+  color: var(--text-2);
+  transition: background-color var(--dur-hover) var(--ease), border-color var(--dur-hover) var(--ease);
+}
+
+.cfg-info:hover {
+  background: var(--press);
+  color: var(--text);
+}
+
+.cfg-info[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* The letter "i" in the console's serif face (Liberation Serif), lower case, at body size. */
+.cfg-info .i-glyph {
+  font-family: var(--font);
+  font-size: var(--text-size);
+  font-style: normal;
+  font-weight: var(--weight-regular);
+  line-height: 1;
+}
+
+.cfg-name {
+  grid-area: name;
+  color: var(--text);
+}
+
+/* Every row the same height (the owner, 2026-11-13: "the rows seem unevenly sized"): each
+   control is at least a field's height, and nothing in a row is taller than a field. */
+.cfg-control {
+  grid-area: control;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: var(--field-height);
+}
+
+/* The help rolls down under the name and rolls back up: the Chat page's help card's collapse
+   (grid rows 0fr ↔ 1fr, with a fade), over --dur-collapse. Closed, it takes no room. */
+.cfg-help {
+  grid-area: help;
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition: grid-template-rows var(--dur-collapse) var(--ease), opacity var(--dur-collapse) var(--ease),
+    visibility 0s linear var(--dur-collapse);
+}
+
+.cfg-help.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition: grid-template-rows var(--dur-collapse) var(--ease), opacity var(--dur-collapse) var(--ease);
+}
+
+.cfg-help-text {
+  min-height: 0;
+  overflow: hidden;
+  max-width: var(--help-max);
+  padding-top: var(--space-2);
+  font-size: var(--text-small);
+  color: var(--text-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cfg-help,
+  .cfg-help.open {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------- fields */
+
+/* A field: a select, a number, a text box, at --field-height. */
+.cfg-field {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  flex: 1;
+  height: var(--field-height);
+  padding: 0 var(--space-4);
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-control);
+  background: var(--glass-fill-strong);
+  color: var(--text);
+}
+
+select.cfg-field {
+  cursor: pointer;
+}
+
+.cfg-field::placeholder {
+  color: var(--text-3);
+}
+
+.cfg-number {
+  flex: 0 0 var(--cfg-number);
+}
+
+.cfg-minus {
+  color: var(--text-2);
+}
+
+.cfg-fixed {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- the slider */
+
+/* Our own track and thumb, so their sizes are tokens and the default's line can sit exactly
+   under the thumb's centre at the default value. The value beside it has a fixed width, so
+   the track never changes size. */
+.cfg-slider {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.cfg-track {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: var(--mark-height);
+  display: flex;
+  align-items: center;
+}
+
+/* The line at Cartesia's default: --at is its share of the range (cartesia.ts). The thumb's
+   centre runs from half a thumb in from each end. Taller than the thumb (--mark-height), so it
+   still shows above and below it when the thumb sits on the default (the owner, 2026-11-13). */
+.cfg-mark {
+  position: absolute;
+  left: calc(var(--thumb-size) / 2 + (100% - var(--thumb-size)) * var(--at, 0) - var(--edge));
+  top: 0;
+  bottom: 0;
+  width: calc(var(--edge) * 2);
+  border-radius: var(--edge);
+  background: var(--text-2);
+  pointer-events: none;
+}
+
+.cfg-range {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  z-index: 1; /* the thumb rides over the line */
+  width: 100%;
+  height: var(--thumb-size);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* The track's edge is an inset shadow, not a border: a border would move the thumb's travel
+   in by its width, and the default's line would sit off the thumb's centre. */
+.cfg-range::-webkit-slider-runnable-track {
+  height: var(--track-height);
+  border-radius: var(--track-height);
+  background: var(--glass-fill-strong);
+  box-shadow: inset 0 0 0 var(--edge) var(--glass-edge);
+}
+
+.cfg-range::-moz-range-track {
+  height: var(--track-height);
+  border-radius: var(--track-height);
+  background: var(--glass-fill-strong);
+  box-shadow: inset 0 0 0 var(--edge) var(--glass-edge);
+}
+
+.cfg-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--thumb-size);
+  height: var(--thumb-size);
+  margin-top: calc((var(--track-height) - var(--thumb-size)) / 2);
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.cfg-range::-moz-range-thumb {
+  width: var(--thumb-size);
+  height: var(--thumb-size);
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.cfg-range:disabled {
+  cursor: default;
+}
+
+.cfg-value {
+  flex: 0 0 var(--cfg-value);
+  color: var(--text-2);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+.cfg-button {
+  flex: none;
+  height: var(--field-height);
+  padding: 0 var(--space-4);
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-control);
+  background: var(--glass-fill-strong);
+  color: var(--text);
+  transition: background-color var(--dur-hover) var(--ease);
+}
+
+.cfg-button:hover:not(:disabled) {
+  background: var(--press);
+}
+
+.cfg-save:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.cfg-button:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+.cfg-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--text-small);
+  text-decoration: underline;
+}
+
+.cfg-link:disabled {
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------- a list as a table */
+
+/* The add row first; the entries under it, as a table with a header row. */
+.cfg-list {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cfg-add {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.cfg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-small);
+}
+
+.cfg-table[hidden] {
+  display: none;
+}
+
+.cfg-table th {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--edge) solid var(--line);
+  color: var(--text-3);
+  font-weight: var(--weight-regular);
+  text-align: left;
+}
+
+.cfg-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--edge) solid var(--line);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.cfg-table .cfg-remove {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- Read */
+
+/* Every control greyed and still; the "i" buttons and Advanced stay as they are. */
+.cfg[data-mode="read"] .cfg-control {
+  opacity: var(--disabled-opacity);
+}
+

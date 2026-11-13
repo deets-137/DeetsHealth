@@ -980,9 +980,11 @@ tab, after Tools and Timeline):
   counts (`resources.py`): each voice call's record carries its `cartesia` totals on `call_end`
   (record schema 7), summed for the cycle, plus the live call's meter (`voice.py › VoiceMeter`,
   from Pipecat's usage metrics: Ink's seconds of audio, silence included, and Sonic's
-  characters). The plan's credits and the day they renew are `CARTESIA_PLAN_CREDITS` and
-  `CARTESIA_CYCLE_DAY` in `.env` (20,000 and the 1st by default). Counts and dates only: no
-  value from a call.
+  characters). The plan's credits, the manual offset and the day the credits renew come from
+  the active voice settings (Config › Cartesia, CONSOLE.md §7); before any save, from
+  `CARTESIA_PLAN_CREDITS` and `CARTESIA_CYCLE_DAY` in `.env` (20,000 and the 1st by default),
+  with no offset. Credits left is the plan less the offset less the use. Counts and dates only:
+  no value from a call.
 
 **Tokens and files:** `--pair-part` (64 px), `--meter-height` (8 px) in `skin.css`; the
 accent, `--glass-fill-strong`, `--line`, `--text-2`, `--text-3` roles. `chat.ts`, `chat.css`,

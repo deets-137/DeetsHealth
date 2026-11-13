@@ -9,6 +9,8 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
 - `GET  /agent/health` — whether the Anthropic key is set, and the Cartesia key (`voice`). Test
   calls are always live: no replay cache (replay is Demo's alone). Without a key there is no
   test call; without the Cartesia key, no voice call.
+- `GET  /agent/cartesia` — the Cartesia levers as set now, with their ranges, for the Config
+  page (read only; never the key, only whether it is set).
 - `GET  /agent/resources` — Cartesia's credits this cycle, counted from the records and the live
   voice call (resources.py; CHAT.md §17).
 - `POST /agent/voice?ehr=local|epic` — the voice seat: a WebRTC offer in, the answer out; the
@@ -52,6 +54,7 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+from pipecat.services.cartesia.tts import _CARTESIA_API_VERSION as CARTESIA_API_VERSION
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.smallwebrtc.connection import SmallWebRTCConnection
 from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
@@ -68,7 +71,7 @@ from deets_agent.catalog import (
     Catalog,
     read_events,
 )
-from deets_agent.ehr_client import EhrClient, EhrError
+from deets_agent.ehr_client import EhrClient, EhrError, ErrorKind, SettingVersion
 from deets_agent.ehr_process import running_ehr
 from deets_agent.fake_twilio import FakeTwilio
 from deets_agent.llm import Mode, build_llm
@@ -79,6 +82,9 @@ from deets_agent.voice import Voice
 TOKEN_HEADER = "x-deets-token"
 # The longest SDP offer the voice route takes: a browser's audio offer is a few kilobytes.
 MAX_OFFER_BYTES = 64 * 1024
+# Cartesia's List Voices takes only this API version (docs.cartesia.ai › Voices › List, read
+# 2026-11-13); Pipecat's speech sockets use their own.
+CARTESIA_VOICES_VERSION = "2026-08-14"
 
 
 SANDBOX = config.REPO / "ehr" / "fixtures" / "sandbox.json"
@@ -134,6 +140,8 @@ class State:
         # Voice (CHAT.md §17): the Cartesia key's presence, and the live voice call's parts.
         self.has_voice = config.cartesia_key() is not None
         self.voice: Voice | None = None
+        # The voice settings' Default version is known to exist (ensure_default).
+        self.voice_default = False
         self.ehr: EhrClient | None = None
         # Test is always live (the owner, 2026-11-12: "limit replaying conversations only to the
         # Demo view"): every line goes to Claude, no replay cache. Without a key, no test call.
@@ -212,14 +220,63 @@ def build_app(state: State) -> FastAPI:
             "voice": state.has_voice,
         }
 
+    @app.get("/agent/cartesia")
+    async def cartesia_settings(version: int = 0):
+        """The voice settings (CONSOLE.md §7): the saved versions, one version's values (the
+        active one when `version` is 0) and the active one's, each lever's range. Never the key:
+        only whether it is set."""
+        if version < 0:
+            raise HTTPException(400, "version: not a version")
+        try:
+            return await cartesia_view(state, version)
+        except LookupError:
+            raise HTTPException(404, "no such version") from None
+
+    @app.post("/agent/cartesia")
+    async def save_cartesia(request: Request):
+        """Save the whole set as a new version; it becomes the active one and the next call runs
+        with it (CONSOLE.md §7.3). 400 names the setting that does not fit; 409 without a store."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "not JSON") from None
+        values = body.get("values") if isinstance(body, dict) else None
+        if not isinstance(values, dict):
+            raise HTTPException(400, "values: an object of every setting")
+        if state.ehr is None:
+            raise HTTPException(409, "ehr is not up yet")
+        try:
+            values = await resolve_voice(values)
+        except VoiceNotFound as e:
+            raise HTTPException(400, str(e)) from None
+        try:
+            await state.ehr.save_settings("voice", values, by="dev")
+        except EhrError as e:
+            if e.kind is ErrorKind.BAD_INPUT:
+                raise HTTPException(400, e.detail or "a setting does not fit") from None
+            if e.kind is ErrorKind.NOT_ALLOWED_NOW:
+                raise HTTPException(409, "no settings store: start Postgres (npm run db:start)") from None
+            raise HTTPException(502, "ehr could not save the settings") from None
+        return await cartesia_view(state, 0)
+
     @app.get("/agent/resources")
     async def resources():
-        """Cartesia's credits this cycle, from the records and the live voice call (CHAT.md §17)."""
+        """Cartesia's credits this cycle, from the records and the live voice call, less the
+        active settings' offset (CHAT.md §17)."""
         voice = state.voice
         live = None
         if voice is not None:
             live = {**voice.meter.totals(), "seconds": round(voice.meter.elapsed())}
-        return {"cartesia": cartesia_cycle(state.calls, live=live), "voice": state.has_voice}
+        values = await active_voice_settings(state)
+        cycle = cartesia_cycle(
+            state.calls,
+            live=live,
+            plan=int(values["plan_credits"]),
+            offset=int(values["offset"]),
+            day=int(values["cycle_day"]),
+            limits=(int(values["idle_s"]), int(values["max_s"])),
+        )
+        return {"cartesia": cycle, "voice": state.has_voice}
 
     @app.get("/agent/sandbox")
     async def sandbox(ehr: str = "local"):
@@ -371,6 +428,8 @@ def build_app(state: State) -> FastAPI:
         key = config.cartesia_key()
         if key is None:
             raise HTTPException(409, "a voice call needs a Cartesia key in .env")
+        # The active voice settings (CONSOLE.md §7), read once: the whole call runs with them.
+        values = await active_voice_settings(state)
         # On this PC both ends are local: host candidates only, no STUN or TURN server.
         connection = SmallWebRTCConnection()
         await connection.initialize(sdp=offer["sdp"], type="offer")
@@ -383,13 +442,143 @@ def build_app(state: State) -> FastAPI:
         )
         # Claim the seat now, so a second offer is refused while this one connects.
         record = _open_record(state, ehr, "voice")
-        state.voice = Voice(key)
+        state.voice = Voice(key, values)
         task = asyncio.create_task(_run_call(state, transport, ehr, state.voice, record))
         state.tasks.add(task)
         task.add_done_callback(state.tasks.discard)
         return {"sdp": answer["sdp"], "type": answer["type"]}
 
     return app
+
+
+async def active_voice_settings(state: State) -> dict[str, Any]:
+    """The active version's voice settings, over the defaults; the defaults alone when there is
+    no store, no version yet, or ehr is not up (CONSOLE.md §7.3)."""
+    values = config.voice_defaults()
+    if state.ehr is None:
+        return values
+    try:
+        got = await state.ehr.get_settings("voice")
+    except EhrError:
+        return values
+    if got is not None:
+        values.update(got[1])
+    return values
+
+
+async def ensure_default(state: State) -> None:
+    """Every implementation's first version is Default (the owner, 2026-11-13): the code's
+    defaults, number 0, active when nothing else is. Made once, the first time the page asks,
+    when the store is up and has none. A store that had versions first gets its Default too,
+    listed last and not active."""
+    if state.ehr is None or state.voice_default:
+        return
+    try:
+        versions = await state.ehr.list_setting_versions("voice")
+        if versions is None:
+            return  # no store: nothing to seed
+        if not any(v.seq == 0 for v in versions):
+            await state.ehr.save_settings("voice", config.voice_defaults(), by="default", seed=True)
+        state.voice_default = True
+    except EhrError:
+        # Another request seeded it first (ALREADY_EXISTS), or ehr is busy: the next view tries
+        # again until the list shows a Default.
+        pass
+
+
+def _version_row(v: SettingVersion) -> dict[str, Any]:
+    return {"id": v.id, "label": v.label, "active": v.active, "created_at": v.created_at, "created_by": v.created_by}
+
+
+async def cartesia_view(state: State, version: int) -> dict[str, Any]:
+    """The Config page's Cartesia view (CONSOLE.md §7): the saved versions, newest first; one
+    version's values (the active one when `version` is 0); the active version's values, so the
+    page can mark what an older version changed; and each lever's range. Raises LookupError for
+    a version that does not exist."""
+    await ensure_default(state)
+    active = await active_voice_settings(state)
+    versions: list[SettingVersion] | None = None
+    shown = active
+    shown_version: SettingVersion | None = None
+    if state.ehr is not None:
+        try:
+            versions = await state.ehr.list_setting_versions("voice")
+            if versions is not None:
+                got = await state.ehr.get_settings("voice", version)
+                if got is not None and got[0] is not None:
+                    shown_version = got[0]
+                    shown = {**config.voice_defaults(), **got[1]}
+                elif version:
+                    raise LookupError(version)
+        except EhrError as e:
+            if e.kind is ErrorKind.OTHER and version:
+                raise LookupError(version) from None
+            versions = None
+    return {
+        "key": state.has_voice,
+        "store": versions is not None,
+        "versions": [_version_row(v) for v in versions or []],
+        "version": _version_row(shown_version) if shown_version else None,
+        "values": shown,
+        "active": active,
+        "api_version": CARTESIA_API_VERSION,
+        "tts": {
+            "model": config.TTS_MODEL,
+            "voices": [{"name": n, "id": i} for n, i in config.RECOMMENDED_VOICES],
+            "emotions": list(config.SONIC_EMOTIONS),
+            "ranges": config.SONIC_LEVERS,
+        },
+        "stt": {
+            "model": config.STT_MODEL,
+            "profiles": config.TURN_PROFILES,
+            "ranges": config.INK_TURN_LEVERS,
+        },
+        "rates": {"ink_per_s": config.INK_CREDITS_PER_S, "sonic_per_char": config.SONIC_CREDITS_PER_CHAR},
+    }
+
+
+class VoiceNotFound(Exception):
+    """Cartesia has no voice of that name, or its id cannot be found (the message is safe)."""
+
+
+async def resolve_voice(values: dict[str, Any]) -> dict[str, Any]:
+    """Give the voice its Cartesia id before a save. A voice from Cartesia's docs has one
+    (config.RECOMMENDED_VOICES); any other is found by name in Cartesia's voice list, which needs
+    the key and costs no credits. The name never leaves this machine except to Cartesia."""
+    voice = values.get("voice")
+    if not isinstance(voice, dict) or not isinstance(voice.get("name"), str):
+        raise VoiceNotFound("voice: a name")
+    name = voice["name"].strip()
+    known = dict(config.RECOMMENDED_VOICES)
+    vid = voice.get("id") or known.get(name)
+    if not vid:
+        key = config.cartesia_key()
+        if key is None:
+            raise VoiceNotFound("voice: finding its id needs the Cartesia key in .env")
+        vid = await _find_voice_id(key, name)
+    return {**values, "voice": {"name": name, "id": vid}}
+
+
+async def _find_voice_id(key: str, name: str) -> str:
+    """Cartesia's List Voices (GET /voices?q=), exact name match. Its own API version."""
+    import aiohttp
+
+    headers = {"Authorization": f"Bearer {key}", "Cartesia-Version": CARTESIA_VOICES_VERSION}
+    url = "https://api.cartesia.ai/voices"
+    try:
+        async with (
+            aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as s,
+            s.get(url, params={"q": name, "limit": "20"}, headers=headers) as r,
+        ):
+            if r.status != 200:
+                raise VoiceNotFound(f"voice: Cartesia did not list voices ({r.status})")
+            body = await r.json()
+    except aiohttp.ClientError:
+        raise VoiceNotFound("voice: Cartesia did not answer") from None
+    for v in body.get("data") or []:
+        if isinstance(v, dict) and str(v.get("name", "")).strip().lower() == name.lower() and v.get("id"):
+            return str(v["id"])
+    raise VoiceNotFound("voice: Cartesia has no voice of that name")
 
 
 def _refuse_call(state: State, ehr_source: str) -> str | None:

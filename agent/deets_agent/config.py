@@ -72,6 +72,69 @@ VOICE_MAX_S = 6 * 60
 FREE_PLAN_CREDITS = 20_000
 
 
+# The voices Cartesia recommends for agents (its "Choosing a voice" guide, read 2026-11-12): the
+# Config page's list. An id is known only where Cartesia's docs print it; the rest resolve by
+# name from Cartesia's voice list when saving is built.
+RECOMMENDED_VOICES: tuple[tuple[str, str | None], ...] = (
+    ("Skylar", DEFAULT_VOICE_ID),
+    ("Gemma", None),
+    ("Jacqueline", None),
+    ("Emma", None),
+    ("Lauren", None),
+    ("Daniel", "47c38ca4-5f35-497b-b1a3-415245fb35e1"),
+    ("Archie", None),
+    ("Parker", None),
+    ("Jameson", None),
+    ("Corey", None),
+)
+
+# Each lever's range and Cartesia's default (CARTESIA.md §9), for the Config page. None as a
+# current value means "Cartesia's default": we send nothing for it.
+INK_TURN_LEVERS = {
+    "turn_start_threshold": {"min": 0.5, "max": 0.9, "step": 0.05, "default": 0.8},
+    "turn_eager_end_threshold": {"min": 0.3, "max": 0.8, "step": 0.05, "default": 0.6},
+    "turn_end_threshold": {"min": 0.05, "max": 0.5, "step": 0.05, "default": 0.3},
+    "turn_end_timeout_ms": {"min": 640, "max": 11200, "step": 80, "default": 5600},
+}
+SONIC_LEVERS = {
+    "speed": {"min": 0.6, "max": 1.5, "step": 0.05, "default": 1.0},
+    "volume": {"min": 0.5, "max": 2.0, "step": 0.05, "default": 1.0},
+}
+SONIC_EMOTIONS = ("neutral", "calm", "content", "sad", "angry")
+# Cartesia's starting sets of the four turn settings (docs.cartesia.ai › STT › Turns, read
+# 2026-11-13). Not an API parameter: a profile is these four values. Balanced is the default.
+TURN_PROFILES = {
+    "balanced": {"turn_start_threshold": 0.8, "turn_eager_end_threshold": 0.6, "turn_end_threshold": 0.3, "turn_end_timeout_ms": 5600},
+    "responsive": {"turn_start_threshold": 0.7, "turn_eager_end_threshold": 0.6, "turn_end_threshold": 0.4, "turn_end_timeout_ms": 4500},
+    "patient": {"turn_start_threshold": 0.8, "turn_eager_end_threshold": 0.3, "turn_end_threshold": 0.1, "turn_end_timeout_ms": 8000},
+}
+
+
+def voice_defaults() -> dict:
+    """Every voice setting at its default: what a call runs with before any version is saved,
+    and the set the Config page starts from. The same names as ehr's settings.rs › VOICE.
+    None is the provider's default."""
+    vid = voice_id()
+    name = next((n for n, i in RECOMMENDED_VOICES if i == vid), vid)
+    return {
+        "voice": {"name": name, "id": vid},
+        "speed": None,
+        "volume": None,
+        "emotion": None,
+        "normalization": "auto",
+        "pronunciations": [],
+        **{k: None for k in INK_TURN_LEVERS},
+        "eager_end_of_turn": False,
+        "barge_in": True,
+        "keyterms": [],
+        "idle_s": VOICE_IDLE_S,
+        "max_s": VOICE_MAX_S,
+        "plan_credits": plan_credits(),
+        "offset": 0,
+        "cycle_day": cycle_day(),
+    }
+
+
 def cartesia_key() -> str | None:
     """The Cartesia key from the git-ignored .env. Never printed, never logged."""
     load_dotenv(REPO / ".env", override=False)

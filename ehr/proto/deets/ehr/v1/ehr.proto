@@ -45,6 +45,73 @@ service Ehr {
   // long call never meets the message limit. Keyed by the record's call id, not a handle: the
   // session is closed by then. FAILED_PRECONDITION when ehr runs without a store.
   rpc FileCall(stream FileCallLine) returns (FileCallReply);
+  // The settings store (CONSOLE.md §7.3): versions of one service's settings, insert-only. Every
+  // version holds every setting; each save is a new version and becomes the active one. No
+  // field is protected data. FAILED_PRECONDITION when ehr runs without a store.
+  rpc ListSettingVersions(ListSettingVersionsRequest) returns (ListSettingVersionsReply);
+  // One version's settings: the active one when `version_id` is 0. No version yet: no values.
+  rpc GetSettings(GetSettingsRequest) returns (GetSettingsReply);
+  // Saves a whole set as a new version and makes it the active one. INVALID_ARGUMENT names the
+  // setting that does not fit (settings.rs): its name, never its value.
+  rpc SaveSettings(SaveSettingsRequest) returns (SaveSettingsReply);
+}
+
+// One saved version of a service's settings. Its label is "MM-DD | seq" (the owner's words), or
+// "Default" for number 0, the code's defaults.
+message SettingVersion {
+  int64 id = 1;
+  // The day it was saved, YYYY-MM-DD, on the database's clock.
+  string day = 2;
+  // Its number among that day's versions, from 1.
+  int32 seq = 3;
+  // When it was saved and became active, RFC 3339.
+  string created_at = 4;
+  // Who saved it: a staff id later; "dev" on a dev machine.
+  string created_by = 5;
+  // The one version the agent runs with now.
+  bool active = 6;
+}
+
+// One setting: its name and its value as JSON.
+message SettingValue {
+  string key = 1;
+  string value = 2;
+}
+
+message ListSettingVersionsRequest {
+  // The service: `voice` (Cartesia). Each service has its own table (settings.rs).
+  string service = 1;
+}
+
+message ListSettingVersionsReply {
+  // Newest first, the Default version last.
+  repeated SettingVersion versions = 1;
+}
+
+message GetSettingsRequest {
+  string service = 1;
+  // 0: the active version.
+  int64 version_id = 2;
+}
+
+message GetSettingsReply {
+  // Unset when the service has no version yet: the agent runs on its defaults.
+  SettingVersion version = 1;
+  repeated SettingValue values = 2;
+}
+
+message SaveSettingsRequest {
+  string service = 1;
+  // Every setting of the service, once each (settings.rs lists them).
+  repeated SettingValue values = 2;
+  string by = 3;
+  // The Default version: number 0, at most one per service (ALREADY_EXISTS after that). It is
+  // made active only when the service has no active version yet.
+  bool seed = 4;
+}
+
+message SaveSettingsReply {
+  SettingVersion version = 1;
 }
 
 message FileCallLine {

@@ -83,6 +83,8 @@ export type CartesiaUse = { ink_s: number; sonic_chars: number; credits: number;
  * this machine's voice calls only: a floor, not Cartesia's own count. */
 export type CartesiaCycle = {
   plan: number;
+  /** The active settings' manual offset: credits used outside these calls. */
+  offset: number;
   used: number;
   left: number;
   calls: number;
@@ -95,6 +97,85 @@ export type CartesiaCycle = {
   limits: { idle_s: number; max_s: number };
 };
 export const resources = () => get<{ cartesia: CartesiaCycle; voice: boolean }>("/agent/resources");
+
+/** A lever's range and Cartesia's default (agent/deets_agent/config.py). */
+export type Range = { min: number; max: number; step: number; default: number };
+
+/** Every voice setting (CONSOLE.md §7.3): the same names as ehr's settings.rs › VOICE and the
+ * agent's config.voice_defaults. A null number or word is "Cartesia's default". */
+export type VoiceValues = {
+  voice: { name: string; id: string | null };
+  speed: number | null;
+  volume: number | null;
+  emotion: string | null;
+  normalization: string;
+  pronunciations: string[][]; // [word, say it like]
+  turn_start_threshold: number | null;
+  turn_eager_end_threshold: number | null;
+  turn_end_threshold: number | null;
+  turn_end_timeout_ms: number | null;
+  eager_end_of_turn: boolean;
+  barge_in: boolean;
+  keyterms: string[][]; // [word or phrase]
+  idle_s: number;
+  max_s: number;
+  plan_credits: number;
+  offset: number;
+  cycle_day: number;
+};
+
+/** One saved version: its label is "MM-DD | n" (the owner's words). */
+export type SettingVersion = { id: number; label: string; active: boolean; created_at: string; created_by: string };
+
+/** Config › Cartesia (CONSOLE.md §7): the saved versions, newest first; the values of the version
+ * asked for (the active one by default); the active values, to mark what an older version
+ * changed; each lever's range. `store`: false when ehr runs without Postgres (no versions, the
+ * defaults shown, no saving). Never the key: only whether it is set. */
+export type CartesiaSettings = {
+  key: boolean;
+  store: boolean;
+  versions: SettingVersion[];
+  version: SettingVersion | null;
+  values: VoiceValues;
+  active: VoiceValues;
+  api_version: string;
+  tts: {
+    model: string;
+    voices: { name: string; id: string | null }[];
+    emotions: string[];
+    ranges: Record<"speed" | "volume", Range>;
+  };
+  stt: {
+    model: string;
+    /** Cartesia's named sets of the four turn values; not an API parameter (CARTESIA.md §9). */
+    profiles: Record<string, Record<string, number>>;
+    ranges: Record<string, Range>;
+  };
+  rates: { ink_per_s: number; sonic_per_char: number };
+};
+/** `version`: 0 or none for the active one. */
+export const cartesiaSettings = (version = 0) =>
+  get<CartesiaSettings>(version ? `/agent/cartesia?version=${version}` : "/agent/cartesia");
+
+/** Save the whole set as a new, active version (CONSOLE.md §7.3). A refusal's reason names a
+ * setting, never a value, so the page may show it. */
+export async function saveCartesia(values: VoiceValues): Promise<CartesiaSettings> {
+  let r: Response;
+  try {
+    r = await fetch("/agent/cartesia", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ values }),
+    });
+  } catch {
+    throw new AgentDown("the agent's dev server is not running");
+  }
+  if (!r.ok) {
+    const body = (await r.json().catch(() => null)) as { detail?: unknown } | null;
+    throw new AgentDown(typeof body?.detail === "string" ? body.detail : "not saved");
+  }
+  return (await r.json()) as CartesiaSettings;
+}
 
 /** The voice seat's offer (CHAT.md §17): the browser's WebRTC offer, with every ICE candidate in
  * it; the answer comes back. A refusal's reason names no value, so the page may show it. */

@@ -13,6 +13,7 @@ use crate::{
     proto::v1::{self as pb, ehr_server::Ehr},
     scheduler::{BookResult, Scheduler, SchedulerDown, Slot, SlotId, SlotWish},
     session::{Pending, PatientKey, Refusal, Sessions, Source, Stage, Token},
+    settings,
     store::Store,
     verify::{one_match, Candidate, Codes, Down, Patients},
 };
@@ -91,6 +92,10 @@ impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
     pub fn with_epic(mut self, epic: Arc<EpicEhr>) -> Self {
         self.epic = Some(epic);
         self
+    }
+
+    fn settings_store(&self) -> Result<&Arc<Store>, Status> {
+        self.store.as_ref().ok_or_else(|| Status::failed_precondition("ehr runs without a store"))
     }
 
     fn epic(&self) -> Result<&Arc<EpicEhr>, Status> {
@@ -359,6 +364,69 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let store = self.store.as_ref().ok_or_else(|| Status::failed_precondition("ehr runs without a store"))?;
         let filed = store.file_record(&id, &record).await.map_err(|_| Status::internal("the store could not file the call"))?;
         Ok(Response::new(pb::FileCallReply { filed }))
+    }
+
+    async fn list_setting_versions(
+        &self,
+        req: Request<pb::ListSettingVersionsRequest>,
+    ) -> Result<Response<pb::ListSettingVersionsReply>, Status> {
+        let (name, _, _) = setting_service(&req.get_ref().service)?;
+        let store = self.settings_store()?;
+        let versions = settings::versions(store.pool(), name).await.map_err(|_| Status::internal("the store could not list the settings"))?;
+        Ok(Response::new(pb::ListSettingVersionsReply { versions: versions.into_iter().map(setting_version).collect() }))
+    }
+
+    async fn get_settings(&self, req: Request<pb::GetSettingsRequest>) -> Result<Response<pb::GetSettingsReply>, Status> {
+        let (name, _, table) = setting_service(&req.get_ref().service)?;
+        let id = req.get_ref().version_id;
+        if id < 0 {
+            return Err(Status::invalid_argument("version_id: not a version"));
+        }
+        let store = self.settings_store()?;
+        let found = settings::get(store.pool(), name, table, id).await.map_err(|_| Status::internal("the store could not read the settings"))?;
+        let reply = match found {
+            None if id != 0 => return Err(Status::not_found("no such version")),
+            None => pb::GetSettingsReply { version: None, values: vec![] },
+            Some((v, values)) => pb::GetSettingsReply {
+                version: Some(setting_version(v)),
+                values: values.into_iter().map(|(key, value)| pb::SettingValue { key, value }).collect(),
+            },
+        };
+        Ok(Response::new(reply))
+    }
+
+    async fn save_settings(&self, req: Request<pb::SaveSettingsRequest>) -> Result<Response<pb::SaveSettingsReply>, Status> {
+        let req = req.into_inner();
+        let (name, list, table) = setting_service(&req.service)?;
+        let by = req.by.trim();
+        if by.is_empty() || by.len() > 64 {
+            return Err(Status::invalid_argument("by: who saves, 1 to 64 characters"));
+        }
+        let given: Vec<(String, String)> = req.values.into_iter().map(|v| (v.key, v.value)).collect();
+        // Checked before the store, so a bad set is refused the same way with or without one.
+        let values = settings::check(list, &given).map_err(Status::invalid_argument)?;
+        let store = self.settings_store()?;
+        let v = settings::save(store.pool(), name, table, &values, by, req.seed).await.map_err(|e| match e {
+            settings::SaveError::DefaultExists => Status::already_exists("the Default version exists"),
+            settings::SaveError::Db(_) => Status::internal("the store could not save the settings"),
+        })?;
+        Ok(Response::new(pb::SaveSettingsReply { version: Some(setting_version(v)) }))
+    }
+}
+
+/// The service a settings request names, with its list and table (settings.rs).
+fn setting_service(name: &str) -> Result<(&'static str, &'static [settings::Setting], &'static str), Status> {
+    settings::service(name).ok_or_else(|| Status::invalid_argument("service: not a settings service"))
+}
+
+fn setting_version(v: settings::Version) -> pb::SettingVersion {
+    pb::SettingVersion {
+        id: v.id,
+        day: v.day,
+        seq: v.seq,
+        created_at: v.created_at,
+        created_by: v.created_by,
+        active: v.active,
     }
 }
 

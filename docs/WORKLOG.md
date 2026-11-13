@@ -29,6 +29,40 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   docs commit ahead of `epic-time`), so it merges into `main` as a fast-forward.
 - Then the Epic / Local button became a **Local | Epic** tab bar like the seat bar (the owner;
   CHAT.md §13). The flip and its three tokens are gone; `--seat-part` is now `--pair-part`.
+- Config › Cartesia (CONSOLE.md §7): the owner chose key–value settings, one table per service,
+  asked for a full change history, and asked how a hospital sets its key. Built the view only: a
+  Read | Edit bar (Read greys everything), every lever in cards, usage with adjustments, the
+  key's status (never the key), from a new read-only `GET /agent/cartesia`. Saving is designed in
+  §7.3, not built: it changes the schema, so it waits for the voice desk test.
+- His first look (three screenshots): the slider's track changed size and the Default link was
+  clutter; the lines under each name went; lists sat above their add boxes; adjustments were a
+  list. Now: our own slider with a line at the default and a fixed-width value; an "i" in a
+  rounded square opens each setting's help; the add row first, the entries as a table under it;
+  Plan credits − Offset on one row, and Credits left (plan − offset − usage) as you type.
+- More rounds on the page: a serif "i"; the slider's default line centred on the thumb; the help
+  rolls; the scrollbar inside the panel; cards as wide as their rows, Voice | Hearing in two
+  columns; the four turn rows open, Model first, rows one height; the turn profile moves the
+  sliders (Cartesia: a profile is only a name for four values).
+- The settings store, built at his word ("Set it up please, I'll desk test in the morning"),
+  though voice is not desk-tested yet: `0002_settings.sql` (whole versions per service, an
+  activation log, all insert-only by trigger), `ehr/src/settings.rs`, the RPCs
+  `ListSettingVersions`, `GetSettings`, `SaveSettings`, the dev server's `GET`/`POST
+  /agent/cartesia`, the versions dropdown with the glow, and voice calls reading the active
+  version. `npm run db:test` passes against the dev Postgres, the insert-only triggers included.
+  Not run end to end: the running dev server held the old `ehr.exe`.
+- Then, from his first save: the Default version (`0003_settings_default.sql`, number 0, the
+  first of every setup, made on the first view); labels "Active | [MM-DD | n]"; the title bar in
+  one height with Discard | Save as a tab bar, always shown; the glow centred; Rates in words.
+  A read through the real servers and a refused out-of-range save checked the path; his own save
+  ("11-13 | 1", Gemma) worked.
+- His 16 screenshots, saved per CLAUDE.md and linked in CONSOLE.md §7.1 and §7.7:
+  `config-slider-ask`, `config-list-ask`, `config-offset-ask`, `config-info-pin`,
+  `config-info-align`, `config-slider-line`, `config-credits-size`, `config-slider-centre`,
+  `config-scrollbar`, `config-wide-rows`, `config-advanced`, `config-status-line`,
+  `config-cartesia`, `config-title-bar`, `config-glow`, `config-rates` (each `-2026-11-13.png`).
+  None shows protected data.
+- HANDOFF.md › Known gotchas: size each check to the change, and the Windows `ehr.exe` lock
+  (ask him to stop the dev server; no other build directory), so both rules reach the Mac.
 
 ## 2026-11-13 (Windows, last) — When no code can go out: words true for every caller
 - The owner's call as Warren McGinnis (`agent/calls/20261112-181140-test.jsonl`): his chart has

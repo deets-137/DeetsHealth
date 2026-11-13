@@ -28,25 +28,43 @@ import time
 from pipecat.frames.frames import Frame, MetricsFrame
 from pipecat.metrics.metrics import STTUsageMetricsData, TTSUsageMetricsData
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
-from pipecat.services.cartesia.tts import CartesiaTTSService
+from pipecat.services.cartesia.tts import CartesiaTTSService, GenerationConfig
 from pipecat.services.cartesia.turns.stt import CartesiaTurnsSTTService
 
 from deets_agent import config
 
 
-def build_stt(key: str) -> CartesiaTurnsSTTService:
-    """Ink-2 on the turns endpoint, every turn threshold at Cartesia's default."""
+def build_stt(key: str, values: dict | None = None) -> CartesiaTurnsSTTService:
+    """Ink-2 on the turns endpoint, with the active settings (CONSOLE.md §7): the four turn
+    values (None sends nothing: Cartesia's default), barge-in, early end of turn, keyterms."""
+    v = values or config.voice_defaults()
+    turn = {k: v.get(k) for k in config.INK_TURN_LEVERS if v.get(k) is not None}
+    if "turn_end_timeout_ms" in turn:
+        turn["turn_end_timeout_ms"] = int(turn["turn_end_timeout_ms"])
+    keyterms = [row[0] for row in v.get("keyterms") or []]
     return CartesiaTurnsSTTService(
         api_key=key,
-        settings=CartesiaTurnsSTTService.Settings(model=config.STT_MODEL),
+        should_interrupt=bool(v.get("barge_in", True)),
+        enable_eager_end_of_turn=bool(v.get("eager_end_of_turn", False)),
+        settings=CartesiaTurnsSTTService.Settings(model=config.STT_MODEL, keyterm=keyterms or None, **turn),
     )
 
 
-def build_tts(key: str) -> CartesiaTTSService:
-    """Sonic, pinned by name, in the chosen voice. The output rate is the pipeline's."""
+def build_tts(key: str, values: dict | None = None) -> CartesiaTTSService:
+    """Sonic, pinned by name, with the active settings: the voice, speed, volume, emotion and
+    number reading. The output rate is the pipeline's. Pronunciations are stored but not sent
+    yet: they need a Cartesia pronunciation dictionary (CONSOLE.md §7.6)."""
+    v = values or config.voice_defaults()
+    voice = (v.get("voice") or {}).get("id") or config.voice_id()
+    gen = {k: v[k] for k in ("speed", "volume", "emotion") if v.get(k) is not None}
     return CartesiaTTSService(
         api_key=key,
-        settings=CartesiaTTSService.Settings(model=config.TTS_MODEL, voice=config.voice_id()),
+        settings=CartesiaTTSService.Settings(
+            model=config.TTS_MODEL,
+            voice=voice,
+            generation_config=GenerationConfig(**gen) if gen else None,
+            normalization=v.get("normalization") or "auto",
+        ),
     )
 
 
@@ -60,12 +78,15 @@ class VoiceMeter(FrameProcessor):
     """Counts Ink's seconds and Sonic's characters from Pipecat's usage metrics, and the time
     of the caller's last speech. Sits after Sonic, where both services' metrics have passed."""
 
-    def __init__(self) -> None:
+    def __init__(self, idle_s: int = config.VOICE_IDLE_S, max_s: int = config.VOICE_MAX_S) -> None:
         super().__init__()
         self.ink_s = 0.0
         self.sonic_chars = 0
         self.started = time.monotonic()
         self.last_speech = self.started
+        # The test-call guard (CONSOLE.md §7, the active settings).
+        self.idle_s = idle_s
+        self.max_s = max_s
 
     @property
     def credits(self) -> int:
@@ -94,20 +115,22 @@ class VoiceMeter(FrameProcessor):
     def over_limit(self, now: float | None = None) -> str | None:
         """Why the call must end now, or None: the idle limit, then the call's own limit."""
         now = time.monotonic() if now is None else now
-        if now - self.started >= config.VOICE_MAX_S:
-            return f"the {config.VOICE_MAX_S // 60}-minute limit for a voice test call"
-        if now - self.last_speech >= config.VOICE_IDLE_S:
-            return f"{config.VOICE_IDLE_S} s with no speech from the caller"
+        if now - self.started >= self.max_s:
+            return f"the {self.max_s} s limit for a voice test call"
+        if now - self.last_speech >= self.idle_s:
+            return f"{self.idle_s} s with no speech from the caller"
         return None
 
 
 class Voice:
     """The voice parts of one call: Ink, Sonic and the meter."""
 
-    def __init__(self, key: str) -> None:
-        self.stt = build_stt(key)
-        self.tts = build_tts(key)
-        self.meter = VoiceMeter()
+    def __init__(self, key: str, values: dict | None = None) -> None:
+        """`values`: the active voice settings (CONSOLE.md §7); the defaults when none."""
+        v = values or config.voice_defaults()
+        self.stt = build_stt(key, v)
+        self.tts = build_tts(key, v)
+        self.meter = VoiceMeter(int(v.get("idle_s") or config.VOICE_IDLE_S), int(v.get("max_s") or config.VOICE_MAX_S))
 
         @self.stt.event_handler("on_turn_start")
         async def _start(service, *args):
