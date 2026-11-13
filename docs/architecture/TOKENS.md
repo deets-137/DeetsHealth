@@ -15,8 +15,8 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 | Tier | File | Count |
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
-| Theme (color roles) | themes.css | 27 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 80 tokens · overrides:  |
+| Theme (color roles) | themes.css | 31 roles · 3 themes (dark, light, moonlight) |
+| Skin (everything else) | skin.css base block | 84 tokens · overrides:  |
 
 ## Theme roles
 
@@ -44,6 +44,8 @@ The `:root` value is Dark's, and the fallback when a theme does not map the role
 | `--hover` | `rgba(255, 255, 255, 0.07)` | light, moonlight | the wash under the pointer |
 | `--press` | `rgba(255, 255, 255, 0.12)` | light, moonlight | the wash while pressed |
 | `--line` | `rgba(255, 255, 255, 0.1)` | light, moonlight | a hairline inside a panel |
+| `--scrollbar-thumb` | `var(--press)` | — | Our own scrollbar's thumb (app.css › .own-scrollbars). Made of the roles above, so each theme gets its own without a value of its own. |
+| `--scrollbar-thumb-hover` | `var(--text-3)` | — |  |
 | `--canvas` | `rgba(4, 4, 4, 0.85)` | light, moonlight | the chat canvas: the panel's color pushed darker, 85 % opaque |
 | `--bubble-agent` | `rgba(255, 255, 255, 0.1)` | light, moonlight | the agent's bubble |
 | `--bubble-caller` | `var(--accent)` | — | the caller's bubble |
@@ -51,6 +53,8 @@ The `:root` value is Dark's, and the fallback when a theme does not map the role
 | `--go` | `var(--paint-forest)` | light, moonlight | Start, Play, Send |
 | `--stop` | `var(--paint-scarlet)` | light, moonlight | End call, Stop |
 | `--on-call-button` | `var(--paint-white)` | — | text on --go and --stop |
+| `--theme-color` | `var(--paint-black)` | light, moonlight | The theme's own color (the owner, 2026-11-13: "black / navy / orange"): Dark's black, Moonlight's navy, Light's orange. Demo's play button in each recorded-call row. |
+| `--on-theme-color` | `var(--paint-white)` | light, moonlight |  |
 
 ## Skin tokens
 
@@ -96,6 +100,8 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--radius-control` | `6px` | — | a menu row, the app-name button |
 | `--edge` | `1px` | — | a panel's edge and a hairline |
 | `--focus-ring` | `2px` | — |  |
+| `--scrollbar-size` | `10px` | — | our own scrollbar's gutter (app.css › .own-scrollbars) |
+| `--scrollbar-inset` | `3px` | — | the clear space around its thumb, so the thumb is 4 px wide |
 | `--swatch` | `14px` | — | a theme swatch in the menu |
 | `--menu-min` | `180px` | — |  |
 
@@ -121,6 +127,7 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | Token | Base | Overridden by | Note |
 |---|---|---|---|
 | `--control-height` | `44px` | — | every call control: large, and the same size in every state |
+| `--speed-part` | `56px` | — | one of the three parts of Demo's speed bar (0.5×, 1×, 2×) |
 | `--split-half` | `132px` | — | one half of a split button: wide enough for its longest word ("Confirm?") |
 | `--send-size` | `44px` | — | the send button, square |
 | `--canvas-pad` | `16px` | — |  |
@@ -131,6 +138,7 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--help-width` | `320px` | — | the open text card above the code button |
 | `--code-tracking` | `0.08em` | — | the six digits on the code button, a little apart |
 | `--chevron` | `14px` | — | the open-and-close arrow on a rail list (a patient's visits) |
+| `--bullet-indent` | `16px` | — | a bulleted list's inset: room for the disc, hung outside the text |
 | `--rail-panel-min` | `240px` | — | each rail panel's least height; past it, its tab scrolls inside it |
 | `--verdict-height` | `32px` | — | a Review row's Pass · Fail · Unsure control, and each score dot's press area |
 | `--verdict-min` | `180px` | — | the verdict control's least width before the dots wrap under it |

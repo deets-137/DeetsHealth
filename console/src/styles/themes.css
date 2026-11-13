@@ -29,6 +29,10 @@
   --hover: rgba(255, 255, 255, 0.07); /* the wash under the pointer */
   --press: rgba(255, 255, 255, 0.12); /* the wash while pressed */
   --line: rgba(255, 255, 255, 0.1); /* a hairline inside a panel */
+  /* Our own scrollbar's thumb (app.css › .own-scrollbars). Made of the roles above, so each
+     theme gets its own without a value of its own. */
+  --scrollbar-thumb: var(--press);
+  --scrollbar-thumb-hover: var(--text-3);
 
   --canvas: rgba(4, 4, 4, 0.85); /* the chat canvas: the panel's color pushed darker, 85 % opaque */
   --bubble-agent: rgba(255, 255, 255, 0.1); /* the agent's bubble */
@@ -37,6 +41,10 @@
   --go: var(--paint-forest); /* Start, Play, Send */
   --stop: var(--paint-scarlet); /* End call, Stop */
   --on-call-button: var(--paint-white); /* text on --go and --stop */
+  /* The theme's own color (the owner, 2026-11-13: "black / navy / orange"): Dark's black,
+     Moonlight's navy, Light's orange. Demo's play button in each recorded-call row. */
+  --theme-color: var(--paint-black);
+  --on-theme-color: var(--paint-white);
 }
 
 [data-theme="dark"] {
@@ -72,6 +80,8 @@
   --bubble-agent: rgba(253, 246, 227, 0.75);
   --go: var(--paint-grass);
   --stop: var(--paint-burgundy);
+  --theme-color: var(--paint-solar-orange);
+  --on-theme-color: var(--paint-solar-base3);
 
   color-scheme: light;
 }
@@ -104,6 +114,8 @@
   --bubble-agent: rgba(191, 211, 242, 0.1);
   --go: var(--paint-turquoise);
   --stop: var(--paint-purple);
+  --theme-color: var(--paint-navy);
+  --on-theme-color: var(--paint-white);
 
   color-scheme: dark;
 }

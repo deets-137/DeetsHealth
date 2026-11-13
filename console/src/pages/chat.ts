@@ -41,6 +41,8 @@ const MODE_ABOUT: Record<Mode, string> = {
   demo: "A recorded call plays back as if live",
 };
 const MODE_KEY = "deets.console.chat.mode";
+// Demo's playback speeds (the owner, 2026-11-13: "0.5x, 1x, and 2x"), the speed bar's parts.
+const SPEEDS = [0.5, 1, 2];
 
 // The EHR toggle (CHAT.md §13): the EHR the next test call reads.
 const EHRS: EhrSource[] = ["local", "epic"];
@@ -61,6 +63,7 @@ const savedEhr = (): EhrSource => {
 };
 
 const STAR_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>`;
+const PLAY_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>`;
 const SEND_ICON =`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg>`;
 
 const savedMode = (): Mode => {
@@ -82,7 +85,7 @@ export function chatPage(): Page {
     shown: () => requestAnimationFrame(() => shownHook()),
     build() {
       const page = el(`
-        <section class="page">
+        <section class="page own-scrollbars">
           <div class="split-page">
             <section class="stage glass chat" aria-labelledby="chat-title" data-mode="test">
               <header class="chat-head">
@@ -104,6 +107,12 @@ export function chatPage(): Page {
               <div class="chat-canvas">
                 <div class="chat-top">
                   <button class="flip-toggle ehr-toggle" data-wave id="chat-ehr" type="button"><span class="flip-word"></span></button>
+                  <div class="tabs speed" data-wave id="demo-speed" role="radiogroup" aria-label="Playback speed">
+                    <span class="nav-highlight tab-pill" aria-hidden="true"></span>
+                    ${SPEEDS.map(
+                      (s) => `<button class="tab" type="button" role="radio" data-speed="${s}" aria-checked="${s === 1}">${s}×</button>`,
+                    ).join("")}
+                  </div>
                 </div>
                 <div class="chat-lines" data-for="phi" role="log" aria-live="polite" aria-label="The call">
                   <p class="empty">No live call to watch</p>
@@ -147,16 +156,6 @@ export function chatPage(): Page {
                   aria-label="What the caller says" disabled />
                 <button class="send" data-wave id="chat-send" type="submit" aria-label="Send" title="Send (Enter)" disabled>${SEND_ICON}</button>
               </form>
-
-              <div class="chat-bar bar-demo">
-                <select class="control picker" data-wave id="demo-pick" aria-label="Recorded call" disabled>
-                  <option>No recorded calls yet</option>
-                </select>
-                <div class="split" data-wave role="group" aria-label="Speed">
-                  <button class="split-plain" type="button" data-speed="1" aria-pressed="true"><span>1×</span></button>
-                  <button class="split-plain" type="button" data-speed="2" aria-pressed="false"><span>2×</span></button>
-                </div>
-              </div>
               </div>
               </div>
             </section>
@@ -167,12 +166,13 @@ export function chatPage(): Page {
               <section class="panel glass rail-panel" id="rail-call" aria-label="The call">
                 <div class="tabs" role="tablist" aria-label="The call">
                   <span class="nav-highlight tab-pill" aria-hidden="true"></span>
-                  <button class="tab" role="tab" type="button" data-tab="patients"><span class="tab-word-sandbox">Sandbox EPTs</span><span class="tab-word-caller">Caller</span></button>
+                  <button class="tab" role="tab" type="button" data-tab="patients"><span class="tab-word-sandbox">Sandbox EPTs</span><span class="tab-word-calls">Recorded calls</span><span class="tab-word-caller">Caller</span></button>
                   <button class="tab" role="tab" type="button" data-tab="steps">Steps</button>
                   <button class="tab" role="tab" type="button" data-tab="review" hidden>Review</button>
                 </div>
                 <div class="tab-body" role="tabpanel" data-tab="patients">
                   <div class="sandbox" id="sandbox-list"><p class="empty">Loading</p></div>
+                  <div class="calls" id="demo-calls" role="group" aria-label="Recorded calls"><p class="empty">Loading</p></div>
                   <p class="empty caller-empty">Empty for now</p>
                 </div>
                 <div class="tab-body" role="tabpanel" data-tab="steps" hidden>
@@ -183,11 +183,12 @@ export function chatPage(): Page {
                 </div>
                 <div class="tab-body review" role="tabpanel" data-tab="review" id="chat-review" hidden>
                 <div class="review-head">
+                  <h2 class="review-outcome" id="review-outcome"></h2>
+                  <p class="review-call" id="review-call"></p>
                   <span class="review-status" id="review-status" role="status"></span>
                   <button class="review-star" id="review-star" type="button" aria-pressed="false"
                     aria-label="Star this call">${STAR_ICON}</button>
                 </div>
-                <p class="review-call" id="review-call"></p>
                 <input class="review-input" id="review-label" type="text" maxlength="200" autocomplete="off"
                   placeholder="Label" aria-label="A label for this call" />
                 <textarea class="review-input" id="review-note" rows="2" maxlength="2000"
@@ -324,6 +325,7 @@ export function chatPage(): Page {
         $("chat-review"),
         $("review-status"),
         $<HTMLButtonElement>("review-star"),
+        $("review-outcome"),
         $("review-call"),
         $<HTMLInputElement>("review-label"),
         $<HTMLTextAreaElement>("review-note"),
@@ -356,15 +358,23 @@ export function chatPage(): Page {
       let demoEhr: EhrSource = "local";
       const railEhr = (): EhrSource => (mode === "demo" ? demoEhr : ehr);
       let box: Sandbox | undefined; // the list the rail shows now
+      const loading = new Set<EhrSource>(); // the reads in flight, so a list is read once
       const showSandbox = () => {
         const source = railEhr();
         box = boxes[source];
         if (box) sandboxList.replaceChildren(...sandboxRows(box));
         else if (failed[source]) sandboxList.replaceChildren(note(failed[source]!));
-        else sandboxList.replaceChildren(note(source === "epic" ? "Reading Epic's sandbox" : "Loading"));
+        else {
+          sandboxList.replaceChildren(note(source === "epic" ? "Reading Epic's sandbox" : "Loading"));
+          // Nothing else reads a list the rail needs now (the owner, 2026-11-13: "still
+          // loading?" after Testing on Epic, then Demo): read it here.
+          if (!loading.has(source)) void loadSandbox(source);
+        }
         renderCode(false);
       };
       const loadSandbox = async (source: EhrSource = railEhr()) => {
+        if (loading.has(source)) return;
+        loading.add(source);
         delete failed[source];
         if (source === railEhr()) showSandbox();
         try {
@@ -374,6 +384,8 @@ export function chatPage(): Page {
             source === "epic" && e instanceof AgentDown && e.message.includes("refused")
               ? "Epic's sandbox did not answer"
               : "The agent's dev server is not running";
+        } finally {
+          loading.delete(source);
         }
         if (source === railEhr()) showSandbox();
       };
@@ -645,49 +657,82 @@ export function chatPage(): Page {
       );
 
       // ---- Demo: a recorded call plays back as if live, from the catalog
-      const pick = $<HTMLSelectElement>("demo-pick");
       const play = $<HTMLButtonElement>("demo-play");
       const stop = $<HTMLButtonElement>("demo-stop");
       const demoLines = lines("demo");
-      const speeds = [...page.querySelectorAll<HTMLButtonElement>("[data-speed]")];
+
+      // The speed bar (CHAT.md §16): 0.5×, 1×, 2× in the canvas's top row, a pill on the
+      // chosen part. A change takes effect at the next Play.
+      const speedBar = $("demo-speed");
+      const speedPill = speedBar.querySelector<HTMLElement>(".tab-pill")!;
+      const speedParts = [...speedBar.querySelectorAll<HTMLButtonElement>("[data-speed]")];
       let speed = 1;
-      speeds.forEach((b) =>
-        b.addEventListener("click", () => {
-          speed = Number(b.dataset.speed) || 1;
-          speeds.forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
-        }),
-      );
+      const markSpeed = (animate: boolean) => {
+        speedParts.forEach((b) => b.setAttribute("aria-checked", String(Number(b.dataset.speed) === speed)));
+        placePill(speedPill, speedParts.find((b) => Number(b.dataset.speed) === speed), animate);
+      };
+      speedBar.addEventListener("click", (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-speed]");
+        if (!b) return;
+        speed = Number(b.dataset.speed) || 1;
+        markSpeed(true);
+      });
+      // Places the pill once the bar has a size (it has none outside Demo).
+      new ResizeObserver(() => markSpeed(false)).observe(speedBar);
+
+      // The recorded calls: the rail's first tab in Demo (CHAT.md §16), starred first, then
+      // newest. A press chooses a call; Play plays the chosen one.
+      const callsList = $("demo-calls");
+      let chosen: string | null = null;
       let timers: number[] = [];
+      const canPlay = () => chosen !== null && timers.length === 0;
+      const markChosen = () =>
+        callsList.querySelectorAll<HTMLElement>(".call-row").forEach((r) => {
+          const on = r.dataset.id === chosen;
+          r.classList.toggle("is-chosen", on);
+          r.querySelector(".call-pick")!.setAttribute("aria-pressed", String(on));
+        });
+      callsList.addEventListener("click", (e) => {
+        const t = e.target as HTMLElement;
+        const r = t.closest<HTMLElement>(".call-row");
+        if (!r) return;
+        chosen = r.dataset.id!;
+        markChosen();
+        play.disabled = !canPlay();
+        // The row's own play button plays it at once (the owner, 2026-11-13).
+        if (t.closest(".call-play")) void startDemo();
+      });
       const stopDemo = () => {
         timers.forEach((t) => window.clearTimeout(t));
         timers = [];
         stop.disabled = true;
-        play.disabled = pick.disabled;
+        play.disabled = !canPlay();
       };
       async function loadCatalog() {
         let calls: CallRow[];
         try {
           calls = (await catalog()).calls;
         } catch {
-          pick.replaceChildren(new Option("The agent's dev server is not running"));
-          pick.disabled = play.disabled = true;
+          callsList.replaceChildren(note("The agent's dev server is not running"));
+          chosen = null;
+          play.disabled = true;
           return;
         }
-        const chosen = pick.value;
-        pick.replaceChildren(...calls.map((c) => new Option(callName(c), c.id)));
-        if (!calls.length) pick.append(new Option("No recorded calls yet"));
-        pick.disabled = !calls.length;
-        if (calls.some((c) => c.id === chosen)) pick.value = chosen;
-        play.disabled = pick.disabled || timers.length > 0;
+        if (!calls.some((c) => c.id === chosen)) chosen = calls[0]?.id ?? null;
+        callsList.replaceChildren(...(calls.length ? calls.map(callRow) : [note("No recorded calls yet")]));
+        markChosen();
+        play.disabled = !canPlay();
       }
-      play.addEventListener("click", async () => {
-        if (pick.disabled) return;
+      play.addEventListener("click", () => void startDemo());
+      async function startDemo() {
+        if (!chosen) return;
+        const id = chosen; // the call to play, even if another is chosen while it loads
         stopDemo();
         play.disabled = true;
         stop.disabled = false;
         let events: CallEvent[];
         try {
-          events = await callEvents(pick.value);
+          events = await callEvents(id);
         } catch {
           demoLines.replaceChildren(note("That call could not be read"));
           return stopDemo();
@@ -700,7 +745,6 @@ export function chatPage(): Page {
         demoEhr = start0?.ehr === "epic" ? "epic" : "local";
         if (mode === "demo") showSandbox();
         if (!boxes[demoEhr]) void loadSandbox(demoEhr);
-        const id = pick.value;
         const view = new CallView(demoLines, { onText: (e) => addText("demo", e), ...panels("demo") });
         const last = events.reduce((m, e) => Math.max(m, e.t_ms), 0);
         for (const e of events) timers.push(window.setTimeout(() => view.add(e), e.t_ms / speed));
@@ -710,7 +754,7 @@ export function chatPage(): Page {
             finished("demo", id); // played to its end: rate it
           }, last / speed + 50),
         );
-      });
+      }
       stop.addEventListener("click", () => {
         stopDemo();
         demoLines.append(note("Stopped"));
@@ -750,6 +794,7 @@ class CallView {
     if (e.kind === "tool_call") return this.hooks.tools?.call(e);
     if (e.kind === "tool_result") return this.hooks.tools?.result(e);
     if (e.kind === "caller") this.hooks.tools?.caller(e);
+    if (e.kind === "agent") this.hooks.tools?.agent(e);
     if (e.kind === "caller" && typeof e.text === "string") {
       this.llm = [];
       this.show(line("caller", e.text));
@@ -796,6 +841,9 @@ class Review {
     private readonly panel: HTMLElement,
     private readonly status: HTMLElement,
     private readonly star: HTMLButtonElement,
+    /** The head's title: the call's outcome in words. */
+    private readonly outcome: HTMLElement,
+    /** The subtitle under it: when the call started. */
     private readonly callLine: HTMLElement,
     private readonly label: HTMLInputElement,
     private readonly note: HTMLTextAreaElement,
@@ -837,7 +885,8 @@ class Review {
     const mine = ++this.gen;
     this.call = callId;
     this.status.textContent = "";
-    this.callLine.textContent = name;
+    this.outcome.textContent = name;
+    this.callLine.textContent = "";
     this.rows.replaceChildren(emptyNote("Loading the rubric"));
     this.shown(true, slide);
     if (slide) this.panel.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
@@ -857,7 +906,8 @@ class Review {
       this.rows.replaceChildren(emptyNote("This call is not in the catalog yet"));
       return;
     }
-    this.callLine.textContent = callName(found);
+    this.outcome.textContent = outcomeWords(found.outcome);
+    this.callLine.textContent = callTime(found);
     this.saved = { label: found.label ?? "", note: found.note ?? "", keep: found.keep };
     this.label.value = this.saved.label;
     this.note.value = this.saved.note;
@@ -1185,7 +1235,7 @@ class StepLog {
       const fact = (label: string, value: string) => {
         const li = document.createElement("li");
         const l = document.createElement("span");
-        l.className = "tool-label";
+        l.className = "bullet-label";
         l.textContent = `${label} `;
         const v = document.createElement("span");
         v.textContent = value;
@@ -1237,11 +1287,16 @@ function callClock(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** The rail's Tools panel for one call (CHAT.md §9): each tool call as a main line (its name
- * and its arguments), and under it the caller's line that led to it, the time to trigger and
- * the time to confirm. Made new for each call, so it clears the panel. */
+/** The rail's Tools tab for one call (CHAT.md §9): each line that led to a tool call, as a
+ * bubble in the canvas's colors (the caller's line; the agent's before the caller has spoken),
+ * and under it each tool it triggered: "→" and the tool's name, then bullets for each argument
+ * by name, the time to trigger and the time to confirm. Tools from the same line share its
+ * bubble. Made new for each call, so it clears the tab. */
 class ToolLog {
   private lastCaller: CallEvent | undefined;
+  private lastAgent: CallEvent | undefined;
+  /** The bubble the newest tools sit under, and the line it shows. */
+  private turn: { from: CallEvent | undefined; el: HTMLElement } | undefined;
   /** Rows waiting for their result, by tool name, oldest first. */
   private waiting = new Map<string, ((e: CallEvent) => void)[]>();
 
@@ -1253,41 +1308,56 @@ class ToolLog {
     this.lastCaller = e;
   }
 
+  agent(e: CallEvent): void {
+    this.lastAgent = e;
+  }
+
   call(e: CallEvent): void {
     const name = typeof e.name === "string" ? e.name : "tool";
-    const row = document.createElement("div");
-    row.className = "tool";
 
-    const main = document.createElement("p");
-    main.className = "tool-main";
-    const n = document.createElement("span");
-    n.className = "tool-name";
-    n.textContent = name;
-    main.append(n);
-    const args = argWords(e.arguments);
-    if (args) {
-      const a = document.createElement("span");
-      a.className = "tool-args";
-      a.textContent = args;
-      main.append(a);
+    // The line that led to this tool: a new bubble when it differs from the last tool's.
+    const from = this.lastCaller ?? this.lastAgent;
+    if (!this.turn || this.turn.from !== from) {
+      const turn = document.createElement("div");
+      turn.className = "tool-turn";
+      const text = from && typeof from.text === "string" ? from.text : undefined;
+      if (text) {
+        const bubble = document.createElement("div");
+        bubble.className = `bubble tool-bubble tool-bubble--${from === this.lastCaller ? "caller" : "agent"}`;
+        bubble.textContent = text;
+        turn.append(bubble);
+      } else {
+        turn.append(emptyNote("Before any line"));
+      }
+      this.turn = { from, el: turn };
+      this.show(turn);
     }
 
+    const row = document.createElement("div");
+    row.className = "tool";
+    const arrow = document.createElement("span");
+    arrow.className = "tool-arrow";
+    arrow.setAttribute("aria-hidden", "true");
+    // Drawn, not the "→" character: the serif's arrow sits low on the line.
+    arrow.innerHTML = SEND_ICON;
+    const n = document.createElement("p");
+    n.className = "tool-name";
+    n.textContent = name;
+
     const facts = document.createElement("ul");
-    facts.className = "tool-facts";
-    const fact = (label: string, value: string, cls = "") => {
+    facts.className = "bullets tool-facts";
+    const fact = (label: string, value: string) => {
       const li = document.createElement("li");
-      if (cls) li.className = cls;
       const l = document.createElement("span");
-      l.className = "tool-label";
-      l.textContent = `${label} `;
+      l.className = "bullet-label";
+      l.textContent = `${label}: `;
       const v = document.createElement("span");
       v.textContent = value;
       li.append(l, v);
       facts.append(li);
       return v;
     };
-    const said = this.lastCaller && typeof this.lastCaller.text === "string" ? this.lastCaller.text : undefined;
-    fact("Triggered by", said ? `“${said}”` : "no caller line yet", "tool-said");
+    for (const [key, value] of argList(e.arguments)) fact(key, value);
     // trigger_ms is exact (the record's high-resolution clock, schema 3). An older record has
     // only whole-ms event times, so the span is worked out from them.
     const trigger =
@@ -1306,8 +1376,11 @@ class ToolLog {
     });
     this.waiting.set(name, queue);
 
-    row.append(main, facts);
-    this.show(row);
+    row.append(arrow, n, facts);
+    const b = this.scroller();
+    const atEnd = this.atEnd(b);
+    this.turn.el.append(row);
+    if (atEnd) b.scrollTop = b.scrollHeight;
   }
 
   result(e: CallEvent): void {
@@ -1315,24 +1388,43 @@ class ToolLog {
     this.waiting.get(name)?.shift()?.(e);
   }
 
-  private show(row: HTMLElement): void {
-    // The list scrolls in its tab's body (CHAT.md §15). Follow the newest only when the reader
-    // is already at the bottom.
-    const b = this.box.closest<HTMLElement>(".tab-body") ?? this.box;
-    const atEnd = b.scrollHeight - b.scrollTop - b.clientHeight < 8;
-    this.box.querySelector(".empty")?.remove();
-    this.box.append(row);
+  /** The list scrolls in its tab's body (CHAT.md §15). */
+  private scroller(): HTMLElement {
+    return this.box.closest<HTMLElement>(".tab-body") ?? this.box;
+  }
+
+  /** Follow the newest only when the reader is already at the bottom. */
+  private atEnd(b: HTMLElement): boolean {
+    return b.scrollHeight - b.scrollTop - b.clientHeight < 8;
+  }
+
+  private show(node: HTMLElement): void {
+    const b = this.scroller();
+    const atEnd = this.atEnd(b);
+    this.box.querySelector(":scope > .empty")?.remove();
+    this.box.append(node);
     if (atEnd) b.scrollTop = b.scrollHeight;
   }
 }
 
-/** A tool's arguments as words: the values in order, " · " between. None: an empty string. */
-function argWords(args: unknown): string {
-  if (!args || typeof args !== "object") return "";
-  return Object.values(args as Record<string, unknown>)
-    .filter((v) => v !== null && v !== undefined && v !== "")
-    .map((v) => (typeof v === "string" ? v : JSON.stringify(v)))
-    .join(" · ");
+/** A tool's arguments, each with its name in words ("reason_kind" → "Reason kind"), in order.
+ * A list is joined with commas; a string in a list is quoted, as the caller's words are. Empty
+ * values are left out. */
+function argList(args: unknown): [string, string][] {
+  if (!args || typeof args !== "object") return [];
+  const words = (key: string) => {
+    const w = key.replace(/_/g, " ");
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  };
+  const value = (v: unknown): string =>
+    Array.isArray(v)
+      ? v.map((x) => (typeof x === "string" ? `“${x}”` : JSON.stringify(x))).join(", ")
+      : typeof v === "string"
+        ? v
+        : JSON.stringify(v);
+  return Object.entries(args as Record<string, unknown>)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0))
+    .map(([k, v]) => [words(k), value(v)]);
 }
 
 /** A span: under a second in ms to a tenth ("862.3 ms"); from a second, in seconds to the
@@ -1365,11 +1457,46 @@ function endNote(reason: string): HTMLElement {
   return p;
 }
 
-/** A call's name in Demo's picker: the label if it has one, else its time and outcome. */
-function callName(c: CallRow): string {
-  const when = c.started ? c.started.replace("T", " ").slice(5, 16) : c.id;
-  const what = [c.outcome.replace("_", " "), c.scenario].filter(Boolean).join(" · ");
-  return `${c.keep ? "★ " : ""}${c.label ?? `${when} · ${what}`}`;
+/** One recorded call in Demo's list (CHAT.md §16): a row of two buttons. The wide one chooses
+ * the call: its main line is the label, or the outcome when it has none, starred calls marked
+ * "★"; under it, in small text, when it started, its outcome (when the label took the main
+ * line), its scenario and its length. The round one at the right plays the call at once. */
+function callRow(c: CallRow): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "call-row";
+  row.dataset.id = c.id;
+  const pick = document.createElement("button");
+  pick.type = "button";
+  pick.className = "call-pick";
+  const playOne = document.createElement("button");
+  playOne.type = "button";
+  playOne.className = "call-play";
+  playOne.innerHTML = PLAY_ICON;
+  const name = document.createElement("span");
+  name.className = "call-name";
+  name.textContent = `${c.keep ? "★ " : ""}${c.label ?? outcomeWords(c.outcome)}`;
+  const meta = document.createElement("span");
+  meta.className = "call-meta";
+  meta.textContent = [callTime(c), c.label ? outcomeWords(c.outcome) : null, c.scenario, callClock(c.duration_ms)]
+    .filter(Boolean)
+    .join(" · ");
+  pick.append(name, meta);
+  const words = name.textContent;
+  playOne.setAttribute("aria-label", `Play ${words}`);
+  playOne.title = "Play this call";
+  row.append(pick, playOne);
+  return row;
+}
+
+/** When a call started, as the catalog stores it ("11-12 18:11"); its id when it has no start. */
+function callTime(c: CallRow): string {
+  return c.started ? c.started.replace("T", " ").slice(5, 16) : c.id;
+}
+
+/** A call's outcome as a title: "handed_off" → "Handed off". */
+function outcomeWords(outcome: string): string {
+  const words = outcome.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /** A rail panel's tab bar (CHAT.md §15): a horizontal nav. The accent pill slides to the chosen
@@ -1482,29 +1609,48 @@ function reviewShown(tabs: Tabs) {
 
 const CHEVRON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
 
-/** The sandbox patients for the rail: each one's name and birth date, and their visits in a
- * list that one press opens and the next closes. */
+/** Bullets in the rail's style (`.bullets`): each a fainter label, then its value. */
+function bulletList(className: string, items: [string, string][]): HTMLUListElement {
+  const ul = document.createElement("ul");
+  ul.className = `bullets ${className}`;
+  for (const [label, value] of items) {
+    const li = document.createElement("li");
+    const l = document.createElement("span");
+    l.className = "bullet-label";
+    l.textContent = `${label}: `;
+    const v = document.createElement("span");
+    v.textContent = value;
+    li.append(l, v);
+    ul.append(li);
+  }
+  return ul;
+}
+
+/** The sandbox patients for the rail (CHAT.md §8.2): each one's name as the main line; under
+ * it, bullets for the birth date and the phone number; then the visits as a dropdown that one
+ * press opens and the next closes. */
 function sandboxRows(s: Sandbox): HTMLElement[] {
   // A dev server older than this page sends no `more`: read it as none left out.
   const more = s.more ?? {};
   return s.patients.map((p, i) => {
     const row = document.createElement("div");
     row.className = "patient";
-    const head = document.createElement("div");
-    head.className = "patient-head";
-    const name = document.createElement("span");
+    const name = document.createElement("p");
     name.className = "patient-name";
     name.textContent = `${p.given} ${p.family}`;
-    const born = document.createElement("span");
-    born.className = "patient-born";
-    born.textContent = `Born ${longDay(p.birth_date)}`;
-    head.append(name, born);
-    row.append(head);
+    row.append(
+      name,
+      bulletList("patient-facts", [
+        ["Born", longDay(p.birth_date)],
+        ["Phone", phoneWords(p.phone)],
+      ]),
+    );
 
     const visits = s.visits.filter((v) => v.patient === p.id).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
     if (!visits.length) {
+      // The dropdown's place and shape, with nothing to open.
       const none = document.createElement("p");
-      none.className = "visits-none";
+      none.className = "visits-toggle visits-none";
       none.textContent = "No visits";
       row.append(none);
       return row;
@@ -1524,6 +1670,7 @@ function sandboxRows(s: Sandbox): HTMLElement[] {
     const inner = document.createElement("div");
     inner.className = "visits-inner";
     const ul = document.createElement("ul");
+    ul.className = "bullets";
     for (const v of visits) {
       const li = document.createElement("li");
       li.textContent = [visitTime(v.starts_at), `${v.minutes} min`, v.visit_type, v.reason, v.clinician, v.place ?? s.place]

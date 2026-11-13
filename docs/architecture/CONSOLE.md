@@ -136,6 +136,21 @@ web app cannot do.
   - `--pad-panel` is now two tokens, `--pad-panel-y` (16 px) and `--pad-panel-x` (20 px), and
     `--pad-panel` is made of them. Its value is the same. The Chat page uses the halves to put
     its title, canvas and bar on the same edges as every other page's title (CHAT.md §3).
+- **Scrollbars: our own, not the system's** (the owner, 2026-11-13, "so we can pull for
+  future pages"). A page opts in with one class, `own-scrollbars`, on its root
+  (`<section class="page own-scrollbars">`); every scroll box inside it then gets them. The
+  Chat page is the first; to give another page them, add the class there. The parts:
+  - **The rule:** `app.css` › `.own-scrollbars`. No track, no arrows, a rounded thumb that
+    darkens under the pointer.
+  - **The tokens:** skin `--scrollbar-size` (10 px, the gutter) and `--scrollbar-inset` (3 px
+    of clear space around the thumb, so the thumb is 4 px wide); color roles
+    `--scrollbar-thumb` (`--press`) and `--scrollbar-thumb-hover` (`--text-3`), made of other
+    roles, so each theme gets its own.
+  - **The browsers:** Chromium (Chrome, Edge) and Safari draw the `::-webkit-scrollbar` parts.
+    Firefox has none, so it gets the standard thin bar in the same colors
+    (`scrollbar-width`, `scrollbar-color`).
+  - **A strip that must never show a bar** (the Chat rail's tab bar) sets
+    `scrollbar-width: none` on itself; that wins over the class.
 - **Glass, as in DeetsMotion:** a panel's fill, edge, highlight, shadow and blur are on its
   `::before` layer, so its text is never blurred. Panels are never transformed. Liberation
   Serif, 400 and 700, with `font-synthesis: none`; 16 px body, 14 px floor.

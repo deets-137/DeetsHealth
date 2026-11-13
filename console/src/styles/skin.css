@@ -39,6 +39,8 @@
   --radius-control: 6px; /* a menu row, the app-name button */
   --edge: 1px; /* a panel's edge and a hairline */
   --focus-ring: 2px;
+  --scrollbar-size: 10px; /* our own scrollbar's gutter (app.css › .own-scrollbars) */
+  --scrollbar-inset: 3px; /* the clear space around its thumb, so the thumb is 4 px wide */
   --swatch: 14px; /* a theme swatch in the menu */
   --menu-min: 180px;
 
@@ -58,6 +60,7 @@
 
   /* ---------- chat ---------- */
   --control-height: 44px; /* every call control: large, and the same size in every state */
+  --speed-part: 56px; /* one of the three parts of Demo's speed bar (0.5×, 1×, 2×) */
   --split-half: 132px; /* one half of a split button: wide enough for its longest word ("Confirm?") */
   --send-size: 44px; /* the send button, square */
   --canvas-pad: 16px;
@@ -68,6 +71,7 @@
   --help-width: 320px; /* the open text card above the code button */
   --code-tracking: 0.08em; /* the six digits on the code button, a little apart */
   --chevron: 14px; /* the open-and-close arrow on a rail list (a patient's visits) */
+  --bullet-indent: 16px; /* a bulleted list's inset: room for the disc, hung outside the text */
   --rail-panel-min: 240px; /* each rail panel's least height; past it, its tab scrolls inside it */
   --verdict-height: 32px; /* a Review row's Pass · Fail · Unsure control, and each score dot's press area */
   --verdict-min: 180px; /* the verdict control's least width before the dots wrap under it */

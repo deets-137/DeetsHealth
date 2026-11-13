@@ -60,7 +60,7 @@
   border-radius: var(--radius-item);
   background: var(--glass-fill-strong);
   color: var(--title);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-regular); /* regular, as the split buttons (the owner, 2026-11-13) */
   letter-spacing: var(--toggle-tracking);
   perspective: var(--flip-depth);
   transition: background-color var(--dur-hover) var(--ease);
@@ -75,17 +75,25 @@
   cursor: default;
 }
 
-/* The EHR toggle (CHAT.md §13): Epic or Local, the EHR the next test call reads. It sits in a
-   row of its own at the canvas's top right, so the lines scroll under the row and never under
-   the button. Testing only: in Demo and PHI the row is gone. */
+/* The canvas's top row: at its right, the EHR toggle in Testing (CHAT.md §13: Epic or Local,
+   the EHR the next test call reads) and the speed bar in Demo (§16). A row of its own, so the
+   lines scroll under it and never under its controls. In PHI the row is gone ("what each mode
+   shows", below). */
 .chat-top {
   display: flex;
   justify-content: flex-end;
   padding: var(--canvas-pad) var(--canvas-pad) 0;
 }
 
-.chat:not([data-mode="test"]) .chat-top {
-  display: none;
+/* The speed bar: the rail's tab bar (.tabs) split in three equal parts, 0.5×, 1×, 2×, each
+   --speed-part wide; the pill slides to the chosen speed. */
+.speed {
+  overflow: visible;
+}
+
+.speed .tab {
+  width: var(--speed-part);
+  text-align: center;
 }
 
 .flip-word {
@@ -313,7 +321,8 @@
   padding: 0;
   display: grid;
   place-items: center;
-  font-weight: var(--weight-bold);
+  /* Regular, not bold (the owner, 2026-11-13: bold "looks visually messy"). */
+  font-weight: var(--weight-regular);
   transition: filter var(--dur-hover) var(--ease), opacity var(--dur-hover) var(--ease);
 }
 
@@ -432,21 +441,18 @@
   cursor: default;
 }
 
-.picker {
-  flex: 1;
-  min-width: 0;
-}
-
 /* ------------------------------------------------------------- what each mode shows */
 
-/* PHI watches: no controls, no bar. Test: Start | End, the text bar. Demo: Play | Stop, the
-   player bar. The code button shows in Test and Demo once a text has come (chat.ts). */
+/* PHI watches: no controls, no bar, no top row. Testing: the Epic button, Start | End, the
+   text bar. Demo: the speed bar, Play | Stop, no bar (the calls are the rail's first tab,
+   CHAT.md §16). The code button shows in Testing and Demo once a text has come (chat.ts). */
 .chat[data-mode="phi"] .chat-controls,
-.chat[data-mode="phi"] .chat-bar,
+.chat[data-mode="phi"] .chat-top,
+.chat:not([data-mode="test"]) .chat-bar,
 .chat:not([data-mode="test"]) .split-call,
-.chat:not([data-mode="test"]) .bar-test,
+.chat:not([data-mode="test"]) .ehr-toggle,
 .chat:not([data-mode="demo"]) .split-play,
-.chat:not([data-mode="demo"]) .bar-demo {
+.chat:not([data-mode="demo"]) .speed {
   display: none;
 }
 
@@ -708,16 +714,42 @@
   gap: var(--space-3);
 }
 
+/* The head (the owner, 2026-11-13): the title is the call's outcome, on the star's line and
+   centered on it; under it, the time the call started, with the save status at the right. */
 .review-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title star"
+    "time  status";
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-1) var(--space-3);
+}
+
+.review-outcome {
+  grid-area: title;
+  overflow-wrap: anywhere;
+}
+
+.review-star {
+  grid-area: star;
+}
+
+.review-call {
+  grid-area: time;
 }
 
 .review-status {
-  margin-left: auto;
+  grid-area: status;
+  justify-self: end;
   font-size: var(--text-small);
   color: var(--text-3);
+}
+
+/* A tab's content never squeezes a part to fit: the tab scrolls instead (the Note box was
+   a sliver, 2026-11-13). */
+.tab-body > * {
+  flex-shrink: 0;
 }
 
 /* The star: an outline that fills with the accent when the call is starred (`keep`). */
@@ -758,6 +790,7 @@
 .review-call {
   font-size: var(--text-small);
   color: var(--text-3);
+  font-variant-numeric: tabular-nums;
 }
 
 /* The label, the call's note and each dimension's note: the text box's look. */
@@ -1003,10 +1036,12 @@
 
 /* The bottom panel's first tab (CHAT.md §9). Its tab body scrolls, so a long call never
    pushes the panel taller. */
+/* One size for the whole tab (the owner, 2026-11-13: "make the font sizes consistent"). */
 .tools-log {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+  font-size: var(--text-small);
   user-select: text;
 }
 
@@ -1018,46 +1053,90 @@
   margin: 0;
 }
 
-.tool {
+/* A turn: the line that led to the tools, then each tool it triggered. */
+.tool-turn {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-3);
 }
 
-/* The main line: the tool's name in bold, its arguments muted after it. */
-.tool-main {
+/* The line, in the canvas's bubble colors, at the left edge. Each tool's arrow sits under the
+   bubble's text (.tool's inset is the bubble's side padding). */
+.tool-bubble {
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.tool-bubble--caller {
+  background: var(--bubble-caller);
+  color: var(--on-bubble-caller);
+}
+
+.tool-bubble--agent {
+  background: var(--bubble-agent);
+  color: var(--text);
+}
+
+/* A tool: "→" in its own column, the name beside it, the bullets under the name, so every
+   bullet's text lines up with the name's first letter. */
+.tool {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  padding-left: var(--bubble-pad-x);
+}
+
+/* The arrow: as tall as the name's first line, and centered in it, so it stays on that line
+   when a long name wraps. */
+.tool-arrow {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-3);
-  overflow-wrap: anywhere;
+  align-items: center;
+  height: calc(var(--text-small) * var(--line-height));
+  color: var(--text-3);
+}
+
+.tool-arrow svg {
+  width: var(--text-small);
+  height: var(--text-small);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .tool-name {
   font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
 }
 
-.tool-args {
-  color: var(--text-2);
-}
-
-/* The facts under it: one bullet each, small and muted, the label a step fainter. */
 .tool-facts {
+  grid-column: 2;
+}
+
+/* The rail's bullets (the Tools tab, the sandbox patients and their visits): real discs, hung
+   outside the text, so a wrapped line lines up with the first. The label a step fainter than
+   its value. */
+.bullets {
   margin: 0;
-  padding-left: var(--space-4);
+  padding-left: var(--bullet-indent);
+  list-style: disc outside;
   font-size: var(--text-small);
   color: var(--text-2);
+  overflow-wrap: anywhere;
 }
 
-.tool-label {
+.bullets li::marker {
   color: var(--text-3);
 }
 
-/* The caller's line stays on one line, cut with an ellipsis. */
-.tool-said {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.bullets li + li {
+  margin-top: var(--space-1);
+}
+
+.bullet-label {
+  color: var(--text-3);
 }
 
 /* ------------------------------------------------------------- the rail's panels */
@@ -1116,27 +1195,113 @@
 }
 
 .tab[aria-selected="true"],
-.tab[aria-selected="true"]:hover {
+.tab[aria-selected="true"]:hover,
+.tab[aria-checked="true"],
+.tab[aria-checked="true"]:hover {
   background: transparent;
   color: var(--on-accent);
 }
 
-/* The first tab of the top panel: Sandbox EPTs, or Caller in PHI. */
-.split-page[data-mode="phi"] .tab-word-sandbox,
+/* The first tab of the top panel: Sandbox EPTs in Testing, Recorded calls in Demo (§16),
+   Caller in PHI. */
+.split-page:not([data-mode="test"]) .tab-word-sandbox,
+.split-page:not([data-mode="test"]) .sandbox,
+.split-page:not([data-mode="demo"]) .tab-word-calls,
+.split-page:not([data-mode="demo"]) .calls,
 .split-page:not([data-mode="phi"]) .tab-word-caller,
-.split-page[data-mode="phi"] .sandbox,
 .split-page:not([data-mode="phi"]) .caller-empty {
   display: none;
 }
 
+/* Demo's recorded calls (CHAT.md §16): one row per call. The wide part chooses the call; the
+   round play button at the right plays it at once. The chosen row carries the accent edge and
+   the pressed wash (the Step tab's current step). */
+.calls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.call-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-right: var(--space-3);
+  border: var(--edge) solid var(--line);
+  border-radius: var(--radius-control);
+  transition: background-color var(--dur-hover) var(--ease), border-color var(--dur-hover) var(--ease);
+}
+
+.call-row:hover {
+  background: var(--hover);
+}
+
+.call-row.is-chosen {
+  border-color: var(--accent);
+  background: var(--press);
+}
+
+.call-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--pad-row);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+/* The row's play button (the owner, 2026-11-13): the theme's own color (black, navy, orange),
+   a square the send button's size with the page's one radius, and the glass edge, so Dark's
+   black button still shows on a dark row. */
+.call-play {
+  flex: none;
+  width: var(--send-size);
+  height: var(--send-size);
+  display: grid;
+  place-items: center;
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-item);
+  background: var(--theme-color);
+  color: var(--on-theme-color);
+  transition: border-color var(--dur-hover) var(--ease);
+}
+
+/* Under the pointer the edge brightens: a brightness filter does nothing to Dark's black. */
+.call-play:hover {
+  border-color: var(--text-3);
+}
+
+.call-play svg {
+  width: 50%;
+  height: 50%;
+  fill: currentColor;
+}
+
+.call-name {
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+
+.call-meta {
+  font-size: var(--text-small);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
 /* A tab's content. It fills the rest of the panel and scrolls inside it. When a tab is
-   chosen, its content fades in (the page swap's fade). */
+   chosen, its content fades in (the page swap's fade). Its sides are inset by the strip's
+   edge and padding, so the content's edges line up with the pill's (the owner, 2026-11-13). */
 .tab-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  padding-inline: calc(var(--edge) + var(--space-2));
 }
 
 .tab-body[hidden] {
@@ -1168,42 +1333,36 @@
   gap: var(--space-2);
 }
 
-.patient-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-3);
-}
-
+/* The main line: the patient's name. */
 .patient-name {
   font-weight: var(--weight-bold);
 }
 
-.patient-born,
-.visits-none {
-  font-size: var(--text-small);
-  color: var(--text-2);
-}
-
-/* The visits: one press opens the list, the next closes it (the help box's motion). */
+/* The visits: a dropdown row as wide as the tab, the count at the left and the arrow at the
+   right. One press opens the list under it, the next closes it (the help box's motion). With
+   no visits, the same row says so and opens nothing. */
 .visits-toggle {
-  align-self: flex-start;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  margin-left: calc(-1 * var(--space-3));
-  border: 0;
-  border-radius: var(--radius-control);
-  background: none;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--pad-row);
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-item);
+  background: var(--canvas);
   color: var(--text-2);
   font-size: var(--text-small);
+  text-align: left;
   transition: background-color var(--dur-hover) var(--ease);
 }
 
-.visits-toggle:hover {
+button.visits-toggle:hover {
   background: var(--press);
+}
+
+.visits-none {
+  color: var(--text-3);
 }
 
 .visits-toggle svg {
@@ -1238,12 +1397,15 @@
   overflow: hidden;
 }
 
+/* The open list: one bullet per visit, a little below the row. */
 .visits ul {
-  margin: 0;
-  padding: 0;
+  padding-top: var(--space-2);
+}
+
+/* "and 12 more": the end of the list, not a visit, so no disc. */
+.visits .visits-more {
   list-style: none;
-  font-size: var(--text-small);
-  color: var(--text-2);
+  color: var(--text-3);
 }
 
 @media (prefers-reduced-motion: reduce) {

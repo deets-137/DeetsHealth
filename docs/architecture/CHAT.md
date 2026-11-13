@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png]
+sources: [console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
 updated: 2026-11-13
 ---
 # DeetsHealth — The Chat page
@@ -12,7 +12,7 @@ updated: 2026-11-13
 > sandbox patients in the rail and the code button are §8 (the text path itself is
 > [TEXTS.md](TEXTS.md)); the Tools panel is §9; per-tool latency across calls (an API) is §10; the Step panel is §11; the Review panel is §12; Epic mode is §13; the
 > Chat nav (Testing, Demo, PHI), which replaced the mode toggle, is §14; the rail's two
-> panels with tabs are §15.
+> panels with tabs are §15; Demo's recorded calls and speed bar are §16.
 > **Every route, message and refusal of the dev server is [DEV-API.md](DEV-API.md).** This doc
 > says what the page does with them.
 
@@ -77,6 +77,9 @@ the roles in `themes.css`, the six call paints in `palette.css`.
 - **The inset:** the head, the canvas and the bar all sit `--pad-panel-x` in from the
   panel's sides and bottom (the `.chat` padding). So the canvas's left edge lines up with the
   title's left edge, and its right edge with the toggle's right edge (the owner, 2026-11-13).
+- **Our own scrollbars** (the owner, 2026-11-13): the page's root carries `own-scrollbars`,
+  so the canvas, the rail's tabs and the page itself scroll with the console's thin thumb, not
+  the system's bar ([CONSOLE.md](CONSOLE.md) › The look › Scrollbars).
 - **The mode swap always finishes:** if the swap's work throws (a dev server older than the
   page, 2026-11-13), the controls still come back and the word still turns in.
 - **One radius, a trial** (the owner, 2026-11-13): `--radius-item`, `--radius-small` and
@@ -90,6 +93,10 @@ the roles in `themes.css`, the six call paints in `palette.css`.
   browser (`deets.console.chat.mode`); Test is the default. Each mode keeps its own lines.
 - **The canvas:** `--canvas` per theme, 85 % opaque, `--radius`. The lines scroll above the
   control row.
+- **The buttons' words are regular, not bold** (the owner, 2026-11-13: bold "looks visually
+  messy"; `images/chat-button-weight-2026-11-13.png`, the bold Epic and Start | End call): every
+  split button (Start | End call, Play | Stop, 1× | 2×, the code button) and the Epic / Local
+  button.
 - **Start | End call:** each half is 132 px by 44 px (`--split-half`, `--control-height`).
   Both words of End call sit in one grid cell, so "Confirm?" never resizes it. Confirm? waits
   3 s (`--confirm-hold`), then turns back; Esc turns it back at once.
@@ -98,9 +105,10 @@ the roles in `themes.css`, the six call paints in `palette.css`.
   Confirm?, hangs up; when the agent ends the call, the canvas says why.
 - **The help box:** replaced on 2026-11-12 (§8). The sandbox patients moved to the rail; the
   code button now sits at the bottom left and opens the text with the same card and motion.
-- **Demo:** the picker lists every call in the catalog (§7), starred first, then newest: a
-  call's label, or its time, outcome and scenario. Play fetches its events and draws each one
-  at its own time, divided by the speed (1× or 2×); Stop ends it.
+- **Demo:** since 2026-11-13 the calls are the rail's first tab and the speed is a bar in the
+  canvas (§16); the picker and the bar under the canvas are gone. Play fetches the chosen
+  call's events and draws each one at its own time, divided by the speed (0.5×, 1× or 2×);
+  Stop ends it.
 - **PHI:** the live call, whoever is its caller (in dev, a test call in another tab or
   window); "No live call to watch" when there is none.
 - **The wave** (the owner, 2026-11-12: "animate the buttons appearing to be gentle and like a
@@ -291,18 +299,24 @@ Since 2026-11-13 the patients are the top panel's first tab, not a panel (§15).
 and content: **Sandbox EPTs** (`.sandbox`) in Testing and Demo, **Caller** (`.caller-empty`,
 empty for now) in PHI.
 
-Each patient (`sandboxRows`), in the fixture's order, all of them (the near-twins too):
-- **The head row** (`.patient-head`): the full name in bold; beside it "Born" and the date in
-  words (`longDay`, read in UTC so no time zone moves the day). The row wraps on a narrow rail.
-- **The visits:** with none, a muted "No visits" line (`.visits-none`). With some, a button
-  (`.visits-toggle`): the count ("1 visit", "2 visits") and a down arrow (`--chevron`). One
-  press opens the list, the next closes it. The button carries `aria-expanded` and
-  `aria-controls`. The list opens with the help box's motion: its row height and opacity over
-  `--dur-collapse`; the arrow turns over in the same time. With reduced motion, both are
-  instant.
-- **One visit per line** (`visitTime`): the weekday, the date, the time (the place's local
+Each patient (`sandboxRows`), in the fixture's order, all of them (the near-twins too). Since
+2026-11-13 (the owner: "main line and their contact info, DOB as bullets with the visits as a
+dropdown below"):
+- **The main line** (`.patient-name`): the full name in bold.
+- **Bullets under it** (`.bullets`, the Tools tab's discs, shared since 2026-11-13; built by
+  `bulletList`): **Born:** the date in words (`longDay`, read in UTC so no time zone moves the
+  day); **Phone:** the number on file (`phoneWords`). The phone is the sandbox's own, the
+  number the code by text goes to.
+- **The visits, a dropdown row** (`.visits-toggle`): as wide as the tab, in the canvas's
+  color with the glass edge, the count at the left ("1 visit", "245 visits") and a down arrow
+  (`--chevron`) at the right. One press opens the list under it, the next closes it. The
+  button carries `aria-expanded` and `aria-controls`. The list opens with the help box's
+  motion: its row height and opacity over `--dur-collapse`; the arrow turns over in the same
+  time. With reduced motion, both are instant. With no visits, the same row says "No visits",
+  fainter, and opens nothing.
+- **One bullet per visit** (`visitTime`): the weekday, the date, the time (the place's local
   time, shown as stored), the length, the clinician and the place, joined by " · ". Sorted
-  soonest first.
+  soonest first. "and N more" ends the list, with no disc.
 - The panel's text can be selected and copied.
 
 ### 8.3 The code button
@@ -378,15 +392,31 @@ scheduler keeps bookings in memory only). The text path's own gaps are TEXTS.md 
 the message that triggered it, time to trigger and confirm, and that's it for now."
 
 ### 9.1 What each entry shows
-One entry per tool call (`ToolLog` in `chat.ts`), oldest at the top:
-- **The main line:** the tool's name in bold, then its arguments, muted: the values in the
-  order the model gave them, " · " between (`argWords`). A tool with no arguments shows its
-  name alone.
-- **Under it, one bullet each** (small and muted, each with a fainter label):
-  - **Triggered by:** the caller's last line before the call, in quotes, on one line, cut with
-    an ellipsis when long (the full line stays in the canvas, and the text can be selected). A
-    tool the model calls right after another tool shows the same line. With no caller line
-    yet: "no caller line yet".
+> **Part:** rebuilt 2026-11-13 — the owner: "make the font sizes consistent here, and aligned
+> ... more readable to an analyst ... the text box presented akin to the main panel (with the
+> appropriate color for agent and caller) with the tool underneath with an -> ... proper
+> bullets". Before: a main line with the arguments' values, and "Triggered by" as a bullet.
+
+![The owner's screenshot, 2026-11-13: the Tools panel before, with mixed sizes and dots for
+bullets](images/chat-tools-before-2026-11-13.png)
+![The owner's screenshot, 2026-11-13: the "→" character sat low beside the tool's
+name](images/chat-tools-arrow-2026-11-13.png)
+
+One turn per line that led to tools (`ToolLog` in `chat.ts`), oldest at the top, all at
+`--text-small`:
+- **The line, as a bubble** in the canvas's colors: the caller's last line before the tool
+  (`--bubble-caller`); before the caller has spoken, the agent's last line (`--bubble-agent`);
+  with neither, "Before any line". The full line, wrapped. Tools the model calls from the same
+  line sit under one bubble.
+- **Each tool under it:** an arrow in a column of its own, then the tool's name in bold. The
+  arrow sits under the bubble's text. It is drawn (the send button's arrow, `--text-small`
+  square), not the "→" character, which sat low in the serif; it is centered on the name's
+  first line.
+- **Under the name, real bullets** (discs hung outside the text, `--bullet-indent`), each
+  text lined up with the name's first letter, each with a fainter label:
+  - **Each argument, by name** (`argList`: "reason_kind" → "Reason kind"), in the order the
+    model gave them. A list is joined with commas, its strings in quotes. Empty values are
+    left out.
   - **Time to trigger:** from the caller's line to the model's call to the tool: what the
     caller waits through first (the model's request included).
   - **Time to confirm:** the tool's own run, from its call to its result: the EHR, the text
@@ -421,17 +451,22 @@ page, and are kept to a tenth of a millisecond:
   entry scrolls into view only when the list is already at its end,
   so reading an older entry is never interrupted. The text can be selected.
 
-**Decided inside his choices** (for his review): the labels "Triggered by", "Time to trigger",
-"Time to confirm"; the arguments as values only, without their names; "waiting…" before the
-result and "· failed" on an error; oldest at the top; the follow-only-at-the-end scroll; the
-caller's line cut to one line; record schema 3 with the two exact times.
+**Decided inside his choices** (for his review): the labels "Time to trigger", "Time to
+confirm"; "waiting…" before the result and "· failed" on an error; oldest at the top; the
+follow-only-at-the-end scroll; record schema 3 with the two exact times. On 2026-11-13: every
+bubble at the left edge (not the canvas's left and right), so each arrow sits under its line;
+one bubble for the tools of one line; the arguments by name, as bullets (before: values only,
+on the name's line); the full line in the bubble (before: cut to one line); the whole tab at
+`--text-small`; the agent's line only before the caller has spoken.
 
 **Desk test:**
 1. `npm run dev`, Test, Start. Book a visit as Jordan Ellis.
-2. The Tools panel lists each tool as it runs: the name in bold with its arguments, then
-   "Triggered by" with your line, "Time to trigger" (hundreds of ms) and "Time to confirm"
-   (a few ms on the fakes; `confirm_details` takes longer, because it sends the text).
-3. A long line of yours is cut with "…" in the panel.
+2. The Tools tab shows your line as a bubble in the caller's color, and under it "→" and
+   each tool it triggered, in bold. Under each name, disc bullets: each argument by name
+   ("Name", "Birth date"), "Time to trigger" (hundreds of ms) and "Time to confirm" (a few ms
+   on the fakes; `confirm_details` takes longer, because it sends the text). Every bullet's
+   text starts under the name's first letter; all text is one size.
+3. A long line of yours wraps in full in its bubble. `hand_off`'s summary is its own bullet.
 4. A second window on PHI shows the same entries. Demo: play the call; the entries come in at
    their times. An older recorded call (before schema 3) still shows both times.
 5. Scroll up in the panel during a call: new entries do not pull you down.
@@ -613,11 +648,20 @@ only, never the database, so the catalog's move to Postgres does not touch it.
   watcher rates a call afterward, in Demo.
 
 ### 12.2 What it holds
-- **The head:** a quiet status (the tab names the panel) ("Saving…", "Saved", or "Not saved:" with the
+![The owner's screenshot, 2026-11-13: the Review tab's head before (the star alone, the
+squashed Note box) and the Pass pill flush on its track](images/chat-review-head-2026-11-13.png)
+![The owner's first screenshot, 2026-11-13: the Pass pill touched the track's
+edge](images/chat-verdict-pill-2026-11-13.png)
+
+- **The head** (the owner, 2026-11-13): the **title** is the call's outcome in words
+  ("Abandoned", "Handed off": `outcomeWords`), on the star's line and centered on it. Under it,
+  the **subtitle** is when the call started ("11-12 18:11": `callTime`, the picker's form), with
+  the save status at the right of that line. Then the Label and Note boxes. No part of the tab
+  shrinks to fit; the tab scrolls (the Note box was a sliver before).
+- **The save status:** a quiet status ("Saving…", "Saved", or "Not saved:" with the
   reason: the gate's reason names a field, never a value; DEV-API.md §4), and the **star**: an outline in a 44 px glass button that fills with the accent
   when the call is starred.
-- **The call's name** (as in Demo's picker), then **Label** and **Note** boxes in the text
-  box's look. Each saves when you leave it, and only when it changed.
+- **Label** and **Note** boxes in the text box's look. Each saves when you leave it, and only when it changed.
 - **One row per dimension,** in the rubric's order, from the API, so a new dimension appears
   with no console change:
   - its words (a draft: `DIMENSION_WORDS`) in bold, its one-line description in small text, and
@@ -659,7 +703,9 @@ rating revealed after yours.
 **Desk test:**
 1. `npm run dev`, Test, Start, make a short call, End call → Confirm?. The Review panel slides
    in at the bottom of the rail, and the rail scrolls to it.
-2. Press the star: it fills. Type a label, press Tab: "Saved".
+2. The head: the outcome ("Abandoned" or the like) on the star's line, the time under it. The
+   Note box is full height. Press the star: it fills. Type a label, press Tab: "Saved" at the
+   right of the time's line.
 3. On "Verification", press Pass: the green pill slides in; the dots light. Press Fail: the pill
    slides to Fail and turns red. Press dot 3: "3/5". Press dot 3 again: "2/5". The pill has a
    thin gap of track on every side, at Pass, Fail and Unsure alike; no divider line touches it.
@@ -691,9 +737,11 @@ next test call reads, and the page keeps the choice (`deets.console.chat.ehr` in
 `TypedCall` (`ehr_source`) and the record (`call_start` › `ehr`, schema 6). `OpenCall` carries
 it to `ehr` (EPIC.md §5.2). An Epic call uses the real date for "today".
 
-**The rail's Sandbox patients panel** shows the source of the mode: in Test, the button's; in
-Demo, the source of the call that plays (its `call_start` › `ehr`; a call before schema 6 is
-Local). `GET /agent/sandbox?ehr=epic` runs `ehr epic-sandbox`, about 15 reads of Epic's
+**The rail's Sandbox EPTs tab** shows the button's source, in Testing only (since 2026-11-13
+Demo's first tab is its recorded calls, §16). Demo still reads the source of the call that
+plays (its `call_start` › `ehr`; a call before schema 6 is Local), for the code card's name of
+the phone's owner. The rail reads any list it must show that is not read yet, so it never
+stays on "Loading" (2026-11-13: Testing on Epic, then Demo, stayed on "Loading"). `GET /agent/sandbox?ehr=epic` runs `ehr epic-sandbox`, about 15 reads of Epic's
 sandbox, kept 5 minutes on the dev server; each source is read once per page load. A visit row
 shows its own place (Epic's "EMC Family Medicine") where it has one; the count on the visits
 button includes the visits past the 10 listed, and the list ends "and N more". A failed read
@@ -727,6 +775,9 @@ offered for booking (the fake's slots on the next weekdays), because booking thr
 > demo and phi each being a one to one of the modes", and the Epic button "in the top right of
 > the newly positioned chat canvas" (his screenshot). It replaces the mode toggle of §1 and §3.
 
+![The owner's screenshot, 2026-11-13: the ask for a nav, and the arrow to the Epic button's
+new place at the canvas's top right](images/chat-nav-ask-2026-11-13.png)
+
 **The nav** (`.chat-nav` in `chat.ts`): the page's own nav, at the left of the stage, under the
 title. It is the Analytics nav: the same panel (`.subnav`), width (`--subnav-width`), items and
 pill (app.css › nav). Three items, in his order: **Testing**, **Demo**, **PHI**, one per mode.
@@ -754,7 +805,7 @@ is left.
 1. `npm run dev`, Chat. The head shows only "Chat". The nav at the left lists Testing, Demo,
    PHI; the pill is on the mode you last used.
 2. Press Demo: the pill slides to Demo; Start | End call and the text bar fade out; Play | Stop,
-   the picker and the speed come in as a wave. The Epic button is gone, and the canvas is
+   the speed bar (§16) come in as a wave. The Epic button is gone, and the canvas is
    taller by its row.
 3. Press PHI: "No live call to watch", no controls. Press Testing: the Epic button is back at
    the canvas's top right, with Start | End call and the text bar.
@@ -777,6 +828,13 @@ is left.
 - Each panel takes half the rail (`flex: 1 1 0`), never less than `--rail-panel-min` (240 px).
   The tab's content scrolls inside the panel, so the tab bars never move. Under 1100 px the
   panels sit side by side under the stage, as the rail's panels did.
+
+![The owner's screenshot, 2026-11-13: the tab content's left edge (red) sat outside the
+pill's; the patients before §8.2's rebuild](images/chat-rail-alignment-2026-11-13.png)
+
+**The tab content lines up with the tab bar** (the owner, 2026-11-13, the screenshot above):
+each tab body is inset by the strip's edge and padding (`.tab-body`'s `padding-inline`), so
+its left and right edges line up with the pill's.
 
 **The tab bar** (`Tabs` in `chat.ts`, `.tabs` in `chat.css`): a horizontal nav. A strip in the
 canvas's color, `--control-height` tall, holds the tabs; the big nav's accent pill
@@ -806,3 +864,62 @@ it); Timeline and Caller kept as "Empty for now"; `--tools-min` renamed `--rail-
    the Review tab goes, and the tab you had before comes back.
 6. Click a tab, then press Right and Left: the pill moves with the focus.
 7. Narrow the window under 1100 px: the two panels sit side by side under the canvas.
+8. In each tab, the content's left edge lines up with the pill's left edge.
+   (Demo's first tab is §16.)
+9. Sandbox EPTs: each patient is the name in bold, then two disc bullets, "Born: …" and
+   "Phone: …", then a full-width row "245 visits" with the arrow at its right. Press it: the
+   visits open under it as bullets, ending "and N more". A patient with no visits shows the
+   same row, fainter, saying "No visits".
+
+## 16. Demo: the recorded calls in the rail; the speed bar in the canvas
+> **Part:** built · 2026-11-13 — the owner: "In the Demo subpage, let's replace the Sandbox
+> EPTs tab entirely and move the list of logs available for replay there. Then let's add a
+> tabbar inside of the chat canvas itself to control speed 0.5x, 1x, and 2x. Bar can be split
+> in 3."
+
+![The owner's screenshot, 2026-11-13: Demo with the picker and 1× | 2× under the canvas, and
+the rail on "Loading"](images/chat-demo-ask-2026-11-13.png)
+
+**The recorded calls** (`#demo-calls`, `callRow` in `chat.ts`): in Demo, the top panel's
+first tab is **Recorded calls**, in place of Sandbox EPTs. Every call in the catalog (§7),
+starred first, then newest.
+- **A play button in each row** (the owner, 2026-11-13: "a play button nested in each row for
+  the analyst to start the replay directly"), at the row's right. In the theme's own color
+  (the owner: "black / navy / orange": the new role `--theme-color`, with `--on-theme-color`
+  for the triangle), a square the send button's size (`--send-size`, 44 px) with the page's
+  one radius (`--radius-item`) and the glass edge. Under the pointer the edge brightens. A press chooses that call and plays it at once. The row is two
+  buttons side by side (a button cannot hold a button): the wide one chooses, the round one
+  plays.
+- **Each call is a row:** the main line in bold is its label, or its outcome in
+  words when it has none ("Booked"), with "★" when starred. Under it, in small text: when it
+  started ("11-12 18:22"), its outcome (when the label took the main line), its scenario, and
+  its length on the call's clock ("3:12"), joined by " · ".
+- **A press chooses the call**; the chosen row has the accent edge and the pressed wash (the
+  Steps tab's current step). Play plays the chosen call. The newest (or starred) call is
+  chosen when the list loads; a reload of the list keeps the choice.
+- With no calls: "No recorded calls yet". With the dev server down: "The agent's dev server
+  is not running".
+
+**The speed bar** (`#demo-speed`): in the canvas's top row at the right, where the Epic button
+sits in Testing. The rail's tab bar (`.tabs`), split in three equal parts, **0.5×**, **1×**,
+**2×** (`SPEEDS`), each `--speed-part` (56 px) wide; the pill slides to the chosen speed. 1×
+at first. A change takes effect at the next Play. Up to now the speed was 1× | 2× in the bar
+under the canvas.
+
+**The canvas in Demo:** no bar under it (the picker and the speed pair are gone), so the
+canvas takes that room. The top row holds the speed bar; the control row holds Play | Stop.
+
+**Decided inside his choices** (for his review): the tab's word "Recorded calls"; a press
+chooses and Play plays (a press does not play at once); the row's main line and small line;
+the chosen row's look; the speed kept for the page's visit only, 1× at first; the speed bar
+the same height as the Epic button, in its place.
+
+**Desk test:**
+1. `npm run dev`, Chat, Demo. The top panel's first tab says Recorded calls and lists the
+   calls, starred first; the first is chosen. No bar sits under the canvas.
+2. The canvas's top right shows 0.5× | 1× | 2×, the pill on 1×. Press 0.5×: the pill slides.
+3. Choose a call, press Play: it plays at half speed. Stop. Press 2×, Play: twice as fast.
+   Press the play button on another row: that row is chosen and plays at once. The button is a
+   rounded square: black in Dark, navy in Moonlight, orange in Light.
+4. Testing: Sandbox EPTs is back, and the Epic button is in the top row. PHI: no top row.
+5. Testing on Epic, then Demo, then Testing: the patient list never stays on "Loading".

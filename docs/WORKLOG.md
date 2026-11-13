@@ -54,6 +54,23 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   on top (Sandbox EPTs, Steps, and Review after a call), the technical record below (Tools,
   Timeline). The owner chose Review as a third tab on top and equal halves (CHAT.md §15).
   `--tools-min` became `--rail-panel-min`; `--slide-rise` and `--dur-slide` are gone.
+- After the commit: the Review tab's head (the outcome as its title on the star's line, the
+  time under it, the save status at its right; the Note box no longer squashed). The Tools
+  tab rebuilt for an analyst: the line as a bubble in the canvas's colors, "→" and each tool
+  under it, real bullets with each argument by name and the two times, one text size
+  (CHAT.md §9.1). Our own scrollbars: `.own-scrollbars` in app.css, on the Chat page first
+  (CONSOLE.md › Scrollbars).
+- Then: the arrow drawn and centered; the buttons' words regular, not bold; the tab content
+  inset to line up with the pill; each sandbox patient as a name, "Born" and "Phone" bullets
+  and a visits dropdown row (CHAT.md §8.2); the bullets one shared style (`.bullets`). The
+  owner's seven screenshots from this sitting are in `docs/architecture/images/` as
+  `chat-*-2026-11-13.png`, each in its CHAT.md section.
+- Demo: the rail's first tab is the recorded calls (rows, a press chooses, Play plays); the
+  speed is a three-part bar, 0.5× | 1× | 2×, in the canvas's top row; the picker bar is gone
+  (CHAT.md §16). The rail now reads any patient list it must show, so it never stays on
+  "Loading". Each recorded-call row then got its own play button, which chooses the call and
+  plays it at once: a 44 px rounded square in the theme's own color, a new role
+  `--theme-color` (black, navy, orange).
 - Committed without the visit-type work in flight in the same tree: `chat.ts`'s sandbox-row
   line for the visit type stays uncommitted with it.
 

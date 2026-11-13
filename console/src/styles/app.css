@@ -446,6 +446,49 @@ p {
   }
 }
 
+/* Our own scrollbars (CONSOLE.md › Scrollbars). A page opts in with the class on its root;
+   every scroll box inside it gets them: no track, no arrows, a thin rounded thumb in the
+   theme's wash that darkens under the pointer. Chromium and Safari draw the ::-webkit-scrollbar
+   parts; Firefox, which has none, gets the standard thin bar in the same colors. */
+.own-scrollbars ::-webkit-scrollbar,
+.own-scrollbars::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+  background: transparent;
+}
+
+.own-scrollbars ::-webkit-scrollbar-track,
+.own-scrollbars ::-webkit-scrollbar-corner,
+.own-scrollbars::-webkit-scrollbar-track,
+.own-scrollbars::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.own-scrollbars ::-webkit-scrollbar-button,
+.own-scrollbars::-webkit-scrollbar-button {
+  display: none;
+}
+
+.own-scrollbars ::-webkit-scrollbar-thumb,
+.own-scrollbars::-webkit-scrollbar-thumb {
+  border: var(--scrollbar-inset) solid transparent;
+  border-radius: var(--scrollbar-size);
+  background: var(--scrollbar-thumb) padding-box;
+}
+
+.own-scrollbars ::-webkit-scrollbar-thumb:hover,
+.own-scrollbars::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover) padding-box;
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .own-scrollbars,
+  .own-scrollbars * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+}
+
 /* A page's title (subnav.ts). */
 .stage-head h1 {
   font-size: var(--text-page);
