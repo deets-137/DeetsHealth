@@ -1,4 +1,5 @@
-// Chat (CHAT.md): one call in a chat view, in three modes, beside the rail of four panels.
+// Chat (CHAT.md): one call in a chat view, in three modes that the page's own nav picks
+// (Testing, Demo, PHI), beside the rail of panels.
 // - PHI: watch a call. Read only: no controls, no text bar. The rail's second panel is Caller.
 // - Test: the user is the caller. Start | End, the text bar; the code button when a text comes.
 // - Demo: a recorded call plays back as if live. Play | Stop, the call picker and the speed;
@@ -28,10 +29,12 @@ import {
 import { TextSeat } from "../agent/transport";
 import { reducedMotion, tokenMs } from "../tokens";
 import { el, type Page } from "./page";
+import { placePill } from "./subnav";
 
 type Mode = "phi" | "test" | "demo";
-const MODES: Mode[] = ["phi", "test", "demo"];
-const MODE_WORD: Record<Mode, string> = { phi: "PHI", test: "Test", demo: "Demo" };
+// The Chat nav's order (the owner, 2026-11-13: "testing, demo and phi").
+const MODES: Mode[] = ["test", "demo", "phi"];
+const MODE_WORD: Record<Mode, string> = { phi: "PHI", test: "Testing", demo: "Demo" };
 const MODE_ABOUT: Record<Mode, string> = {
   phi: "Watch a call. Read only",
   test: "You are the caller",
@@ -84,13 +87,24 @@ export function chatPage(): Page {
             <section class="stage glass chat" aria-labelledby="chat-title" data-mode="test">
               <header class="chat-head">
                 <h1 id="chat-title">Chat</h1>
-                <div class="chat-toggles">
-                  <button class="mode-toggle ehr-toggle" id="chat-ehr" type="button"><span class="mode-word"></span></button>
-                  <button class="mode-toggle" id="chat-mode" type="button"><span class="mode-word"></span></button>
-                </div>
               </header>
 
+              <div class="chat-body">
+              <nav class="subnav chat-nav" aria-label="Chat mode">
+                <span class="nav-highlight" aria-hidden="true"></span>
+                <ul class="nav-list">
+                  ${MODES.map(
+                    (m) => `<li><button class="nav-item" type="button" data-mode="${m}" title="${MODE_ABOUT[m]}">` +
+                      `<span>${MODE_WORD[m]}</span></button></li>`,
+                  ).join("")}
+                </ul>
+              </nav>
+
+              <div class="chat-main">
               <div class="chat-canvas">
+                <div class="chat-top">
+                  <button class="flip-toggle ehr-toggle" data-wave id="chat-ehr" type="button"><span class="flip-word"></span></button>
+                </div>
                 <div class="chat-lines" data-for="phi" role="log" aria-live="polite" aria-label="The call">
                   <p class="empty">No live call to watch</p>
                 </div>
@@ -143,32 +157,32 @@ export function chatPage(): Page {
                   <button class="split-plain" type="button" data-speed="2" aria-pressed="false"><span>2×</span></button>
                 </div>
               </div>
+              </div>
+              </div>
             </section>
 
             <aside class="rail" aria-label="Chat details">
-              ${emptyPanel("Timeline")}
-              <section class="panel glass panel-sandbox" aria-labelledby="chat-sandbox">
-                <h2 id="chat-sandbox">Sandbox patients</h2>
-                <div class="sandbox" id="sandbox-list"><p class="empty">Loading</p></div>
-              </section>
-              ${emptyPanel("Caller")}
-              <section class="panel glass panel-step" aria-labelledby="chat-step">
-                <h2 id="chat-step">Step</h2>
-                ${MODES.map(
-                  (m) => `<div class="steps-log" data-for="${m}" aria-label="The call's steps">` +
-                    `<p class="empty">No call yet</p></div>`,
-                ).join("")}
-              </section>
-              <section class="panel glass panel-tools" aria-labelledby="chat-tools">
-                <h2 id="chat-tools">Tools</h2>
-                ${MODES.map(
-                  (m) => `<div class="tools-log" data-for="${m}" role="log" aria-label="Tool calls">` +
-                    `<p class="empty">No tool calls yet</p></div>`,
-                ).join("")}
-              </section>
-              <section class="panel glass panel-review" id="chat-review" aria-labelledby="chat-review-title" hidden>
+              <!-- The rail (CHAT.md §15): two panels, each with a tab bar. The top one is the
+                   call in plain words; the bottom one is the technical record. -->
+              <section class="panel glass rail-panel" id="rail-call" aria-label="The call">
+                <div class="tabs" role="tablist" aria-label="The call">
+                  <span class="nav-highlight tab-pill" aria-hidden="true"></span>
+                  <button class="tab" role="tab" type="button" data-tab="patients"><span class="tab-word-sandbox">Sandbox EPTs</span><span class="tab-word-caller">Caller</span></button>
+                  <button class="tab" role="tab" type="button" data-tab="steps">Steps</button>
+                  <button class="tab" role="tab" type="button" data-tab="review" hidden>Review</button>
+                </div>
+                <div class="tab-body" role="tabpanel" data-tab="patients">
+                  <div class="sandbox" id="sandbox-list"><p class="empty">Loading</p></div>
+                  <p class="empty caller-empty">Empty for now</p>
+                </div>
+                <div class="tab-body" role="tabpanel" data-tab="steps" hidden>
+                  ${MODES.map(
+                    (m) => `<div class="steps-log" data-for="${m}" aria-label="The call's steps">` +
+                      `<p class="empty">No call yet</p></div>`,
+                  ).join("")}
+                </div>
+                <div class="tab-body review" role="tabpanel" data-tab="review" id="chat-review" hidden>
                 <div class="review-head">
-                  <h2 id="chat-review-title">Review</h2>
                   <span class="review-status" id="review-status" role="status"></span>
                   <button class="review-star" id="review-star" type="button" aria-pressed="false"
                     aria-label="Star this call">${STAR_ICON}</button>
@@ -179,6 +193,24 @@ export function chatPage(): Page {
                 <textarea class="review-input" id="review-note" rows="2" maxlength="2000"
                   placeholder="Note" aria-label="A note on this call"></textarea>
                 <div class="review-rows" id="review-rows"></div>
+                </div>
+              </section>
+
+              <section class="panel glass rail-panel" id="rail-tech" aria-label="The technical record">
+                <div class="tabs" role="tablist" aria-label="The technical record">
+                  <span class="nav-highlight tab-pill" aria-hidden="true"></span>
+                  <button class="tab" role="tab" type="button" data-tab="tools">Tools</button>
+                  <button class="tab" role="tab" type="button" data-tab="timeline">Timeline</button>
+                </div>
+                <div class="tab-body" role="tabpanel" data-tab="tools">
+                  ${MODES.map(
+                    (m) => `<div class="tools-log" data-for="${m}" role="log" aria-label="Tool calls">` +
+                      `<p class="empty">No tool calls yet</p></div>`,
+                  ).join("")}
+                </div>
+                <div class="tab-body" role="tabpanel" data-tab="timeline" hidden>
+                  <p class="empty">Empty for now</p>
+                </div>
               </section>
             </aside>
           </div>
@@ -192,18 +224,29 @@ export function chatPage(): Page {
       const stepsBox = (m: Mode) => page.querySelector<HTMLElement>(`.steps-log[data-for="${m}"]`)!;
       // The rail's panels for a new call in mode `m`: each starts empty.
       const panels = (m: Mode) => ({ tools: new ToolLog(toolsBox(m)), steps: new StepLog(stepsBox(m)) });
+      // The rail's two panels and their tab bars (CHAT.md §15).
+      const callTabs = new Tabs($("rail-call"), "deets.console.chat.tab.call");
+      new Tabs($("rail-tech"), "deets.console.chat.tab.tech");
 
-      // ---- the mode toggle: PHI → Test → Demo → PHI, the word turning over
-      const toggle = $<HTMLButtonElement>("chat-mode");
-      const word = toggle.querySelector<HTMLElement>(".mode-word")!;
+      // ---- the Chat nav (CHAT.md §14): Testing, Demo, PHI, one item per mode. Its pill slides
+      // as the big nav's does (subnav.ts › placePill).
+      const nav = page.querySelector<HTMLElement>(".chat-nav")!;
+      const pill = nav.querySelector<HTMLElement>(".nav-highlight")!;
+      const navItems = [...nav.querySelectorAll<HTMLButtonElement>(".nav-item")];
       let mode = savedMode();
+      const markNav = (animate: boolean) => {
+        navItems.forEach((b) => {
+          if (b.dataset.mode === mode) b.setAttribute("aria-current", "page");
+          else b.removeAttribute("aria-current");
+        });
+        placePill(pill, navItems.find((b) => b.dataset.mode === mode), animate);
+      };
+      // Also places the pill the first time the page is shown, when the nav first has a size.
+      new ResizeObserver(() => markNav(false)).observe(nav);
       const showMode = () => {
         chat.dataset.mode = mode;
-        word.textContent = MODE_WORD[mode];
-        const next = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
-        toggle.setAttribute("aria-label", `Mode: ${MODE_WORD[mode]}. ${MODE_ABOUT[mode]}. Press for ${MODE_WORD[next]}`);
-        toggle.title = `${MODE_ABOUT[mode]}. Press for ${MODE_WORD[next]}`;
         splitPage.dataset.mode = mode;
+        callTabs.place(false); // its first tab's word: Sandbox EPTs, or Caller in PHI
         MODES.forEach((m) => {
           lines(m).hidden = m !== mode;
           toolsBox(m).hidden = m !== mode;
@@ -231,35 +274,47 @@ export function chatPage(): Page {
         waveTimer = window.setTimeout(() => chat.classList.remove("wave-in"), total);
       };
 
-      let flipping = 0;
-      toggle.addEventListener("click", () => {
-        mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
+      let swapping = 0;
+      const goMode = (next: Mode) => {
+        if (next === mode) return;
+        mode = next;
         try {
           localStorage.setItem(MODE_KEY, mode);
         } catch {
           /* the mode holds for this visit only */
         }
+        markNav(true); // the pill starts its slide at once
         if (reducedMotion()) return showMode();
-        // The old word turns away while the old controls fade out together; at the halfway
-        // point the mode swaps, the new word turns in, and the new controls come in as a wave.
-        const mine = ++flipping;
+        // The old controls fade out together; then the mode swaps and the new controls come in
+        // as a wave. The latest press wins when presses come quickly.
+        const mine = ++swapping;
         chat.classList.remove("wave-in");
         chat.classList.add("wave-out");
-        toggle.classList.add("flip-out");
         window.setTimeout(() => {
-          if (mine !== flipping) return;
-          toggle.classList.remove("flip-out");
-          toggle.classList.add("flip-in");
-          // The swap always finishes: if showMode throws, the controls still come back and the
-          // word still turns in (the owner, 2026-11-13: the buttons stayed hidden till a reload).
+          if (mine !== swapping) return;
+          // The swap always finishes: if showMode throws, the controls still come back (the
+          // owner, 2026-11-13: the buttons stayed hidden till a reload).
           try {
             showMode();
           } finally {
             chat.classList.remove("wave-out");
             waveIn();
-            requestAnimationFrame(() => requestAnimationFrame(() => toggle.classList.remove("flip-in")));
           }
-        }, Math.max(tokenMs("--dur-flip") / 2, tokenMs("--dur-wave-out")));
+        }, tokenMs("--dur-wave-out"));
+      };
+      nav.addEventListener("click", (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLButtonElement>(".nav-item");
+        if (b) goMode(b.dataset.mode as Mode);
+      });
+      // Up and Down move between modes, as in the big nav.
+      nav.addEventListener("keydown", (e) => {
+        if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+        const at = navItems.indexOf(document.activeElement as HTMLButtonElement);
+        if (at < 0) return;
+        e.preventDefault();
+        const next = navItems[(at + (e.key === "ArrowDown" ? 1 : -1) + navItems.length) % navItems.length];
+        next.focus();
+        goMode(next.dataset.mode as Mode);
       });
       shownHook = waveIn;
 
@@ -273,6 +328,7 @@ export function chatPage(): Page {
         $<HTMLInputElement>("review-label"),
         $<HTMLTextAreaElement>("review-note"),
         $("review-rows"),
+        reviewShown(callTabs),
       );
       const reviewFor: Record<Mode, string | null> = { phi: null, test: null, demo: null };
       function showReview(slide: boolean) {
@@ -322,10 +378,10 @@ export function chatPage(): Page {
         if (source === railEhr()) showSandbox();
       };
 
-      // ---- the EHR toggle (CHAT.md §13): Local → Epic → Local, the word turning over as the
-      // mode toggle's does. Test only; locked while a test call runs.
+      // ---- the EHR toggle (CHAT.md §13): Local → Epic → Local, its word turning over. At the
+      // canvas's top right, Testing only; locked while a test call runs.
       const ehrToggle = $<HTMLButtonElement>("chat-ehr");
-      const ehrWord = ehrToggle.querySelector<HTMLElement>(".mode-word")!;
+      const ehrWord = ehrToggle.querySelector<HTMLElement>(".flip-word")!;
       let epicServed = true; // until the dev server says otherwise
       const showEhr = () => {
         ehrWord.textContent = EHR_WORD[ehr];
@@ -663,6 +719,7 @@ export function chatPage(): Page {
       void loadSandbox();
       showEhr();
 
+      markNav(false);
       showMode();
       return page;
     },
@@ -743,6 +800,8 @@ class Review {
     private readonly label: HTMLInputElement,
     private readonly note: HTMLTextAreaElement,
     private readonly rows: HTMLElement,
+    /** Shows or hides the Review tab; `slide`: the call just ended, so the tab is chosen. */
+    private readonly shown: (open: boolean, slide: boolean) => void,
   ) {
     star.addEventListener("click", () => {
       if (!this.call) return;
@@ -769,26 +828,19 @@ class Review {
   close(): void {
     this.call = null;
     this.gen += 1;
-    this.panel.classList.remove("is-in");
-    this.panel.hidden = true;
+    this.shown(false, false);
   }
 
-  /** Show the review of `callId`. `slide`: the call just ended, so the panel slides in. */
+  /** Show the review of `callId`. `slide`: the call just ended, so the pill slides to the
+   * Review tab and the rail scrolls to it. */
   async open(callId: string, name: string, slide: boolean): Promise<void> {
     const mine = ++this.gen;
     this.call = callId;
     this.status.textContent = "";
     this.callLine.textContent = name;
     this.rows.replaceChildren(emptyNote("Loading the rubric"));
-    this.panel.hidden = false;
-    if (slide && !reducedMotion()) {
-      this.panel.classList.remove("is-in");
-      void this.panel.offsetWidth; // start from the hidden place
-      requestAnimationFrame(() => this.panel.classList.add("is-in"));
-      this.panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    } else {
-      this.panel.classList.add("is-in");
-    }
+    this.shown(true, slide);
+    if (slide) this.panel.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
 
     let found: CallRow | undefined;
     let dimensions: Record<string, string> = {};
@@ -1264,11 +1316,12 @@ class ToolLog {
   }
 
   private show(row: HTMLElement): void {
-    const b = this.box;
-    // Follow the newest only when the reader is already at the bottom.
+    // The list scrolls in its tab's body (CHAT.md §15). Follow the newest only when the reader
+    // is already at the bottom.
+    const b = this.box.closest<HTMLElement>(".tab-body") ?? this.box;
     const atEnd = b.scrollHeight - b.scrollTop - b.clientHeight < 8;
-    b.querySelector(".empty")?.remove();
-    b.append(row);
+    this.box.querySelector(".empty")?.remove();
+    this.box.append(row);
     if (atEnd) b.scrollTop = b.scrollHeight;
   }
 }
@@ -1319,13 +1372,112 @@ function callName(c: CallRow): string {
   return `${c.keep ? "★ " : ""}${c.label ?? `${when} · ${what}`}`;
 }
 
-/** A rail panel with nothing in it yet. */
-function emptyPanel(title: string): string {
-  const id = `chat-${title.toLowerCase()}`;
-  return (
-    `<section class="panel glass panel-${title.toLowerCase()}" aria-labelledby="${id}">` +
-    `<h2 id="${id}">${title}</h2><p class="empty">Empty for now</p></section>`
-  );
+/** A rail panel's tab bar (CHAT.md §15): a horizontal nav. The accent pill slides to the chosen
+ * tab, as the big nav's does; Left and Right move through the tabs; the panel remembers its
+ * last tab. A tab can be hidden (Review, until a call ends); when the chosen tab hides, the one
+ * chosen before it comes back. */
+class Tabs {
+  private readonly bar: HTMLElement;
+  private readonly pill: HTMLElement;
+  private readonly tabs: HTMLButtonElement[];
+  private readonly bodies: HTMLElement[];
+  private current = "";
+  private previous = "";
+
+  constructor(
+    root: HTMLElement,
+    private readonly key: string,
+  ) {
+    this.bar = root.querySelector<HTMLElement>(".tabs")!;
+    this.pill = this.bar.querySelector<HTMLElement>(".tab-pill")!;
+    this.tabs = [...this.bar.querySelectorAll<HTMLButtonElement>(".tab")];
+    this.bodies = [...root.querySelectorAll<HTMLElement>(".tab-body")];
+    this.tabs.forEach((t) => {
+      t.id = `${root.id}-tab-${t.dataset.tab}`;
+      const body = this.bodies.find((b) => b.dataset.tab === t.dataset.tab)!;
+      body.id ||= `${root.id}-${t.dataset.tab}`;
+      t.setAttribute("aria-controls", body.id);
+      body.setAttribute("aria-labelledby", t.id);
+    });
+    this.bar.addEventListener("click", (e) => {
+      const t = (e.target as HTMLElement).closest<HTMLButtonElement>(".tab");
+      if (t) this.pick(t.dataset.tab!, true);
+    });
+    this.bar.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      const shown = this.tabs.filter((t) => !t.hidden);
+      const at = shown.indexOf(document.activeElement as HTMLButtonElement);
+      if (at < 0) return;
+      e.preventDefault();
+      const next = shown[(at + (e.key === "ArrowRight" ? 1 : -1) + shown.length) % shown.length];
+      next.focus();
+      this.pick(next.dataset.tab!, true);
+    });
+    // Also places the pill the first time the page is shown, when the bar first has a size.
+    new ResizeObserver(() => this.place(false)).observe(this.bar);
+
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(key);
+    } catch {
+      /* storage blocked: the first tab */
+    }
+    const first = this.tabs.find((t) => t.dataset.tab === saved && !t.hidden) ?? this.tabs[0];
+    this.pick(first.dataset.tab!, false);
+  }
+
+  /** Choose tab `id`. `animate`: the pill slides and the body fades in. */
+  pick(id: string, animate: boolean): void {
+    if (id === this.current) return;
+    if (this.current) this.previous = this.current;
+    this.current = id;
+    this.tabs.forEach((t) => {
+      const on = t.dataset.tab === id;
+      t.setAttribute("aria-selected", String(on));
+      t.tabIndex = on ? 0 : -1; // one tab stop for the bar; the arrows move inside it
+    });
+    this.bodies.forEach((b) => {
+      const on = b.dataset.tab === id;
+      b.hidden = !on;
+      b.classList.remove("entering");
+      if (on && animate && !reducedMotion()) {
+        void b.offsetWidth; // restart the fade
+        b.classList.add("entering");
+      }
+    });
+    this.place(animate);
+    try {
+      localStorage.setItem(this.key, id);
+    } catch {
+      /* the tab holds for this visit only */
+    }
+  }
+
+  /** Show or hide tab `id`. A hidden tab that was chosen gives way to the one before it. */
+  show(id: string, shown: boolean): void {
+    const t = this.tabs.find((x) => x.dataset.tab === id)!;
+    t.hidden = !shown;
+    if (!shown && this.current === id) {
+      const back = this.tabs.find((x) => x.dataset.tab === this.previous && !x.hidden) ?? this.tabs[0];
+      this.pick(back.dataset.tab!, true);
+    } else {
+      this.place(false);
+    }
+  }
+
+  /** Moves the pill onto the chosen tab: after a pick, and when a tab's word changes. */
+  place(animate: boolean): void {
+    placePill(this.pill, this.tabs.find((t) => t.dataset.tab === this.current), animate);
+  }
+}
+
+/** The rail's top panel: the Review tab shows when a call ends (and is chosen then), and
+ * hides when the next call starts. */
+function reviewShown(tabs: Tabs) {
+  return (open: boolean, slide: boolean) => {
+    tabs.show("review", open);
+    if (open && slide) tabs.pick("review", true);
+  };
 }
 
 const CHEVRON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;

@@ -1,5 +1,6 @@
-/* The Chat page (CHAT.md): the stage's head with the mode toggle, the canvas with its lines
-   and its control row, and the bar under it. Colors from themes.css, sizes from skin.css.
+/* The Chat page (CHAT.md): the stage's head, the page's own nav (one item per mode), the
+   canvas with the EHR toggle's row, its lines and its control row, and the bar under it.
+   Colors from themes.css, sizes from skin.css.
    The page carries data-mode = phi | test | demo; each mode shows its own parts. */
 
 .chat {
@@ -15,17 +16,9 @@
 }
 
 /* The title sits where every other page's title does (the owner, 2026-11-13): --pad-panel-x
-   from the panel's edge, which the .chat padding gives. The toggle is taller than the title's
-   line and centered on it, so the head's top padding is short by half the difference. That
-   puts the title's top at --pad-panel-y. */
+   from the panel's edge, which the .chat padding gives, and --pad-panel-y from its top. */
 .chat-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding-top: calc(
-    var(--pad-panel-y) - (var(--control-height) - var(--text-page) * var(--line-height-tight)) / 2
-  );
+  padding-top: var(--pad-panel-y);
 }
 
 .chat-head h1 {
@@ -34,11 +27,32 @@
   line-height: var(--line-height-tight);
 }
 
-/* ------------------------------------------------------------ the mode toggle */
+/* ------------------------------------------------------------ the Chat nav */
+
+/* The page's own nav at the left (CHAT.md §14): Testing, Demo, PHI. It is the Analytics nav
+   (subnav.css › .subnav, app.css › nav), as wide and in the same panel. The canvas and the bar
+   sit beside it, in .chat-main. */
+.chat-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--subnav-width) minmax(0, 1fr);
+  gap: var(--gap);
+}
+
+.chat-main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+
+/* ------------------------------------------------------------ the EHR toggle */
 
 /* One button; its word turns over when pressed (chat.ts adds .flip-out, swaps the word,
    then .flip-in). At rest it has no transform, so its text is crisp. */
-.mode-toggle {
+.flip-toggle {
   min-width: var(--split-half);
   height: var(--control-height);
   padding: 0 var(--space-4);
@@ -52,44 +66,46 @@
   transition: background-color var(--dur-hover) var(--ease);
 }
 
-.mode-toggle:hover:not(:disabled) {
+.flip-toggle:hover:not(:disabled) {
   background: var(--press);
 }
 
-.mode-toggle:disabled {
+.flip-toggle:disabled {
   opacity: var(--disabled-opacity);
   cursor: default;
 }
 
-/* The EHR toggle (CHAT.md §13), left of the mode toggle: Epic or Local, the EHR the next test
-   call reads. Test only; it keeps its place in the other modes, so the mode toggle never moves. */
-.chat-toggles {
+/* The EHR toggle (CHAT.md §13): Epic or Local, the EHR the next test call reads. It sits in a
+   row of its own at the canvas's top right, so the lines scroll under the row and never under
+   the button. Testing only: in Demo and PHI the row is gone. */
+.chat-top {
   display: flex;
-  gap: var(--space-3);
+  justify-content: flex-end;
+  padding: var(--canvas-pad) var(--canvas-pad) 0;
 }
 
-.chat:not([data-mode="test"]) .ehr-toggle {
-  visibility: hidden;
+.chat:not([data-mode="test"]) .chat-top {
+  display: none;
 }
 
-.mode-word {
+.flip-word {
   display: inline-block;
   transition: transform calc(var(--dur-flip) / 2) var(--ease), opacity calc(var(--dur-flip) / 2) var(--ease);
 }
 
-.mode-toggle.flip-out .mode-word {
+.flip-toggle.flip-out .flip-word {
   transform: rotateX(90deg);
   opacity: 0;
 }
 
-.mode-toggle.flip-in .mode-word {
+.flip-toggle.flip-in .flip-word {
   transition: none;
   transform: rotateX(-90deg);
   opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .mode-word {
+  .flip-word {
     transition: none;
   }
 }
@@ -687,31 +703,9 @@
 
 /* ------------------------------------------------------------- the Review panel */
 
-/* The 5th panel (CHAT.md §12). It slides in from below when a call ends: it rises and fades
-   in with the nav pill's easing. With reduced motion it is simply there. */
-.rail > .panel-review {
-  flex: none;
-}
-
-.panel-review {
-  opacity: 0;
-  transform: translateY(var(--slide-rise));
-  transition: opacity var(--dur-slide) var(--ease-pill), transform var(--dur-slide) var(--ease-pill);
-}
-
-.panel-review.is-in {
-  opacity: 1;
-  transform: none;
-}
-
-.panel-review[hidden] {
-  display: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .panel-review {
-    transition: none;
-  }
+/* The top panel's third tab (CHAT.md §12, §15): it shows when a call ends. */
+.tab-body.review {
+  gap: var(--space-3);
 }
 
 .review-head {
@@ -854,13 +848,18 @@
 
 /* The verdict: the split button's shape, three equal parts, and one pill that slides to the
    choice (the nav pill's motion), in the call colors: Pass in --go, Fail in --stop, Unsure in
-   the accent. With no verdict yet the pill is not shown. */
+   the accent. With no verdict yet the pill is not shown.
+   The pill sits inside the track, a --verdict-inset gap on every side, with the track's radius
+   less that gap (a nested corner), so it never touches the track's edge. The track's padding
+   is the same gap, so the three columns and the pill's three stops line up exactly. */
 .verdict {
+  --verdict-inset: var(--space-1);
   position: relative;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   flex: 1 1 var(--verdict-min);
   height: var(--verdict-height);
+  padding: var(--verdict-inset);
   border: var(--edge) solid var(--glass-edge);
   border-radius: var(--radius-item);
   background: var(--glass-fill-strong);
@@ -869,11 +868,11 @@
 
 .verdict-pill {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: calc(100% / 3);
-  border-radius: var(--radius-item);
+  top: var(--verdict-inset);
+  bottom: var(--verdict-inset);
+  left: var(--verdict-inset);
+  width: calc((100% - 2 * var(--verdict-inset)) / 3);
+  border-radius: calc(var(--radius-item) - var(--edge) - var(--verdict-inset));
   opacity: 0;
   transform: translateX(calc(var(--choice, 0) * 100%));
   transition: transform var(--dur-pill) var(--ease-pill), background-color var(--dur-pill) var(--ease),
@@ -899,6 +898,7 @@
   position: relative;
   z-index: 1; /* above the sliding pill */
   border: 0;
+  border-radius: calc(var(--radius-item) - var(--edge) - var(--verdict-inset)); /* the hover wash, pill-shaped */
   padding: 0 var(--space-2);
   background: transparent;
   color: var(--text-2);
@@ -906,8 +906,25 @@
   transition: color var(--dur-pill) var(--ease), background-color var(--dur-hover) var(--ease);
 }
 
-.verdict > button + button {
-  border-left: var(--edge) solid var(--line);
+/* The divider: a short hairline between two parts, drawn as its own mark so the parts can be
+   rounded. It hides on both sides of the chosen part and of a hovered part, where the pill or
+   the wash already marks the edge. */
+.verdict > button + button::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  width: var(--edge);
+  background: var(--line);
+  transition: opacity var(--dur-pill) var(--ease);
+}
+
+.verdict > button[aria-checked="true"]::before,
+.verdict > button[aria-checked="true"] + button::before,
+.verdict > button:hover::before,
+.verdict > button:hover + button::before {
+  opacity: 0;
 }
 
 .verdict > button:hover:not([aria-checked="true"]) {
@@ -928,7 +945,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .verdict-pill,
-  .verdict > button {
+  .verdict > button,
+  .verdict > button::before {
     transition: none;
   }
 }
@@ -983,17 +1001,9 @@
 
 /* ------------------------------------------------------------- the Tools panel */
 
-/* The last panel: it fills what the rail has left and scrolls inside itself, so a long call
-   never pushes the other panels away (CHAT.md §9). */
-.rail > .panel-tools {
-  flex: 1 1 0;
-  min-height: var(--tools-min);
-}
-
+/* The bottom panel's first tab (CHAT.md §9). Its tab body scrolls, so a long call never
+   pushes the panel taller. */
 .tools-log {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -1052,10 +1062,97 @@
 
 /* ------------------------------------------------------------- the rail's panels */
 
-/* The second panel: the sandbox patients in Test and Demo, the caller in PHI. */
-.split-page[data-mode="phi"] .panel-sandbox,
-.split-page:not([data-mode="phi"]) .panel-caller {
+/* Two panels (CHAT.md §15): the call in plain words on top, the technical record under it.
+   Each takes half the rail and scrolls inside its tab body, so the tab bars never move. */
+.rail > .rail-panel {
+  flex: 1 1 0;
+  min-height: var(--rail-panel-min);
+}
+
+/* The tab bar: a horizontal nav. A strip in the canvas's color holds the tabs; the accent pill
+   (app.css › .nav-highlight, placed by subnav.ts › placePill) slides to the chosen one. Its
+   corners nest inside the strip's: the strip's radius less its edge and its padding. If the
+   tabs do not fit, the strip scrolls sideways. */
+.tabs {
+  --tab-radius: calc(var(--radius) - var(--edge) - var(--space-2));
+  position: relative; /* the pill is placed inside it */
+  flex: none;
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius);
+  background: var(--canvas);
+  box-shadow: inset 0 var(--edge) 0 var(--glass-highlight);
+}
+
+.tabs .tab-pill {
+  border-radius: var(--tab-radius);
+}
+
+.tab {
+  position: relative;
+  z-index: 1; /* above the sliding pill */
+  flex: none;
+  padding: var(--pad-row);
+  border: 0;
+  border-radius: var(--tab-radius);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--text-size);
+  white-space: nowrap;
+  transition: background-color var(--dur-hover) var(--ease), color var(--dur-text) var(--ease);
+}
+
+.tab[hidden] {
   display: none;
+}
+
+.tab:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.tab[aria-selected="true"],
+.tab[aria-selected="true"]:hover {
+  background: transparent;
+  color: var(--on-accent);
+}
+
+/* The first tab of the top panel: Sandbox EPTs, or Caller in PHI. */
+.split-page[data-mode="phi"] .tab-word-sandbox,
+.split-page:not([data-mode="phi"]) .tab-word-caller,
+.split-page[data-mode="phi"] .sandbox,
+.split-page:not([data-mode="phi"]) .caller-empty {
+  display: none;
+}
+
+/* A tab's content. It fills the rest of the panel and scrolls inside it. When a tab is
+   chosen, its content fades in (the page swap's fade). */
+.tab-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-body[hidden] {
+  display: none;
+}
+
+.tab-body.entering {
+  animation: page-in var(--dur-enter) var(--ease) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab,
+  .tab-body.entering {
+    transition: none;
+    animation: none;
+  }
 }
 
 .sandbox {

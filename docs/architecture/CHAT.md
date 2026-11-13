@@ -10,7 +10,9 @@ updated: 2026-11-13
 > narrated 2026-11-11 over his sketch. The shell it sits in is [CONSOLE.md](CONSOLE.md). The
 > connection is the hybrid (§5), built 2026-11-12 (§6); the catalog of calls is §7; the
 > sandbox patients in the rail and the code button are §8 (the text path itself is
-> [TEXTS.md](TEXTS.md)); the Tools panel is §9; per-tool latency across calls (an API) is §10; the Step panel is §11; the Review panel is §12.
+> [TEXTS.md](TEXTS.md)); the Tools panel is §9; per-tool latency across calls (an API) is §10; the Step panel is §11; the Review panel is §12; Epic mode is §13; the
+> Chat nav (Testing, Demo, PHI), which replaced the mode toggle, is §14; the rail's two
+> panels with tabs are §15.
 > **Every route, message and refusal of the dev server is [DEV-API.md](DEV-API.md).** This doc
 > says what the page does with them.
 
@@ -81,7 +83,8 @@ the roles in `themes.css`, the six call paints in `palette.css`.
   `--radius-bubble` all point at `--radius` (16 px), so panels, the canvas, controls, menus,
   the nav pill and bubbles match. Before: 11, 10 and 14 px. `--radius-control` (6 px, the
   short rows) stays.
-- **The toggle** sits right of the title, centered on the title's line, `--pad-panel-x` from
+- **The toggle** (replaced by the Chat nav on 2026-11-13, §14; this bullet is the old record)
+  sat right of the title, centered on the title's line, `--pad-panel-x` from
   the panel's right edge. A press turns the word over on its horizontal axis
   (`--dur-flip`, 240 ms: half out, half in); instant with reduced motion. The mode is kept per
   browser (`deets.console.chat.mode`); Test is the default. Each mode keeps its own lines.
@@ -283,10 +286,10 @@ back at its time. The sandbox list is TEXTS.md §8.
   keeps none: `shownTexts` returns nothing in PHI, so a code never draws there.
 
 ### 8.2 The rail's second panel
-The rail is Timeline, the second panel, Step, Tools. The page sets `data-mode` on
-`.split-page` as well as on `.chat` (`showMode`), and CSS picks the second panel:
-**Sandbox patients** (`.panel-sandbox`) in Test and Demo, **Caller** (`.panel-caller`, empty
-for now) in PHI.
+Since 2026-11-13 the patients are the top panel's first tab, not a panel (§15). The page sets
+`data-mode` on `.split-page` as well as on `.chat` (`showMode`), and CSS picks the tab's word
+and content: **Sandbox EPTs** (`.sandbox`) in Testing and Demo, **Caller** (`.caller-empty`,
+empty for now) in PHI.
 
 Each patient (`sandboxRows`), in the fixture's order, all of them (the near-twins too):
 - **The head row** (`.patient-head`): the full name in bold; beside it "Born" and the date in
@@ -414,8 +417,8 @@ page, and are kept to a tenth of a millisecond:
   PHI from the call being watched, Demo from the call playing. Each mode has its own list
   (`.tools-log[data-for]`), and a new call or a new Play clears it. PHI shows every field in
   dev (synthetic data), as §2 decided; roles gate it in production.
-- **The panel fills what the rail has left** and scrolls inside itself, never less than
-  `--tools-min` tall. A new entry scrolls into view only when the list is already at its end,
+- **The list is the bottom panel's first tab** (§15) and scrolls inside the tab's body. A new
+  entry scrolls into view only when the list is already at its end,
   so reading an older entry is never interrupted. The text can be selected.
 
 **Decided inside his choices** (for his review): the labels "Triggered by", "Time to trigger",
@@ -599,16 +602,18 @@ call's row and the rubric's dimensions from `GET /agent/catalog`. The panel uses
 only, never the database, so the catalog's move to Postgres does not touch it.
 
 ### 12.1 When it shows (`Review`, `showReview` in `chat.ts`)
-- **The 5th panel of the rail,** after Tools. It **slides in** when a test call ends (the dev
-  server adds the call to the catalog before it says "ended") and when a Demo playback runs to
-  its end: it rises `--slide-rise` and fades in over `--dur-slide` with the nav pill's easing
-  (`--ease-pill`), and the rail scrolls to it. With reduced motion it is simply there.
+- **The top panel's third tab** (since 2026-11-13, the owner's choice; §15). The **Review**
+  tab appears, and the pill slides to it, when a test call ends (the dev server adds the call
+  to the catalog before it says "ended") and when a Demo playback runs to its end. Its content
+  fades in, and the rail scrolls to the panel. With reduced motion it is simply there. When
+  the tab hides, the tab chosen before it comes back. (Before: a 5th panel that rose and faded
+  in.)
 - It stays until the next Start (Test) or Play (Demo). Each mode keeps its own call to review;
   switching modes shows that mode's. A Demo stopped early asks for no review. PHI has none: a
   watcher rates a call afterward, in Demo.
 
 ### 12.2 What it holds
-- **The head:** "Review", a quiet status ("Saving…", "Saved", or "Not saved:" with the
+- **The head:** a quiet status (the tab names the panel) ("Saving…", "Saved", or "Not saved:" with the
   reason: the gate's reason names a field, never a value; DEV-API.md §4), and the **star**: an outline in a 44 px glass button that fills with the accent
   when the call is starred.
 - **The call's name** (as in Demo's picker), then **Label** and **Note** boxes in the text
@@ -619,7 +624,11 @@ only, never the database, so the catalog's move to Postgres does not touch it.
     a **Note** button that opens a note box for that dimension;
   - **the verdict, the "slider":** Pass · Fail · Unsure in the split button's shape, with one
     pill that slides to the choice with the nav pill's motion (`--dur-pill`, `--ease-pill`), in
-    the call colors: Pass `--go`, Fail `--stop`, Unsure the accent;
+    the call colors: Pass `--go`, Fail `--stop`, Unsure the accent. The pill sits inside the
+    track with a `--space-1` gap on every side and a nested corner (the track's radius less
+    the edge and the gap), so it never touches the track's edge. The dividers are short
+    hairlines that hide beside the chosen part and beside a hovered part; the hover wash is
+    pill-shaped too (2026-11-13, from the owner's screenshot);
   - **the score:** five dots, lit up to the score in the accent, with "3/5" beside them ("—"
     when unscored). A press on a dot sets that score; a press on the highest lit dot takes one
     away, so 0 is reachable.
@@ -635,8 +644,9 @@ only, never the database, so the catalog's move to Postgres does not touch it.
   each dimension.
 
 ### 12.3 Tokens and files
-- New skin tokens: `--verdict-height`, `--verdict-min`, `--dot-size`, `--star-size`,
-  `--slide-rise`, `--dur-slide` (TOKENS.md). The colors are the existing roles.
+- New skin tokens: `--verdict-height`, `--verdict-min`, `--dot-size`, `--star-size`
+  (TOKENS.md). `--slide-rise` and `--dur-slide` went with the slide (§15). The colors are the
+  existing roles.
 - `console/src/pages/chat.ts` (`Review`, `dimensionRow`, the wiring), `console/src/styles/chat.css`
   (the Review panel).
 
@@ -651,7 +661,8 @@ rating revealed after yours.
    in at the bottom of the rail, and the rail scrolls to it.
 2. Press the star: it fills. Type a label, press Tab: "Saved".
 3. On "Verification", press Pass: the green pill slides in; the dots light. Press Fail: the pill
-   slides to Fail and turns red. Press dot 3: "3/5". Press dot 3 again: "2/5".
+   slides to Fail and turns red. Press dot 3: "3/5". Press dot 3 again: "2/5". The pill has a
+   thin gap of track on every side, at Pass, Fail and Unsure alike; no divider line touches it.
 4. Open Note on a row, type, press Tab: "Saved".
 5. Start a new call: the panel goes. Demo: play the call you rated to its end: the panel slides
    in with your choices kept.
@@ -660,16 +671,18 @@ rating revealed after yours.
 7. `agent/calls/annotations.jsonl` has one line per choice.
 
 ## 13. Epic mode: the Epic / Local button
-> **Part:** built · 2026-11-12 — the owner's forks 1A (start Epic now) and 2A (`ehr` runs one
-> source per call; the rail shows that source's patients), and his placement: "another button
+> **Part:** built · 2026-11-12 · desk test passed 2026-11-13 (the call as Camila Lopez,
+> `agent/calls/20261112-172937-test.jsonl`) — the owner's forks 1A (start Epic now) and 2A
+> (`ehr` runs one source per call; the rail shows that source's patients), and his placement: "another button
 > near Test that flips between Epic and Local" (his screenshot, the space left of the mode
 > toggle).
 
-**The button** (`#chat-ehr`, `.ehr-toggle`): the mode toggle's twin, left of it in the head
-(`.chat-toggles`). Its word, Local or Epic, turns over the same way when pressed. It names the
-EHR the next test call reads, and the page keeps the choice (`deets.console.chat.ehr` in
-`localStorage`).
-- Test only. In PHI and Demo it keeps its place but is hidden, so the mode toggle never moves.
+**The button** (`#chat-ehr`, `.flip-toggle.ehr-toggle`): since 2026-11-13 (§14) at the
+canvas's top right, in a row of its own (`.chat-top`), so the lines scroll under the row and
+never under the button. Its word, Local or Epic, turns over when pressed. It names the EHR the
+next test call reads, and the page keeps the choice (`deets.console.chat.ehr` in
+`localStorage`). It joins the controls' wave.
+- Testing only. In Demo and PHI the row is gone, and the lines take its room.
 - Locked from Start to the call's end: the EHR is fixed for a call.
 - Disabled, with its reason in the hint, when the dev server has no Epic files (`/agent/health`
   › `epic`); the page then falls back to Local.
@@ -686,8 +699,7 @@ shows its own place (Epic's "EMC Family Medicine") where it has one; the count o
 button includes the visits past the 10 listed, and the list ends "and N more". A failed read
 says "Epic's sandbox did not answer" in the panel.
 
-**Decided inside his choices** (for his review): the words Local and Epic; the button hidden
-(not removed) outside Test; locked during a call; Demo follows the played call's source with no
+**Decided inside his choices** (for his review): the words Local and Epic; locked during a call; Demo follows the played call's source with no
 button; 10 visits listed per patient and 60 days ahead; the 5-minute cache; the panel's loading
 line "Reading Epic's sandbox"; the `--disabled-opacity` token (0.45, the split buttons' value),
 now used by both.
@@ -697,8 +709,8 @@ offered for booking (the fake's slots on the next weekdays), because booking thr
 `$find`, `$book`) is step E-4 (EPIC.md §5.2). The code still goes to the fake Twilio.
 
 **Desk test:**
-1. `npm run dev`, Chat, Test. The button left of Test says Local; the rail lists Jordan Ellis
-   and the others.
+1. `npm run dev`, Chat, Testing. The button at the canvas's top right says Local; the rail
+   lists Jordan Ellis and the others.
 2. Press it: the word turns to Epic, and the rail says "Reading Epic's sandbox", then lists
    Camila Lopez (with "245 visits" or so; open it: 10 rows and "and N more"), Derrick Lin,
    Linda Ross, Olivia Roberts, Elijah Davis, Desiree Powell, Warren McGinnis.
@@ -709,3 +721,88 @@ offered for booking (the fake's slots on the next weekdays), because booking thr
    code comes, and after the code step the agent hands off.
 5. Demo: play the Camila call. The rail shows the Epic list; play an older call: Local.
 6. Press the button back to Local: a Local call behaves as before.
+
+## 14. The Chat nav: Testing, Demo, PHI
+> **Part:** built · 2026-11-13 — the owner's ask: "add a navbar to the chat page ... testing,
+> demo and phi each being a one to one of the modes", and the Epic button "in the top right of
+> the newly positioned chat canvas" (his screenshot). It replaces the mode toggle of §1 and §3.
+
+**The nav** (`.chat-nav` in `chat.ts`): the page's own nav, at the left of the stage, under the
+title. It is the Analytics nav: the same panel (`.subnav`), width (`--subnav-width`), items and
+pill (app.css › nav). Three items, in his order: **Testing**, **Demo**, **PHI**, one per mode.
+Each item's hint is the mode's one line ("You are the caller", and the others).
+- A press picks the mode. The pill slides to it at once (`--dur-pill`, `--ease-pill`); the old
+  controls fade out together (`--dur-wave-out`), then the new mode's controls come in as the
+  wave (§3). With reduced motion the swap is instant.
+- Up and Down move between the items, as in the big nav.
+- The mode is kept per browser, as before (`deets.console.chat.mode`). Testing is the default.
+
+**The layout:** the title alone in the head; under it the nav, and beside it the canvas with
+the bar under the canvas (`.chat-body`, `.chat-main`). The Epic / Local button is at the
+canvas's top right, in Testing only (§13). The rail is unchanged.
+
+**Decided inside his choices** (for his review): the word "Testing" (his word; the old toggle
+said "Test"); the nav's look copied from Analytics, with no new token; the nav runs the full
+height beside the canvas and the bar; the Epic button in its own row at the canvas's top, so a
+caller's bubble never sits under it, and the row gone outside Testing; the toggle's word flip
+dropped for the modes (the nav pill's slide replaces it), kept for the Epic button.
+
+**Not handled yet:** a very narrow window. The nav keeps its 168 px, and the canvas takes what
+is left.
+
+**Desk test:**
+1. `npm run dev`, Chat. The head shows only "Chat". The nav at the left lists Testing, Demo,
+   PHI; the pill is on the mode you last used.
+2. Press Demo: the pill slides to Demo; Start | End call and the text bar fade out; Play | Stop,
+   the picker and the speed come in as a wave. The Epic button is gone, and the canvas is
+   taller by its row.
+3. Press PHI: "No live call to watch", no controls. Press Testing: the Epic button is back at
+   the canvas's top right, with Start | End call and the text bar.
+4. Click into the nav, press Down and Up: the mode moves with the pill.
+5. In Testing, start a call and send a few lines: no bubble sits under the Epic button.
+6. Reload: the page opens on the last mode.
+
+## 15. The rail: two panels with tabs
+> **Part:** built · 2026-11-13 — the owner's ask: "a column of 2 panels with nontechnical info
+> on top, and technical info in the second panel", tabs "Sandbox EPTs" and "Steps" on top,
+> "Tools" and "Timeline" below, "the tab system akin to a horizontal navbar". His forks: the
+> Review panel becomes a third tab on top (1A); the two panels split the column equally (2A).
+
+**The panels** (`.rail-panel` in `chat.ts`):
+- **The call** (`#rail-call`, on top): **Sandbox EPTs** (in PHI the tab says **Caller**, empty
+  for now, as §8.2 had it), **Steps** (§11), and **Review** (§12), which shows only after a
+  call ends.
+- **The technical record** (`#rail-tech`, below): **Tools** (§9) and **Timeline** (empty for
+  now).
+- Each panel takes half the rail (`flex: 1 1 0`), never less than `--rail-panel-min` (240 px).
+  The tab's content scrolls inside the panel, so the tab bars never move. Under 1100 px the
+  panels sit side by side under the stage, as the rail's panels did.
+
+**The tab bar** (`Tabs` in `chat.ts`, `.tabs` in `chat.css`): a horizontal nav. A strip in the
+canvas's color, `--control-height` tall, holds the tabs; the big nav's accent pill
+(`.nav-highlight`, placed by `subnav.ts › placePill`) slides to the chosen tab with
+`--dur-pill` and `--ease-pill`. The pill's and the tabs' corners nest inside the strip's (its
+radius less its edge and its padding), the rule the verdict pill follows. The chosen tab's
+content fades in (the page swap's fade). ARIA tabs: `tablist`, `tab` with `aria-selected`,
+`tabpanel`; Left and Right move between the tabs. Each panel remembers its last tab
+(`deets.console.chat.tab.call`, `deets.console.chat.tab.tech`). If the tabs do not fit, the
+strip scrolls sideways.
+
+**Decided inside his choices** (for his review): the tabs replace the panels' titles; the
+tabs sized to their words and set at the left, at body text size; the strip in the canvas's
+color, like the Chat nav's panel; Review chosen when it appears, and the tab before it chosen
+again when it hides; the old slide-up of the Review panel dropped (the pill's slide replaces
+it); Timeline and Caller kept as "Empty for now"; `--tools-min` renamed `--rail-panel-min`.
+
+**Desk test:**
+1. `npm run dev`, Chat. The rail has two panels. The top one's tabs: Sandbox EPTs, Steps. The
+   bottom one's: Tools, Timeline. Each pill sits on the first tab.
+2. Press Steps, then Timeline: each pill slides, and the content fades in. Reload: each panel
+   opens on the tab you left.
+3. Press PHI in the Chat nav: the top's first tab says Caller, and the pill fits the word.
+4. Testing: make a short call while Tools is open. Its entries scroll inside the panel; the
+   top panel's tab bar does not move.
+5. End the call: a Review tab appears on top, and the pill slides to it. Start a new call:
+   the Review tab goes, and the tab you had before comes back.
+6. Click a tab, then press Right and Left: the pill moves with the focus.
+7. Narrow the window under 1100 px: the two panels sit side by side under the canvas.

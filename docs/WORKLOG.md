@@ -8,6 +8,21 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-13 (Windows, later) — Chat: its own nav; the verdict pill
+- Chat has its own nav, as Analytics does: Testing, Demo, PHI, one item per mode, in the
+  owner's order. It replaces the mode toggle. The Epic / Local button moved to the canvas's top
+  right, in a row of its own, Testing only (CHAT.md §13, §14). `placePill` is now shared from
+  `subnav.ts`.
+- The Review panel's Pass · Fail · Unsure pill sat flush on the track's edge. It now has a
+  2 px gap and a nested corner; the dividers are short and hide beside the choice (CHAT.md
+  §12.2).
+- The rail is now two panels with tab bars (a horizontal nav with the sliding pill): the call
+  on top (Sandbox EPTs, Steps, and Review after a call), the technical record below (Tools,
+  Timeline). The owner chose Review as a third tab on top and equal halves (CHAT.md §15).
+  `--tools-min` became `--rail-panel-min`; `--slide-rise` and `--dur-slide` are gone.
+- Committed without the visit-type work in flight in the same tree: `chat.ts`'s sandbox-row
+  line for the visit type stays uncommitted with it.
+
 ## 2026-11-13 (Windows) — Console pages with their own nav; Chat's edges and corners
 - New pages: Teams (Org Chart, People) and Config (Agent, System) under Analytics; Security
   (Auth, Roles) and Audit Logs (Config, Calls, Security) above Settings. Each view is empty.

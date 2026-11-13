@@ -536,9 +536,4 @@ p {
     grid-template-columns: repeat(auto-fill, minmax(min(var(--rail-min), 100%), 1fr));
     align-items: stretch;
   }
-
-  /* The Review panel, the 5th, takes a row of its own. */
-  .rail > .panel-review {
-    grid-column: 1 / -1;
-  }
 }

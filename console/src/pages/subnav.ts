@@ -29,6 +29,16 @@ export interface SubnavPageSpec {
   views: View[];
 }
 
+/** Moves a nav's pill onto its chosen item, in whole pixels. Also used by the Chat page's own
+ * nav (chat.ts). */
+export function placePill(highlight: HTMLElement, b: HTMLElement | undefined, animate: boolean): void {
+  if (!b || !b.offsetWidth) return; // the page is not on screen yet
+  highlight.classList.toggle("no-anim", !animate);
+  highlight.style.width = `${b.offsetWidth}px`;
+  highlight.style.height = `${b.offsetHeight}px`;
+  highlight.style.transform = `translate(${b.offsetLeft}px, ${b.offsetTop}px)`;
+}
+
 export function subnavPage(spec: SubnavPageSpec): Page {
   return {
     id: spec.id,
@@ -76,15 +86,8 @@ function initViews(page: HTMLElement, spec: SubnavPageSpec) {
   );
   const buttons = [...list.querySelectorAll<HTMLButtonElement>(".nav-item")];
 
-  /** Moves the pill onto the current item, in whole pixels. */
-  const place = (animate: boolean) => {
-    const b = buttons.find((x) => x.dataset.view === current?.id);
-    if (!b || !b.offsetWidth) return; // the page is not on screen yet
-    highlight.classList.toggle("no-anim", !animate);
-    highlight.style.width = `${b.offsetWidth}px`;
-    highlight.style.height = `${b.offsetHeight}px`;
-    highlight.style.transform = `translate(${b.offsetLeft}px, ${b.offsetTop}px)`;
-  };
+  const place = (animate: boolean) =>
+    placePill(highlight, buttons.find((x) => x.dataset.view === current?.id), animate);
   // Also places the pill the first time the page is shown, when the nav first has a size.
   new ResizeObserver(() => place(false)).observe(nav);
 
