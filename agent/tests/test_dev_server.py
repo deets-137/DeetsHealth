@@ -52,6 +52,21 @@ def test_a_call_waits_for_ehr(client):
     assert e.value.code == 1013
 
 
+def test_the_sandbox_list_takes_local_or_epic_only(client):
+    local = client.get("/agent/sandbox", headers=OK).json()
+    assert local["patients"] and local["more"] == {}
+    assert client.get("/agent/sandbox?ehr=local", headers=OK).json() == local
+    assert client.get("/agent/sandbox?ehr=cerner", headers=OK).status_code == 400
+
+
+def test_epic_mode_is_refused_without_the_epic_files(tmp_path: Path):
+    state = State(TOKEN, {ORIGIN}, 8790, calls=tmp_path)
+    state.epic = False  # as on a machine with no epic-client.json or key
+    c = TestClient(build_app(state))
+    assert c.get("/agent/sandbox?ehr=epic", headers=OK).status_code == 503
+    assert c.get("/agent/health", headers=OK).json()["epic"] is False
+
+
 def test_the_watch_stream_says_hello(client):
     with client.websocket_connect("/agent/watch", headers=OK) as ws:
         assert json.loads(ws.receive_text()) == {"type": "hello", "live": None}

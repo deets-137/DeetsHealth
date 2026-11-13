@@ -2,7 +2,7 @@
 status: built
 desk_test: none
 sources: [ehr/proto/deets/ehr/v1/ehr.proto, ehr/src/service.rs, ehr/src/edge.rs, ehr/src/transport.rs, ehr/build.rs, agent/deets_agent/ehr_client.py]
-updated: 2026-11-12
+updated: 2026-11-13
 ---
 # DeetsHealth — The `ehr` service and its wire
 
@@ -145,6 +145,10 @@ is ignored. So nothing past the edge sees a wire type.
 - **`OpenCall`'s reply** carries the call's verification limits in full (`identifies_left`,
   `resends_left`, `code_tries_left`, from the `MAX_*` constants), counts only, so a reader
   (the Chat page's Step panel, CHAT.md §11) never copies them (2026-11-12).
+- **`OpenCall`'s request** names the EHR the call reads (`ehr`: local, or Epic's sandbox in
+  dev; EPIC.md §5.2). It names a server, never a patient; the session keeps it for the call.
+  The Epic adapters are `ehr/src/epic_ehr.rs`, with the sixth pass, `EhrPass`, held to that
+  file (2026-11-12).
 - **The contract** has eight calls: `OpenCall`, `CloseCall`, `Identify`, `ResendCode`,
   `CheckCode`, `FindSlots`, `Book`, `NextVisit` (S5: the soonest visit, from fixed fake visits
   and this run's bookings). There is no separate `SendCode`: `Identify` sends the first

@@ -13,12 +13,15 @@
 //! - [`service`]: the gRPC service.
 //! - [`sandbox`]: the synthetic patients and visits the fakes serve.
 //! - [`texts`]: the code by text, through Twilio's Messages API (the fake Twilio in dev).
+//! - [`epic`]: the Epic sign-in, SMART Backend Services (EPIC.md §5, E-2).
 //! - [`store`]: the call store in Postgres, sealed by [`seal_key`] (DATABASE.md).
 //!
 //! Build state (BUILD-ORDER.md, Phase 1): the contract, the sessions, the fake scheduler ✓ ·
 //! verification (waits on the identification fork, §8) · the transport (waits on its fork, §6).
 
 mod edge;
+pub mod epic;
+pub mod epic_ehr;
 pub mod proto;
 pub mod sandbox;
 pub mod scheduler;

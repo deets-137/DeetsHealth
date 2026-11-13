@@ -51,6 +51,20 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   console type check, clippy, the docs check. Not run: the desk test with the model.
 - Another session edited the console in parallel (the chat header's padding, Analytics, the
   sub-nav); those changes are not this work's.
+- The owner asked for the docs to be current, and about Epic's sandbox rules and a demo in a
+  hospital's own Epic. Read fhir.epic.com: EPIC.md §3.1 (synthetic data only, a shared
+  sandbox wiped every Sunday about 8 PM Central, no load or security tests) and §4 (Ready for
+  Production freezes the app, the hospital's download, non-production before production, the
+  background user, a test environment that may hold real copies). New EPIC.md §6: every
+  request we send to Epic. CORE-CRATE.md §4 now lists the fifth and sixth passes.
+- **Correction:** `$find` is an STU3 operation (§2.1). The 405 came from the R4 address; on the
+  STU3 address it answers 400 to a bare request, so the sandbox serves it. EPIC.md §5.2,
+  CHAT.md §13, HANDOFF and two code comments corrected.
+- FUTURE-SETTINGS.md §8 (new, the owner's ask): which numbers on file may receive the code, with
+  the code pieces and a sketch of the setting. Writing it showed two gaps; the owner said fix
+  them: an ended mobile number (`period.end`) no longer gets the code, and the patient's
+  `rank` picks among several (`epic_ehr.rs` › `code_number`, `ended`; two tests). 58 `ehr`
+  tests pass, clippy clean.
 
 ## 2026-11-12 (Windows, night) — The Casey Morgan call review, friction at verification
 - Reviewed the owner's test call as Casey Morgan (a twin record: no code goes out). The

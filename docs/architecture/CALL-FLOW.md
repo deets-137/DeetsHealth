@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/screen.py, agent/deets_agent/config.py, agent/prompts/AGENT-PROMPT.md, ehr/src/service.rs, ehr/src/session.rs, ehr/src/texts.rs]
-updated: 2026-11-12
+updated: 2026-11-13
 ---
 # The default call flow — where each piece lives
 
@@ -69,7 +69,8 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | A change or cancel goes to staff, with a flag; the caller hears which visit stays booked | `_change_visit_fn` | `line.change_booked`, `line.change_visit` | — |
 | The holding line when a reply is cut off by the token cap (with a review flag, FLAGS.md §8) | `_CutOffGuard` (`agent/deets_agent/llm.py`), `on_cut_off` (`call.py`) | `line.one_moment` | FUTURE-SETTINGS.md › What the agent may say |
 | The clinic's name | `CLINIC` (`flow.py`) | fills `{clinic}` | the hospital's settings |
-| Today's date | `CallFlow.today`; `FAKE_TODAY` for a typed call | fills `{today}` | — |
+| Today's date | `CallFlow.today`; `FAKE_TODAY` for a typed call, the real date for an Epic call (`TypedCall` › `ehr_source`) | fills `{today}` | — |
+| The EHR read | `CallFlow.ehr_source` → `OpenCall` › `ehr`; `Session.source` in `ehr` | — | — |
 
 ## 4. Limits and timers
 | What | Where in code |

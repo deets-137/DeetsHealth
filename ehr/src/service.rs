@@ -9,13 +9,44 @@ use tonic::{Request, Response, Status};
 
 use crate::{
     edge,
+    epic_ehr::EpicEhr,
     proto::v1::{self as pb, ehr_server::Ehr},
-    scheduler::{BookResult, Scheduler, SchedulerDown},
-    session::{Pending, Refusal, Sessions, Stage, Token},
+    scheduler::{BookResult, Scheduler, SchedulerDown, Slot, SlotId, SlotWish},
+    session::{Pending, PatientKey, Refusal, Sessions, Source, Stage, Token},
     store::Store,
-    verify::{one_match, Codes, Down, Patients},
+    verify::{one_match, Candidate, Codes, Down, Patients},
 };
 use zeroize::Zeroizing;
+
+/// The scheduler a call uses, by the source it opened with. Owned, so a booking's own task can
+/// hold it (`book`).
+enum Sched<S> {
+    Local(Arc<S>),
+    Epic(Arc<EpicEhr>),
+}
+
+impl<S: Scheduler> Sched<S> {
+    async fn find(&self, patient: &PatientKey, wish: &SlotWish) -> Result<Vec<Slot>, SchedulerDown> {
+        match self {
+            Sched::Local(s) => s.find(patient, wish).await,
+            Sched::Epic(e) => e.scheduler.find(patient, wish).await,
+        }
+    }
+
+    async fn book(&self, patient: &PatientKey, slot: &SlotId) -> Result<BookResult, SchedulerDown> {
+        match self {
+            Sched::Local(s) => s.book(patient, slot).await,
+            Sched::Epic(e) => e.scheduler.book(patient, slot).await,
+        }
+    }
+
+    async fn next_visit(&self, patient: &PatientKey) -> Result<Option<Slot>, SchedulerDown> {
+        match self {
+            Sched::Local(s) => s.next_visit(patient).await,
+            Sched::Epic(e) => e.scheduler.next_visit(patient).await,
+        }
+    }
+}
 
 /// How many times a caller may give a name and date of birth on one call.
 pub const MAX_IDENTIFIES: u32 = 3;
@@ -33,17 +64,44 @@ pub struct EhrService<S, P, C> {
     codes: C,
     /// The call store (DATABASE.md), when ehr has one: `FileCall` files each ended call.
     store: Option<Arc<Store>>,
+    /// Epic's sandbox (epic_ehr.rs), when ehr serves it: a call that opens with
+    /// `EHR_SOURCE_EPIC_SANDBOX` finds the caller and their visits there (dev only).
+    epic: Option<Arc<EpicEhr>>,
 }
 
 impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
     pub fn new(scheduler: S, patients: P, codes: C) -> Self {
-        Self { sessions: Sessions::default(), scheduler: Arc::new(scheduler), patients, codes, store: None }
+        Self {
+            sessions: Sessions::default(),
+            scheduler: Arc::new(scheduler),
+            patients,
+            codes,
+            store: None,
+            epic: None,
+        }
     }
 
     /// Files each ended call into `store` (FileCall).
     pub fn with_store(mut self, store: Arc<Store>) -> Self {
         self.store = Some(store);
         self
+    }
+
+    /// Serves Epic's sandbox as a second source (OpenCall's `ehr`).
+    pub fn with_epic(mut self, epic: Arc<EpicEhr>) -> Self {
+        self.epic = Some(epic);
+        self
+    }
+
+    fn epic(&self) -> Result<&Arc<EpicEhr>, Status> {
+        self.epic.as_ref().ok_or_else(|| Status::failed_precondition("ehr does not serve Epic's sandbox"))
+    }
+
+    fn sched(&self, source: Source) -> Result<Sched<S>, Status> {
+        Ok(match source {
+            Source::Local => Sched::Local(Arc::clone(&self.scheduler)),
+            Source::EpicSandbox => Sched::Epic(Arc::clone(self.epic()?)),
+        })
     }
 }
 
@@ -72,9 +130,13 @@ fn down(_: Down) -> Status {
 impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
     async fn open_call(
         &self,
-        _: Request<pb::OpenCallRequest>,
+        req: Request<pb::OpenCallRequest>,
     ) -> Result<Response<pb::OpenCallReply>, Status> {
-        let handle = self.sessions.open().await.map_err(refused)?;
+        let source = edge::source(req.get_ref())?;
+        if source == Source::EpicSandbox {
+            self.epic()?;
+        }
+        let handle = self.sessions.open(source).await.map_err(refused)?;
         Ok(Response::new(pb::OpenCallReply {
             handle: handle.to_hex(),
             identifies_left: MAX_IDENTIFIES,
@@ -111,13 +173,19 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
 
         // A new claim replaces the old one and its code.
         session.stage = Stage::Unverified(None);
-        let found = self.patients.candidates(&claimed).await.map_err(down)?;
-        if let Some(c) = one_match(&claimed, found) {
+        let found = match session.source {
+            Source::Local => self.patients.candidates(&claimed).await,
+            Source::EpicSandbox => self.epic()?.patients.candidates(&claimed).await,
+        }
+        .map_err(down)?;
+        // One match with a number that takes a text: a code goes out. With no such number on
+        // file, nothing is sent, the same as no match.
+        if let Some(Candidate { patient, phone: Some(phone), .. }) = one_match(&claimed, found) {
             let code = self.codes.issue();
-            self.codes.send(&c.phone, &code).await.map_err(down)?;
+            self.codes.send(&phone, &code).await.map_err(down)?;
             session.stage = Stage::Unverified(Some(Pending {
-                patient: c.patient,
-                phone: c.phone,
+                patient,
+                phone,
                 code,
                 issued: std::time::Instant::now(),
             }));
@@ -190,7 +258,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let session = self.sessions.get(&handle).await.map_err(refused)?;
         let mut session = session.lock().await;
         let patient = session.patient().map_err(refused)?;
-        let found = self.scheduler.find(&patient, &wish).await.map_err(scheduler_down)?;
+        let found = self.sched(session.source)?.find(&patient, &wish).await.map_err(scheduler_down)?;
 
         // New tokens each time: a token from an older FindSlots no longer books.
         session.offered.clear();
@@ -209,7 +277,8 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
     ) -> Result<Response<pb::BookReply>, Status> {
         let (handle, slot_token, key) = edge::book(req.get_ref())?;
         let session = self.sessions.get(&handle).await.map_err(refused)?;
-        let scheduler = Arc::clone(&self.scheduler);
+        let source = session.lock().await.source;
+        let scheduler = self.sched(source)?;
 
         // A booking runs to its end in its own task, even when the caller interrupts or the
         // deadline passes and this request is dropped. The answer is kept under the key, so a
@@ -253,8 +322,11 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
     ) -> Result<Response<pb::NextVisitReply>, Status> {
         let handle = edge::handle(&req.get_ref().handle)?;
         let session = self.sessions.get(&handle).await.map_err(refused)?;
-        let patient = session.lock().await.patient().map_err(refused)?;
-        let visit = self.scheduler.next_visit(&patient).await.map_err(scheduler_down)?;
+        let (patient, source) = {
+            let session = session.lock().await;
+            (session.patient().map_err(refused)?, session.source)
+        };
+        let visit = self.sched(source)?.next_visit(&patient).await.map_err(scheduler_down)?;
         Ok(Response::new(pb::NextVisitReply { visit: visit.as_ref().map(edge::visit) }))
     }
 
@@ -307,7 +379,7 @@ mod tests {
     }
 
     async fn open(s: &Svc) -> String {
-        s.open_call(Request::new(pb::OpenCallRequest {})).await.unwrap().into_inner().handle
+        s.open_call(Request::new(pb::OpenCallRequest::default())).await.unwrap().into_inner().handle
     }
 
     async fn identify(s: &Svc, h: &str, given: &str, family: &str, dob: &str) -> pb::IdentifyReply {
@@ -571,6 +643,68 @@ mod tests {
         identify(&s, &h, "Priya", "Raman", "1971-11-30").await;
         check(&s, &h, FAKE_CODE).await;
         assert!(next(&s, &h).await.unwrap().is_none());
+    }
+
+    /// Epic's sandbox is a second source only when ehr was given it (main.rs `open_epic`).
+    #[tokio::test]
+    async fn an_epic_call_is_refused_when_ehr_does_not_serve_epic() {
+        let s = svc();
+        let epic = pb::OpenCallRequest { ehr: pb::EhrSource::EpicSandbox.into() };
+        assert_eq!(s.open_call(Request::new(epic)).await.unwrap_err().code(), Code::FailedPrecondition);
+        let local = pb::OpenCallRequest { ehr: pb::EhrSource::Local.into() };
+        assert!(s.open_call(Request::new(local)).await.is_ok());
+        let unknown = pb::OpenCallRequest { ehr: 99 };
+        assert_eq!(s.open_call(Request::new(unknown)).await.unwrap_err().code(), Code::InvalidArgument);
+    }
+
+    /// A chart with no mobile number: the patient matches, but no code goes out, so the code
+    /// check fails as after no match (Epic's sandbox has three such patients, EPIC.md §5.2).
+    #[tokio::test]
+    async fn a_match_with_no_number_for_a_text_sends_no_code() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        struct NoPhone;
+        impl Patients for NoPhone {
+            async fn candidates(&self, c: &crate::verify::Claimed) -> Result<Vec<Candidate>, Down> {
+                Ok(vec![Candidate {
+                    patient: PatientKey(deetshealth_core::Shielded::new("p1".into())),
+                    given: c.given.clone(),
+                    family: c.family.clone(),
+                    birth_date: c.birth_date.clone(),
+                    phone: None,
+                }])
+            }
+        }
+        struct Counted(AtomicUsize);
+        impl Codes for Counted {
+            fn issue(&self) -> deetshealth_core::Shielded<String> {
+                deetshealth_core::Shielded::new(FAKE_CODE.into())
+            }
+            async fn send(&self, _: &deetshealth_core::Shielded<String>, _: &deetshealth_core::Shielded<String>) -> Result<(), Down> {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            }
+        }
+        let s = EhrService::new(FakeScheduler::default(), NoPhone, Counted(AtomicUsize::new(0)));
+        let h = s
+            .open_call(Request::new(pb::OpenCallRequest::default()))
+            .await
+            .unwrap()
+            .into_inner()
+            .handle;
+        let req = |h: &str| pb::IdentifyRequest {
+            handle: h.into(),
+            given_name: "Elijah".into(),
+            family_name: "Davis".into(),
+            birth_date: "1993-08-18".into(),
+        };
+        s.identify(Request::new(req(&h))).await.unwrap();
+        assert_eq!(s.codes.0.load(Ordering::SeqCst), 0, "no code sent");
+        let reply = s
+            .check_code(Request::new(pb::CheckCodeRequest { handle: h.clone(), code: FAKE_CODE.into() }))
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(reply.outcome, pb::CheckOutcome::Fail as i32);
     }
 
     #[test]

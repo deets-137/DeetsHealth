@@ -75,7 +75,8 @@ Later: he reads the transcript of his own test call, and the audit trail shows t
 ### 3.2 The chart and the store
 No screens. Epic behind the `ehr` service, and the database.
 - **Done:** the Epic registration and the key set (EPIC.md §2).
-- **Later:** the Epic sign-in (Backend Services, SMART v2). It replaces `core/src/auth.rs`.
+- **Done 2026-11-12:** the Epic sign-in (Backend Services, SMART v2; EPIC.md §5.1). It
+  replaces `core/src/auth.rs`, which moves with the pass redesign.
 - **Later:** the chart reads through record and replay: visits, medicines and their schedule,
   refill state, lab results with their guards (released results only, never sensitive ones).
   EPIC.md §2.1 lists each API.

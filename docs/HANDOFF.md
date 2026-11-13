@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-12
+updated: 2026-11-13
 ---
 # DeetsHealth — Handoff
 
@@ -105,6 +105,14 @@ and the console starts; each next step follows from what the console needs (the 
 
 Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-ORDER.md §3.4).
 
+- **In flight: Epic's sandbox patients on the Chat page** (branch `epic-time`; forks 1A and
+  2A, 2026-11-12). Done: the Backend Services sign-in (E-2, EPIC.md §5.1). **Built, desk test
+  open (CHAT.md §13):** Epic mode. The Epic / Local button left of Test; `OpenCall` names the
+  EHR; `ehr` finds the caller and their next visit in Epic's sandbox (EPIC.md §5.2); the rail
+  lists Epic's 7 test patients and their visits. Booking stays on the stand-in slots until
+  E-4: the sandbox serves STU3 `$find`, but the parameters it needs are open. Open: the
+  medicine, refill and lab reads (R2–R4), and recording Epic's replies for the tests. Epic's
+  sandbox rules and the steps for a hospital: EPIC.md §3.1, §4.
 - **In flight: the Chat page** (branch `chat-what-we-doin`, CHAT.md). The UI passed its first
   desk test (2026-11-12). **The connection is built, desk test open** (CHAT.md §6): `npm run
   dev` starts both; Test calls the agent through client-js and our own text transport (not
@@ -196,7 +204,8 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   and a draft of `ops/PROTOCOLS.md`. Open: LESSONS.md's patient-app lessons.
 - **Epic backend registration** (EPIC.md §2, step E-1): done 2026-11-11.
 - **Step 5, Backend Services against the Epic sandbox,** is now the Epic sign-in on the chart
-  track (BUILD-ORDER.md §3.2).
+  track (BUILD-ORDER.md §3.2). **Built 2026-11-12** (EPIC.md §5.1): `ehr epic-check` signs in
+  and reads `metadata` and one `Patient`.
 - **Held back from the archive**, each moving with the work that replaces it (CONVERSION.md
   §5.1): `core/src/store/`, `payload.rs` (the pass redesign); `auth.rs`, `sync.rs`, `dev.rs`,
   `build.rs`, `epic-client.example.json` (Backend Services). The front end moved on

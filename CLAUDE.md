@@ -117,7 +117,9 @@ the branch `archive/patient-app`.
 
 **`docs/integrations/`** — outside sources
 - `EPIC.md` — the backend app registration sheet (Backend Services, a JWKS URL, the APIs to
-  pick), what the sandbox can prove, what a hospital must do, the plan E-1 to E-4.
+  pick), what the sandbox can prove and Epic's rules for it, what a hospital must do (a demo
+  in its own system too), the plan E-1 to E-4 with the as-built sign-in and Epic mode, and
+  every request we send to Epic (§6).
 - One doc per vendor, each with what we use, the BAA, configuration, cost, what users learned,
   and what to find out: `TWILIO.md` (the phone line, Media Streams, `clear` and `mark`),
   `CARTESIA.md` (Ink and Sonic, ZDR, the pronunciation dictionary; ElevenLabs as the fallback),

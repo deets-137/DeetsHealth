@@ -78,23 +78,64 @@ const FAKE_SLOTS: &[(&str, &str, &str, u32, &str)] = &[
 ];
 
 /// The in-memory scheduler for tests and the text harness (VOICE-AGENT.md §9).
-#[derive(Default)]
 pub struct FakeScheduler {
+    /// Each fake slot's day (YYYY-MM-DD), by its place in `FAKE_SLOTS`.
+    days: Vec<String>,
+    place: String,
     taken: Mutex<HashSet<String>>,
     /// Bookings made on this run, by patient.
     booked: Mutex<Vec<(PatientKey, Slot)>>,
 }
 
+impl Default for FakeScheduler {
+    /// The fixed days, at the sandbox's place.
+    fn default() -> Self {
+        Self::with_days(FAKE_SLOTS.iter().map(|s| s.1.to_string()).collect(), sandbox().place.clone())
+    }
+}
+
 impl FakeScheduler {
+    fn with_days(days: Vec<String>, place: String) -> Self {
+        Self { days, place, taken: Mutex::default(), booked: Mutex::default() }
+    }
+
+    /// The same slots, moved to real days: the fake's first day becomes the first weekday after
+    /// `today`, and each later fake day the next weekday after that. For Epic mode
+    /// (epic_ehr.rs), where the call's "today" is the real date, until
+    /// booking through STU3 `$find` and `$book` is built (E-4, EPIC.md §5.2).
+    pub fn from_weekdays_after(today: jiff::civil::Date, place: String) -> Self {
+        use jiff::civil::Weekday;
+        let mut fake_days: Vec<&str> = FAKE_SLOTS.iter().map(|s| s.1).collect();
+        fake_days.dedup();
+        let mut real = Vec::with_capacity(fake_days.len());
+        let mut day = today;
+        while real.len() < fake_days.len() {
+            day = day.tomorrow().expect("a date before 9999");
+            if !matches!(day.weekday(), Weekday::Saturday | Weekday::Sunday) {
+                real.push(day.to_string());
+            }
+        }
+        let days = FAKE_SLOTS
+            .iter()
+            .map(|s| real[fake_days.iter().position(|d| *d == s.1).unwrap()].clone())
+            .collect();
+        Self::with_days(days, place)
+    }
+
     fn slot(&self, i: usize) -> Slot {
-        let (id, day, time, minutes, clinician) = FAKE_SLOTS[i];
+        let (id, _, time, minutes, clinician) = FAKE_SLOTS[i];
         Slot {
             id: SlotId(id.to_string()),
-            starts_at: Shielded::new(format!("{day}T{time}")),
+            starts_at: Shielded::new(format!("{}T{time}", self.days[i])),
             minutes,
             clinician: Shielded::new(clinician.to_string()),
-            place: Shielded::new(sandbox().place.clone()),
+            place: Shielded::new(self.place.clone()),
         }
+    }
+
+    /// The visits booked on this run for `patient`.
+    pub fn booked_for(&self, patient: &PatientKey) -> Vec<Slot> {
+        self.booked.lock().unwrap().iter().filter(|(k, _)| k == patient).map(|(_, s)| s.clone()).collect()
     }
 }
 
@@ -107,7 +148,7 @@ impl Scheduler for FakeScheduler {
             .filter(|&i| {
                 wish.earliest_day
                     .as_ref()
-                    .is_none_or(|from| Shielded::new(FAKE_SLOTS[i].1.to_string()) >= *from)
+                    .is_none_or(|from| Shielded::new(self.days[i].clone()) >= *from)
             })
             .take(MAX_OFFERED)
             .map(|i| self.slot(i))

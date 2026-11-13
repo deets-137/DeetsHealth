@@ -59,7 +59,20 @@ message FileCallReply {
   bool filed = 1;
 }
 
-message OpenCallRequest {}
+// Which EHR a call reads. It names a server, never a patient. A deploy serves its hospital's
+// EHR only and refuses any other; dev serves both (CHAT.md §13).
+enum EhrSource {
+  // ehr's default: its own fakes today.
+  EHR_SOURCE_UNSPECIFIED = 0;
+  // ehr's fakes (ehr/fixtures/sandbox.json).
+  EHR_SOURCE_LOCAL = 1;
+  // Epic's public sandbox (EPIC.md §5.2). FAILED_PRECONDITION when ehr does not serve it.
+  EHR_SOURCE_EPIC_SANDBOX = 2;
+}
+
+message OpenCallRequest {
+  EhrSource ehr = 1;
+}
 
 message OpenCallReply {
   string handle = 1 [(secret) = true];

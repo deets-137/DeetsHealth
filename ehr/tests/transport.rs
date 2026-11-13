@@ -58,7 +58,7 @@ async fn connect(r: &Running, identity: Option<&str>) -> Result<EhrClient<Channe
 
 async fn can_open_a_call(r: &Running, identity: Option<&str>) -> bool {
     let Ok(mut client) = connect(r, identity).await else { return false };
-    client.open_call(OpenCallRequest {}).await.is_ok()
+    client.open_call(OpenCallRequest::default()).await.is_ok()
 }
 
 #[tokio::test]

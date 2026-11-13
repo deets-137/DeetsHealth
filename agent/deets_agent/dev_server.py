@@ -18,7 +18,10 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
 - `WS   /agent/call` — the caller's seat (Test): RTVI as JSON (rtvi_json.py). One call at a time.
 - `WS   /agent/watch` — the watch stream: the live call's events as the record writes them, the
   same lines Demo plays back.
-- `GET  /agent/sandbox` — the sandbox patients and their visits (ehr/fixtures/sandbox.json).
+- `GET  /agent/sandbox?ehr=local|epic` — the sandbox patients and their visits: `local` from
+  ehr/fixtures/sandbox.json; `epic` from Epic's public sandbox through `ehr epic-sandbox`, kept
+  for 5 minutes (CHAT.md §13). `more`: per patient, the visits past the ones listed.
+- `WS   /agent/call?ehr=local|epic` — see below; `ehr` picks the EHR the test call reads.
 - `POST /2010-04-01/Accounts/{sid}/Messages.json` — the fake Twilio (fake_twilio.py), for ehr
   only: its own Basic auth instead of the token. A text it takes joins the live call's record.
 
@@ -36,6 +39,7 @@ import hmac
 import json
 import os
 import sys
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -66,6 +70,46 @@ TOKEN_HEADER = "x-deets-token"
 
 
 SANDBOX = config.REPO / "ehr" / "fixtures" / "sandbox.json"
+# Epic's sandbox (EPIC.md §5.2): the client ID and the non-production key, both git-ignored.
+EPIC_CLIENT = config.REPO / "epic-client.json"
+EPIC_KEY = config.CERTS / "epic-nonprod-es384.key"
+# The Epic list is read again after this long: Epic's sandbox moves its visits each day, and
+# every flip of the page's Epic / Local button must not cost Epic about 15 reads.
+EPIC_LIST_TTL_S = 5 * 60
+EPIC_LIST_LIMIT_S = 60
+
+
+def epic_env() -> dict[str, str]:
+    """ehr's settings to serve Epic's sandbox, when both dev files are here; else none."""
+    if not (EPIC_CLIENT.exists() and EPIC_KEY.exists()):
+        return {}
+    return {
+        "DEETS_EPIC_SANDBOX": "1",
+        "DEETS_EPIC_CLIENT_FILE": str(EPIC_CLIENT),
+        "DEETS_EPIC_KEY_FILE": str(EPIC_KEY),
+    }
+
+
+async def epic_list() -> dict[str, Any]:
+    """The Chat page's Epic list: `ehr epic-sandbox` (epic_ehr.rs), Epic's public test patients
+    and their visits ahead, in the shape of sandbox.json. Raises RuntimeError with ehr's own
+    fixed message when it fails."""
+    proc = await asyncio.create_subprocess_exec(
+        str(config.EHR_BINARY),
+        "epic-sandbox",
+        cwd=str(config.REPO),
+        env={**os.environ, **epic_env()},
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        out, err = await asyncio.wait_for(proc.communicate(), timeout=EPIC_LIST_LIMIT_S)
+    except TimeoutError:
+        proc.kill()
+        raise RuntimeError("Epic did not answer in time") from None
+    if proc.returncode != 0:
+        raise RuntimeError(err.decode().strip().removeprefix("ehr: ") or "ehr epic-sandbox failed")
+    return json.loads(out)
 
 
 class State:
@@ -81,6 +125,11 @@ class State:
         self.mode = Mode.LIVE
         self.live: CallRecord | None = None
         self.watchers: set[asyncio.Queue] = set()
+        # Epic mode (CHAT.md §13): whether ehr was given Epic's sandbox, and the last Epic list
+        # with the time it was read.
+        self.epic = bool(epic_env())
+        self.epic_list: tuple[float, dict[str, Any]] | None = None
+        self.epic_lock = asyncio.Lock()
 
     def allowed(self, headers) -> bool:
         """The launch token, compared in constant time, and the console's own origin."""
@@ -102,7 +151,8 @@ def build_app(state: State) -> FastAPI:
     async def lifespan(app: FastAPI):
         # ehr sends its texts to the fake Twilio below, with this launch's fake account.
         # With the call store, so each test call is filed as it ends (DATABASE.md §4a).
-        async with running_ehr(env=state.twilio.ehr_env(), store=True) as target:
+        # With Epic's sandbox as a second source when its dev files are here (CHAT.md §13).
+        async with running_ehr(env={**state.twilio.ehr_env(), **epic_env()}, store=True) as target:
             state.ehr = await EhrClient.connect(target, config.CERTS)
             try:
                 yield
@@ -137,13 +187,27 @@ def build_app(state: State) -> FastAPI:
 
     @app.get("/agent/health")
     async def health():
-        return {"key": state.has_key, "live": state.live.call_id if state.live else None}
+        return {"key": state.has_key, "live": state.live.call_id if state.live else None, "epic": state.epic}
 
     @app.get("/agent/sandbox")
-    async def sandbox():
-        """The sandbox patients and their visits, the same file ehr's fakes read."""
-        data = json.loads(SANDBOX.read_text(encoding="utf-8"))
-        return {"place": data["place"], "patients": data["patients"], "visits": data["visits"]}
+    async def sandbox(ehr: str = "local"):
+        """The sandbox patients and their visits. `local`: the same file ehr's fakes read.
+        `epic`: Epic's public test patients, read live through ehr and kept for 5 minutes."""
+        if ehr == "local":
+            data = json.loads(SANDBOX.read_text(encoding="utf-8"))
+            return {"place": data["place"], "patients": data["patients"], "visits": data["visits"], "more": {}}
+        if ehr != "epic":
+            raise HTTPException(400, "ehr: local or epic")
+        if not state.epic:
+            raise HTTPException(503, "no Epic files: epic-client.json and the non-production key")
+        async with state.epic_lock:
+            cached = state.epic_list
+            if cached is None or time.monotonic() - cached[0] > EPIC_LIST_TTL_S:
+                try:
+                    state.epic_list = (time.monotonic(), await epic_list())
+                except RuntimeError as e:
+                    raise HTTPException(502, str(e)) from None
+            return state.epic_list[1]
 
     @app.get("/agent/catalog")
     async def catalog():
@@ -230,8 +294,18 @@ def build_app(state: State) -> FastAPI:
             await ws.accept()
             await ws.close(code=1013, reason="a test call needs an Anthropic key in .env")
             return
+        # The EHR this call reads: the page's Epic / Local button (CHAT.md §13).
+        ehr_source = ws.query_params.get("ehr", "local")
+        if ehr_source not in ("local", "epic"):
+            await ws.accept()
+            await ws.close(code=1008, reason="ehr: local or epic")
+            return
+        if ehr_source == "epic" and not state.epic:
+            await ws.accept()
+            await ws.close(code=1013, reason="Epic mode needs epic-client.json and the non-production key")
+            return
         await ws.accept()
-        record = CallRecord(state.mode.value, config.MODEL, source="test")
+        record = CallRecord(state.mode.value, config.MODEL, source="test", ehr=ehr_source)
         state.live = record
         redact.dev_tap = record.log
         record.listeners.append(
@@ -247,7 +321,7 @@ def build_app(state: State) -> FastAPI:
                 session_timeout=30 * 60,
             ),
         )
-        typed = TypedCall(state.ehr, build_llm(state.mode), record, transport=transport)
+        typed = TypedCall(state.ehr, build_llm(state.mode), record, transport=transport, ehr_source=ehr_source)
 
         @transport.event_handler("on_client_disconnected")
         async def _gone(transport, client):

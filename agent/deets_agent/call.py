@@ -191,11 +191,15 @@ class TypedCall:
         record=None,
         today: date = FAKE_TODAY,
         transport: BaseTransport | None = None,
+        ehr_source: str = "local",
     ) -> None:
         """`transport`: the caller's seat in the console (dev_server.py). The caller's lines then
-        come over RTVI, and `serve()` runs the call in place of `start()` and `say()`."""
+        come over RTVI, and `serve()` runs the call in place of `start()` and `say()`.
+        `ehr_source`: `local` or `epic` (flow.py); an Epic call uses the real date."""
         # A typed call pins "today" to the day ehr's fake slots are built around (flow.py).
-        self.flow = CallFlow(ehr, today=today)
+        if ehr_source == "epic":
+            today = date.today()
+        self.flow = CallFlow(ehr, today=today, ehr_source=ehr_source)
         self._llm = llm
         self._collector = TurnCollector()
         self._collector.flow = self.flow

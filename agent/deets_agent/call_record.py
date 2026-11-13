@@ -1,7 +1,8 @@
 """The dev call record: one JSON Lines file per typed call, for tracing what went wrong
 (DEBUGGING.md §2, "the transcript": synthetic calls only, in dev).
 
-**Dev only.** Only the typed harness opens a record, and only against ehr's fake patients. The
+**Dev only.** Only the typed harness opens a record, and only against ehr's fake patients or
+Epic's public sandbox test patients (fhir.epic.com › Test Data: public fakes). The
 record holds what the PHI wall keeps out of the logs: both sides of the conversation, each tool
 call with its arguments and its result, and the full text of library errors. That is safe only
 because every caller here is synthetic. No real call may ever open one: the deploy has no path
@@ -11,8 +12,9 @@ to `CallRecord`. The files in `agent/calls/` are committed to the private repo (
 Each line is one event: `t_ms` (from the call's start; to a tenth of a millisecond since schema
 4, whole before), `kind`, and its fields.
 - `call_start`, `call_end` — the schema version, the call's id (the file's name), the source
-  (`typed`, `test`), the scenario (a script's name, or none), the mode, the model; at the end,
-  the totals and the estimated cost.
+  (`typed`, `test`), the scenario (a script's name, or none), the EHR it read (`ehr`: `local`
+  for ehr's fakes, `epic` for Epic's public sandbox; schema 6), the mode, the model; at the
+  end, the totals and the estimated cost.
 - `caller`, `agent` — what each side said. `first_ms` on `agent` (schema 4): when the line's
   first frame passed, on the call's clock; the event's own `t_ms` comes after the harness's
   turn grace (`TURN_GRACE_S` in call.py).
@@ -60,8 +62,9 @@ PRICES = {"claude-haiku-5-5": (0.10, 0.50)}
 # `trigger_ms`, and a tool's `ms` keeps a tenth of a millisecond (it was whole). 4: since
 # 2026-11-12, evening: every `t_ms` keeps a tenth of a millisecond, and `agent` has
 # `first_ms`. 5: since 2026-11-12, night: `step` events, stamped when the Flow moves, and
-# `left` on the ehr events that spend a verification limit. The catalog reads all five.
-SCHEMA_VERSION = 5
+# `left` on the ehr events that spend a verification limit. 6: since 2026-11-12, late night:
+# `ehr` on `call_start`, the EHR the call read (`local`, `epic`). The catalog reads all six.
+SCHEMA_VERSION = 6
 
 
 def _ms(seconds: float) -> float:
@@ -134,6 +137,7 @@ class CallRecord:
         folder: Path = CALLS,
         source: str = "typed",
         scenario: str | None = None,
+        ehr: str = "local",
     ) -> None:
         folder.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -163,6 +167,7 @@ class CallRecord:
             call_id=self.call_id,
             source=source,
             scenario=scenario,
+            ehr=ehr,
             mode=mode,
             model=model,
             started=datetime.now().isoformat(timespec="seconds"),

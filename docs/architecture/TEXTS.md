@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [ehr/src/texts.rs, ehr/src/verify.rs, ehr/src/service.rs, ehr/src/main.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/tests/texts.rs, core/src/text.rs, core/src/shielded.rs, agent/deets_agent/fake_twilio.py, agent/deets_agent/dev_server.py, agent/deets_agent/ehr_process.py, agent/deets_agent/call_record.py, agent/prompts/AGENT-PROMPT.md, agent/tests/test_fake_twilio.py, scripts/dev.mjs]
-updated: 2026-11-12
+updated: 2026-11-13
 ---
 # DeetsHealth — The code by text
 
@@ -17,7 +17,12 @@ updated: 2026-11-12
 - **The code:** the six digits the caller reads back. Made and checked in `ehr`, never by the
   model and never by Twilio.
 - **The number on file:** the phone number the EHR holds for the matched patient. It may not
-  be the number the caller is calling from. Caller ID never ends verification.
+  be the number the caller is calling from. Caller ID never ends verification. Only a number
+  that takes a text counts: in Epic, the `mobile` phone (EPIC.md §5.2). A patient with none
+  still counts in the match, but no code goes out (`Candidate.phone` is an `Option`; the test
+  `a_match_with_no_number_for_a_text_sends_no_code`), so the caller is handed off as after a
+  failed match (2026-11-13). Which numbers count becomes a hospital setting: FUTURE-SETTINGS.md
+  §8.
 - **The text service:** Twilio's Programmable Messaging. In dev, **the fake Twilio**: a
   stand-in for the one Twilio call `ehr` makes, inside the agent's dev server.
 - **The sender:** a Twilio Messaging Service (`MG…`), which owns the sending number.

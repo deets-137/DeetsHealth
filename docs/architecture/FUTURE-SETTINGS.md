@@ -1,8 +1,8 @@
 ---
 status: project
 desk_test: none
-sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/prompts/AGENT-PROMPT.md]
-updated: 2026-11-12
+sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/prompts/AGENT-PROMPT.md, ehr/src/epic_ehr.rs, ehr/src/verify.rs]
+updated: 2026-11-13
 ---
 # Future settings — what a hospital will configure
 
@@ -44,6 +44,8 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
   (SECURITY.md §4.4).
 - When verification meets friction: how many missed codes before a person, the apology, and
   an instant transfer when no single record matches (twins, duplicates) — §7 (default built).
+- Which numbers on file may receive the code: the kinds of number, ended numbers, the order,
+  countries, shared numbers — §8 (default built: mobile only).
 
 **What the agent may say**
 - The sensitive-results list: a hospital may add to it, never remove from it. Not built
@@ -324,3 +326,114 @@ where `ehr` keeps the fact after `CloseCall`, how it reaches the call store and 
 - **The deploy:** A2 and B read it from the settings store the same way.
 - **Each EHR:** what counts as one match is `ehr`'s rule for each EHR. Epic's patient match
   can return more than one candidate, so each adapter must report "not exactly one" the same way.
+
+## 8. Which numbers on file may receive the code
+> **Part:** built (the default only) · 2026-11-13 — the default came with Epic mode (EPIC.md
+> §5.2); the setting is designed here, not built.
+
+**What it controls:** which of the patient's phone numbers in the chart may receive the code by
+text, the second factor (SECURITY.md §4.4). The code is only as strong as the number it goes
+to: a code that a co-worker or a housemate can read proves nothing about the caller.
+
+**The rules no setting changes:**
+- The code goes only to a number **on file in the chart**. Never a number the caller gives on
+  the call, and never the number they call from (caller ID never ends verification, TEXTS.md
+  §1).
+- A patient whose chart has no allowed number **still counts in the match**. If they were left
+  out, a near-twin with an allowed number would become the one match and get the code. With no
+  allowed number, no code goes out, and the caller hears the same words as after any failed
+  match (§7).
+- Never below two factors for a chart answer.
+
+### 8.1 The default now
+Only a number marked `mobile` that has not ended, the patient's first choice by `rank`, as a US
+number (+1). The code:
+
+- **The pick** — `ehr/src/epic_ehr.rs` › `code_number` (called by `patient_fields`):
+  ```rust
+  r["telecom"]
+      .as_array()
+      .into_iter()
+      .flatten()
+      .filter(|t| t["system"] == "phone" && t["use"] == "mobile")
+      .filter(|t| !ended(&t["period"]["end"], now))
+      .filter_map(|t| Some((t["rank"].as_u64().unwrap_or(u64::MAX), e164(t["value"].as_str()?)?)))
+      // min_by_key keeps the first of equal ranks, so the chart's own order breaks a tie.
+      .min_by_key(|(rank, _)| *rank)
+      .map(|(_, number)| number)
+  ```
+- **Ended** — `ended` in the same file. FHIR's `ContactPoint.period.end` marks a number the
+  patient no longer uses. An end in the past is ended. A date with no time ends at the close of
+  that day (UTC). **An end that cannot be read counts as ended**: a code never goes to a number
+  we cannot read as current. No end means still in use.
+- **The order** — FHIR's `rank`: 1 is the patient's first choice. A number with no rank comes
+  after every ranked one. Equal ranks, or none: the first in the chart's list.
+- **The format** — `e164` in the same file: 10 digits become `+1` and the digits; 11 digits
+  that start with 1 become `+` and the digits; anything else is no number.
+- **The carrier** — `ehr/src/verify.rs` › `Candidate.phone: Option<Shielded<String>>`. `None`
+  means "no allowed number".
+- **The use** — `ehr/src/service.rs` › `identify`: a code goes out only for one match with a
+  number.
+  ```rust
+  if let Some(Candidate { patient, phone: Some(phone), .. }) = one_match(&claimed, found) {
+      // issue and send the code
+  }
+  ```
+- **The local fakes** (`FakePatients`) give every patient a number, from
+  `ehr/fixtures/sandbox.json`.
+- **The tests** — `service.rs` › `a_match_with_no_number_for_a_text_sends_no_code`;
+  `epic_ehr.rs` › `an_ended_mobile_number_gets_no_code`,
+  `the_code_goes_to_the_best_ranked_mobile_number` (a better-ranked work number never counts),
+  `a_patient_with_only_a_work_number_has_no_number_for_a_code`.
+- **`use: old`** is never a match, because only `mobile` is.
+
+The two gaps found on 2026-11-13 (an ended number still counted; `rank` was ignored) were
+fixed the same day.
+
+### 8.2 The choices a hospital needs
+| Choice | Default | Options | What each costs |
+|---|---|---|---|
+| Which kinds of number count | `mobile` only | add `home`; add `work`; add `temp` | `home` reaches landlines (no text) and housemates; `work` reaches shared desks. Each one added means more callers get a code, and a weaker code. |
+| A number the chart marks as ended | never counts | — (a rule, not a choice) | — |
+| When several numbers count | the chart's `rank`, then list order | list order only | `rank` follows the patient's own choice. |
+| Countries | US only (+1) | add others | A number outside the US needs its own format check and Twilio's rules for that country. |
+| A number the hospital marks "do not text" or "no consent to text" | never counts | — (a rule, if the EHR holds such a mark) | Where it is held differs by EHR and by hospital build (open: see 8.3). |
+| A number shared by more than one patient (a parent's mobile on a child's chart) | counts | does not count | A parent who calls for a child is a caller for someone else, and the agent already hands that to a person (FLAGS.md). Not counting it sends more callers to staff. |
+
+**The sketch** of the setting (not built). The adapter would read it; the service and
+`Candidate` stay as they are:
+```rust
+/// FUTURE-SETTINGS.md §8. One per hospital, from the settings store.
+pub struct CodeNumbers {
+    /// The FHIR ContactPoint `use` values that count. Default: [Mobile].
+    pub uses: Vec<PhoneUse>,
+    /// The country codes allowed. Default: ["1"].
+    pub countries: Vec<String>,
+    /// Whether a number on more than one chart counts. Default: true.
+    pub shared_counts: bool,
+}
+
+pub enum PhoneUse { Mobile, Home, Work, Temp }
+
+// epic_ehr.rs: patient_fields(r, &settings.code_numbers) keeps each telecom entry with
+// system = phone, a `use` in `uses`, no `period.end` in the past, and a country in
+// `countries`; then takes the lowest `rank`, then the first in the list.
+```
+
+### 8.3 Open
+- **Where an EHR marks a number as able to take texts, or as consented to texts.** In FHIR it
+  is not a standard field. Epic may hold it in the hospital's build (a communication
+  preference); the owner's Epic knowledge is the first source. Each EHR's probe should show
+  it (`architecture/probes/`).
+- **Other EHRs:** some FHIR servers mark a text-capable number with `system: sms`, not
+  `use: mobile`. Each adapter maps its EHR's marks to the same `PhoneUse` list.
+- **Consent law:** a one-time code that the caller asked for is generally allowed
+  (REGULATIONS.md §4, TCPA). A hospital's own policy may be stricter.
+
+**Every place it runs:**
+- **The call:** no change in what the caller hears. A caller with no allowed number is handed
+  off, the same as after any failed match.
+- **The console:** one control for each choice, every change audited. Adding `home` or `work`
+  states the cost before it applies.
+- **The deploy:** A2 and B read it from the settings store the same way.
+- **Each EHR:** each adapter applies the same setting to its own phone fields.

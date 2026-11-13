@@ -33,7 +33,9 @@ caller's own words, so it tells them nothing about the record.
 
 **Today** is set per call (`today`), so the model's sense of "tomorrow" or "next Tuesday" is
 right on a real call. A typed call pins it to `FAKE_TODAY`, because ehr's fake slots are fixed
-to the weeks after it and the replay cache needs the same prompt on every run.
+to the weeks after it and the replay cache needs the same prompt on every run. A call that
+reads Epic's sandbox (`ehr_source="epic"`) uses the real date: Epic's visits are real dates,
+and ehr moves its stand-in slots to the weekdays after today (EPIC.md §5.2).
 
 Nothing protected goes into Flows' `state` or a log: the handle, the details waiting for the
 caller's yes and the offered slots live on this object, as `Shielded`.
@@ -200,6 +202,8 @@ class CallFlow:
 
     ehr: EhrClient
     today: date = field(default_factory=date.today)
+    # The EHR this call reads: `local` (ehr's fakes) or `epic` (Epic's public sandbox, dev only).
+    ehr_source: str = "local"
     handle: Shielded[str] | None = None
     # Every option the caller has heard on this call, by its number. A number keeps its time for
     # the whole call, and a new search goes on from the last number, so "option 3" never means
@@ -229,7 +233,7 @@ class CallFlow:
     on_step: Callable[[str, list[str]], None] | None = None
 
     async def start(self) -> None:
-        self.handle = await self.ehr.open_call()
+        self.handle = await self.ehr.open_call(self.ehr_source)
 
     async def close(self) -> None:
         if self.handle is not None:

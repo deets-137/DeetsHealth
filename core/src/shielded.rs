@@ -8,8 +8,11 @@
 //! to the site the value came from, and the parse of its reply; the owner, 2026-09-21) and
 //! [`crate::wire::WirePass`] (the `ehr` service's reply to the agent; 2026-10-21). A fifth,
 //! [`crate::text::TextPass`], is the `ehr` service's text message: the code to the number on
-//! file (2026-11-12). The first three are built only inside their own modules; the fourth only
-//! in `ehr/src/edge.rs` and the fifth only in `ehr/src/texts.rs`, which tests in `ehr` enforce. The value is wiped from memory when it drops.
+//! file (2026-11-12). A sixth, [`crate::ehr_request::EhrPass`], is the `ehr` service's request
+//! to an EHR: the caller's name and date of birth in a patient search, the patient's id in a
+//! chart read (2026-11-12). The first three are built only inside their own modules; the fourth
+//! only in `ehr/src/edge.rs`, the fifth only in `ehr/src/texts.rs` and the sixth only in
+//! `ehr/src/epic_ehr.rs`, which tests in `ehr` enforce. The value is wiped from memory when it drops.
 //!
 //! A log line cannot print one:
 //! ```compile_fail
@@ -127,7 +130,7 @@ mod sealed {
     pub trait Sealed {}
 }
 
-/// Proof that the caller may read plaintext. Implemented for exactly five types, below, and a
+/// Proof that the caller may read plaintext. Implemented for exactly six types, below, and a
 /// sixth, `dev::DevPass`, only in a build with the `dev` feature (never a release).
 pub trait Pass: sealed::Sealed {}
 
@@ -143,6 +146,9 @@ impl Pass for crate::wire::WirePass {}
 // The `ehr` service's text message: the code to the number on file (2026-11-12; CHAT.md §8).
 impl sealed::Sealed for crate::text::TextPass {}
 impl Pass for crate::text::TextPass {}
+// The `ehr` service's request to an EHR: a patient search, a chart read (2026-11-12; EPIC.md §5.2).
+impl sealed::Sealed for crate::ehr_request::EhrPass {}
+impl Pass for crate::ehr_request::EhrPass {}
 #[cfg(feature = "dev")]
 impl sealed::Sealed for crate::dev::DevPass {}
 #[cfg(feature = "dev")]

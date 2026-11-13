@@ -693,8 +693,8 @@ line "Reading Epic's sandbox"; the `--disabled-opacity` token (0.45, the split b
 now used by both.
 
 **What stays local in Epic mode:** the greeting's clinic name (Main Street Clinic) and the slots
-offered for booking (the fake's slots on the next weekdays), because the sandbox does not serve
-`$find` (EPIC.md §5.2). The code still goes to the fake Twilio.
+offered for booking (the fake's slots on the next weekdays), because booking through the sandbox (STU3
+`$find`, `$book`) is step E-4 (EPIC.md §5.2). The code still goes to the fake Twilio.
 
 **Desk test:**
 1. `npm run dev`, Chat, Test. The button left of Test says Local; the rail lists Jordan Ellis

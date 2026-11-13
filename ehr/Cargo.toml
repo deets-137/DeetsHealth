@@ -31,8 +31,13 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The text message (texts.rs): Twilio's Messages API over rustls on the same AWS-LC provider
 # as the wire, with Mozilla's roots. No provider of reqwest's own, so no ring.
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots-no-provider"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots-no-provider", "json"] }
 webpki-roots = "1"
+# The Epic sign-in's JWT (epic.rs): base64url, no padding.
+base64 = "0.22"
+# Epic's visit times (epic_ehr.rs): an instant to the place's local time, with the time zone
+# database built in (Windows has none that jiff reads).
+jiff = "0.2"
 # The call store (store.rs; DATABASE.md): Postgres, migrations embedded in the binary. No TLS
 # feature yet: dev talks to 127.0.0.1. The cloud adds TLS on the same AWS-LC provider.
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "migrate", "macros"] }

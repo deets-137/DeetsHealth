@@ -11,7 +11,7 @@ use tonic::Status;
 use crate::{
     proto::v1 as pb,
     scheduler::{Slot, SlotWish},
-    session::Token,
+    session::{Source, Token},
     verify::Claimed,
 };
 
@@ -35,6 +35,15 @@ pub fn file_call_line(req: pb::FileCallLine) -> Result<(String, String), Status>
         return Err(Status::invalid_argument("line: not a JSON event"));
     }
     Ok((id, line))
+}
+
+/// The EHR a new call reads. Unspecified is the local fakes.
+pub fn source(req: &pb::OpenCallRequest) -> Result<Source, Status> {
+    match pb::EhrSource::try_from(req.ehr) {
+        Ok(pb::EhrSource::Unspecified | pb::EhrSource::Local) => Ok(Source::Local),
+        Ok(pb::EhrSource::EpicSandbox) => Ok(Source::EpicSandbox),
+        Err(_) => Err(Status::invalid_argument("ehr: not a known source")),
+    }
 }
 
 pub fn handle(wire: &str) -> Result<Token, Status> {

@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, console/src/agent/api.ts, console/src/agent/transport.ts, console/vite.config.ts, scripts/docs-check.mjs, agent/tests/test_dev_server.py]
-updated: 2026-11-12
+updated: 2026-11-13
 ---
 # DeetsHealth — The dev API (the console and the agent's dev server)
 
@@ -40,8 +40,8 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 
 | Route | Handler | Client | What it answers |
 |---|---|---|---|
-| `GET /agent/health` | `health` | `health()` | `key` (an Anthropic key is set) and `live` (the live call's id, or null) |
-| `GET /agent/sandbox` | `sandbox` | `sandbox()` | the sandbox patients and visits from `ehr/fixtures/sandbox.json` (CHAT.md §8.1) |
+| `GET /agent/health` | `health` | `health()` | `key` (an Anthropic key is set), `live` (the live call's id, or null) and `epic` (`ehr` was given Epic's sandbox) |
+| `GET /agent/sandbox` | `sandbox` | `sandbox()` | the sandbox patients and visits, by `?ehr=`: `local` from `ehr/fixtures/sandbox.json` (CHAT.md §8.1); `epic` from Epic's sandbox through `ehr epic-sandbox`, kept 5 minutes (CHAT.md §13). `more`: per patient, the visits past those listed. 400 for another word, 503 with no Epic files, 502 when Epic did not answer |
 | `GET /agent/catalog` | `catalog` | `catalog()` | every call row with its current ratings, and the rubric (CHAT.md §7) |
 | `GET /agent/calls/{call_id}` | `call_events` | `callEvents()` | one record's events, for Demo; 404 when there is no such call |
 | `GET /agent/latency` | `tool_latency` | none yet | latency per tool; the query and the reply are CHAT.md §10.3 |
@@ -116,6 +116,8 @@ loses lines; it never holds up the call (`State.broadcast`).
 
 ## 6. The caller's seat (`WS /agent/call`)
 - **One test call at a time.** It is always live: every line goes to Claude (CHAT.md §6).
+- **`?ehr=local|epic`** picks the EHR the call reads (CHAT.md §13). Another word closes 1008;
+  `epic` with no Epic files closes 1013, with the reason.
 - **The wire:** RTVI messages as JSON text, one message per frame, no audio. The client is
   `TextSeat` in `console/src/agent/transport.ts`, driven by `PipecatClient.sendText` in
   `chat.ts`. The server's half is `RtviJsonSerializer` in `rtvi_json.py`: it drops a binary

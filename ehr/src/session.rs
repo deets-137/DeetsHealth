@@ -79,7 +79,18 @@ pub struct Pending {
     pub issued: Instant,
 }
 
+/// Which EHR a call reads (OpenCall's `ehr`). Set once, when the call opens.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Source {
+    /// ehr's own fakes (`ehr/fixtures/sandbox.json`).
+    Local,
+    /// Epic's public sandbox (epic_ehr.rs). Dev only.
+    EpicSandbox,
+}
+
 pub struct Session {
+    /// The EHR this call reads.
+    pub source: Source,
     pub stage: Stage,
     /// How many times the caller gave a name and date of birth.
     pub identifies: u32,
@@ -110,7 +121,7 @@ pub struct Sessions {
 }
 
 impl Sessions {
-    pub async fn open(&self) -> Result<Token, Refusal> {
+    pub async fn open(&self, source: Source) -> Result<Token, Refusal> {
         let mut map = self.map.lock().await;
         // Wipe sessions the agent never closed. A held lock means the session is in use.
         map.retain(|_, s| s.try_lock().map_or(true, |s| s.opened.elapsed() < MAX_AGE));
@@ -119,6 +130,7 @@ impl Sessions {
         }
         let handle = Token::random();
         let session = Session {
+            source,
             stage: Stage::Unverified(None),
             identifies: 0,
             resends: 0,

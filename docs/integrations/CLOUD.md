@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-11-12
+updated: 2026-11-13
 ---
 # The cloud — where each hospital's deploy runs
 
@@ -123,7 +123,9 @@ copy IAM roles exactly, ECS's draining, or the network distance to Twilio.
 calculator at the fork): the agent on Fargate (0.5 vCPU, 1 GB) about $18 a month, `ehr`
 (0.25 vCPU, 0.5 GB) about $9, a load balancer about $17, public IPv4 addresses about $11,
 Postgres (db.t4g.micro, once the store exists) about $14, the rest about $5: **about $60–75 a
-month always on**. Without a NAT gateway (about $33 a month) and brought up only to test
+month always on**. A hospital that allowlists the callers of its FHIR server needs our fixed
+egress IP addresses (EPIC.md §4, step 5), so a deploy that reaches a real Epic needs the NAT
+gateway with Elastic IPs; staging against Epic's public sandbox does not. Without a NAT gateway (about $33 a month) and brought up only to test
 (Terraform up and down), an idle month costs about $1–2. That is not $0, so it waits for the
 owner's word.
 

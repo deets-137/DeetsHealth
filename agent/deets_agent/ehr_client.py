@@ -147,10 +147,12 @@ class EhrClient:
 
     # ---- the calls ----
 
-    async def open_call(self) -> Shielded[str]:
+    async def open_call(self, ehr: str = "local") -> Shielded[str]:
+        """`ehr`: `local` (ehr's fakes) or `epic` (Epic's public sandbox; dev only)."""
+        source = {"local": pb.EHR_SOURCE_LOCAL, "epic": pb.EHR_SOURCE_EPIC_SANDBOX}[ehr]
         reply = await self._call(
             "OpenCall",
-            pb.OpenCallRequest(),
+            pb.OpenCallRequest(ehr=source),
             left=lambda r: {"identify": r.identifies_left, "resend": r.resends_left, "code": r.code_tries_left},
         )
         return Shielded(reply.handle)
