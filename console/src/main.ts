@@ -3,6 +3,10 @@
 import { initNav } from "./nav";
 import { chatPage } from "./pages/chat";
 import { analyticsPage } from "./pages/analytics";
+import { teamsPage } from "./pages/teams";
+import { configPage } from "./pages/config";
+import { securityPage } from "./pages/security";
+import { auditPage } from "./pages/audit";
 import { settingsPage } from "./pages/settings";
 import { initialTheme, initThemeMenu, syncThemeColor } from "./theme";
 
@@ -14,7 +18,16 @@ async function boot() {
   // Wait for the bundled serif, so the nav pill is measured in the right face.
   await document.fonts.ready;
   initThemeMenu();
-  initNav([chatPage(), analyticsPage(), settingsPage()]);
+  // The pages with `bottom` keep this order at the nav's foot: Security, Audit Logs, Settings.
+  initNav([
+    chatPage(),
+    analyticsPage(),
+    teamsPage(),
+    configPage(),
+    securityPage(),
+    auditPage(),
+    settingsPage(),
+  ]);
 
   // A hidden tab stops the backdrop's drift (app.css › backdrop).
   const idle = () => document.documentElement.toggleAttribute("data-idle", document.hidden);

@@ -8,6 +8,50 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-13 (Windows) — Console pages with their own nav; Chat's edges and corners
+- New pages: Teams (Org Chart, People) and Config (Agent, System) under Analytics; Security
+  (Auth, Roles) and Audit Logs (Config, Calls, Security) above Settings. Each view is empty.
+  Analytics lost its "Nothing here yet." line.
+- Analytics' own nav became `pages/subnav.ts` and `styles/subnav.css`, so all five pages share
+  one nav (CONSOLE.md §3, ANALYTICS.md §2).
+- Chat: the title sits where every other page's title does; the canvas and the bar sit
+  `--pad-panel-x` in from the sides and the bottom, so the canvas lines up with the title and
+  the toggle (CHAT.md §3). `--pad-panel` split into `--pad-panel-y` and `--pad-panel-x`.
+- A trial the owner asked for: one 16 px radius for panels, controls, menus, the nav pill and
+  bubbles. `--radius-control` (6 px, the short rows) stays.
+- The mode toggle left the controls hidden till a reload: the running dev server was older than
+  the page (its sandbox reply had no `more`), and the throw stopped the swap halfway. The swap
+  now always finishes, and the rail reads a missing `more` as none.
+- Committed with the Epic work's `console/src/agent/api.ts` and `transport.ts`, because
+  `chat.ts` holds both and needs them to compile. The rest of the Epic work stays uncommitted.
+
+## 2026-11-12 (Windows, late night) — Epic: the sign-in (E-2) and Epic mode on the Chat page
+- Branch `epic-time`, from `main` after the database work merged. The owner chose fork 1A (start
+  Epic now) and 2A (`ehr` runs one adapter at a time; the rail shows that adapter's patients),
+  with a button near Test that flips between Epic and Local.
+- The patient app's Epic wire (`core/src/auth.rs`) was a standalone patient launch with PKCE. The
+  phone agent needs Backend Services, so only the base URL and the `smart-configuration` read
+  carried over.
+- Built `ehr/src/epic.rs` and `ehr epic-check` (EPIC.md §5.1). First run: the key matches the
+  published set, the token came back, `metadata` 200, the `Patient` search for Camila Lopez found
+  1 match. About 5 requests, at no cost. Two new tests.
+- `npm run dev` held `target/debug/deetshealth-ehr.exe`, so the check ran from
+  `target/epic-check`.
+- The owner said "build it". Probed the sandbox first (about 40 reads, at no cost): the patient
+  search needs family, given and birth date; phone search finds nothing; `$find` is 405; Camila
+  Lopez has 261 booked visits ahead, the other six test patients none (EPIC.md §5.2).
+- Built Epic mode (CHAT.md §13): `OpenCallRequest.ehr`; `Session.source`; `ehr/src/epic_ehr.rs`
+  (the patient search, the next visit, the rail's list as `ehr epic-sandbox`); a sixth pass,
+  `EhrPass`, held to that file; `Candidate.phone` is an `Option` (mobile only); the fake slots
+  move to the next weekdays in Epic mode; the dev server's `?ehr=` on `/agent/call` and
+  `/agent/sandbox`; record schema 6 (`call_start` › `ehr`); the Epic / Local button and the
+  rail by source; the `--disabled-opacity` token.
+- Checked: one Epic call through `ehr` with no model (Camila found, code passed, next visit
+  read; Elijah Davis, no mobile number, got no code). 56 `ehr` tests, 47 core, 102 agent, the
+  console type check, clippy, the docs check. Not run: the desk test with the model.
+- Another session edited the console in parallel (the chat header's padding, Analytics, the
+  sub-nav); those changes are not this work's.
+
 ## 2026-11-12 (Windows, night) — The Casey Morgan call review, friction at verification
 - Reviewed the owner's test call as Casey Morgan (a twin record: no code goes out). The
   verification rules held and nothing showed whether the details matched. Two prompt gaps:

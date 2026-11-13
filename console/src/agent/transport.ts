@@ -21,7 +21,8 @@ export class TextSeat extends Transport {
   private ws: WebSocket | undefined;
   private readonly url: string;
 
-  /** `path` is on this page's own origin; Vite's proxy takes it to the agent (vite.config.ts). */
+  /** `path` is on this page's own origin; Vite's proxy takes it to the agent (vite.config.ts).
+   * Its query may name the EHR the call reads (`?ehr=epic`, CHAT.md §13). */
   constructor(path = "/agent/call") {
     super();
     const scheme = location.protocol === "https:" ? "wss:" : "ws:";

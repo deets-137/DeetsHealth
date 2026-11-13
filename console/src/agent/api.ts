@@ -71,13 +71,20 @@ async function get<T>(path: string): Promise<T> {
   return (await r.json()) as T;
 }
 
-export const health = () => get<{ key: boolean; live: string | null }>("/agent/health");
+/** `epic`: whether the dev server gave ehr Epic's sandbox (CHAT.md §13). */
+export const health = () => get<{ key: boolean; live: string | null; epic: boolean }>("/agent/health");
 
-/** The sandbox (ehr/fixtures/sandbox.json): synthetic patients and their visits. */
+/** The EHR a test call reads: ehr's fakes, or Epic's public sandbox (CHAT.md §13). */
+export type EhrSource = "local" | "epic";
+
+/** The sandbox: `local`, ehr/fixtures/sandbox.json's synthetic patients; `epic`, Epic's public
+ * test patients, read live through ehr. `phone` is "" when the chart has no mobile number. A
+ * visit's `place` is its own (Epic); without one, the sandbox's. `more`: per patient id, the
+ * visits past the ones listed. */
 export type SandboxPatient = { id: string; given: string; family: string; birth_date: string; phone: string };
-export type SandboxVisit = { patient: string; starts_at: string; minutes: number; clinician: string };
-export type Sandbox = { place: string; patients: SandboxPatient[]; visits: SandboxVisit[] };
-export const sandbox = () => get<Sandbox>("/agent/sandbox");
+export type SandboxVisit = { patient: string; starts_at: string; minutes: number; clinician: string; place?: string };
+export type Sandbox = { place: string; patients: SandboxPatient[]; visits: SandboxVisit[]; more: Record<string, number> };
+export const sandbox = (ehr: EhrSource) => get<Sandbox>(`/agent/sandbox?ehr=${ehr}`);
 export const catalog = () => get<Catalog>("/agent/catalog");
 export const callEvents = (id: string) =>
   get<{ id: string; events: CallEvent[] }>(`/agent/calls/${encodeURIComponent(id)}`).then((r) => r.events);

@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
 | Theme (color roles) | themes.css | 27 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 79 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 82 tokens · overrides:  |
 
 ## Theme roles
 
@@ -91,8 +91,8 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | Token | Base | Overridden by | Note |
 |---|---|---|---|
 | `--radius` | `16px` | — | a panel |
-| `--radius-small` | `10px` | — | a menu |
-| `--radius-item` | `11px` | — | a nav item and its pill |
+| `--radius-small` | `var(--radius)` | — | A trial (the owner, 2026-11-13): one 16 px radius for panels, menus, controls and bubbles. Before it: a menu 10 px, a nav item and a control 11 px, a bubble 14 px. — a menu |
+| `--radius-item` | `var(--radius)` | — | a nav item and its pill, a control |
 | `--radius-control` | `6px` | — | a menu row, the app-name button |
 | `--edge` | `1px` | — | a panel's edge and a hairline |
 | `--focus-ring` | `2px` | — |  |
@@ -103,7 +103,9 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 
 | Token | Base | Overridden by | Note |
 |---|---|---|---|
-| `--pad-panel` | `16px 20px` | — | inside a panel |
+| `--pad-panel-y` | `16px` | — | inside a panel, above and below |
+| `--pad-panel-x` | `20px` | — | inside a panel, left and right |
+| `--pad-panel` | `var(--pad-panel-y) var(--pad-panel-x)` | — | inside a panel |
 | `--pad-nav` | `10px` | — | inside the nav |
 | `--pad-item` | `9px 12px` | — | a nav item |
 | `--pad-menu` | `4px` | — | inside a menu |
@@ -125,7 +127,7 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--bubble-max` | `70%` | — | a bubble's widest, of the canvas |
 | `--bubble-pad-x` | `14px` | — | a bubble's side padding; the line facts under it start where its text does |
 | `--bubble-pad` | `10px var(--bubble-pad-x)` | — |  |
-| `--radius-bubble` | `14px` | — |  |
+| `--radius-bubble` | `var(--radius)` | — | the trial above |
 | `--help-width` | `320px` | — | the open text card above the code button |
 | `--code-tracking` | `0.08em` | — | the six digits on the code button, a little apart |
 | `--chevron` | `14px` | — | the open-and-close arrow on a rail list (a patient's visits) |
@@ -136,6 +138,7 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--star-size` | `20px` | — | the Review panel's star |
 | `--slide-rise` | `24px` | — | how far the Review panel rises as it slides in |
 | `--toggle-tracking` | `0.04em` | — | the mode toggle's word |
+| `--disabled-opacity` | `0.45` | — | a control that cannot be used now |
 | `--flip-depth` | `400px` | — | the perspective the toggle's word turns in |
 
 ### glass

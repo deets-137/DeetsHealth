@@ -1,8 +1,8 @@
 ---
 status: built
 desk_test: open
-sources: [console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png]
-updated: 2026-11-12
+sources: [console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png]
+updated: 2026-11-13
 ---
 # DeetsHealth — The Chat page
 
@@ -69,7 +69,20 @@ updated: 2026-11-12
 
 `console/src/pages/chat.ts`, `console/src/styles/chat.css`; the tokens in `skin.css` (chat),
 the roles in `themes.css`, the six call paints in `palette.css`.
-- **The toggle** sits right of the title. A press turns the word over on its horizontal axis
+- **The title** sits where every other page's title sits: `--pad-panel-x` from the panel's
+  left edge, its top `--pad-panel-y` from the panel's top (the owner, 2026-11-13). The head
+  shortens its top padding by half the height that the toggle has over the title's line.
+- **The inset:** the head, the canvas and the bar all sit `--pad-panel-x` in from the
+  panel's sides and bottom (the `.chat` padding). So the canvas's left edge lines up with the
+  title's left edge, and its right edge with the toggle's right edge (the owner, 2026-11-13).
+- **The mode swap always finishes:** if the swap's work throws (a dev server older than the
+  page, 2026-11-13), the controls still come back and the word still turns in.
+- **One radius, a trial** (the owner, 2026-11-13): `--radius-item`, `--radius-small` and
+  `--radius-bubble` all point at `--radius` (16 px), so panels, the canvas, controls, menus,
+  the nav pill and bubbles match. Before: 11, 10 and 14 px. `--radius-control` (6 px, the
+  short rows) stays.
+- **The toggle** sits right of the title, centered on the title's line, `--pad-panel-x` from
+  the panel's right edge. A press turns the word over on its horizontal axis
   (`--dur-flip`, 240 ms: half out, half in); instant with reduced motion. The mode is kept per
   browser (`deets.console.chat.mode`); Test is the default. Each mode keeps its own lines.
 - **The canvas:** `--canvas` per theme, 85 % opaque, `--radius`. The lines scroll above the
@@ -645,3 +658,54 @@ rating revealed after yours.
 6. Demo: play one of the four calls the model graded today (12:58 and the others): after you
    pick a verdict on a dimension, the model's line shows under it.
 7. `agent/calls/annotations.jsonl` has one line per choice.
+
+## 13. Epic mode: the Epic / Local button
+> **Part:** built · 2026-11-12 — the owner's forks 1A (start Epic now) and 2A (`ehr` runs one
+> source per call; the rail shows that source's patients), and his placement: "another button
+> near Test that flips between Epic and Local" (his screenshot, the space left of the mode
+> toggle).
+
+**The button** (`#chat-ehr`, `.ehr-toggle`): the mode toggle's twin, left of it in the head
+(`.chat-toggles`). Its word, Local or Epic, turns over the same way when pressed. It names the
+EHR the next test call reads, and the page keeps the choice (`deets.console.chat.ehr` in
+`localStorage`).
+- Test only. In PHI and Demo it keeps its place but is hidden, so the mode toggle never moves.
+- Locked from Start to the call's end: the EHR is fixed for a call.
+- Disabled, with its reason in the hint, when the dev server has no Epic files (`/agent/health`
+  › `epic`); the page then falls back to Local.
+
+**The call:** Start opens `/agent/call?ehr=local|epic`. The dev server passes it to
+`TypedCall` (`ehr_source`) and the record (`call_start` › `ehr`, schema 6). `OpenCall` carries
+it to `ehr` (EPIC.md §5.2). An Epic call uses the real date for "today".
+
+**The rail's Sandbox patients panel** shows the source of the mode: in Test, the button's; in
+Demo, the source of the call that plays (its `call_start` › `ehr`; a call before schema 6 is
+Local). `GET /agent/sandbox?ehr=epic` runs `ehr epic-sandbox`, about 15 reads of Epic's
+sandbox, kept 5 minutes on the dev server; each source is read once per page load. A visit row
+shows its own place (Epic's "EMC Family Medicine") where it has one; the count on the visits
+button includes the visits past the 10 listed, and the list ends "and N more". A failed read
+says "Epic's sandbox did not answer" in the panel.
+
+**Decided inside his choices** (for his review): the words Local and Epic; the button hidden
+(not removed) outside Test; locked during a call; Demo follows the played call's source with no
+button; 10 visits listed per patient and 60 days ahead; the 5-minute cache; the panel's loading
+line "Reading Epic's sandbox"; the `--disabled-opacity` token (0.45, the split buttons' value),
+now used by both.
+
+**What stays local in Epic mode:** the greeting's clinic name (Main Street Clinic) and the slots
+offered for booking (the fake's slots on the next weekdays), because the sandbox does not serve
+`$find` (EPIC.md §5.2). The code still goes to the fake Twilio.
+
+**Desk test:**
+1. `npm run dev`, Chat, Test. The button left of Test says Local; the rail lists Jordan Ellis
+   and the others.
+2. Press it: the word turns to Epic, and the rail says "Reading Epic's sandbox", then lists
+   Camila Lopez (with "245 visits" or so; open it: 10 rows and "and N more"), Derrick Lin,
+   Linda Ross, Olivia Roberts, Elijah Davis, Desiree Powell, Warren McGinnis.
+3. Start. The button greys out. Call as Camila Lopez, born September 12, 1987. The code button
+   appears; send the code. Ask "when is my next visit?": the answer is her next visit in the
+   rail, at EMC Family Medicine.
+4. End the call. The button works again. Start a call as Elijah Davis, born August 18, 1993: no
+   code comes, and after the code step the agent hands off.
+5. Demo: play the Camila call. The rail shows the Epic list; play an older call: Local.
+6. Press the button back to Local: a Local call behaves as before.

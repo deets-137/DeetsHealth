@@ -1,8 +1,8 @@
 ---
 status: built
 desk_test: open
-sources: [console/src/pages/analytics.ts, console/src/styles/analytics.css, docs/architecture/images/analytics-sketch-2026-11-12.png]
-updated: 2026-11-12
+sources: [console/src/pages/analytics.ts, console/src/pages/subnav.ts, console/src/styles/subnav.css, docs/architecture/images/analytics-sketch-2026-11-12.png]
+updated: 2026-11-13
 ---
 # DeetsHealth — The Analytics page
 
@@ -22,8 +22,8 @@ summary overall". Add **Flags** at the end. "I'll design each subpage manually."
 ## 2. As built
 > **Part:** built · 2026-11-12
 
-- **The panel:** one glass panel fills the page. Its head is the title *Analytics* and the line
-  "Nothing here yet.". Under the head: the Analytics nav at the left, the view at the right.
+- **The panel:** one glass panel fills the page. Its head is the title *Analytics* alone (the owner,
+  2026-11-12: no "Nothing here yet." line). Under the head: the Analytics nav at the left, the view at the right.
 - **The Analytics nav:** a panel stacked on the page panel, with the chat canvas's look
   (`--canvas`). As wide as the big nav (`--subnav-width`, which is `--nav-width`). Its items,
   in order: **Home**, **Outcome**, **Cost**, **Logs**, **Speed**, **Flags**.
@@ -32,11 +32,14 @@ summary overall". Add **Flags** at the end. "I'll design each subpage manually."
   fades in; with reduced motion, both are instant. The last view is reopened on the next visit
   (`localStorage`, `deets.console.analytics`).
 - **The views:** each is built once, on its first visit, and kept (`View` in
-  `pages/analytics.ts`). Each is empty now: "Empty for now", in the middle of the view.
+  `pages/subnav.ts`). Each is empty now: "Empty for now", in the middle of the view.
+- **Shared with Teams, Config, Security and Audit Logs** (2026-11-13): the panel, the nav and the view swap live in
+  `pages/subnav.ts` and `styles/subnav.css`. A page with its own nav gives only its title, its
+  `localStorage` key and its views (CONSOLE.md §3).
 
 **Decided inside his choice (for him to see):** the item names are his words as written
 ("Outcome", not "Outcomes"); the nav is as wide as the big nav; the view swap fades like the
-page swap; the head keeps "Nothing here yet." until the views have a design.
+page swap.
 
 ## 3. The views
 Each gets its own section here when the owner designs it.

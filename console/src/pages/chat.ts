@@ -13,12 +13,14 @@ import {
   annotate,
   catalog,
   callEvents,
+  health,
   sandbox,
   VERDICTS,
   watch,
   type AnnotationDraft,
   type CallEvent,
   type CallRow,
+  type EhrSource,
   type Rating,
   type Sandbox,
   type Verdict,
@@ -36,6 +38,24 @@ const MODE_ABOUT: Record<Mode, string> = {
   demo: "A recorded call plays back as if live",
 };
 const MODE_KEY = "deets.console.chat.mode";
+
+// The EHR toggle (CHAT.md §13): the EHR the next test call reads.
+const EHRS: EhrSource[] = ["local", "epic"];
+const EHR_WORD: Record<EhrSource, string> = { local: "Local", epic: "Epic" };
+const EHR_ABOUT: Record<EhrSource, string> = {
+  local: "Test calls read the local sandbox patients",
+  epic: "Test calls read Epic's public sandbox",
+};
+const EHR_KEY = "deets.console.chat.ehr";
+const savedEhr = (): EhrSource => {
+  try {
+    const e = localStorage.getItem(EHR_KEY);
+    if (e && (EHRS as string[]).includes(e)) return e as EhrSource;
+  } catch {
+    /* storage blocked */
+  }
+  return "local";
+};
 
 const STAR_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>`;
 const SEND_ICON =`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7"/></svg>`;
@@ -64,7 +84,10 @@ export function chatPage(): Page {
             <section class="stage glass chat" aria-labelledby="chat-title" data-mode="test">
               <header class="chat-head">
                 <h1 id="chat-title">Chat</h1>
-                <button class="mode-toggle" id="chat-mode" type="button"><span class="mode-word"></span></button>
+                <div class="chat-toggles">
+                  <button class="mode-toggle ehr-toggle" id="chat-ehr" type="button"><span class="mode-word"></span></button>
+                  <button class="mode-toggle" id="chat-mode" type="button"><span class="mode-word"></span></button>
+                </div>
               </header>
 
               <div class="chat-canvas">
@@ -187,7 +210,7 @@ export function chatPage(): Page {
           stepsBox(m).hidden = m !== mode;
         });
         closeCode();
-        renderCode(false);
+        showSandbox(); // the rail's list follows the mode: Test's toggle, Demo's call
         showReview(false);
       };
       // ---- the wave (chat.css › the wave): the visible controls come in one after another,
@@ -227,10 +250,15 @@ export function chatPage(): Page {
           if (mine !== flipping) return;
           toggle.classList.remove("flip-out");
           toggle.classList.add("flip-in");
-          showMode();
-          chat.classList.remove("wave-out");
-          waveIn();
-          requestAnimationFrame(() => requestAnimationFrame(() => toggle.classList.remove("flip-in")));
+          // The swap always finishes: if showMode throws, the controls still come back and the
+          // word still turns in (the owner, 2026-11-13: the buttons stayed hidden till a reload).
+          try {
+            showMode();
+          } finally {
+            chat.classList.remove("wave-out");
+            waveIn();
+            requestAnimationFrame(() => requestAnimationFrame(() => toggle.classList.remove("flip-in")));
+          }
         }, Math.max(tokenMs("--dur-flip") / 2, tokenMs("--dur-wave-out")));
       });
       shownHook = waveIn;
@@ -261,19 +289,91 @@ export function chatPage(): Page {
         if (m === mode) showReview(false);
       };
 
-      // ---- the sandbox patients (the rail, Test and Demo): from the dev server, which reads
-      // the same file ehr's fakes read (ehr/fixtures/sandbox.json)
+      // ---- the sandbox patients (the rail, Test and Demo): from the dev server. Local: the
+      // same file ehr's fakes read (ehr/fixtures/sandbox.json). Epic: Epic's public test
+      // patients, read live through ehr (CHAT.md §13). Test shows the EHR the toggle picks; Demo
+      // the EHR of the call it plays.
       const sandboxList = $("sandbox-list");
-      let box: Sandbox | undefined;
-      const loadSandbox = async () => {
-        try {
-          box = await sandbox();
-          sandboxList.replaceChildren(...sandboxRows(box));
-          renderCode(false);
-        } catch {
-          sandboxList.replaceChildren(note("The agent's dev server is not running"));
-        }
+      const boxes: Partial<Record<EhrSource, Sandbox>> = {};
+      const failed: Partial<Record<EhrSource, string>> = {};
+      let ehr = savedEhr();
+      let demoEhr: EhrSource = "local";
+      const railEhr = (): EhrSource => (mode === "demo" ? demoEhr : ehr);
+      let box: Sandbox | undefined; // the list the rail shows now
+      const showSandbox = () => {
+        const source = railEhr();
+        box = boxes[source];
+        if (box) sandboxList.replaceChildren(...sandboxRows(box));
+        else if (failed[source]) sandboxList.replaceChildren(note(failed[source]!));
+        else sandboxList.replaceChildren(note(source === "epic" ? "Reading Epic's sandbox" : "Loading"));
+        renderCode(false);
       };
+      const loadSandbox = async (source: EhrSource = railEhr()) => {
+        delete failed[source];
+        if (source === railEhr()) showSandbox();
+        try {
+          boxes[source] = await sandbox(source);
+        } catch (e) {
+          failed[source] =
+            source === "epic" && e instanceof AgentDown && e.message.includes("refused")
+              ? "Epic's sandbox did not answer"
+              : "The agent's dev server is not running";
+        }
+        if (source === railEhr()) showSandbox();
+      };
+
+      // ---- the EHR toggle (CHAT.md §13): Local → Epic → Local, the word turning over as the
+      // mode toggle's does. Test only; locked while a test call runs.
+      const ehrToggle = $<HTMLButtonElement>("chat-ehr");
+      const ehrWord = ehrToggle.querySelector<HTMLElement>(".mode-word")!;
+      let epicServed = true; // until the dev server says otherwise
+      const showEhr = () => {
+        ehrWord.textContent = EHR_WORD[ehr];
+        const next = EHRS[(EHRS.indexOf(ehr) + 1) % EHRS.length];
+        ehrToggle.disabled = live || seeking || (!epicServed && ehr === "local");
+        const why = !epicServed
+          ? "Epic mode needs epic-client.json and the non-production key"
+          : live || seeking
+            ? "The EHR is fixed for the call in progress"
+            : `Press for ${EHR_WORD[next]}`;
+        ehrToggle.setAttribute("aria-label", `EHR: ${EHR_WORD[ehr]}. ${EHR_ABOUT[ehr]}. ${why}`);
+        ehrToggle.title = `${EHR_ABOUT[ehr]}. ${why}`;
+      };
+      let ehrFlipping = 0;
+      ehrToggle.addEventListener("click", () => {
+        if (live || seeking) return;
+        ehr = EHRS[(EHRS.indexOf(ehr) + 1) % EHRS.length];
+        try {
+          localStorage.setItem(EHR_KEY, ehr);
+        } catch {
+          /* the choice holds for this visit only */
+        }
+        const swap = () => {
+          showEhr();
+          if (boxes[ehr] || failed[ehr] === undefined) showSandbox();
+          if (!boxes[ehr]) void loadSandbox(ehr);
+        };
+        if (reducedMotion()) return swap();
+        const mine = ++ehrFlipping;
+        ehrToggle.classList.add("flip-out");
+        window.setTimeout(() => {
+          if (mine !== ehrFlipping) return;
+          ehrToggle.classList.remove("flip-out");
+          ehrToggle.classList.add("flip-in");
+          swap();
+          requestAnimationFrame(() => requestAnimationFrame(() => ehrToggle.classList.remove("flip-in")));
+        }, tokenMs("--dur-flip") / 2);
+      });
+      void health()
+        .then((h) => {
+          epicServed = h.epic;
+          if (!h.epic && ehr === "epic") {
+            ehr = "local";
+            showSandbox();
+          }
+          showEhr();
+        })
+        .catch(() => {});
 
       // ---- the code by text (CHAT.md §8): when the fake Twilio takes a text for a test call,
       // or a recorded call reaches its text, the code button comes in at the bottom left. Its
@@ -359,6 +459,7 @@ export function chatPage(): Page {
         send.disabled = !on;
         input.placeholder = on ? "Type as the caller, then press Enter" : "Start a call to type as the caller";
         renderCode(false);
+        showEhr();
       };
       const note = (text: string) => {
         const p = document.createElement("p");
@@ -387,8 +488,10 @@ export function chatPage(): Page {
         testView = new CallView(testLines, { onText: (e) => addText("test", e), ...panels("test") });
         myCall = null;
         seeking = true;
+        showEhr();
         client = new PipecatClient({
-          transport: new TextSeat(),
+          // The EHR the toggle picks is fixed for the whole call (CHAT.md §13).
+          transport: new TextSeat(`/agent/call?ehr=${ehr}`),
           enableMic: false,
           enableCam: false,
           callbacks: {
@@ -409,6 +512,7 @@ export function chatPage(): Page {
         } catch (e) {
           client = undefined;
           seeking = false;
+          showEhr();
           start.disabled = false;
           testLines.replaceChildren(
             note(e instanceof Error && e.message ? `No call: ${e.message}` : "No call: the agent did not answer"),
@@ -453,6 +557,7 @@ export function chatPage(): Page {
               if (m.type === "started" && seeking) {
                 myCall = id;
                 seeking = false;
+                showEhr();
               }
             } else phiIdle();
             return;
@@ -534,6 +639,11 @@ export function chatPage(): Page {
         demoLines.replaceChildren();
         clearTexts("demo");
         unreview("demo");
+        // The rail shows the patients of the EHR this call read (schema 6; older calls: local).
+        const start0 = events.find((e) => e.kind === "call_start");
+        demoEhr = start0?.ehr === "epic" ? "epic" : "local";
+        if (mode === "demo") showSandbox();
+        if (!boxes[demoEhr]) void loadSandbox(demoEhr);
         const id = pick.value;
         const view = new CallView(demoLines, { onText: (e) => addText("demo", e), ...panels("demo") });
         const last = events.reduce((m, e) => Math.max(m, e.t_ms), 0);
@@ -551,6 +661,7 @@ export function chatPage(): Page {
       });
       void loadCatalog();
       void loadSandbox();
+      showEhr();
 
       showMode();
       return page;
@@ -1222,6 +1333,8 @@ const CHEVRON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6
 /** The sandbox patients for the rail: each one's name and birth date, and their visits in a
  * list that one press opens and the next closes. */
 function sandboxRows(s: Sandbox): HTMLElement[] {
+  // A dev server older than this page sends no `more`: read it as none left out.
+  const more = s.more ?? {};
   return s.patients.map((p, i) => {
     const row = document.createElement("div");
     row.className = "patient";
@@ -1251,7 +1364,8 @@ function sandboxRows(s: Sandbox): HTMLElement[] {
     toggle.setAttribute("aria-expanded", "false");
     toggle.setAttribute("aria-controls", listId);
     toggle.innerHTML = `<span></span>${CHEVRON}`;
-    toggle.querySelector("span")!.textContent = visits.length === 1 ? "1 visit" : `${visits.length} visits`;
+    const count = visits.length + (more[p.id] ?? 0);
+    toggle.querySelector("span")!.textContent = count === 1 ? "1 visit" : `${count} visits`;
     const fold = document.createElement("div");
     fold.className = "visits";
     fold.id = listId;
@@ -1260,7 +1374,14 @@ function sandboxRows(s: Sandbox): HTMLElement[] {
     const ul = document.createElement("ul");
     for (const v of visits) {
       const li = document.createElement("li");
-      li.textContent = `${visitTime(v.starts_at)} · ${v.minutes} min · ${v.clinician} · ${s.place}`;
+      li.textContent = `${visitTime(v.starts_at)} · ${v.minutes} min · ${v.clinician} · ${v.place ?? s.place}`;
+      ul.append(li);
+    }
+    const rest = more[p.id] ?? 0;
+    if (rest > 0) {
+      const li = document.createElement("li");
+      li.className = "visits-more";
+      li.textContent = rest === 1 ? "and 1 more" : `and ${rest} more`;
       ul.append(li);
     }
     inner.append(ul);
