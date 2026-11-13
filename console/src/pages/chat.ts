@@ -124,7 +124,12 @@ export function chatPage(): Page {
                       (s) => `<button class="tab" type="button" role="radio" data-seat="${s}" aria-checked="${s === "text"}">${SEAT_WORD[s]}</button>`,
                     ).join("")}
                   </div>
-                  <button class="flip-toggle ehr-toggle" data-wave id="chat-ehr" type="button"><span class="flip-word"></span></button>
+                  <div class="tabs ehr" data-wave id="chat-ehr" role="radiogroup" aria-label="The EHR the test call reads">
+                    <span class="nav-highlight tab-pill" aria-hidden="true"></span>
+                    ${EHRS.map(
+                      (e) => `<button class="tab" type="button" role="radio" data-ehr="${e}" aria-checked="false">${EHR_WORD[e]}</button>`,
+                    ).join("")}
+                  </div>
                   <div class="tabs speed" data-wave id="demo-speed" role="radiogroup" aria-label="Playback speed">
                     <span class="nav-highlight tab-pill" aria-hidden="true"></span>
                     ${SPEEDS.map(
@@ -412,48 +417,44 @@ export function chatPage(): Page {
         if (source === railEhr()) showSandbox();
       };
 
-      // ---- the EHR toggle (CHAT.md §13): Local → Epic → Local, its word turning over. At the
-      // canvas's top right, Testing only; locked while a test call runs.
-      const ehrToggle = $<HTMLButtonElement>("chat-ehr");
-      const ehrWord = ehrToggle.querySelector<HTMLElement>(".flip-word")!;
+      // ---- the EHR bar (CHAT.md §13): Local | Epic, a tab bar like the seat and speed bars. At
+      // the canvas's top right, Testing only; locked while a test call runs. The choice is kept.
+      const ehrBar = $("chat-ehr");
+      const ehrPill = ehrBar.querySelector<HTMLElement>(".tab-pill")!;
+      const ehrParts = [...ehrBar.querySelectorAll<HTMLButtonElement>("[data-ehr]")];
       let epicServed = true; // until the dev server says otherwise
+      let ehrAnimate = false; // the pill slides only after a press
       const showEhr = () => {
-        ehrWord.textContent = EHR_WORD[ehr];
-        const next = EHRS[(EHRS.indexOf(ehr) + 1) % EHRS.length];
-        ehrToggle.disabled = live || seeking || (!epicServed && ehr === "local");
-        const why = !epicServed
-          ? "Epic mode needs epic-client.json and the non-production key"
-          : live || seeking
-            ? "The EHR is fixed for the call in progress"
-            : `Press for ${EHR_WORD[next]}`;
-        ehrToggle.setAttribute("aria-label", `EHR: ${EHR_WORD[ehr]}. ${EHR_ABOUT[ehr]}. ${why}`);
-        ehrToggle.title = `${EHR_ABOUT[ehr]}. ${why}`;
+        ehrParts.forEach((b) => {
+          const e = b.dataset.ehr as EhrSource;
+          b.setAttribute("aria-checked", String(e === ehr));
+          b.disabled = live || seeking || (e === "epic" && !epicServed);
+          b.title =
+            e === "epic" && !epicServed
+              ? "Epic mode needs epic-client.json and the non-production key"
+              : live || seeking
+                ? "The EHR is fixed for the call in progress"
+                : EHR_ABOUT[e];
+        });
+        placePill(ehrPill, ehrParts.find((b) => b.dataset.ehr === ehr), ehrAnimate);
+        ehrAnimate = false;
       };
-      let ehrFlipping = 0;
-      ehrToggle.addEventListener("click", () => {
-        if (live || seeking) return;
-        ehr = EHRS[(EHRS.indexOf(ehr) + 1) % EHRS.length];
+      ehrBar.addEventListener("click", (e) => {
+        const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-ehr]");
+        if (!b || b.disabled || live || seeking || b.dataset.ehr === ehr) return;
+        ehr = b.dataset.ehr as EhrSource;
         try {
           localStorage.setItem(EHR_KEY, ehr);
         } catch {
           /* the choice holds for this visit only */
         }
-        const swap = () => {
-          showEhr();
-          if (boxes[ehr] || failed[ehr] === undefined) showSandbox();
-          if (!boxes[ehr]) void loadSandbox(ehr);
-        };
-        if (reducedMotion()) return swap();
-        const mine = ++ehrFlipping;
-        ehrToggle.classList.add("flip-out");
-        window.setTimeout(() => {
-          if (mine !== ehrFlipping) return;
-          ehrToggle.classList.remove("flip-out");
-          ehrToggle.classList.add("flip-in");
-          swap();
-          requestAnimationFrame(() => requestAnimationFrame(() => ehrToggle.classList.remove("flip-in")));
-        }, tokenMs("--dur-flip") / 2);
+        ehrAnimate = true;
+        showEhr();
+        if (boxes[ehr] || failed[ehr] === undefined) showSandbox();
+        if (!boxes[ehr]) void loadSandbox(ehr);
       });
+      // Places the pill once the bar has a size (it has none outside Testing).
+      new ResizeObserver(() => showEhr()).observe(ehrBar);
       void health()
         .then((h) => {
           epicServed = h.epic;

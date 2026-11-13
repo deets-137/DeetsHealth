@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
 | Theme (color roles) | themes.css | 31 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 86 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 83 tokens · overrides:  |
 
 ## Theme roles
 
@@ -128,7 +128,7 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 |---|---|---|---|
 | `--control-height` | `44px` | — | every call control: large, and the same size in every state |
 | `--speed-part` | `56px` | — | one of the three parts of Demo's speed bar (0.5×, 1×, 2×) |
-| `--seat-part` | `64px` | — | one of the two parts of Testing's seat bar (Text, Voice) |
+| `--pair-part` | `64px` | — | one of the two parts of Testing's seat bar (Text, Voice) and EHR bar (Local, Epic) |
 | `--meter-height` | `8px` | — | the Resources tab's credit meter |
 | `--split-half` | `132px` | — | one half of a split button: wide enough for its longest word ("Confirm?") |
 | `--send-size` | `44px` | — | the send button, square |
@@ -146,9 +146,7 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--verdict-min` | `180px` | — | the verdict control's least width before the dots wrap under it |
 | `--dot-size` | `12px` | — | a score dot |
 | `--star-size` | `20px` | — | the Review panel's star |
-| `--toggle-tracking` | `0.04em` | — | the EHR toggle's word |
 | `--disabled-opacity` | `0.45` | — | a control that cannot be used now |
-| `--flip-depth` | `400px` | — | the perspective the toggle's word turns in |
 
 ### glass
 
@@ -169,7 +167,6 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--dur-enter` | `220ms` | — | the new page fades in |
 | `--ease` | `ease` | — |  |
 | `--ease-pill` | `cubic-bezier(0.3, 0.7, 0.2, 1)` | — |  |
-| `--dur-flip` | `240ms` | — | the EHR toggle's word turns over (half out, half in) |
 | `--dur-collapse` | `220ms` | — | the help box opens and closes |
 | `--dur-wave-out` | `120ms` | — | a mode change: the old controls fade out together |
 | `--dur-wave-in` | `360ms` | — | then each new control rises and fades in... |

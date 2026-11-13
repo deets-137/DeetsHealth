@@ -728,15 +728,17 @@ rating revealed after yours.
 > near Test that flips between Epic and Local" (his screenshot, the space left of the mode
 > toggle).
 
-**The button** (`#chat-ehr`, `.flip-toggle.ehr-toggle`): since 2026-11-13 (§14) at the
-canvas's top right, in a row of its own (`.chat-top`), so the lines scroll under the row and
-never under the button. Its word, Local or Epic, turns over when pressed. It names the EHR the
-next test call reads, and the page keeps the choice (`deets.console.chat.ehr` in
-`localStorage`). It joins the controls' wave.
+**The EHR bar** (`#chat-ehr`, `.tabs.ehr`; the owner, 2026-11-13: "make the button for Epic and
+Local a tabbar as well"): **Local | Epic**, at the canvas's top right after the seat bar (§17),
+in a row of its own (`.chat-top`), so the lines scroll under the row and never under the bar.
+The seat bar's look: two parts, each `--pair-part` (64 px) wide; the pill slides to the chosen
+part. Before 2026-11-13 it was one button whose word, Local or Epic, turned over when pressed.
+It names the EHR the next test call reads, and the page keeps the choice
+(`deets.console.chat.ehr` in `localStorage`). It joins the controls' wave.
 - Testing only. In Demo and PHI the row is gone, and the lines take its room.
 - Locked from Start to the call's end: the EHR is fixed for a call.
-- Disabled, with its reason in the hint, when the dev server has no Epic files (`/agent/health`
-  › `epic`); the page then falls back to Local.
+- Epic is disabled, with its reason in the hint, when the dev server has no Epic files
+  (`/agent/health` › `epic`); the page then falls back to Local.
 
 **The call:** Start opens `/agent/call?ehr=local|epic`. The dev server passes it to
 `TypedCall` (`ehr_source`) and the record (`call_start` › `ehr`, schema 6). `OpenCall` carries
@@ -939,8 +941,8 @@ the same height as the Epic button, in its place.
 > every lever: integrations/CARTESIA.md §8–9.
 
 **The seat bar** (`#chat-seat`, `SEATS` and `showSeat` in `chat.ts`): **Text | Voice**, in the
-canvas's top row at the right, before the Epic button; Testing only. The speed bar's look (the
-rail's `.tabs`), two parts each `--seat-part` (64 px) wide; the pill slides to the chosen part.
+canvas's top row at the right, before the EHR bar (Local | Epic, §13); Testing only. The speed bar's look (the
+rail's `.tabs`), two parts each `--pair-part` (64 px) wide, as the EHR bar (§13); the pill slides to the chosen part.
 - **Text each time:** Text when the page opens and again after every call ends, so a voice call
   always takes a fresh press of Voice. Never saved.
 - **Locked during a call**, with the hint "Fixed for the call in progress".
@@ -982,7 +984,7 @@ tab, after Tools and Timeline):
   `CARTESIA_CYCLE_DAY` in `.env` (20,000 and the 1st by default). Counts and dates only: no
   value from a call.
 
-**Tokens and files:** `--seat-part` (64 px), `--meter-height` (8 px) in `skin.css`; the
+**Tokens and files:** `--pair-part` (64 px), `--meter-height` (8 px) in `skin.css`; the
 accent, `--glass-fill-strong`, `--line`, `--text-2`, `--text-3` roles. `chat.ts`, `chat.css`,
 `transport.ts › VoiceSeat`, `api.ts › resources, voiceOffer`; the agent's `voice.py`,
 `resources.py`, `dev_server.py › voice, resources`, `call.py › TypedCall` (the voice pipeline
@@ -991,7 +993,7 @@ and `_watch_limits`), `screen.py` (a spoken line), `flow.py › emergency_frame`
 **Decided inside his choices** (for his review):
 - The words: "Text", "Voice", the hints, "Speak, or type as the caller and press Enter", the
   Resources tab's heading, row names and two notes.
-- The seat bar sits left of the Epic button in the same row.
+- The seat bar sits left of the EHR bar (Local | Epic) in the same row.
 - The text box stays live in a voice call, and a typed line gets a spoken answer.
 - A limit ends the call silently, with the reason on the canvas.
 - The Resources tab counts by cycle, with the cycle day in `.env`; the live call's row shows
@@ -1008,7 +1010,9 @@ and `_watch_limits`), `screen.py` (a spoken line), `flow.py › emergency_frame`
   with the 800 ms tuning.
 
 **Desk test** (after the Cartesia key is in `.env` and `npm run dev` is restarted):
-1. Chat, Testing. The top row shows Text | Voice with the pill on Text, and the Epic button.
+1. Chat, Testing. The top row shows Text | Voice with the pill on Text, then Local | Epic with
+   the pill on the EHR last chosen. Press the other EHR: its pill slides, and the rail lists its
+   patients. During a call both bars are locked.
    The bottom panel has a Resources tab: 20,000 left of 20,000, 0 voice calls.
 2. Press Voice, then Start. Allow the microphone. The agent greets you aloud. Say you want a
    check-up. Your words show as a caller bubble; the agent answers aloud.

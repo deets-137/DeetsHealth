@@ -48,37 +48,10 @@
   gap: var(--gap);
 }
 
-/* ------------------------------------------------------------ the EHR toggle */
-
-/* One button; its word turns over when pressed (chat.ts adds .flip-out, swaps the word,
-   then .flip-in). At rest it has no transform, so its text is crisp. */
-.flip-toggle {
-  min-width: var(--split-half);
-  height: var(--control-height);
-  padding: 0 var(--space-4);
-  border: var(--edge) solid var(--glass-edge);
-  border-radius: var(--radius-item);
-  background: var(--glass-fill-strong);
-  color: var(--title);
-  font-weight: var(--weight-regular); /* regular, as the split buttons (the owner, 2026-11-13) */
-  letter-spacing: var(--toggle-tracking);
-  perspective: var(--flip-depth);
-  transition: background-color var(--dur-hover) var(--ease);
-}
-
-.flip-toggle:hover:not(:disabled) {
-  background: var(--press);
-}
-
-.flip-toggle:disabled {
-  opacity: var(--disabled-opacity);
-  cursor: default;
-}
-
-/* The canvas's top row: at its right, the EHR toggle in Testing (CHAT.md §13: Epic or Local,
-   the EHR the next test call reads) and the speed bar in Demo (§16). A row of its own, so the
-   lines scroll under it and never under its controls. In PHI the row is gone ("what each mode
-   shows", below). */
+/* The canvas's top row: at its right, in Testing, the seat bar (§17: Text or Voice) and the EHR
+   bar (§13: Local or Epic, the EHR the next test call reads); in Demo, the speed bar (§16). A
+   row of its own, so the lines scroll under it and never under its controls. In PHI the row
+   is gone ("what each mode shows", below). */
 .chat-top {
   display: flex;
   justify-content: flex-end;
@@ -88,10 +61,11 @@
 }
 
 /* The speed bar: the rail's tab bar (.tabs) split in three equal parts, 0.5×, 1×, 2×, each
-   --speed-part wide; the pill slides to the chosen speed. The seat bar (CHAT.md §17) is the
-   same bar in two parts, Text and Voice, each --seat-part wide. */
+   --speed-part wide; the pill slides to the chosen speed. The seat bar (§17: Text, Voice) and
+   the EHR bar (§13: Local, Epic) are the same bar in two parts, each --pair-part wide. */
 .speed,
-.seat {
+.seat,
+.ehr {
   overflow: visible;
 }
 
@@ -100,36 +74,16 @@
   text-align: center;
 }
 
-.seat .tab {
-  width: var(--seat-part);
+.seat .tab,
+.ehr .tab {
+  width: var(--pair-part);
   text-align: center;
 }
 
-.seat .tab:disabled {
+.seat .tab:disabled,
+.ehr .tab:disabled {
   opacity: var(--disabled-opacity);
   cursor: default;
-}
-
-.flip-word {
-  display: inline-block;
-  transition: transform calc(var(--dur-flip) / 2) var(--ease), opacity calc(var(--dur-flip) / 2) var(--ease);
-}
-
-.flip-toggle.flip-out .flip-word {
-  transform: rotateX(90deg);
-  opacity: 0;
-}
-
-.flip-toggle.flip-in .flip-word {
-  transition: none;
-  transform: rotateX(-90deg);
-  opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .flip-word {
-    transition: none;
-  }
 }
 
 /* ----------------------------------------------------------------- the canvas */
@@ -464,7 +418,7 @@
 .chat[data-mode="phi"] .chat-top,
 .chat:not([data-mode="test"]) .chat-bar,
 .chat:not([data-mode="test"]) .split-call,
-.chat:not([data-mode="test"]) .ehr-toggle,
+.chat:not([data-mode="test"]) .ehr,
 .chat:not([data-mode="test"]) .seat,
 .chat:not([data-mode="demo"]) .split-play,
 .chat:not([data-mode="demo"]) .speed {

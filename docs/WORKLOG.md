@@ -25,6 +25,10 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   pipeline in `call.py`, a spoken line in `screen.py`, the 911 line uninterruptible, the seat
   bar, `VoiceSeat`, the Resources tab. New tests in `test_voice.py` and `test_dev_server.py`.
   Not run with audio: no Cartesia key yet.
+- Committed on a new branch, `vocals` (the owner's ask). It starts from `main` (`50fa514`, one
+  docs commit ahead of `epic-time`), so it merges into `main` as a fast-forward.
+- Then the Epic / Local button became a **Local | Epic** tab bar like the seat bar (the owner;
+  CHAT.md §13). The flip and its three tokens are gone; `--seat-part` is now `--pair-part`.
 
 ## 2026-11-13 (Windows, last) — When no code can go out: words true for every caller
 - The owner's call as Warren McGinnis (`agent/calls/20261112-181140-test.jsonl`): his chart has
