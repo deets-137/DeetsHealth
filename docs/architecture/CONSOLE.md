@@ -137,7 +137,7 @@ web app cannot do.
     `--pad-panel` is made of them. Its value is the same. The Chat page uses the halves to put
     its title, canvas and bar on the same edges as every other page's title (CHAT.md §3).
 - **Scrollbars: our own, not the system's** (the owner, 2026-11-13, "so we can pull for
-  future pages"). A page opts in with one class, `own-scrollbars`, on its root
+  future pages"; desk test passed 2026-11-13 on the Chat page). A page opts in with one class, `own-scrollbars`, on its root
   (`<section class="page own-scrollbars">`); every scroll box inside it then gets them. The
   Chat page is the first; to give another page them, add the class there. The parts:
   - **The rule:** `app.css` › `.own-scrollbars`. No track, no arrows, a rounded thumb that

@@ -71,6 +71,10 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   "Loading". Each recorded-call row then got its own play button, which chooses the call and
   plays it at once: a 44 px rounded square in the theme's own color, a new role
   `--theme-color` (black, navy, orange).
+- Desk tests, with the owner (from `annotations.jsonl`, the call records, his screenshots and
+  his word): passed CHAT.md §9.1, §14, §15, §16, the "Loading" fix and the scrollbars; §12
+  partly (open: a dimension's note, a Demo replay keeps the choices, the model's line). No log
+  records what is clicked on the page: the evidence is the records and the screenshots.
 - Committed without the visit-type work in flight in the same tree: `chat.ts`'s sandbox-row
   line for the visit type stays uncommitted with it.
 

@@ -392,7 +392,8 @@ scheduler keeps bookings in memory only). The text path's own gaps are TEXTS.md 
 the message that triggered it, time to trigger and confirm, and that's it for now."
 
 ### 9.1 What each entry shows
-> **Part:** rebuilt 2026-11-13 — the owner: "make the font sizes consistent here, and aligned
+> **Part:** rebuilt 2026-11-13 · desk test passed 2026-11-13 (his screenshot of Olivia
+> Roberts's call, then his word) — the owner: "make the font sizes consistent here, and aligned
 > ... more readable to an analyst ... the text box presented akin to the main panel (with the
 > appropriate color for agent and caller) with the tool underneath with an -> ... proper
 > bullets". Before: a main line with the arguments' values, and "Triggered by" as a bullet.
@@ -624,7 +625,11 @@ each build reports its name and tools.
    run late.
 
 ## 12. The Review panel
-> **Part:** built · 2026-11-12 — the owner's choice A, the rubric itself: "each dimension can be
+> **Part:** built · 2026-11-12 · desk test partly passed 2026-11-13: the tab after a call, the
+> star, the label, the verdicts and the dots (to 0 and back), the verdict pill's gap and the
+> head (`annotations.jsonl`, his screenshots). **Still open:** steps 4 (a dimension's note), 5
+> (a Demo replay of a rated call keeps the choices) and 6 (the model's line after a verdict).
+> — the owner's choice A, the rubric itself: "each dimension can be
 > a row with sliders, 0 to 5 can be five dots, a star works. Not all of it is required. It
 > should match the design language of DeetsHealth."
 
@@ -771,7 +776,7 @@ offered for booking (the fake's slots on the next weekdays), because booking thr
 6. Press the button back to Local: a Local call behaves as before.
 
 ## 14. The Chat nav: Testing, Demo, PHI
-> **Part:** built · 2026-11-13 — the owner's ask: "add a navbar to the chat page ... testing,
+> **Part:** built · 2026-11-13 · desk test passed 2026-11-13 — the owner's ask: "add a navbar to the chat page ... testing,
 > demo and phi each being a one to one of the modes", and the Epic button "in the top right of
 > the newly positioned chat canvas" (his screenshot). It replaces the mode toggle of §1 and §3.
 
@@ -814,7 +819,7 @@ is left.
 6. Reload: the page opens on the last mode.
 
 ## 15. The rail: two panels with tabs
-> **Part:** built · 2026-11-13 — the owner's ask: "a column of 2 panels with nontechnical info
+> **Part:** built · 2026-11-13 · desk test passed 2026-11-13 — the owner's ask: "a column of 2 panels with nontechnical info
 > on top, and technical info in the second panel", tabs "Sandbox EPTs" and "Steps" on top,
 > "Tools" and "Timeline" below, "the tab system akin to a horizontal navbar". His forks: the
 > Review panel becomes a third tab on top (1A); the two panels split the column equally (2A).
@@ -872,7 +877,8 @@ it); Timeline and Caller kept as "Empty for now"; `--tools-min` renamed `--rail-
    same row, fainter, saying "No visits".
 
 ## 16. Demo: the recorded calls in the rail; the speed bar in the canvas
-> **Part:** built · 2026-11-13 — the owner: "In the Demo subpage, let's replace the Sandbox
+> **Part:** built · 2026-11-13 · desk test passed 2026-11-13 (a replay from the list; the
+> "Loading" fix) — the owner: "In the Demo subpage, let's replace the Sandbox
 > EPTs tab entirely and move the list of logs available for replay there. Then let's add a
 > tabbar inside of the chat canvas itself to control speed 0.5x, 1x, and 2x. Bar can be split
 > in 3."

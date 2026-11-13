@@ -119,13 +119,21 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   so the model answers the rest of the turn. A sensitive type or reason is dropped in `ehr`
   (`visit_about.rs`, a draft list). When the agent cannot help, `offer_staff` says so and asks;
   a yes is `hand_off`, a no goes on. FUTURE-SETTINGS.md §9, §10. Desk test: Epic, Test, call as
-  Camila, ask "when is my next visit and what is it for?", then something it cannot do.
+  Camila, ask "when is my next visit and what is it for?", then something it cannot do. (The
+  owner's 18:22 call, where a feedback request went to `hand_off`, ran the old code: not a test
+  of this.)
 - **Built, desk test open: the code step's words are true for every caller** (2026-11-13, after
   Warren's call; the owner's option A, FUTURE-SETTINGS.md §11). The code is "on its way" only
   if the details match and a mobile number is on file, and a person is promised if no text
   comes; "no text" goes to a person at once. Nothing says whether the details matched. Desk
   test: Epic, Test, call as Warren McGinnis (May 24, 1952), say "I didn't get a text".
-- **In flight: the Chat page** (branch `chat-what-we-doin`, CHAT.md). The UI passed its first
+- **The Chat page's 2026-11-13 round is on `main`** (`63142a8`; CHAT.md §9, §12–16): the
+  page's own nav (Testing, Demo, PHI), the rail as two tabbed panels, the Tools tab for
+  analysts, Demo's recorded calls with a play button per row and a 0.5× | 1× | 2× speed bar,
+  our own scrollbars (CONSOLE.md). **Desk tests passed 2026-11-13**, all but the Review tab's
+  last three steps (CHAT.md §12: a dimension's note, a Demo replay keeps the choices, the
+  model's line). **Next, the owner's:** the Timeline and Caller tabs are "Empty for now".
+- **In flight: the Chat page** (CHAT.md). The UI passed its first
   desk test (2026-11-12). **The connection is built, desk test open** (CHAT.md §6): `npm run
   dev` starts both; Test calls the agent through client-js and our own text transport (not
   Pipecat's WebSocket transport, which loads remote code); the watch stream draws Test, PHI
@@ -143,7 +151,8 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   canvas's bottom left opens the text or sends the code. `npm run dev` now builds `ehr` first.
   Twilio itself is Phase 5; start the sender registration early (TWILIO.md §6). **The Tools
   panel** (CHAT.md §9) is built too, desk test open: each tool call with its trigger line, the
-  time to trigger and the time to confirm, exact to a tenth of a ms (record schema 3). **The
+  time to trigger and the time to confirm, exact to a tenth of a ms (record schema 3); rebuilt
+  for analysts and desk test passed 2026-11-13 (CHAT.md §9.1). **The
   Step panel** (CHAT.md §11), desk test passed 2026-11-12: a block per step, stacked in call order, the
   current one with its tools and the limits left, the steps ahead faint (record schema 5:
   `step` events at each move; `OpenCall` now carries the limits). **Per-tool latency**: `GET
