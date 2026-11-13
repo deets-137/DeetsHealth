@@ -122,6 +122,13 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   checked), three RPCs, `GET`/`POST /agent/cartesia`. Voice calls run with the active version.
   **Restart `npm run dev` first** (new `ehr`, the migration). Open: pronunciations need a
   Cartesia dictionary; Make active; Listen (CONSOLE.md §7.6).
+- **Done: Config › Anthropic** (2026-11-13; the owner's option A, the page chooses the model;
+  **desk test passed 2026-11-13** on wide screens). Model, Effort, Thinking, the token caps,
+  Cache life, Budget and Dollars left; the store's `llm` service (migration 0004); test calls
+  run with the active version; US-only inference sent on every live request (1.1×). Open: the
+  desk test on narrow screens, both Config pages (CONSOLE.md §8.5 step 9); `strict` on tools (a
+  re-recording, cost first), pre-warm, Make active (CONSOLE.md §8.4). Cartesia's unused levers:
+  CONSOLE.md §7.6.
 - **Done: Epic's sandbox patients on the Chat page** (branch `epic-time`; forks 1A and 2A,
   2026-11-12). The Backend Services sign-in (E-2, EPIC.md §5.1), and Epic mode, **desk test
   passed 2026-11-13** (CHAT.md §13): the Epic / Local button left of Test; `OpenCall` names the

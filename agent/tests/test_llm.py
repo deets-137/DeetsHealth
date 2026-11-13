@@ -35,6 +35,31 @@ async def test_a_recording_replays_as_sdk_events(tmp_path):
     assert events[1].type == "content_block_delta" and events[1].delta.text == "Hi there"
 
 
+def test_the_code_values_build_the_same_requests_as_before():
+    """Config › Anthropic's Default is the code's values; they send no thinking field and no
+    cache life, so every recorded reply still matches its request (CONSOLE.md §8)."""
+    from deets_agent.llm import build_llm, thinking_config
+
+    s = build_llm(Mode.REPLAY)._settings
+    assert (s.model, s.max_tokens, s.effort) == ("claude-haiku-5-5", 1200, "low")
+    assert thinking_config({"model": "claude-haiku-5-5", "thinking": "on"}) is None
+    assert thinking_config({"model": "claude-haiku-5-5", "thinking": "off"}).type == "disabled"
+    assert thinking_config({"model": "claude-sonnet-5-5", "thinking": "off"}).type == "between_tools"
+    assert thinking_config({"model": "claude-opus-5-5", "thinking": "off"}) is None
+    llm = build_llm(Mode.REPLAY, values={"model": "claude-sonnet-5-5", "thinking": "off", "cache_ttl": "1h", "retry_max_tokens": 3000})
+    assert llm._settings.thinking.type == "between_tools" and llm._settings.system_prompt_cache_ttl == "1h"
+
+
+def test_the_cost_uses_each_models_prices():
+    from deets_agent.call_record import cost_usd
+
+    tokens = {"input_tokens": 1_000_000, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
+    assert cost_usd(tokens, "claude-opus-5-5", geo=False) == 4.0
+    assert round(cost_usd(tokens, "claude-opus-5-5"), 6) == 4.4  # US-only, 1.1×
+    write = {"cache_creation_input_tokens": 1_000_000}
+    assert cost_usd(write, "claude-sonnet-5-5", "1h", geo=False) == 4.0
+
+
 CUT_OFF = [
     {"type": "content_block_start", "index": 0, "content_block": {"type": "thinking", "thinking": "", "signature": ""}},
     {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": "Hmm..."}},

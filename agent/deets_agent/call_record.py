@@ -14,7 +14,7 @@ Each line is one event: `t_ms` (from the call's start; to a tenth of a milliseco
 - `call_start`, `call_end` — the schema version, the call's id (the file's name), the source
   (`typed`, `test`), the scenario (a script's name, or none), the EHR it read (`ehr`: `local`
   for ehr's fakes, `epic` for Epic's public sandbox; schema 6), the seat (`text` or `voice`;
-  schema 7), the mode, the model; at the end, the totals and the estimated cost, and for a
+  schema 7), the mode, the model, its `llm` settings and `inference_geo` (schema 8); at the end, the totals and the estimated cost, and for a
   voice call `cartesia`: Ink's seconds, Sonic's characters and their credits (schema 7).
 - `caller`, `agent` — what each side said. `first_ms` on `agent` (schema 4): when the line's
   first frame passed, on the call's clock; the event's own `t_ms` comes after the harness's
@@ -54,9 +54,6 @@ from deets_agent import config
 
 CALLS = config.AGENT / "calls"
 
-# Haiku 5.5, per 1M tokens (integrations/ANTHROPIC.md §3). Cache writes are billed at 1.25× the
-# input price and cache reads at 0.1×. An estimate for the record, not a bill.
-PRICES = {"claude-haiku-5-5": (0.10, 0.50)}
 
 # 1: the records of 2026-11-11 (no id, source or scenario in `call_start`; no `result` on an
 # `ehr` event). 2: since 2026-11-12. 3: since 2026-11-12, afternoon: `tool_call` has
@@ -65,9 +62,26 @@ PRICES = {"claude-haiku-5-5": (0.10, 0.50)}
 # `first_ms`. 5: since 2026-11-12, night: `step` events, stamped when the Flow moves, and
 # `left` on the ehr events that spend a verification limit. 6: since 2026-11-12, late night:
 # `ehr` on `call_start`, the EHR the call read (`local`, `epic`). 7: since 2026-11-13: `seat` on
-# `call_start` (`text`, `voice`), and `cartesia` on a voice call's `call_end`. The catalog reads
-# all seven.
-SCHEMA_VERSION = 7
+# `call_start` (`text`, `voice`), and `cartesia` on a voice call's `call_end`. 8: since
+# 2026-11-13: `llm` on `call_start` (effort, thinking, the token caps, the cache's life: Config ›
+# Anthropic) and `inference_geo`; `cost_usd` counts the model's own prices and US-only
+# inference (1.1×). The catalog reads all eight.
+SCHEMA_VERSION = 8
+
+
+def cost_usd(tokens: dict[str, int], model: str, cache_ttl: str = "5m", geo: bool = True) -> float:
+    """Dollars for these tokens on `model` (config.LLM_MODELS: per 1M tokens, ANTHROPIC.md §3).
+    A cache write costs 1.25× the input price for a 5-minute cache, 2× for 1 hour; a cache read
+    is the model's own read price; US-only inference is 1.1× on all of it. An estimate for the
+    record, not a bill."""
+    price_in, price_out, price_read = config.LLM_MODELS.get(model, {}).get("price", (0.0, 0.0, 0.0))
+    dollars = (
+        tokens.get("input_tokens", 0) * price_in
+        + tokens.get("cache_creation_input_tokens", 0) * price_in * config.CACHE_WRITE.get(cache_ttl, 1.25)
+        + tokens.get("cache_read_input_tokens", 0) * price_read
+        + tokens.get("output_tokens", 0) * price_out
+    )
+    return dollars / 1_000_000 * (config.GEO_PRICE if geo else 1.0)
 
 
 def _ms(seconds: float) -> float:
@@ -142,7 +156,11 @@ class CallRecord:
         scenario: str | None = None,
         ehr: str = "local",
         seat: str = "text",
+        llm: dict[str, Any] | None = None,
     ) -> None:
+        """`llm`: the call's llm settings (Config › Anthropic, CONSOLE.md §8); the code's when
+        none. Written on `call_start` (schema 8) and used for the cost."""
+        llm = {**config.llm_defaults(), **(llm or {}), "model": model}
         folder.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         # The file's name is the call's id in the catalog (catalog.py). Two calls in one second
@@ -158,6 +176,9 @@ class CallRecord:
         self.listeners: list = []
         self._start = time.perf_counter()
         self._model = model
+        self.cache_ttl = str(llm["cache_ttl"])
+        # Every live request is sent US-only (llm.py), billed at 1.1×.
+        self.geo = True
         self._tool_start: dict[str, float] = {}
         self._last_caller: float | None = None
         self._answer_start: float | None = None
@@ -175,6 +196,8 @@ class CallRecord:
             seat=seat,
             mode=mode,
             model=model,
+            llm={k: llm[k] for k in ("effort", "thinking", "max_tokens", "retry_max_tokens", "cache_ttl")},
+            inference_geo=config.INFERENCE_GEO,
             started=datetime.now().isoformat(timespec="seconds"),
         )
 
@@ -266,15 +289,7 @@ class CallRecord:
     # ---- the end ----
 
     def cost(self) -> float:
-        price_in, price_out = PRICES.get(self._model, (0.0, 0.0))
-        t = self.tokens
-        dollars = (
-            t["input_tokens"] * price_in
-            + t["cache_creation_input_tokens"] * price_in * 1.25
-            + t["cache_read_input_tokens"] * price_in * 0.1
-            + t["output_tokens"] * price_out
-        )
-        return dollars / 1_000_000
+        return cost_usd(self.tokens, self._model, self.cache_ttl, self.geo)
 
     def summary(self) -> str:
         r = self.requests

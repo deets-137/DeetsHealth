@@ -405,6 +405,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let given: Vec<(String, String)> = req.values.into_iter().map(|v| (v.key, v.value)).collect();
         // Checked before the store, so a bad set is refused the same way with or without one.
         let values = settings::check(list, &given).map_err(Status::invalid_argument)?;
+        settings::coherent(name, &values).map_err(Status::invalid_argument)?;
         let store = self.settings_store()?;
         let v = settings::save(store.pool(), name, table, &values, by, req.seed).await.map_err(|e| match e {
             settings::SaveError::DefaultExists => Status::already_exists("the Default version exists"),

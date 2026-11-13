@@ -167,6 +167,11 @@ worse (VOICE-AGENT.md §7, F5 C).
 | Word timestamps | Sonic says when each word plays; Pipecat uses them so the model's memory holds only the words the caller heard | on, off | on (Pipecat's) | An interrupted reply is not remembered as said |
 | API version | `cartesia_version` | a date | `2026-03-01`, fixed by Pipecat 1.16 | Cartesia's reference shows `2026-08-14`; moves with Pipecat |
 
+**Not on the Config page yet** (a review, 2026-11-13; CONSOLE.md §7.6): text aggregation, text
+transforms (Pipecat's find and replace before Sonic: a way to carry the pronunciations with no
+Cartesia dictionary), emotions past our five (Sonic 3 takes over 60, best with voices outside
+our list), language and accent, number reading by locale.
+
 **Ours, around them** (`config.py`)
 | Lever | What it does | Ours | Why |
 |---|---|---|---|

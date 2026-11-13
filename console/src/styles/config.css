@@ -165,11 +165,18 @@
   gap: var(--gap);
 }
 
+/* Config › Anthropic (CONSOLE.md §8): Model, Reply and cache, Usage, Key and facts. */
+.cfg-body[data-layout="anthropic"] {
+  grid-template-areas: "model" "reply" "usage" "facts";
+}
+
 .cfg-card[data-card="voice"] { grid-area: voice; }
 .cfg-card[data-card="hearing"] { grid-area: hearing; }
 .cfg-card[data-card="guard"] { grid-area: guard; }
 .cfg-card[data-card="usage"] { grid-area: usage; }
 .cfg-card[data-card="facts"] { grid-area: facts; }
+.cfg-card[data-card="model"] { grid-area: model; }
+.cfg-card[data-card="reply"] { grid-area: reply; }
 
 /* Two cards side by side need 2 × a card's width plus the gap: a card is its padding (2 × 20),
    its edges (2 × 1), the "i" (28), the name (168), the control (320) and two gaps (2 × 12) =
@@ -181,6 +188,12 @@
     grid-template-areas:
       "voice hearing"
       "voice guard"
+      "usage facts";
+  }
+
+  .cfg-body[data-layout="anthropic"] {
+    grid-template-areas:
+      "model reply"
       "usage facts";
   }
 }
@@ -201,7 +214,11 @@
   }
 }
 
+/* min-width 0: a card in the one narrow column may be narrower than its widest field (a
+   select's longest option); the field shrinks to it instead (the owner, 2026-11-13: the
+   dropdowns ran past the card). */
 .cfg-card {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -218,6 +235,7 @@
 /* ---------------------------------------------------------------- a row */
 
 .cfg-row {
+  min-width: 0;
   display: grid;
   grid-template-columns: var(--info-size) var(--cfg-label) var(--cfg-control);
   grid-template-areas:
@@ -283,6 +301,11 @@
   min-height: var(--field-height);
 }
 
+/* Nothing in a control is wider than the control: a long fixed value wraps. */
+.cfg-control > * {
+  max-width: 100%;
+}
+
 /* The help rolls down under the name and rolls back up: the Chat page's help card's collapse
    (grid rows 0fr ↔ 1fr, with a fade), over --dur-collapse. Closed, it takes no room. */
 .cfg-help {
@@ -334,7 +357,13 @@
   color: var(--text);
 }
 
+/* A select is as wide as its widest option, not the control column (the owner, 2026-11-13:
+   "they only need to be wide enough to contain the widest option"). In a narrow card it
+   shrinks to the card and cuts its words with an ellipsis; it never runs past the card. */
 select.cfg-field {
+  flex: 0 1 auto;
+  max-width: 100%;
+  text-overflow: ellipsis;
   cursor: pointer;
 }
 
@@ -343,7 +372,8 @@ select.cfg-field {
 }
 
 .cfg-number {
-  flex: 0 0 var(--cfg-number);
+  flex: 0 1 var(--cfg-number);
+  max-width: 100%;
 }
 
 .cfg-minus {

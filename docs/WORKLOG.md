@@ -8,6 +8,25 @@ updated: 2026-11-12
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-13 (Mac, config) — Cartesia's unused levers; Config › Anthropic
+- Pulled `main` (12 commits). The owner asked for a review of Config › Cartesia for levers we did
+  not use. Read Pipecat 1.16's Cartesia services: text aggregation (Token mode, about 200–300 ms
+  a sentence), text transforms (could carry the pronunciations with no Cartesia dictionary),
+  over 60 emotions (best with voices outside our list), language and accent, number reading by
+  locale. Recorded in CONSOLE.md §7.6 and CARTESIA.md §9; none built.
+- Found two gaps against ANTHROPIC.md: `inference_geo: "us"` was never sent, and no tool has
+  `strict: true`.
+- One fork, the owner chose A: the page chooses the model. Built Config › Anthropic (CONSOLE.md
+  §8): Model, Effort, Thinking (Off greyed where the model refuses it), Max tokens, Retry cap,
+  Cache life, Budget with an offset, Dollars left, and the facts. The store's second service,
+  `llm` (migration 0004; `settings.rs › LLM` and `coherent`). Test calls run with the active
+  version; the tests keep the code's values, so every recorded reply still matches.
+- US-only inference is now sent, after the replay key. Records are schema 8 (`llm` and
+  `inference_geo` on `call_start`; the cost uses each model's prices and the 1.1×).
+- The Config frame moved out of `cartesia.ts` into `config-kit.ts`, unchanged, so both views
+  share it. `strict` on tools is left open: it changes every request and needs a re-recording,
+  with its cost quoted first.
+
 ## 2026-11-13 (Windows, voice) — Cartesia wired into the Chat page, ready for the Free plan
 - The owner asked how hard Sonic and Ink are to wire in, and the cost while we develop. Read
   Cartesia's and Pipecat's docs and Pipecat 1.16's code. Corrected CARTESIA.md: turn detection

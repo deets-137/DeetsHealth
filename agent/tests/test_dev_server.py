@@ -113,6 +113,57 @@ def test_the_voice_defaults_name_every_setting_ehr_checks():
     assert sorted(keys) == sorted(config.voice_defaults())
 
 
+def test_the_llm_defaults_name_every_setting_ehr_checks():
+    """The agent's llm defaults and ehr's settings.rs › LLM list the same settings, and the
+    models and efforts agree."""
+    import re
+
+    from deets_agent import config
+
+    rust = (config.REPO / "ehr" / "src" / "settings.rs").read_text(encoding="utf-8")
+    block = rust.split("pub const LLM: &[Setting] = &[", 1)[1].split("];", 1)[0]
+    assert sorted(re.findall(r's\("([a-z_]+)"', block)) == sorted(config.llm_defaults())
+    models = rust.split("pub const MODELS: &[&str] = &[", 1)[1].split("];", 1)[0]
+    assert re.findall(r'"([a-z0-9-]+)"', models) == list(config.LLM_MODELS)
+    efforts = rust.split("pub const EFFORTS: &[&str] = &[", 1)[1].split("];", 1)[0]
+    assert tuple(re.findall(r'"([a-z]+)"', efforts)) == config.EFFORTS
+
+
+def test_the_anthropic_view_shows_the_models_and_never_the_key(client):
+    c = client.get("/agent/anthropic", headers=OK).json()
+    assert (c["store"], c["versions"], c["version"]) == (False, [], None)
+    from deets_agent import config
+
+    assert c["values"] == c["active"] == config.llm_defaults()
+    assert [m["id"] for m in c["models"]] == list(config.LLM_MODELS)
+    opus = next(m for m in c["models"] if m["id"] == "claude-opus-5-5")
+    assert opus["thinking_off"] is False and opus["price"]["output"] == 20.0
+    assert c["inference_geo"] == "us" and c["usage"]["budget"] == c["active"]["budget_usd"]
+    assert isinstance(c["key"], bool)
+    secret = config.anthropic_key()
+    assert secret is None or secret not in json.dumps(c)
+
+
+def test_an_anthropic_save_waits_for_ehr_and_needs_values(client):
+    assert client.post("/agent/anthropic", json={"values": {}}).status_code == 403
+    assert client.post("/agent/anthropic", headers=OK, json={"x": 1}).status_code == 400
+    r = client.post("/agent/anthropic", headers=OK, json={"values": {"model": "claude-haiku-5-5"}})
+    assert r.status_code == 409 and r.json()["detail"] == "ehr is not up yet"
+
+
+def test_the_spend_counts_this_cycles_records(tmp_path):
+    from datetime import date
+
+    from deets_agent.resources import anthropic_cycle
+
+    end = {"t_ms": 9, "kind": "call_end", "reason": "x", "cost_usd": 0.25}
+    stamp = date.today().strftime("%Y%m%d")
+    (tmp_path / f"{stamp}-120000-test.jsonl").write_text(json.dumps(end) + "\n", encoding="utf-8")
+    (tmp_path / "19990101-120000-test.jsonl").write_text(json.dumps(end) + "\n", encoding="utf-8")
+    c = anthropic_cycle(tmp_path, live=0.05, budget=100, offset=10, day=1)
+    assert (c["spent"], c["calls"], c["left"]) == (0.3, 1, 89.7)
+
+
 def test_the_sandbox_list_takes_local_or_epic_only(client):
     local = client.get("/agent/sandbox", headers=OK).json()
     assert local["patients"] and local["more"] == {}

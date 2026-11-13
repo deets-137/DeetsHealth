@@ -1,5 +1,5 @@
 """The Resources tab's numbers (CHAT.md §17): Cartesia's credits this cycle, counted from the
-dev call records.
+dev call records; and Claude's dollars this cycle for Config › Anthropic (`anthropic_cycle`).
 
 Cartesia has no API that reports usage or a balance (CARTESIA.md §4), so this counts what our
 own voice calls used: each record's `cartesia` totals on `call_end` (schema 7), and the live
@@ -49,6 +49,67 @@ def _cartesia(path: Path) -> dict[str, Any] | None:
     except (OSError, ValueError):
         return None
     return None
+
+
+def _cost(path: Path) -> float | None:
+    """The `cost_usd` on a record's `call_end`: what its live Claude requests cost, or None
+    (still open, or no end)."""
+    try:
+        with path.open(encoding="utf-8") as f:
+            for raw in f:
+                if '"call_end"' not in raw:
+                    continue
+                event = json.loads(raw)
+                if event.get("kind") == "call_end" and isinstance(event.get("cost_usd"), (int, float)):
+                    return float(event["cost_usd"])
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def anthropic_cycle(
+    folder: Path,
+    today: date | None = None,
+    live: float | None = None,
+    budget: float = config.BUDGET_USD,
+    offset: float = 0.0,
+    day: int = 1,
+) -> dict[str, Any]:
+    """This cycle's Claude spend in dollars (Config › Anthropic, CONSOLE.md §8): the `cost_usd` of
+    every record in `folder` since the cycle began, plus the live call's so far. Like Cartesia's
+    count, a floor: it cannot see requests outside these records (the Console's workbench,
+    another machine). The Claude Console's usage page is the full count."""
+    today = today or date.today()
+    start = cycle_start(today, day)
+    spent = 0.0
+    calls = 0
+    for path in sorted(folder.glob("*.jsonl")):
+        m = _STAMP.match(path.name)
+        if not m:
+            continue
+        try:
+            when = datetime.strptime(m.group(1), "%Y%m%d").date()
+        except ValueError:
+            continue
+        if when < start:
+            continue
+        cost = _cost(path)
+        if cost is None:
+            continue
+        calls += 1
+        spent += cost
+    if live is not None:
+        spent += live
+    return {
+        "budget": budget,
+        "offset": offset,
+        "spent": round(spent, 4),
+        "left": round(budget - offset - spent, 4),
+        "calls": calls,
+        "cycle_start": start.isoformat(),
+        "renews": next_cycle(start).isoformat(),
+        "live": live,
+    }
 
 
 def cartesia_cycle(

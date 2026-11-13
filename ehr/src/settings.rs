@@ -63,13 +63,58 @@ pub const VOICE: &[Setting] = &[
     s("cycle_day", Kind::Whole { min: 1, max: 28 }),
 ];
 
+/// The models the page offers (ANTHROPIC.md §3): the 5.5 family only, pinned by name.
+pub const MODELS: &[&str] = &["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"];
+pub const EFFORTS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
+
+/// The language model: Anthropic (ANTHROPIC.md §4; CONSOLE.md §8). The agent's `config.py`
+/// holds the same list for the page.
+pub const LLM: &[Setting] = &[
+    s("model", Kind::Word { words: MODELS, nullable: false }),
+    s("effort", Kind::Word { words: EFFORTS, nullable: false }),
+    // "on" is adaptive thinking; "off" is `disabled` on Haiku, `between_tools` on Sonnet
+    // (checked with the model and effort in `coherent`).
+    s("thinking", Kind::Word { words: &["on", "off"], nullable: false }),
+    s("max_tokens", Kind::Whole { min: 256, max: 16_000 }),
+    s("retry_max_tokens", Kind::Whole { min: 256, max: 32_000 }),
+    s("cache_ttl", Kind::Word { words: &["5m", "1h"], nullable: false }),
+    s("budget_usd", Kind::Whole { min: 0, max: 1_000_000 }),
+    s("offset_usd", Kind::Number { min: 0.0, max: 1_000_000.0, nullable: false }),
+    s("cycle_day", Kind::Whole { min: 1, max: 28 }),
+];
+
 /// A service's name, its list and its table. The names come from here only, never from a
 /// request, so no request text reaches the SQL.
 pub fn service(name: &str) -> Option<(&'static str, &'static [Setting], &'static str)> {
     match name {
         "voice" => Some(("voice", VOICE, "settings_voice")),
+        "llm" => Some(("llm", LLM, "settings_llm")),
         _ => None,
     }
+}
+
+/// The rules between settings of one checked set, after `check`. The llm service: thinking is
+/// off only where the model allows it (Haiku and Sonnet, at effort high or below; Opus never),
+/// and the retry cap is at least the first cap. The error names a setting, never a value.
+pub fn coherent(service: &str, values: &[(&'static str, Value)]) -> Result<(), String> {
+    if service != "llm" {
+        return Ok(());
+    }
+    let get = |k: &str| values.iter().find(|(key, _)| *key == k).map(|(_, v)| v);
+    let word = |k: &str| get(k).and_then(Value::as_str).unwrap_or("");
+    if word("thinking") == "off" {
+        if word("model") == "claude-opus-5-5" {
+            return Err("thinking: Opus 5.5 cannot turn thinking off".to_string());
+        }
+        if !matches!(word("effort"), "low" | "medium" | "high") {
+            return Err("thinking: off needs effort high or below".to_string());
+        }
+    }
+    let n = |k: &str| get(k).and_then(Value::as_i64).unwrap_or(0);
+    if n("retry_max_tokens") < n("max_tokens") {
+        return Err("retry_max_tokens: below max_tokens".to_string());
+    }
+    Ok(())
 }
 
 /// The longest short string a setting holds (a voice name or id).
@@ -345,6 +390,33 @@ mod tests {
         let mut set = full();
         set[17].1 = "29".into(); // cycle_day above 28
         assert!(check(VOICE, &set).unwrap_err().starts_with("cycle_day:"));
+    }
+
+    fn llm(model: &str, effort: &str, thinking: &str, max: i64, retry: i64) -> Vec<(String, String)> {
+        let v = |k: &str, x: Value| (k.to_string(), x.to_string());
+        vec![
+            v("model", json!(model)),
+            v("effort", json!(effort)),
+            v("thinking", json!(thinking)),
+            v("max_tokens", json!(max)),
+            v("retry_max_tokens", json!(retry)),
+            v("cache_ttl", json!("5m")),
+            v("budget_usd", json!(100)),
+            v("offset_usd", json!(12.5)),
+            v("cycle_day", json!(1)),
+        ]
+    }
+
+    #[test]
+    fn the_llm_rules() {
+        let ok = |set: Vec<(String, String)>| coherent("llm", &check(LLM, &set).unwrap());
+        assert!(ok(llm("claude-haiku-5-5", "low", "on", 1200, 2400)).is_ok());
+        assert!(ok(llm("claude-haiku-5-5", "high", "off", 1200, 2400)).is_ok());
+        assert!(ok(llm("claude-sonnet-5-5", "medium", "off", 1200, 1200)).is_ok());
+        assert_eq!(ok(llm("claude-opus-5-5", "low", "off", 1200, 2400)).unwrap_err(), "thinking: Opus 5.5 cannot turn thinking off");
+        assert_eq!(ok(llm("claude-sonnet-5-5", "xhigh", "off", 1200, 2400)).unwrap_err(), "thinking: off needs effort high or below");
+        assert_eq!(ok(llm("claude-haiku-5-5", "low", "on", 2400, 1200)).unwrap_err(), "retry_max_tokens: below max_tokens");
+        assert!(check(LLM, &llm("claude-haiku-4-5", "low", "on", 1200, 2400)).unwrap_err().starts_with("model:"));
     }
 
     #[test]

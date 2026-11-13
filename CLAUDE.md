@@ -118,7 +118,8 @@ the branch `archive/patient-app`.
   medical-question line, the emergency phrase list), each with its default now. Not built.
 - `CONSOLE.md` — the web console as built: where it runs (a browser; installable as a web
   app), the shell in DeetsMotion's look (top bar, nav, pages, Chat's stage and rail), the
-  themes and the Glass skin, what moved to the archive, the desk test.
+  themes and the Glass skin, what moved to the archive, the desk test; Config › Cartesia (§7)
+  and Config › Anthropic (§8), their settings store and shared frame (`config-kit.ts`).
 - `CHAT.md` — the Chat page (built, wired to the agent's dev server): the owner's sketch (`images/`), the canvas, the
   bubbles and their line facts, the PHI / Test / Demo toggle, the text box, the connection, the
   catalog of calls, the rail's sandbox patients and the code button (§8); its forks.
@@ -139,7 +140,7 @@ the branch `archive/patient-app`.
 - One doc per vendor, each with what we use, the BAA, configuration, cost, what users learned,
   and what to find out: `TWILIO.md` (the phone line, Media Streams, `clear` and `mark`),
   `CARTESIA.md` (Ink and Sonic, ZDR, the pronunciation dictionary; ElevenLabs as the fallback),
-  `ANTHROPIC.md` (HIPAA readiness, the models and prices, caching for voice), `PIPECAT.md` (the
+  `ANTHROPIC.md` (HIPAA readiness, the models and prices, every lever and its setting, caching for voice), `PIPECAT.md` (the
   call loop; known issues to test first), `CLOUD.md` (what a deploy needs; C1 decided: AWS `us-east-1`),
   `OTHER-EHRS.md` (Oracle Health, athenahealth, MEDITECH).
 

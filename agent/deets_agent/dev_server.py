@@ -11,6 +11,9 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
   test call; without the Cartesia key, no voice call.
 - `GET  /agent/cartesia` — the Cartesia levers as set now, with their ranges, for the Config
   page (read only; never the key, only whether it is set).
+- `GET  /agent/anthropic`, `POST /agent/anthropic` — Config › Anthropic (CONSOLE.md §8): the
+  llm settings' versions, each model's rules and prices, this cycle's spend; a save makes a new
+  active version for the next test call. Never the key.
 - `GET  /agent/resources` — Cartesia's credits this cycle, counted from the records and the live
   voice call (resources.py; CHAT.md §17).
 - `POST /agent/voice?ehr=local|epic` — the voice seat: a WebRTC offer in, the answer out; the
@@ -75,7 +78,7 @@ from deets_agent.ehr_client import EhrClient, EhrError, ErrorKind, SettingVersio
 from deets_agent.ehr_process import running_ehr
 from deets_agent.fake_twilio import FakeTwilio
 from deets_agent.llm import Mode, build_llm
-from deets_agent.resources import cartesia_cycle
+from deets_agent.resources import anthropic_cycle, cartesia_cycle
 from deets_agent.rtvi_json import RtviJsonSerializer
 from deets_agent.voice import Voice
 
@@ -140,8 +143,8 @@ class State:
         # Voice (CHAT.md §17): the Cartesia key's presence, and the live voice call's parts.
         self.has_voice = config.cartesia_key() is not None
         self.voice: Voice | None = None
-        # The voice settings' Default version is known to exist (ensure_default).
-        self.voice_default = False
+        # The settings services whose Default version is known to exist (ensure_default).
+        self.seeded: set[str] = set()
         self.ehr: EhrClient | None = None
         # Test is always live (the owner, 2026-11-12: "limit replaying conversations only to the
         # Demo view"): every line goes to Claude, no replay cache. Without a key, no test call.
@@ -249,15 +252,35 @@ def build_app(state: State) -> FastAPI:
             values = await resolve_voice(values)
         except VoiceNotFound as e:
             raise HTTPException(400, str(e)) from None
-        try:
-            await state.ehr.save_settings("voice", values, by="dev")
-        except EhrError as e:
-            if e.kind is ErrorKind.BAD_INPUT:
-                raise HTTPException(400, e.detail or "a setting does not fit") from None
-            if e.kind is ErrorKind.NOT_ALLOWED_NOW:
-                raise HTTPException(409, "no settings store: start Postgres (npm run db:start)") from None
-            raise HTTPException(502, "ehr could not save the settings") from None
+        await save_settings(state, "voice", values)
         return await cartesia_view(state, 0)
+
+    @app.get("/agent/anthropic")
+    async def anthropic_settings(version: int = 0):
+        """The llm settings (CONSOLE.md §8): the saved versions, one version's values (the active
+        one when `version` is 0) and the active one's, each model's rules and prices, this
+        cycle's spend. Never the key: only whether it is set."""
+        if version < 0:
+            raise HTTPException(400, "version: not a version")
+        try:
+            return await anthropic_view(state, version)
+        except LookupError:
+            raise HTTPException(404, "no such version") from None
+
+    @app.post("/agent/anthropic")
+    async def save_anthropic(request: Request):
+        """Save the whole set as a new version; it becomes the active one and the next test call
+        runs with it (CONSOLE.md §8). 400 names the setting that does not fit (ehr checks the
+        model, effort and thinking together); 409 without a store."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "not JSON") from None
+        values = body.get("values") if isinstance(body, dict) else None
+        if not isinstance(values, dict):
+            raise HTTPException(400, "values: an object of every setting")
+        await save_settings(state, "llm", values)
+        return await anthropic_view(state, 0)
 
     @app.get("/agent/resources")
     async def resources():
@@ -440,10 +463,11 @@ def build_app(state: State) -> FastAPI:
         transport = SmallWebRTCTransport(
             connection, TransportParams(audio_in_enabled=True, audio_out_enabled=True)
         )
+        llm = await active_settings(state, "llm")
         # Claim the seat now, so a second offer is refused while this one connects.
-        record = _open_record(state, ehr, "voice")
+        record = _open_record(state, ehr, "voice", llm)
         state.voice = Voice(key, values)
-        task = asyncio.create_task(_run_call(state, transport, ehr, state.voice, record))
+        task = asyncio.create_task(_run_call(state, transport, ehr, state.voice, record, llm))
         state.tasks.add(task)
         task.add_done_callback(state.tasks.discard)
         return {"sdp": answer["sdp"], "type": answer["type"]}
@@ -451,14 +475,18 @@ def build_app(state: State) -> FastAPI:
     return app
 
 
-async def active_voice_settings(state: State) -> dict[str, Any]:
-    """The active version's voice settings, over the defaults; the defaults alone when there is
-    no store, no version yet, or ehr is not up (CONSOLE.md §7.3)."""
-    values = config.voice_defaults()
+# Each settings service (ehr's settings.rs › service) and its code defaults: the Default version.
+DEFAULTS = {"voice": config.voice_defaults, "llm": config.llm_defaults}
+
+
+async def active_settings(state: State, service: str) -> dict[str, Any]:
+    """The active version's settings of a service, over the defaults; the defaults alone when
+    there is no store, no version yet, or ehr is not up (CONSOLE.md §7.3)."""
+    values = DEFAULTS[service]()
     if state.ehr is None:
         return values
     try:
-        got = await state.ehr.get_settings("voice")
+        got = await state.ehr.get_settings(service)
     except EhrError:
         return values
     if got is not None:
@@ -466,24 +494,111 @@ async def active_voice_settings(state: State) -> dict[str, Any]:
     return values
 
 
-async def ensure_default(state: State) -> None:
+async def active_voice_settings(state: State) -> dict[str, Any]:
+    return await active_settings(state, "voice")
+
+
+async def ensure_default(state: State, service: str = "voice") -> None:
     """Every implementation's first version is Default (the owner, 2026-11-13): the code's
-    defaults, number 0, active when nothing else is. Made once, the first time the page asks,
-    when the store is up and has none. A store that had versions first gets its Default too,
-    listed last and not active."""
-    if state.ehr is None or state.voice_default:
+    defaults, number 0, active when nothing else is. Made once per service, the first time the
+    page asks, when the store is up and has none. A store that had versions first gets its
+    Default too, listed last and not active."""
+    if state.ehr is None or service in state.seeded:
         return
     try:
-        versions = await state.ehr.list_setting_versions("voice")
+        versions = await state.ehr.list_setting_versions(service)
         if versions is None:
             return  # no store: nothing to seed
         if not any(v.seq == 0 for v in versions):
-            await state.ehr.save_settings("voice", config.voice_defaults(), by="default", seed=True)
-        state.voice_default = True
+            await state.ehr.save_settings(service, DEFAULTS[service](), by="default", seed=True)
+        state.seeded.add(service)
     except EhrError:
         # Another request seeded it first (ALREADY_EXISTS), or ehr is busy: the next view tries
         # again until the list shows a Default.
         pass
+
+
+async def settings_view(state: State, service: str, version: int) -> dict[str, Any]:
+    """A Config page's common part (CONSOLE.md §7, §8): the saved versions, newest first; one
+    version's values (the active one when `version` is 0); the active version's values, so the
+    page can mark what an older version changed. Raises LookupError for a version that does not
+    exist."""
+    await ensure_default(state, service)
+    active = await active_settings(state, service)
+    versions: list[SettingVersion] | None = None
+    shown = active
+    shown_version: SettingVersion | None = None
+    if state.ehr is not None:
+        try:
+            versions = await state.ehr.list_setting_versions(service)
+            if versions is not None:
+                got = await state.ehr.get_settings(service, version)
+                if got is not None and got[0] is not None:
+                    shown_version = got[0]
+                    shown = {**DEFAULTS[service](), **got[1]}
+                elif version:
+                    raise LookupError(version)
+        except EhrError as e:
+            if e.kind is ErrorKind.OTHER and version:
+                raise LookupError(version) from None
+            versions = None
+    return {
+        "store": versions is not None,
+        "versions": [_version_row(v) for v in versions or []],
+        "version": _version_row(shown_version) if shown_version else None,
+        "values": shown,
+        "active": active,
+    }
+
+
+async def save_settings(state: State, service: str, values: dict[str, Any]) -> None:
+    """Save a whole set as the new active version, or raise the HTTPException the page shows."""
+    if state.ehr is None:
+        raise HTTPException(409, "ehr is not up yet")
+    try:
+        await state.ehr.save_settings(service, values, by="dev")
+    except EhrError as e:
+        if e.kind is ErrorKind.BAD_INPUT:
+            raise HTTPException(400, e.detail or "a setting does not fit") from None
+        if e.kind is ErrorKind.NOT_ALLOWED_NOW:
+            raise HTTPException(409, "no settings store: start Postgres (npm run db:start)") from None
+        raise HTTPException(502, "ehr could not save the settings") from None
+
+
+async def anthropic_view(state: State, version: int) -> dict[str, Any]:
+    """The Config page's Anthropic view (CONSOLE.md §8): the versions and values, each model's
+    rules and prices, this cycle's spend, and the fixed facts. Never the key: only whether it is
+    set."""
+    view = await settings_view(state, "llm", version)
+    active = view["active"]
+    live = state.live.cost() if state.live is not None else None
+    view.update(
+        key=state.has_key,
+        models=[
+            {
+                "id": mid,
+                "name": m["name"],
+                "effort_default": m["effort_default"],
+                "thinking_off": m["thinking_off"] is not None,
+                "price": dict(zip(("input", "output", "cache_read"), m["price"])),
+            }
+            for mid, m in config.LLM_MODELS.items()
+        ],
+        efforts=list(config.EFFORTS),
+        thinking_off_efforts=list(config.THINKING_OFF_EFFORTS),
+        ranges=config.LLM_RANGES,
+        cache_write=config.CACHE_WRITE,
+        inference_geo=config.INFERENCE_GEO,
+        geo_price=config.GEO_PRICE,
+        usage=anthropic_cycle(
+            state.calls,
+            live=live,
+            budget=float(active["budget_usd"]),
+            offset=float(active["offset_usd"]),
+            day=int(active["cycle_day"]),
+        ),
+    )
+    return view
 
 
 def _version_row(v: SettingVersion) -> dict[str, Any]:
@@ -495,32 +610,10 @@ async def cartesia_view(state: State, version: int) -> dict[str, Any]:
     version's values (the active one when `version` is 0); the active version's values, so the
     page can mark what an older version changed; and each lever's range. Raises LookupError for
     a version that does not exist."""
-    await ensure_default(state)
-    active = await active_voice_settings(state)
-    versions: list[SettingVersion] | None = None
-    shown = active
-    shown_version: SettingVersion | None = None
-    if state.ehr is not None:
-        try:
-            versions = await state.ehr.list_setting_versions("voice")
-            if versions is not None:
-                got = await state.ehr.get_settings("voice", version)
-                if got is not None and got[0] is not None:
-                    shown_version = got[0]
-                    shown = {**config.voice_defaults(), **got[1]}
-                elif version:
-                    raise LookupError(version)
-        except EhrError as e:
-            if e.kind is ErrorKind.OTHER and version:
-                raise LookupError(version) from None
-            versions = None
+    view = await settings_view(state, "voice", version)
     return {
         "key": state.has_voice,
-        "store": versions is not None,
-        "versions": [_version_row(v) for v in versions or []],
-        "version": _version_row(shown_version) if shown_version else None,
-        "values": shown,
-        "active": active,
+        **view,
         "api_version": CARTESIA_API_VERSION,
         "tts": {
             "model": config.TTS_MODEL,
@@ -596,9 +689,10 @@ def _refuse_call(state: State, ehr_source: str) -> str | None:
     return None
 
 
-def _open_record(state: State, ehr_source: str, seat: str) -> CallRecord:
-    """Open the test call's record and make it the live call: the watch stream follows it."""
-    record = CallRecord(state.mode.value, config.MODEL, source="test", ehr=ehr_source, seat=seat)
+def _open_record(state: State, ehr_source: str, seat: str, llm: dict[str, Any]) -> CallRecord:
+    """Open the test call's record and make it the live call: the watch stream follows it.
+    `llm`: the active llm settings the call runs with (CONSOLE.md §8)."""
+    record = CallRecord(state.mode.value, llm["model"], source="test", ehr=ehr_source, seat=seat, llm=llm)
     state.live = record
     redact.dev_tap = record.log
     record.listeners.append(
@@ -609,13 +703,23 @@ def _open_record(state: State, ehr_source: str, seat: str) -> CallRecord:
 
 
 async def _run_call(
-    state: State, transport: BaseTransport, ehr_source: str, voice: Voice | None, record: CallRecord | None = None
+    state: State,
+    transport: BaseTransport,
+    ehr_source: str,
+    voice: Voice | None,
+    record: CallRecord | None = None,
+    llm: dict[str, Any] | None = None,
 ) -> None:
-    """Run one test call on its seat until it ends, then close and file its record."""
+    """Run one test call on its seat until it ends, then close and file its record. The whole
+    call runs with the llm settings active when it starts (Config › Anthropic, CONSOLE.md §8)."""
+    if llm is None:
+        llm = await active_settings(state, "llm")
     if record is None:
-        record = _open_record(state, ehr_source, "text")
+        record = _open_record(state, ehr_source, "text", llm)
     assert state.ehr is not None
-    typed = TypedCall(state.ehr, build_llm(state.mode), record, transport=transport, ehr_source=ehr_source, voice=voice)
+    typed = TypedCall(
+        state.ehr, build_llm(state.mode, values=llm), record, transport=transport, ehr_source=ehr_source, voice=voice
+    )
 
     @transport.event_handler("on_client_disconnected")
     async def _gone(transport, client):

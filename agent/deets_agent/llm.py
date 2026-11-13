@@ -312,7 +312,7 @@ class _CutOffGuard:
                     yield h
                 return
             stream = await self._messages.create(
-                _guard=False, **dict(self._params, max_tokens=config.RETRY_MAX_TOKENS)
+                _guard=False, **dict(self._params, max_tokens=self._messages.retry_max_tokens)
             )
 
 
@@ -338,6 +338,8 @@ class _Messages:
         # Awaited with `final` when a reply is cut off by the token cap with nothing to say
         # (_CutOffGuard): speaks the holding line and marks the call for review (call.py).
         self.on_cut_off = None
+        # The cap for that one retry: the active setting on a test call (build_llm).
+        self.retry_max_tokens = config.RETRY_MAX_TOKENS
 
     def _failed(self, e: BaseException, trace) -> None:
         if trace is not None:
@@ -379,7 +381,9 @@ class _Messages:
             raise err
 
         try:
-            reply = await self._real.messages.create(**params)
+            # US-only inference (ANTHROPIC.md §2) on every live request. Added after the key: where
+            # the model runs does not change the reply, so the recorded replies stay valid.
+            reply = await self._real.messages.create(**params, inference_geo=config.INFERENCE_GEO)
         except Exception as e:
             self._failed(e, trace)
             raise
@@ -404,17 +408,40 @@ class GaClient:
         self.beta = SimpleNamespace(messages=self.messages)
 
 
-def build_llm(mode: Mode, replays: Path = config.REPLAYS) -> AnthropicLLMService:
+def thinking_config(values: dict[str, Any]) -> AnthropicLLMService.ThinkingConfig | None:
+    """None for "on" (the model's adaptive thinking, sent as no thinking field, as before
+    2026-11-13); for "off", the model's own way to turn it off (config.LLM_MODELS). ehr refused
+    "off" where the model has none (settings.rs › coherent)."""
+    if values.get("thinking") != "off":
+        return None
+    off = config.LLM_MODELS.get(values.get("model", ""), {}).get("thinking_off")
+    return AnthropicLLMService.ThinkingConfig(type=off) if off else None
+
+
+def build_llm(mode: Mode, replays: Path = config.REPLAYS, values: dict[str, Any] | None = None) -> AnthropicLLMService:
+    """`values`: the active llm settings (Config › Anthropic, CONSOLE.md §8) for a test call; the
+    code's values when none, as the tests and the typed harness run."""
     key = config.anthropic_key()
     if mode is not Mode.REPLAY and key is None:
         raise RuntimeError("ANTHROPIC_API_KEY is not set in the repo's .env")
+    v = {**config.llm_defaults(), **(values or {})}
+    client = GaClient(mode, replays, key)
+    client.messages.retry_max_tokens = int(v["retry_max_tokens"])
+    settings: dict[str, Any] = {
+        "model": v["model"],
+        "max_tokens": int(v["max_tokens"]),
+        "effort": v["effort"],
+        "enable_prompt_caching": True,
+    }
+    # Sent only when it is not the API's own default, so the code's values make the same
+    # requests as before and every recorded reply still matches.
+    if v["cache_ttl"] != "5m":
+        settings["system_prompt_cache_ttl"] = v["cache_ttl"]
+    thinking = thinking_config(v)
+    if thinking is not None:
+        settings["thinking"] = thinking
     return AnthropicLLMService(
         api_key=key or "replay-only",
-        client=GaClient(mode, replays, key),
-        settings=AnthropicLLMService.Settings(
-            model=config.MODEL,
-            max_tokens=config.MAX_TOKENS,
-            effort=config.EFFORT,
-            enable_prompt_caching=True,
-        ),
+        client=client,
+        settings=AnthropicLLMService.Settings(**settings),
     )

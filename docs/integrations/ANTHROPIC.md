@@ -1,12 +1,13 @@
 ---
 status: project
-desk_test: none
-sources: []
-updated: 2026-10-19
+desk_test: passed 2026-11-13
+sources: [agent/deets_agent/llm.py, agent/deets_agent/config.py, agent/deets_agent/call_record.py]
+updated: 2026-11-13
 ---
 # Anthropic — the language model
 
-> Not set up. The model API that picks the agent's next step and its words. Model facts from
+> In use for test calls since 2026-11-11 (Haiku 5.5; `llm.py`). Config › Anthropic sets its
+> levers (§4.2; CONSOLE.md §8). The model API that picks the agent's next step and its words. Model facts from
 > Anthropic's API reference (cached 2026-10-06); voice-latency figures from practitioners'
 > write-ups. Which model we use is a measure, not a fork yet (VOICE-AGENT.md §8.3).
 
@@ -49,7 +50,31 @@ the same recorded test calls. The owner picks from the numbers.
 - **Streaming** with fine-grained tool input streaming, so a short tool call does not wait.
 - **One Flow node, one small tool set** (PIPECAT.md): fewer tools, faster and more accurate.
 
-### 4.1 How caching works here
+### 4.1 The levers, and how we set them
+> **Part:** built · 2026-11-13 — Config › Anthropic sets them for test calls (CONSOLE.md §8).
+> Facts from Anthropic's API reference (cached 2026-11-03). The code's values are the Default.
+
+| Lever | What it does | Range | Ours (Default) | Where |
+|---|---|---|---|---|
+| Model | Which Claude | Haiku 5.5, Sonnet 5.5, Opus 5.5 | `claude-haiku-5-5` | `config.MODEL`; the page |
+| Effort (`output_config.effort`) | Tokens and thinking a reply spends | low, medium, high, xhigh, max; the default is medium on Haiku and Opus, high on Sonnet | `low` | `config.EFFORT`; the page |
+| Thinking | On: adaptive (no field sent). Off: `disabled` on Haiku, `between_tools` on Sonnet, both at effort high or below; Opus 5.5 cannot | on, off | on | `llm.py › thinking_config`; the page |
+| `max_tokens` | The cap on one reply, thinking included | 256–16,000 on the page | 1,200 | `config.MAX_TOKENS`; the page |
+| Retry cap | A reply cut off with nothing to say is sent once more with this cap (`llm.py › _CutOffGuard`) | 256–32,000, at least `max_tokens` | 2,400 | `config.RETRY_MAX_TOKENS`; the page |
+| Cache life (`ttl`) | The system prompt's cache entry: 5 minutes, or 1 hour at 2× the write price | 5m, 1h | 5m (not sent) | Pipecat's `system_prompt_cache_ttl`; the page |
+| Prompt caching | Cache markers on the system prompt and the last messages | on, off | on | `build_llm` |
+| `inference_geo` | Where the model runs; `us` costs 1.1× | global, us | `us`, every live request | `llm.py`, added after the replay key |
+| Betas | Pipecat asks for `interleaved-thinking`; refusal fallbacks, per-message effort and task budgets are betas | — | all off (outside the BAA) | `llm.py › _clean` |
+| `strict` on tools | The tool's input always fits its schema | on, off | off: not set yet (CONSOLE.md §8.4) | `flow.py` |
+| `tool_choice` | Forced choice is refused on the 5.5 models | auto | auto | Pipecat |
+| Thinking display | Whether thinking text comes back | omitted, summarized | omitted (the default) | — |
+| Temperature, top_p, top_k | Refused on the 5.5 models | — | not sent | — |
+
+**Prices** (dollars per 1M tokens; in, out, cache read): Haiku 5.5 $0.10, $0.50, $0.01; Sonnet
+5.5 $2, $10, $0.10; Opus 5.5 $4, $20, $0.20. A cache write is 1.25× the input price (5 minutes)
+or 2× (1 hour). US-only inference is 1.1× on all of it (`call_record.py › cost_usd`).
+
+### 4.2 How caching works here
 - **The API keeps no conversation.** Each turn of a call sends everything again: the system
   prompt, the tool definitions, and every turn so far. Caching lets Anthropic skip the work on
   the part it has already read.

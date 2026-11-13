@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: passed 2026-11-11
-sources: [console/src/pages/cartesia.ts, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
+sources: [console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
 updated: 2026-11-13
 ---
 # DeetsHealth — The console
@@ -340,6 +340,11 @@ version Active](images/config-cartesia-2026-11-13.png)
   - **One column** below that, in the order Voice, Hearing, guard, Usage, Key and facts.
   - **Narrower than one card:** the cards fill the width, and each row puts its control under
     its name.
+  - **Selects** (the owner, 2026-11-13: the dropdowns ran past the card when narrow; "they only
+    need to be wide enough to contain the widest option"): each select is as wide as its
+    longest option, not the control column. In a card narrower than that, it shrinks to the
+    card and ends its words with "…". No field, number or fixed value is wider than its card.
+    Both Config pages. The cards keep their width: the sliders and the tables set it.
   - The container query cannot read tokens, so `config.css` writes the sum out and names the
     tokens it comes from.
 - **Tokens:** `--field-height`, `--cfg-label`, `--cfg-control`, `--cfg-number`, `--cfg-value`,
@@ -402,6 +407,25 @@ version Active](images/config-cartesia-2026-11-13.png)
 - **Make active:** restore an older version as a new activation.
 - **Listen:** Cartesia's voice list can give each voice's preview file, which plays with no
   credits; the dev server would fetch it, so the page loads no remote file.
+
+**Levers Pipecat or Cartesia take that the page does not show** (a review, 2026-11-13; each
+needs the owner's fork before it is built; CARTESIA.md §9 has the full lever list):
+- **Text aggregation, Sentence | Token** (Pipecat's `text_aggregation_mode`). Token mode starts
+  Sonic on each token, not each whole sentence: about 200–300 ms sooner a sentence (Pipecat's
+  note). The largest latency lever not on the page.
+- **Text transforms** (Pipecat's `text_transforms`, find and replace before the text reaches
+  Sonic). They could carry the Pronunciations table now, with no Cartesia dictionary. That
+  removes the open question of whether ZDR covers the dictionary (CARTESIA.md §7), and the same
+  table works with any voice vendor (ElevenLabs, the fallback).
+- **Emotion: five of more than 60.** Pipecat's docs say Sonic 3 takes over 60 emotions, best
+  with the voices Leo, Jace, Kyle, Gavin, Maya, Tessa, Dana and Marian. None of them is on our
+  list of 10 voices for agents, so an emotion may do little on Skylar. Test before more words go
+  on the list.
+- **Language and accent** (Sonic): fixed to English. Ink-2 detects the language, but Pipecat
+  labels every line English. A row only after Spanish is tested on phone audio (DESIGN.md C8).
+- **Number reading by locale:** the page has Auto and Off; Cartesia also takes a locale
+  (`en-US`, `en-GB`), which reads numbers that way whatever language is spoken.
+- **`watchdog_min_timeout`** (0.5 s): dev only; no row needed.
 
 ### 7.4 The API key, for a hospital
 The key never goes into the console or the database (SECURITY.md §4.6). Who sets it up depends on
@@ -506,3 +530,104 @@ to centre it](images/config-glow-2026-11-13.png)
 
 ![The owner's screenshot, 2026-11-13: the Rates row; he asks for "Ink: 3 credits per second |
 Sonic: 1 credit per character"](images/config-rates-2026-11-13.png)
+
+## 8. Config › Anthropic
+> **Part:** built · 2026-11-13 · desk test passed 2026-11-13 (wide screens; narrow screens to redo, §8.4) — the owner, 2026-11-13: "Let's chat a new config
+> subpage for 'Anthropic'", then option A: the page chooses the model. Every lever and how it
+> reaches the request: ANTHROPIC.md §4.1.
+
+### 8.1 The view as built (`pages/anthropic.ts`)
+- **Config's fourth item, Anthropic**, after Cartesia.
+- **The same frame as Cartesia** (§7.1): Read | Edit, the versions dropdown ("Active |
+  [MM-DD | n]", Default last), Discard | Save, an "i" on each row, an older version read only
+  with its changed rows glowing, two columns when there is room. The shared parts are one file,
+  `pages/config-kit.ts`, moved out of `cartesia.ts` with no change of behavior; each view gives
+  its values, help words and cards.
+- **The cards:**
+  - **Model:** Model (Haiku 5.5, Sonnet 5.5, Opus 5.5); Effort (Low, Medium, High, Extra high,
+    Max; the model's own default is marked); Thinking (Off | On).
+  - **Reply and cache:** Max tokens (256–16,000); Retry cap (256–32,000, at least Max tokens);
+    Cache life (5 minutes, Anthropic's default; or 1 hour).
+  - **Usage:** Budget ($), then "−" and an Offset ($, to the cent) on the same row; Cycle day;
+    **Dollars left**: the budget, less the offset, less what this cycle's call records spent.
+  - **Key and facts:** the API key ("Set", or "Not set: add ANTHROPIC_API_KEY to .env"; never
+    the key); Region ("US only (1.1× price)"); Features ("Generally available only"); Rates for
+    the chosen model ("In: $0.10 | Out: $0.50 | Cache read: $0.01 per 1M tokens", in the form of
+    Cartesia's Rates row).
+- **The model decides what else is allowed.** Thinking Off is greyed, with the reason on hover,
+  when the model cannot turn it off (Opus 5.5) or the effort is above High. Choosing such a model
+  or effort turns thinking back on. The cards are drawn again, so Effort marks the new model's
+  default and Rates show its prices. `ehr` checks the same rules on save (`settings.rs ›
+  coherent`), so a set the API would refuse is never stored.
+- **The layout:** Model | Reply and cache, then Usage | Key and facts; one column when narrow
+  (`config.css › .cfg-body[data-layout="anthropic"]`).
+- **The data:** `GET`/`POST /agent/anthropic` (DEV-API.md §2). The spend is `resources.py ›
+  anthropic_cycle`: the `cost_usd` of each call record this cycle, plus the live call's. Like
+  Cartesia's count, a floor: it cannot see requests outside these records.
+
+### 8.2 Decided inside his choice (for his review)
+- The cards' names and order; every row's name and help (`HELP` in `anthropic.ts`).
+- Thinking as Off | On. "On" sends no thinking field (adaptive, the model's default); "Off"
+  sends `disabled` on Haiku and `between_tools` on Sonnet (ANTHROPIC.md §4.1).
+- A model or effort that forbids thinking off turns it on, rather than refusing the choice.
+- The budget's Default: $100 a month (his API budget), cycle day 1; `ANTHROPIC_BUDGET_USD` and
+  `ANTHROPIC_CYCLE_DAY` in `.env` set others. The offset is in dollars and cents.
+- Region and Features are facts, not settings: US-only inference is ANTHROPIC.md §2's rule
+  (it costs 1.1×), and GA-only is `llm.py`'s rule (betas are outside the BAA).
+- No "caching off" switch and no pre-warm row: caching off only adds cost and latency; pre-warm
+  is not built (§8.4).
+- **What the page changes:** test calls from the Chat page only, from the next call. The tests
+  and the typed harness always run with the code's values, so the recorded replies stay valid.
+  The code's values make the same requests as before: no thinking field, no cache life field.
+
+### 8.3 The store and the agent (as built, 2026-11-13)
+- **A second service, `llm`**, in the same store (§7.3): `ehr/migrations/0004_settings_llm.sql`
+  adds `settings_llm` (insert-only) and lets the version and activation tables name `llm`.
+  `ehr/src/settings.rs › LLM` lists the nine settings; `coherent` checks thinking against the
+  model and effort, and the retry cap against the first cap.
+- **The dev server** (`dev_server.py`): the settings helpers now take a service (`active_settings`,
+  `ensure_default`, `settings_view`, `save_settings`), so the voice and llm views share them. A
+  test call reads the active llm settings once, when it starts: `build_llm(values=…)` sets the
+  model, effort, max tokens, the retry cap, the cache life and thinking; the call's record opens
+  with that model.
+- **US-only inference is now sent** on every live request (`llm.py`, `inference_geo: "us"`). It
+  is added after the request's key is made, so the recorded replies still match.
+- **The record (schema 8):** `call_start` carries `llm` (effort, thinking, the caps, the cache
+  life) and `inference_geo`. `cost_usd` now uses each model's own prices and cache read price
+  (`call_record.py › cost_usd`), 1.25× or 2× for a cache write by the cache's life, and 1.1× for
+  US-only inference. Records before schema 8 keep the cost they were written with.
+
+### 8.4 Open
+- **The desk test on narrow screens** (the owner, 2026-11-13: "we'll have to redo it for
+  narrower screens"): §8.5 step 9, on both Config pages.
+- **Pre-warm the cache** before the caller's first turn (`max_tokens: 0`, ANTHROPIC.md §4): not
+  built. A row when it is.
+- **`strict: true` on each tool** (ANTHROPIC.md §4): not set yet. It changes every request, so
+  every recorded reply must be recorded again; the cost is to be counted and quoted first. A
+  separate change.
+- **Make active**, as for Cartesia (§7.6).
+- **Per-message effort** (a cheaper effort for some steps of the call) is a beta: off while betas
+  are outside the BAA.
+
+### 8.5 Desk test
+**First:** stop the dev server (Ctrl+C) and start it again with `npm run dev`. It builds the new
+`ehr` and runs migration 0004.
+
+1. Config, Anthropic. The dropdown reads "Active | [Default]". Model reads Haiku 5.5, Effort
+   Low, Thinking On, Max tokens 1200, Retry cap 2400, Cache life 5 minutes, Budget 100, Offset
+   0.00, Cycle day 1. Rates read "In: $0.10 | Out: $0.50 | Cache read: $0.01 per 1M tokens".
+2. Dollars left shows $100.00 less this cycle's test calls (a few cents).
+3. Press Edit. Choose Opus 5.5: Rates change to Opus's prices, Effort marks "Medium (Opus 5.5's
+   default)", and Thinking's Off is grey (hover: "Opus 5.5 cannot turn thinking off").
+4. Choose Sonnet 5.5, Effort High, Thinking Off. Then choose Effort Max: Thinking goes back to
+   On, and Off is grey ("Off needs effort High or below").
+5. Choose Haiku 5.5, Effort Low, Thinking Off. Press Save: "Saved as 11-13 | 1. Active from the
+   next call".
+6. Chat, Test, one typed call: it works, and its first reply comes sooner. In the catalog, the
+   call's model is Haiku 5.5. (If the call fails at once, US-only inference may be refused for
+   this account: tell me the error line.)
+7. Back in Config, Anthropic: choose "Default" in the dropdown. Thinking's row glows. Choose
+   Active again, Edit, Thinking On, Save: the next call thinks again.
+8. Config, Cartesia: everything works as before (the shared frame moved to `config-kit.ts`).
+9. On both pages, each dropdown is only as wide as its longest option. Narrow the window to one
+   thin column: no dropdown or number box runs past its card's edge.

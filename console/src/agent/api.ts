@@ -159,10 +159,75 @@ export const cartesiaSettings = (version = 0) =>
 
 /** Save the whole set as a new, active version (CONSOLE.md §7.3). A refusal's reason names a
  * setting, never a value, so the page may show it. */
-export async function saveCartesia(values: VoiceValues): Promise<CartesiaSettings> {
+export const saveCartesia = (values: VoiceValues) => saveSettings<CartesiaSettings>("/agent/cartesia", values);
+
+/** Every llm setting (CONSOLE.md §8): the same names as ehr's settings.rs › LLM and the agent's
+ * config.llm_defaults. */
+export type LlmValues = {
+  model: string;
+  effort: string;
+  /** "on": adaptive thinking; "off": the model's own way to turn it off. */
+  thinking: "on" | "off";
+  max_tokens: number;
+  retry_max_tokens: number;
+  cache_ttl: "5m" | "1h";
+  budget_usd: number;
+  offset_usd: number;
+  cycle_day: number;
+};
+
+/** One model the page offers (agent/deets_agent/config.py › LLM_MODELS). Prices in dollars per
+ * 1M tokens. */
+export type LlmModel = {
+  id: string;
+  name: string;
+  effort_default: string;
+  thinking_off: boolean;
+  price: { input: number; output: number; cache_read: number };
+};
+
+/** Claude's dollars this cycle, from this machine's call records (resources.py ›
+ * anthropic_cycle): a floor, not Anthropic's own count. */
+export type AnthropicCycle = {
+  budget: number;
+  offset: number;
+  spent: number;
+  left: number;
+  calls: number;
+  cycle_start: string;
+  renews: string;
+  live: number | null;
+};
+
+/** Config › Anthropic (CONSOLE.md §8): the versions and values as for Cartesia; each model's
+ * rules and prices; this cycle's spend; the fixed facts. Never the key: only whether it is set. */
+export type AnthropicSettings = {
+  key: boolean;
+  store: boolean;
+  versions: SettingVersion[];
+  version: SettingVersion | null;
+  values: LlmValues;
+  active: LlmValues;
+  models: LlmModel[];
+  efforts: string[];
+  /** The efforts at which thinking may be off. */
+  thinking_off_efforts: string[];
+  ranges: Record<"max_tokens" | "retry_max_tokens", { min: number; max: number }>;
+  /** A cache write's price, as a multiple of the input price, by the cache's life. */
+  cache_write: Record<string, number>;
+  inference_geo: string;
+  geo_price: number;
+  usage: AnthropicCycle;
+};
+/** `version`: 0 or none for the active one. */
+export const anthropicSettings = (version = 0) =>
+  get<AnthropicSettings>(version ? `/agent/anthropic?version=${version}` : "/agent/anthropic");
+export const saveAnthropic = (values: LlmValues) => saveSettings<AnthropicSettings>("/agent/anthropic", values);
+
+async function saveSettings<T>(path: string, values: unknown): Promise<T> {
   let r: Response;
   try {
-    r = await fetch("/agent/cartesia", {
+    r = await fetch(path, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ values }),
@@ -174,7 +239,7 @@ export async function saveCartesia(values: VoiceValues): Promise<CartesiaSetting
     const body = (await r.json().catch(() => null)) as { detail?: unknown } | null;
     throw new AgentDown(typeof body?.detail === "string" ? body.detail : "not saved");
   }
-  return (await r.json()) as CartesiaSettings;
+  return (await r.json()) as T;
 }
 
 /** The voice seat's offer (CHAT.md §17): the browser's WebRTC offer, with every ICE candidate in

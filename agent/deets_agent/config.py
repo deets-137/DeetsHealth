@@ -39,6 +39,55 @@ CLOSING_TOOLS = frozenset({"end_call", "hand_off"})
 SILENT_TOOLS = CLOSING_TOOLS | {"emergency", "safety_reminder", "medical_question", "offer_staff"}
 
 
+# ---- the language model's settings (Config › Anthropic, CONSOLE.md §8) ----
+# The code's values above are the Default version; a saved version changes them for the next
+# test call. The tests and the typed harness always run with the code's values, so their
+# recorded replies stay valid.
+
+# The models the page offers and what each accepts (ANTHROPIC.md §3; Anthropic's API reference,
+# cached 2026-11-03). Effort's default differs by model. Thinking "off" is `disabled` on Haiku
+# (effort high or below), `between_tools` on Sonnet (effort high or below); Opus 5.5 cannot turn
+# it off. Prices are dollars per 1M tokens: input, output, cache read. ehr's settings.rs › LLM
+# and `coherent` hold the same rules.
+LLM_MODELS: dict[str, dict] = {
+    "claude-haiku-5-5": {"name": "Haiku 5.5", "effort_default": "medium", "thinking_off": "disabled", "price": (0.10, 0.50, 0.01)},
+    "claude-sonnet-5-5": {"name": "Sonnet 5.5", "effort_default": "high", "thinking_off": "between_tools", "price": (2.00, 10.00, 0.10)},
+    "claude-opus-5-5": {"name": "Opus 5.5", "effort_default": "medium", "thinking_off": None, "price": (4.00, 20.00, 0.20)},
+}
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+# Effort levels at which thinking may be off (Haiku and Sonnet).
+THINKING_OFF_EFFORTS = ("low", "medium", "high")
+# A cache write costs this many times the input price, by the cache's life (5 minutes, 1 hour).
+CACHE_WRITE = {"5m": 1.25, "1h": 2.0}
+# US-only inference (`inference_geo: "us"`, ANTHROPIC.md §2) costs 1.1× on every token.
+INFERENCE_GEO = "us"
+GEO_PRICE = 1.1
+# The token caps' ranges on the page (settings.rs › LLM).
+LLM_RANGES = {
+    "max_tokens": {"min": 256, "max": 16_000},
+    "retry_max_tokens": {"min": 256, "max": 32_000},
+}
+# The Anthropic budget a month in dollars (the owner: $100 of API credit a month).
+# ANTHROPIC_BUDGET_USD and ANTHROPIC_CYCLE_DAY in .env set others.
+BUDGET_USD = 100
+
+
+def llm_defaults() -> dict:
+    """Every llm setting at the code's value: what a test call runs with before any version is
+    saved, and the Default version. The same names as ehr's settings.rs › LLM."""
+    return {
+        "model": MODEL,
+        "effort": EFFORT,
+        "thinking": "on",
+        "max_tokens": MAX_TOKENS,
+        "retry_max_tokens": RETRY_MAX_TOKENS,
+        "cache_ttl": "5m",
+        "budget_usd": _env_int("ANTHROPIC_BUDGET_USD", BUDGET_USD, 0, 1_000_000),
+        "offset_usd": 0,
+        "cycle_day": _env_int("ANTHROPIC_CYCLE_DAY", 1, 1, 28),
+    }
+
+
 def anthropic_key() -> str | None:
     """The key from the git-ignored .env at the repo root. Never printed, never logged."""
     load_dotenv(REPO / ".env", override=False)
