@@ -90,10 +90,8 @@ web app cannot do.
   The panels are empty. The stage is *Chat*; the rail
   is *Timeline* (the owner's, at the top), then *Caller*, *Step* and *Tools* (a draft for the
   owner).
-- **Settings** (`pages/settings.ts`): one panel, the title and "No settings yet.", that fills
-  the page (the owner, 2026-11-11: no eyebrow over the title).
-- **Teams**, **Config**, **Security** and **Audit Logs** (`pages/teams.ts`, `pages/config.ts`,
-  `pages/security.ts`, `pages/audit.ts`): each is one panel with its own nav, the same as Analytics
+- **Teams**, **Config**, **Security**, **Audit Logs** and **Settings** (`pages/teams.ts`,
+  `pages/config.ts`, `pages/security.ts`, `pages/audit.ts`, `pages/settings.ts`): each is one panel with its own nav, the same as Analytics
   (`pages/subnav.ts`; [ANALYTICS.md](ANALYTICS.md) §2). The head is the title alone. Each view
   says "Empty for now". The last view is reopened on the next visit (`localStorage`,
   `deets.console.<page>`). The nav items, in order (the owner, 2026-11-13):
@@ -101,8 +99,18 @@ web app cannot do.
   - Config: **Agent**, **System**.
   - Security: **Auth**, **Roles**.
   - Audit Logs: **Config**, **Calls**, **Security**.
+  - Settings: **Personalization** (its first item). Settings had one panel with "No settings
+    yet." until 2026-11-13; with it went `pageHead` and the `.page-head` styles.
 - **Analytics** (`pages/analytics.ts`): one panel with its own nav inside it
   ([ANALYTICS.md](ANALYTICS.md)).
+- **A page with its own nav** (`pages/subnav.ts`, `styles/subnav.css`; 2026-11-13): the one
+  module behind Analytics, Teams, Config, Security, Audit Logs and Settings. A page gives only its title,
+  its `localStorage` key and its views (`subnavPage`); an empty view is `blankView`. The module
+  draws one glass panel: the title alone in its head, then the page's own nav at the left and
+  the chosen view beside it. The page's nav is a panel stacked on the page panel, in the chat
+  canvas's look (`--canvas`), as wide as the big nav (`--subnav-width`). Its items, pill, keys
+  and view swap work like the big nav's. Each view is built once, on its first visit, and kept.
+  A new page with its own nav is one file and one line in `main.ts`.
 - **The page title** is the fixed text "DeetsHealth" (SECURITY.md §4.3).
 
 ### The look (fork 2A, the owner, 2026-11-11)
@@ -118,6 +126,16 @@ web app cannot do.
   (`npm run tokens`).
 - **Shared helpers:** `tokens.ts` reads a duration token (`tokenMs`) and the reduced-motion
   setting (`reducedMotion`) for the nav and the Chat page (2026-11-12).
+- **Shape and spacing tokens, as of 2026-11-13** (the full list is [TOKENS.md](TOKENS.md)):
+  - **One radius, a trial** (the owner, 2026-11-13: "the same 16 px radius for everything").
+    `--radius-small` (a menu, the help card), `--radius-item` (a nav item and its pill, every
+    control) and `--radius-bubble` (a chat bubble) all point at `--radius`, 16 px, the panels'
+    radius. Before the trial: 10, 11 and 14 px. To end the trial, set those three back.
+  - `--radius-control` stays 6 px: the short rows (a menu row, the app-name button, the Step
+    panel's rows and marks), where 16 px would turn a row into a pill.
+  - `--pad-panel` is now two tokens, `--pad-panel-y` (16 px) and `--pad-panel-x` (20 px), and
+    `--pad-panel` is made of them. Its value is the same. The Chat page uses the halves to put
+    its title, canvas and bar on the same edges as every other page's title (CHAT.md §3).
 - **Glass, as in DeetsMotion:** a panel's fill, edge, highlight, shadow and blur are on its
   `::before` layer, so its text is never blurred. Panels are never transformed. Liberation
   Serif, 400 and 700, with `font-synthesis: none`; 16 px body, 14 px floor.
@@ -174,8 +192,9 @@ wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
 
 ![His note, 2026-11-11: remove the eyebrow over Settings](images/console-settings-note-2026-11-11.png)
 ![His sketch, 2026-11-11: a wider rail (the red line marks its new left edge)](images/console-rail-sketch-2026-11-11.png)
-1. `npm run dev`, then open the address in Edge. The page shows the top bar, the nav with Chat
-   at the top and Settings at the foot, and Chat's stage with three panels on its right.
+1. `npm run dev`, then open the address in Edge. The page shows the top bar, the nav (Chat,
+   Analytics, Teams and Config at the top; Security, Audit Logs and Settings at the foot), and
+   Chat's stage with its panels on its right.
 2. Click **DeetsHealth** in the top bar, point at **Theme**, and pick each theme. The colors
    change at once, the dot moves, and a reload keeps the theme.
 3. Click **Settings**, then **Chat**. The pill slides, and the pages fade. Reload: the last page
@@ -187,3 +206,18 @@ wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
    opens in its own window, with the top bar as the title bar: drag it, and the window moves.
 6. Turn off Windows' Transparency effects. The panels go solid.
 7. Later: the same page in Chrome, Firefox and Safari, and in a remote desktop with no GPU.
+
+### The 2026-11-13 additions
+> **Part:** built · 2026-11-13 — desk test open.
+
+1. The nav reads Chat, Analytics, Teams, Config at the top, and Security, Audit Logs, Settings
+   at the foot.
+2. Click **Teams**, **Config**, **Security**, **Audit Logs** and **Settings** in turn. Each shows one panel:
+   the title alone, then its own nav at the left (Org Chart, People · Agent, System · Auth,
+   Roles · Config, Calls, Security · Personalization). The first item is chosen; the view says "Empty for now".
+3. On one of them, click the second item. The pill slides and the view fades. Press ↑ and ↓:
+   the choice moves. Reload: the same item is chosen.
+4. Analytics looks and works as before, with no line under its title.
+5. The radius trial: the toggles, Play / Stop, the picker, the text box, the bubbles, the nav
+   pill, the theme menu and the help card all have 16 px corners, as the panels do. Decide if
+   it stays.

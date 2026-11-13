@@ -33,7 +33,7 @@ summary overall". Add **Flags** at the end. "I'll design each subpage manually."
   (`localStorage`, `deets.console.analytics`).
 - **The views:** each is built once, on its first visit, and kept (`View` in
   `pages/subnav.ts`). Each is empty now: "Empty for now", in the middle of the view.
-- **Shared with Teams, Config, Security and Audit Logs** (2026-11-13): the panel, the nav and the view swap live in
+- **Shared with Teams, Config, Security, Audit Logs and Settings** (2026-11-13): the panel, the nav and the view swap live in
   `pages/subnav.ts` and `styles/subnav.css`. A page with its own nav gives only its title, its
   `localStorage` key and its views (CONSOLE.md §3).
 

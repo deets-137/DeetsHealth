@@ -1,4 +1,4 @@
-/* A page with its own nav (pages/subnav.ts; Analytics, Teams, Config, Security, Audit Logs): one panel that fills the
+/* A page with its own nav (pages/subnav.ts; Analytics, Teams, Config, Security, Audit Logs, Settings): one panel that fills the
    page, its head, then its own nav stacked inside it at the left and the chosen view beside it. */
 
 .subnav-page {

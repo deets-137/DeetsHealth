@@ -1,4 +1,4 @@
-// A page with its own nav (ANALYTICS.md §2; Analytics, Teams, Config, Security and Audit Logs use it): one panel with a
+// A page with its own nav (ANALYTICS.md §2; Analytics, Teams, Config, Security, Audit Logs and Settings use it): one panel with a
 // nav stacked inside it, at the left. The nav works like the big one (nav.ts): a pill slides
 // to the chosen item, Up and Down move through it, and the console remembers the last
 // choice. Each choice fills the view beside the nav with its own panels.

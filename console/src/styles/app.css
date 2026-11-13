@@ -446,26 +446,11 @@ p {
   }
 }
 
-/* A page's panel: the title, one line on what the page is for. While it is the page's only
-   panel, it fills the page. */
-.page-head {
-  padding: var(--pad-panel);
-}
-
-.page-head:only-child {
-  flex: 1;
-}
-
-.page-head h1,
+/* A page's title (subnav.ts). */
 .stage-head h1 {
   font-size: var(--text-page);
   font-weight: var(--weight-regular);
   line-height: var(--line-height-tight);
-}
-
-.page-head p,
-.stage-head p {
-  color: var(--text-2);
 }
 
 .empty {

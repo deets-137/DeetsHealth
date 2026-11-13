@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-11-11
+updated: 2026-11-13
 ---
 # DeetsHealth — Design Doc
 
@@ -75,9 +75,10 @@ staff second, us third.
 - **B. The call design** — ✅ the Flows node map (VOICE-AGENT.md §8.1); 🔵 the words the agent
   says, its name and its voice
 - **C. The console** — ✅ where it runs: a browser only, installable as a web app (the owner,
-  2026-11-11, fork 1A); ✅ the shell: DeetsMotion's top bar, nav and pages, with Chat at the
-  top and Settings at the foot ([CONSOLE.md](architecture/CONSOLE.md)); ⬜ what Chat and
-  Settings show, staff sign-in
+  2026-11-11, fork 1A); ✅ the shell: DeetsMotion's top bar, nav and pages: Chat, Analytics,
+  Teams and Config at the top; Security, Audit Logs and Settings at the foot; Analytics, Teams,
+  Config, Security, Audit Logs and Settings each with its own nav (the owner, 2026-11-13;
+  [CONSOLE.md](architecture/CONSOLE.md) §3); ⬜ what each page shows, staff sign-in
 - **D. Visual identity of the console** — ✅ DeetsMotion's look: three themes (Dark, Light,
   Moonlight) and one skin, Glass; the patient app's six themes, other skins and card engine
   are archived (the owner, 2026-11-11, fork 2A; CONSOLE.md §3, §4)
