@@ -15,7 +15,7 @@ Each line is one event: `t_ms` (from the call's start; to a tenth of a milliseco
   (`typed`, `test`), the scenario (a script's name, or none), the EHR it read (`ehr`: `local`
   for ehr's fakes, `epic` for Epic's public sandbox; schema 6), the seat (`text` or `voice`;
   schema 7), the mode, the model, its `llm` settings and `inference_geo` (schema 8), its
-  `prompt_version` (schema 9); at the end, the totals and the estimated cost, and for a
+  `prompt_version` (schema 9), its `system_version` (schema 10); at the end, the totals and the estimated cost, and for a
   voice call `cartesia`: Ink's seconds, Sonic's characters and their credits (schema 7).
 - `caller`, `agent` — what each side said. `first_ms` on `agent` (schema 4): when the line's
   first frame passed, on the call's clock; the event's own `t_ms` comes after the harness's
@@ -67,8 +67,10 @@ CALLS = config.AGENT / "calls"
 # 2026-11-13: `llm` on `call_start` (effort, thinking, the token caps, the cache's life: Config ›
 # Anthropic) and `inference_geo`; `cost_usd` counts the model's own prices and US-only
 # inference (1.1×). 9: since 2026-11-13, evening: `prompt_version` on `call_start`, the label of
-# the words the call ran with ("MM-DD | n", "Default", or "file"). The catalog reads all nine.
-SCHEMA_VERSION = 9
+# the words the call ran with ("MM-DD | n", "Default", or "file"). 10: since 2026-11-13, night:
+# `system_version` on `call_start`, the label of the System variables the call ran with
+# (SYSTEM-PAGE.md §3.4). The catalog reads all ten.
+SCHEMA_VERSION = 10
 
 
 def cost_usd(tokens: dict[str, int], model: str, cache_ttl: str = "5m", geo: bool = True) -> float:
@@ -177,6 +179,7 @@ class CallRecord:
         seat: str = "text",
         llm: dict[str, Any] | None = None,
         prompt_version: str = "file",
+        system_version: str = "file",
     ) -> None:
         """`llm`: the call's llm settings (Config › Anthropic, CONSOLE.md §8); the code's when
         none. Written on `call_start` (schema 8) and used for the cost."""
@@ -219,6 +222,7 @@ class CallRecord:
             llm={k: llm[k] for k in ("effort", "thinking", "max_tokens", "retry_max_tokens", "cache_ttl")},
             inference_geo=config.INFERENCE_GEO,
             prompt_version=prompt_version,
+            system_version=system_version,
             started=datetime.now().isoformat(timespec="seconds"),
         )
 

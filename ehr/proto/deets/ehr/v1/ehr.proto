@@ -143,6 +143,10 @@ message OpenCallRequest {
   // message's words (`text.code`) from it. 0: the prompt file compiled into ehr. A version id,
   // never words.
   int64 prompt_version = 2;
+  // The version of the System variables this call runs with (SYSTEM-PAGE.md §3.4): ehr fills
+  // them into the text message's words when the call opens. 0: the active version, or the
+  // variables file compiled into ehr when the store has none. A version id, never values.
+  int64 system_version = 3;
 }
 
 message OpenCallReply {

@@ -17,6 +17,9 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
 - `GET  /agent/prompt`, `POST /agent/prompt` — Config › Agent (CONSOLE.md §9): the versions of
   the agent's words and each section's placeholders; a save makes a new active version for the
   next test call and writes the prompt file. `POST /agent/prompt/record` — Record and test.
+- `GET  /agent/system`, `POST /agent/system` — Config › System (SYSTEM-PAGE.md): the System
+  variables' versions, the code values and the tools; a save makes a new active version for the
+  next test call and writes the variables file.
 - `GET  /agent/resources` — Cartesia's credits this cycle, counted from the records and the live
   voice call (resources.py; CHAT.md §17).
 - `POST /agent/voice?ehr=local|epic` — the voice seat: a WebRTC offer in, the answer out; the
@@ -81,6 +84,7 @@ from deets_agent.catalog import (
 from deets_agent.ehr_client import EhrClient, EhrError, ErrorKind, SettingVersion
 from deets_agent.ehr_process import running_ehr
 from deets_agent.fake_twilio import FakeTwilio
+from deets_agent.flow import tool_scope, tool_steps
 from deets_agent.llm import Mode, build_llm
 from deets_agent.resources import anthropic_cycle, cartesia_cycle
 from deets_agent.rtvi_json import RtviJsonSerializer
@@ -290,9 +294,14 @@ def build_app(state: State) -> FastAPI:
         values = body.get("values") if isinstance(body, dict) else None
         if not isinstance(values, dict) or not all(isinstance(v, str) for v in values.values()):
             raise HTTPException(400, "values: every section's words")
+        # A tool named in backticks must be one the section's steps offer (SYSTEM-PAGE.md §3.5).
+        # The agent knows the steps, so this check is here, before ehr's.
+        problems = prompts.mention_problems(values, tool_scope(), set(tool_steps()))
+        if problems:
+            raise HTTPException(400, problems[0])
         await save_settings(state, "prompt", values)
         try:
-            prompts.write_file(values)
+            prompts.write_file(values, names=set((await active_variables(state))[0]))
         except prompts.PromptFileError:
             # ehr checked the same rules, so this is a writer's fault, not the words'.
             raise HTTPException(500, "saved, but the prompt file could not be written") from None
@@ -325,6 +334,37 @@ def build_app(state: State) -> FastAPI:
             state.tasks.add(task)
             task.add_done_callback(state.tasks.discard)
         return {"estimate": state.estimate}
+
+    @app.get("/agent/system")
+    async def system_settings(version: int = 0):
+        """Config › System (SYSTEM-PAGE.md §3.6): the versions and one version's System
+        variables; the code values and the tools, with what each is (read only); which
+        sections use each variable. Never a call's value."""
+        if version < 0:
+            raise HTTPException(400, "version: not a version")
+        try:
+            return await system_view(state, version)
+        except LookupError:
+            raise HTTPException(404, "no such version") from None
+
+    @app.post("/agent/system")
+    async def save_system(request: Request):
+        """Save the System variables as a new, active version (SYSTEM-PAGE.md §3.3): ehr checks
+        each variable and that the active words use none that is gone; the next test call runs
+        with them; the variables file is written. 400 names the variable that does not fit."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "not JSON") from None
+        values = body.get("values") if isinstance(body, dict) else None
+        if not isinstance(values, dict) or not isinstance(values.get("variables"), list):
+            raise HTTPException(400, "values: {variables: [...]}")
+        await save_settings(state, "system", {"variables": values["variables"]})
+        try:
+            prompts.write_variables(prompts.variables_from_store(values["variables"]))
+        except prompts.PromptFileError:
+            raise HTTPException(500, "saved, but the variables file could not be written") from None
+        return await system_view(state, 0)
 
     @app.get("/agent/anthropic")
     async def anthropic_settings(version: int = 0):
@@ -548,8 +588,14 @@ def build_app(state: State) -> FastAPI:
 
 
 # Each settings service (ehr's settings.rs › service) and its code defaults: the Default version.
-# The prompt's Default is the prompt file as it is when the store first sees it.
-DEFAULTS = {"voice": config.voice_defaults, "llm": config.llm_defaults, "prompt": prompts.load}
+# The prompt's Default is the prompt file as it is when the store first sees it; the System
+# variables' Default is the variables file (SYSTEM-PAGE.md §3.4).
+DEFAULTS = {
+    "voice": config.voice_defaults,
+    "llm": config.llm_defaults,
+    "prompt": prompts.load,
+    "system": lambda: {"variables": prompts.variables_to_store(prompts.load_variables())},
+}
 
 # The kept scripts (AGENT.md §1) and the hash of the words they were last recorded and tested with.
 SCRIPTS = config.AGENT / "tests" / "scripts"
@@ -567,9 +613,21 @@ async def sync_prompt_file(state: State) -> None:
     """The prompt file and the active version agree (PROMPT-EDITOR.md §6.2). On a store with no
     prompt version yet, the file becomes the Default. When the file differs from the active
     version (an edit by hand, another branch), the file becomes a new active version, by "file".
-    Never the other way: the file is what git and the tests read."""
+    Never the other way: the file is what git and the tests read. The variables file goes first,
+    the same way: ehr checks the words against the active System variables (SYSTEM-PAGE.md
+    §3.3)."""
     if state.ehr is None:
         return
+    try:
+        await ensure_default(state, "system")
+        got = await state.ehr.get_settings("system")
+        if got is not None and got[0] is not None:
+            file = prompts.load_variables()
+            if prompts.variables_from_store(got[1].get("variables")) != file:
+                await state.ehr.save_settings("system", {"variables": prompts.variables_to_store(file)}, by="file")
+                print("system: the variables file differs from the active version; saved it as a new version", flush=True)
+    except (EhrError, prompts.PromptFileError) as e:
+        print(f"system: the variables file was not synced ({type(e).__name__})", file=sys.stderr, flush=True)
     try:
         await ensure_default(state, "prompt")
         got = await state.ehr.get_settings("prompt")
@@ -584,40 +642,139 @@ async def sync_prompt_file(state: State) -> None:
 
 
 async def active_words(state: State) -> prompts.Words:
-    """The words a test call runs with: the active prompt version, with its id and label; the
-    prompt file when there is no store. A version that fails the agent's own check (it never
-    should: ehr checked it) gives way to the file, and the start-up log says so."""
+    """The words a test call runs with: the active prompt version and the active System
+    variables, each with its id and label; the files when there is no store. A pair that fails
+    the agent's own check (it never should: ehr checked both) gives way to the files, and the
+    log says so, so no call ever meets a `{name}` it cannot fill."""
+    files = prompts.Words(prompts.load(), variables=prompts.load_variables())
     if state.ehr is None:
-        return prompts.FILE_WORDS
+        return files
     try:
+        await ensure_default(state, "system")
         await ensure_default(state, "prompt")
         got = await state.ehr.get_settings("prompt")
+        system = await state.ehr.get_settings("system")
     except EhrError:
-        return prompts.Words(prompts.load())
+        return files
     if got is None or got[0] is None:
-        return prompts.Words(prompts.load())
+        return files
     version, values = got
     try:
-        prompts.check(values)
+        if system is not None and system[0] is not None:
+            variables = prompts.variables_from_store(system[1].get("variables"))
+            prompts.check_variables(variables)
+            sys_id, sys_label = system[0].id, system[0].label
+        else:
+            variables, sys_id, sys_label = files.variables, 0, "file"
+        prompts.check(values, set(variables))
     except prompts.PromptFileError:
-        print("prompt: the active version failed the agent's check; the file is used", file=sys.stderr, flush=True)
-        return prompts.Words(prompts.load())
-    return prompts.Words(values, version.id, version.label)
+        print("prompt: the active versions failed the agent's check; the files are used", file=sys.stderr, flush=True)
+        return files
+    return prompts.Words(values, version.id, version.label, variables, sys_id, sys_label)
 
 
 def recordings_match() -> bool:
     """Whether the kept recordings were made, and tested, with the prompt file's words."""
     try:
-        return RECORDED_STAMP.read_text(encoding="utf-8").strip() == prompts.digest(prompts.load())
+        return RECORDED_STAMP.read_text(encoding="utf-8").strip() == prompts.file_digest()
     except (OSError, prompts.PromptFileError):
         return False
 
 
+async def active_variables(state: State) -> tuple[dict[str, prompts.Variable], str]:
+    """The active System variables and their version's label; the variables file's when there is
+    no store or no version."""
+    if state.ehr is not None:
+        try:
+            await ensure_default(state, "system")
+            got = await state.ehr.get_settings("system")
+            if got is not None and got[0] is not None:
+                return prompts.variables_from_store(got[1].get("variables")), got[0].label
+        except (EhrError, prompts.PromptFileError):
+            pass
+    return prompts.load_variables(), "file"
+
+
+def _variables_list(variables: dict[str, prompts.Variable]) -> list[dict[str, Any]]:
+    return [
+        {"name": k, "meaning": v.meaning, "value": v.value, "built_in": k in prompts.BUILT_IN}
+        for k, v in variables.items()
+    ]
+
+
+def _code_values() -> list[dict[str, Any]]:
+    """The code values for the page: what each is, where it comes from, its sections. Never a
+    value: there is none outside a call."""
+    out = []
+    for name, (meaning, source, protected) in prompts.CODE_VALUE_INFO.items():
+        sections = [k for k, need in prompts.PLACEHOLDERS.items() if name in need]
+        out.append(
+            {
+                "name": name,
+                "meaning": meaning,
+                "source": source,
+                "protected": protected,
+                # `today` is the code's own; the rest come from the caller or the record.
+                "from_call": name in prompts.CALL_VALUES,
+                "sections": sections,
+            }
+        )
+    return out
+
+
+def _tools() -> list[dict[str, Any]]:
+    """The tools for the page and the " ." list: what each does (TOOLS.md), its steps and
+    arguments (the code)."""
+    ref = prompts.load_tools()
+    steps = tool_steps()
+    return [
+        {
+            "name": name,
+            "does": ref.get(name, {}).get("does", ""),
+            "record": ref.get(name, {}).get("record", "none"),
+            "lines": ref.get(name, {}).get("lines", []),
+            "steps": list(where),
+            "args": sorted(k.split(".")[2] for k in prompts.PLACEHOLDERS if k.startswith(f"arg.{name}.")),
+        }
+        for name, where in steps.items()
+    ]
+
+
+async def system_view(state: State, version: int) -> dict[str, Any]:
+    """The Config page's System view (SYSTEM-PAGE.md §3.6)."""
+    view = await settings_view(state, "system", version)
+    words = await active_words(state)
+    used: dict[str, list[str]] = {}
+    for key, text in words.sections.items():
+        for name in prompts.placeholders_in(text) - prompts.PLACEHOLDERS.get(key, set()):
+            used.setdefault(name, []).append(key)
+    view.update(
+        code_values=_code_values(),
+        tools=_tools(),
+        used=used,
+        limits={
+            "name": prompts.NAME_MAX,
+            "meaning": prompts.MEANING_MAX,
+            "value": prompts.VALUE_MAX,
+            "count": prompts.VARIABLES_MAX,
+        },
+        built_in=list(prompts.BUILT_IN),
+    )
+    return view
+
+
 async def prompt_view(state: State, version: int) -> dict[str, Any]:
-    """The Config page's Agent view (CONSOLE.md §9)."""
+    """The Config page's Agent view (CONSOLE.md §9), with what the `{` and " ." lists offer
+    (SYSTEM-PAGE.md §3.6): the active System variables, the code values, the tools, and the
+    tools each section may name."""
     view = await settings_view(state, "prompt", version)
     scripts = sorted(SCRIPTS.glob("*.txt"))
+    variables, _ = await active_variables(state)
     view.update(
+        variables=_variables_list(variables),
+        code_values=_code_values(),
+        tools=[{"name": t["name"], "does": t["does"]} for t in _tools()],
+        tool_scope={k: sorted(v) for k, v in tool_scope().items()},
         placeholders={k: sorted(v) for k, v in prompts.PLACEHOLDERS.items()},
         recordings={"match": recordings_match(), "scripts": len(scripts)},
         # The dry run's quote for these words, or None while none is known (the page asks for one).
@@ -630,7 +787,7 @@ async def prompt_view(state: State, version: int) -> dict[str, Any]:
 
 def _words_now() -> str | None:
     try:
-        return prompts.digest(prompts.load())
+        return prompts.file_digest()
     except prompts.PromptFileError:
         return None
 
@@ -708,7 +865,7 @@ async def record_and_test(state: State) -> None:
     tests. When every script ran and the tests pass, the recordings are stamped as made with
     these words. Synthetic callers only: the scripts' fake patients. Counts only on the page."""
     started = time.time()
-    words = prompts.digest(prompts.load())
+    words = prompts.file_digest()
     run: dict[str, Any] = {"state": "running", "scripts": [], "tests": None, "spent_usd": None}
     state.recording = run
     for script in sorted(SCRIPTS.glob("*.txt")):
@@ -721,7 +878,7 @@ async def record_and_test(state: State) -> None:
         sum(replay_cost(p) for p in config.REPLAYS.glob("*.json") if p.stat().st_mtime >= started), 4
     )
     passed = run["tests"] and all(s["ok"] for s in run["scripts"])
-    if passed and prompts.digest(prompts.load()) == words:
+    if passed and prompts.file_digest() == words:
         RECORDED_STAMP.write_text(words + "\n", encoding="utf-8")
         await _measure_costs()
     state.estimate = None
@@ -945,7 +1102,14 @@ def _open_record(
     `llm` and `words`: the llm settings and the agent's words the call runs with (CONSOLE.md §8,
     §9)."""
     record = CallRecord(
-        state.mode.value, llm["model"], source="test", ehr=ehr_source, seat=seat, llm=llm, prompt_version=words.label
+        state.mode.value,
+        llm["model"],
+        source="test",
+        ehr=ehr_source,
+        seat=seat,
+        llm=llm,
+        prompt_version=words.label,
+        system_version=words.system_label,
     )
     state.live = record
     redact.dev_tap = record.log

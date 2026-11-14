@@ -244,15 +244,7 @@ class TypedCall:
                     function_call_report_level={"*": RTVIFunctionCallReportLevel.NONE}
                 ),
             )
-        global_functions = [
-            self.flow.hand_off_fn(),
-            self.flow.offer_staff_fn(),
-            self.flow.end_call_fn(),
-            self.flow.emergency_fn(),
-            self.flow.safety_reminder_fn(),
-            self.flow.medical_question_fn(),
-            self.flow.flag_for_staff_fn(),
-        ]
+        global_functions = self.flow.global_functions()
         self._manager = FlowManager(
             llm=llm,
             context_aggregator=self._aggregators,

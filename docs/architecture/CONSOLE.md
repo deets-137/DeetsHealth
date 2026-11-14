@@ -1,8 +1,8 @@
 ---
 status: built
 desk_test: passed 2026-11-11
-sources: [console/src/pages/agent.ts, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
-updated: 2026-11-13
+sources: [console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
+updated: 2026-11-14
 ---
 # DeetsHealth — The console
 
@@ -773,3 +773,22 @@ Sonic: 1 credit per character"](images/config-rates-2026-11-13.png)
    fades in and out over the words; no word moves. Each placeholder in Read sits exactly where
    it sits in the box.
 10. Narrow the window: under one Cartesia card's width, each name moves over its words.
+
+### 9.6 Changed by Config › System (2026-11-14)
+- **The rule** is now SYSTEM-PAGE.md §3.1: a section keeps its own code values ("Keeps
+  {today}" under Role and rules) and may hold any System variable. `{clinic}` is a System
+  variable, so Role and rules, Step 1 and Greeting no longer list it. The problem lines add
+  "{x} is not a System variable", "{x} is filled only in its own section", "`x` is not offered
+  in this step" and "The caller hears this: no tool names here".
+- **The lists:** in Edit, `{` and " ." open the lists (`word-picker.ts`). In Read, a tool in
+  backticks shows as a chip (`.prompt-tool`).
+- **The tab bar** moved to `tab-bar.ts`, shared with System.
+- **Another page may show a section:** the `deets:show-section` event opens its tab, scrolls to
+  it and flashes it once (`.prompt-flash`, the glow's look).
+
+## 10. Config › System
+> **Part:** built · 2026-11-14
+
+The variables and the tools: SYSTEM-PAGE.md is the design, the as-built record (§6) and the
+desk test (§5). Code: `console/src/pages/system.ts`, `word-picker.ts`, `tab-bar.ts`; the
+`system` service in the store (`ehr/migrations/0006_settings_system.sql`).

@@ -224,6 +224,50 @@ export const anthropicSettings = (version = 0) =>
   get<AnthropicSettings>(version ? `/agent/anthropic?version=${version}` : "/agent/anthropic");
 export const saveAnthropic = (values: LlmValues) => saveSettings<AnthropicSettings>("/agent/anthropic", values);
 
+/** A System variable (SYSTEM-PAGE.md §3.1): the clinic's own text, never protected data.
+ * `built_in`: the code's own; its value can change, it cannot be removed. */
+export type SystemVariable = { name: string; meaning: string; value: string; built_in?: boolean };
+/** A code value: filled by the code, in its own sections only. Never a value here. */
+export type CodeValue = {
+  name: string;
+  meaning: string;
+  source: string;
+  protected: boolean;
+  /** From the caller or the record during a call; false for the code's own (`today`). */
+  from_call: boolean;
+  sections: string[];
+};
+/** A tool, for System › Tools (agent/prompts/TOOLS.md and the code). `steps`: "every", or the
+ * steps that offer it. */
+export type ToolInfo = {
+  name: string;
+  does: string;
+  record: "reads" | "writes" | "none";
+  lines: string[];
+  steps: string[];
+  args: string[];
+};
+/** The System service's one setting, as ehr keeps it. */
+export type SystemValues = { variables: SystemVariable[] };
+
+/** Config › System (SYSTEM-PAGE.md §3.6): the versions and one version's System variables; the
+ * code values and the tools (read only); which sections use each variable (in the active words). */
+export type SystemSettings = {
+  store: boolean;
+  versions: SettingVersion[];
+  version: SettingVersion | null;
+  values: SystemValues;
+  active: SystemValues;
+  code_values: CodeValue[];
+  tools: ToolInfo[];
+  used: Record<string, string[]>;
+  limits: { name: number; meaning: number; value: number; count: number };
+  built_in: string[];
+};
+export const systemSettings = (version = 0) =>
+  get<SystemSettings>(version ? `/agent/system?version=${version}` : "/agent/system");
+export const saveSystem = (values: SystemValues) => saveSettings<SystemSettings>("/agent/system", values);
+
 /** The last Record and test (dev_server.py › record_and_test): counts and names of kept
  * scripts only. */
 export type Recording = {
@@ -243,7 +287,14 @@ export type PromptSettings = {
   version: SettingVersion | null;
   values: Record<string, string>;
   active: Record<string, string>;
+  /** The code values each section must hold (SYSTEM-PAGE.md §3.1). */
   placeholders: Record<string, string[]>;
+  /** What the `{` and " ." lists offer (SYSTEM-PAGE.md §3.6): the active System variables, the
+   * code values, the tools, and the tools each section may name. */
+  variables: SystemVariable[];
+  code_values: CodeValue[];
+  tools: { name: string; does: string }[];
+  tool_scope: Record<string, string[]>;
   /** `match`: the kept recordings were made and tested with the prompt file's words. */
   recordings: { match: boolean; scripts: number };
   /** The dry run's quote for the saved words; null until one is asked for (estimatePrompt). */

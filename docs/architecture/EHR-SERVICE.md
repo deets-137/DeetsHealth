@@ -2,7 +2,7 @@
 status: built
 desk_test: none
 sources: [ehr/proto/deets/ehr/v1/ehr.proto, ehr/src/service.rs, ehr/src/edge.rs, ehr/src/transport.rs, ehr/build.rs, agent/deets_agent/ehr_client.py]
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # DeetsHealth — The `ehr` service and its wire
 
@@ -156,7 +156,16 @@ is ignored. So nothing past the edge sees a wire type.
   The Epic adapters are `ehr/src/epic_ehr.rs`, with the sixth pass, `EhrPass`, held to that
   file (2026-11-12). Since 2026-11-13 it also names the call's `prompt_version` (a version id,
   never words): `ehr` reads that version's `text.code` once and texts the code with it; 0 uses
-  the prompt file compiled into `ehr` (CONSOLE.md §9.3).
+  the prompt file compiled into `ehr` (CONSOLE.md §9.3). Since 2026-11-14 it also names the
+  call's `system_version` (a version id, never values): `ehr` fills that version's System
+  variables into `text.code` when the call opens, and `{code}` when the text goes out
+  (`settings.rs › fill`, one pass each); 0 uses the active version, or `agent/prompts/VARIABLES.md`
+  compiled into `ehr` when the store has none (SYSTEM-PAGE.md §3.4).
+- **`SaveSettings` checks the two services together** (2026-11-14, SYSTEM-PAGE.md §3.3): a
+  `prompt` save is refused when a section holds a `{name}` that is neither its own code value
+  nor a System variable of the active `system` version; a `system` save is refused when the
+  active words still use a variable it removes. The message names a section and a variable,
+  never a value or the words.
 - **`Visit`** carries what the visit is (2026-11-13): `visit_type` and `reason` (both marked
   `phi`), `online`, and `reason_private`. Each adapter builds a `VisitAbout`
   (`ehr/src/visit_about.rs`) from the record's plain words; a sensitive type or reason is

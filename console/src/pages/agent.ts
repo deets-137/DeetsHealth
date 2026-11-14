@@ -21,7 +21,9 @@ import {
 } from "../agent/api";
 import { settingsView, type Kit } from "./config-kit";
 import { el } from "./page";
-import { placePill, type View } from "./subnav";
+import type { View } from "./subnav";
+import { remember, remembered, tabBar as bar } from "./tab-bar";
+import { attachPicker, type PickItem } from "./word-picker";
 
 type Values = Record<string, string>;
 type Kind = "instructions" | "act" | "field" | "hears" | "text";
@@ -29,6 +31,12 @@ type Order = "semantic" | "flow";
 
 const TABS = ["General", "Open and close", "Verify", "Visits", "Safety"] as const;
 type Tab = (typeof TABS)[number];
+
+/** Ask Config › Agent to show one section: its tab, then the section, which flashes (Config ›
+ * System's links). The Agent view need not be built yet: it reads the ask when it is. */
+export const SHOW_SECTION = "deets:show-section";
+/** Config › System saved new variables: the `{` list and the checks use them at once. */
+export const SYSTEM_SAVED = "deets:system-saved";
 
 // Semantic's headings, in their order. An action's fields sit under it in "When to act" (the
 // owner, 2026-11-13), so fields have no heading of their own.
@@ -50,7 +58,7 @@ const TAG: Record<Kind, string> = {
 /** Each section: its tab and its name, in the order of the call within the tab (Flow's
  * order); each field right after its action. The kind comes from the key.
  * agent/tests/test_prompts.py checks that every section the agent reads is here once. */
-const SECTIONS: [string, Tab, string][] = [
+export const SECTIONS: [string, Tab, string][] = [
   ["role", "General", "Role and rules"],
   ["line.one_moment", "General", "Looking it up"],
   ["line.say_again", "General", "Did not hear clearly"],
@@ -148,21 +156,12 @@ const kindOf = (key: string): Kind => {
 // (the order and the tab). Read | Edit is not kept: it opens on Read each time.
 const ORDER_KEY = "deets.console.agent.order";
 const TAB_KEY = "deets.console.agent.tab";
-const remembered = <T extends string>(key: string, allowed: readonly T[], fallback: T): T => {
-  try {
-    const v = localStorage.getItem(key);
-    return allowed.includes(v as T) ? (v as T) : fallback;
-  } catch {
-    return fallback;
-  }
-};
-const remember = (key: string, value: string) => {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Private windows may refuse storage: the page still works, and opens on the default.
-  }
-};
+
+/** A section's name on this page, for another page's links ("Used in"). */
+export const sectionName = (key: string) => SECTIONS.find(([k]) => k === key)?.[2] ?? key;
+
+/** What the page knows of the variables and tools (dev_server.py › prompt_view). */
+type Words = Pick<PromptSettings, "variables" | "code_values" | "tools" | "tool_scope" | "placeholders">;
 
 /** The `{placeholders}` in a text, as the agent and ehr read them (prompts.py › check,
  * settings.rs › placeholders). Null for a stray brace. */
@@ -185,32 +184,72 @@ function placeholders(text: string): Set<string> | null {
   return found;
 }
 
-/** What is wrong with a section's words, in the page's words, or null. */
-function problem(text: string, wanted: string[]): string | null {
+/** What is wrong with a section's words, in the page's words, or null (SYSTEM-PAGE.md §3.3, as
+ * prompts.py › check and mention_problems read it): its own code values are there; any other
+ * `{name}` is a System variable; a tool in backticks is one its steps offer. */
+function problem(key: string, text: string, w: Words): string | null {
   if (!text.trim()) return "Empty";
   const found = placeholders(text);
   if (!found) return "A { or } with no partner";
-  const missing = wanted.filter((p) => !found.has(p));
-  const extra = [...found].filter((p) => !wanted.includes(p));
+  const own = w.placeholders[key] ?? [];
+  const missing = own.filter((p) => !found.has(p));
   if (missing.length) return `Needs ${missing.map((p) => `{${p}}`).join(", ")}`;
-  if (extra.length) return `${extra.map((p) => `{${p}}`).join(", ")} is not filled in by the agent`;
+  const codes = new Set(w.code_values.map((c) => c.name));
+  const vars = new Set(w.variables.map((v) => v.name));
+  for (const p of found) {
+    if (own.includes(p)) continue;
+    if (codes.has(p)) return `{${p}} is filled only in its own section`;
+    if (!vars.has(p)) return `{${p}} is not a System variable`;
+  }
+  const allowed = new Set(w.tool_scope[key] ?? []);
+  for (const t of toolsIn(text, w)) {
+    if (!allowed.has(t)) return allowed.size ? `\`${t}\` is not offered in this step` : `The caller hears this: no tool names here`;
+  }
   return null;
 }
 
-/** The words as Read shows them: the same characters as the box, each placeholder marked, so
- * the text sits exactly where the box's text will (no jump when Edit fades the box in). */
-function showWords(target: HTMLElement, text: string) {
+/** The tools a text names: a known tool's name in backticks (prompts.py › mentions). */
+function toolsIn(text: string, w: Words): string[] {
+  const known = new Set(w.tools.map((t) => t.name));
+  return [...text.matchAll(/`([a-z][a-z0-9_]*)`/g)].map((m) => m[1]).filter((t) => known.has(t));
+}
+
+/** The words as Read shows them: the same characters as the box, each variable and each tool
+ * marked, so the text sits exactly where the box's text will (no jump when Edit fades the box
+ * in). */
+function showWords(target: HTMLElement, text: string, w: Words) {
   target.replaceChildren();
-  const re = /\{[a-z_]+(?:[:!][^}]*)?\}/g;
+  const known = new Set(w.tools.map((t) => t.name));
+  const re = /\{[a-z_][a-z0-9_]*(?:[:!][^}]*)?\}|`([a-z][a-z0-9_]*)`/g;
   let last = 0;
   for (const m of text.matchAll(re)) {
+    if (m[1] !== undefined && !known.has(m[1])) continue; // backticks round a word, not a tool
     if (m.index! > last) target.append(text.slice(last, m.index));
-    const mark = el(`<span class="prompt-mark"></span>`);
+    const mark = el(`<span></span>`);
+    mark.className = m[1] !== undefined ? "prompt-tool" : "prompt-mark";
     mark.textContent = m[0];
     target.append(mark);
     last = m.index! + m[0].length;
   }
   if (last < text.length) target.append(text.slice(last));
+}
+
+/** The `{` list for one section: every System variable, then the section's own code values. */
+function variableItems(key: string, w: Words): PickItem[] {
+  const own = w.placeholders[key] ?? [];
+  return [
+    ...w.variables.map((v) => ({ insert: `{${v.name}}`, name: `{${v.name}}`, detail: v.meaning, note: v.value, group: "System variables" })),
+    ...w.code_values
+      .filter((c) => own.includes(c.name))
+      .map((c) => ({ insert: `{${c.name}}`, name: `{${c.name}}`, detail: c.meaning, note: "Filled by the code", group: "This section's code values" })),
+  ];
+}
+
+/** The " ." list for one section: the tools its steps offer, or why it may name none. */
+function toolItems(key: string, w: Words): PickItem[] | string {
+  const allowed = new Set(w.tool_scope[key] ?? []);
+  if (!allowed.size) return "The caller hears or reads this section, so no tool name belongs here";
+  return w.tools.filter((t) => allowed.has(t.name)).map((t) => ({ insert: `\`${t.name}\``, name: t.name, detail: t.does }));
 }
 
 function differing(a: Values, b: Values): Set<string> {
@@ -228,9 +267,28 @@ export const agentView = (): View => {
   // Set by a click on a tab bar, read by the next drawing: the pill slides from that tab.
   let slideTab: string | undefined;
   let slideOrder: string | undefined;
-  // The latest settings, for the Record and test line (it updates without drawing the cards).
+  // The latest settings, for the Record and test line (it updates without drawing the cards),
+  // and for the variables and tools the lists and checks use.
   let latest: PromptSettings | undefined;
   let poll: number | undefined;
+  // Another page's ask to show a section (SHOW_SECTION), until the next drawing shows it.
+  let pending: string | undefined;
+  let redraw: ((toTop?: boolean) => void) | undefined;
+
+  window.addEventListener(SHOW_SECTION, (e) => {
+    const key = (e as CustomEvent<string>).detail;
+    const found = SECTIONS.find(([k]) => k === key);
+    if (!found) return;
+    tab = found[1];
+    remember(TAB_KEY, tab);
+    pending = key;
+    redraw?.();
+  });
+  window.addEventListener(SYSTEM_SAVED, (e) => {
+    if (!latest) return;
+    latest.variables = (e as CustomEvent<PromptSettings["variables"]>).detail;
+    redraw?.();
+  });
 
   return settingsView<Values, Values, PromptSettings>({
     id: "agent",
@@ -240,8 +298,9 @@ export const agentView = (): View => {
     fromValues: (v) => ({ ...v }),
     differing,
     blocked: (d) => {
+      if (!latest) return null;
       for (const [key, t, name] of SECTIONS) {
-        const p = problem(d[key] ?? "", latest?.placeholders[key] ?? []);
+        const p = problem(key, d[key] ?? "", latest);
         if (p) return `${t} › ${name}: ${p}`;
       }
       return null;
@@ -250,6 +309,9 @@ export const agentView = (): View => {
   });
 
   function render(s: PromptSettings, d: Values, kit: Kit) {
+    redraw = kit.rerender;
+    // The variables and tools: the latest known (a System save updates them), else this load's.
+    const w: Words = latest ?? s;
     const wanted = (key: string) => s.placeholders[key] ?? [];
     const card = el(`<section class="cfg-card prompt-card"></section>`);
     card.dataset.card = "prompt";
@@ -290,7 +352,7 @@ export const agentView = (): View => {
     bars.append(tabBar.el, orderBar.el);
     const markBad = () => {
       for (const t of TABS) {
-        const bad = SECTIONS.some(([key, st]) => st === t && problem(d[key] ?? "", wanted(key)));
+        const bad = SECTIONS.some(([key, st]) => st === t && problem(key, d[key] ?? "", w));
         tabBar.button(t)?.classList.toggle("prompt-tab-bad", bad);
       }
     };
@@ -327,9 +389,11 @@ export const agentView = (): View => {
       const err = r.querySelector<HTMLElement>(".prompt-problem")!;
       box.value = d[key] ?? "";
       box.setAttribute("aria-label", name);
-      showWords(words, box.value);
+      showWords(words, box.value, w);
+      // `{` and " ." open the lists of what this section may hold (SYSTEM-PAGE.md §3.6).
+      attachPicker(box, { variables: () => variableItems(key, w), tools: () => toolItems(key, w) });
       const showProblem = () => {
-        const p = problem(box.value, need);
+        const p = problem(key, box.value, w);
         err.textContent = p ?? "";
         err.hidden = !p;
         r.classList.toggle("prompt-bad", !!p);
@@ -337,7 +401,7 @@ export const agentView = (): View => {
       showProblem();
       box.addEventListener("input", () => {
         d[key] = box.value;
-        showWords(words, box.value);
+        showWords(words, box.value, w);
         grow(box);
         showProblem();
         markBad();
@@ -368,6 +432,15 @@ export const agentView = (): View => {
       card.querySelectorAll<HTMLTextAreaElement>("textarea").forEach(grow);
       tabBar.place();
       orderBar.place();
+      // Another page asked for a section: bring it into view, and flash it once.
+      // Only once the card is on screen: the ask may come while another Config view shows.
+      const asked = pending && card.offsetWidth ? card.querySelector<HTMLElement>(`[data-key="${pending}"]`) : null;
+      if (asked) {
+        pending = undefined;
+        asked.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+        asked.classList.add("prompt-flash");
+        asked.addEventListener("animationend", () => asked.classList.remove("prompt-flash"), { once: true });
+      }
     };
     requestAnimationFrame(settle);
     new ResizeObserver(settle).observe(card);
@@ -480,41 +553,3 @@ function grow(box: HTMLTextAreaElement) {
   box.style.height = `${box.scrollHeight}px`;
 }
 
-/** A tab bar like Read | Edit: a pill slides to the chosen part. */
-/** A tab bar for this page. A click draws the card again, so the bar is new each time; `from`
- * is the tab chosen before the click. The new pill starts on that tab and slides to the chosen
- * one, as the pill on every other tab bar does (subnav.ts › placePill). */
-function bar(label: string, parts: [string, string][], value: string, on: (v: string) => void, from?: string) {
-  const b = el(`<div class="tabs prompt-bar" role="tablist"><span class="nav-highlight tab-pill" aria-hidden="true"></span></div>`);
-  b.setAttribute("aria-label", label);
-  const pill = b.querySelector<HTMLElement>(".tab-pill")!;
-  const buttons = parts.map(([v, word]) => {
-    const t = el(`<button class="tab" type="button" role="tab"></button>`) as HTMLButtonElement;
-    t.dataset.value = v;
-    t.textContent = word;
-    t.setAttribute("aria-selected", String(v === value));
-    t.addEventListener("click", () => v !== value && on(v));
-    b.append(t);
-    return t;
-  });
-  const find = (v: string | undefined) => buttons.find((t) => t.dataset.value === v);
-  let placed = false;
-  return {
-    el: b,
-    button: find,
-    // The first placement: on the old tab at once, then a slide to the new one (or at once
-    // when there is no old tab). Each later one (the card's width changed) slides, so it never
-    // cuts a slide short.
-    place: () => {
-      const to = find(value);
-      if (!to?.offsetWidth) return; // not on screen yet
-      if (placed) return placePill(pill, to, true);
-      placed = true;
-      const old = from !== undefined && from !== value ? find(from) : undefined;
-      if (!old) return placePill(pill, to, false);
-      placePill(pill, old, false);
-      void pill.offsetWidth; // start the slide from the old tab
-      placePill(pill, to, true);
-    },
-  };
-}

@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [agent/prompts/AGENT-PROMPT.md, agent/deets_agent/prompts.py, agent/deets_agent/flow.py, agent/deets_agent/dev_server.py, agent/deets_agent/llm.py, ehr/src/texts.rs, ehr/src/service.rs, ehr/migrations/0005_settings_prompt.sql, console/src/pages/agent.ts]
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # DeetsHealth — Edit the agent's prompt in the console
 
@@ -43,7 +43,8 @@ in B (the hospital's cloud account).
   - `flow.py` › `EMERGENCY_LINE`, read once at import.
   - `ehr/src/texts.rs` compiles the prompt file into the `ehr` binary (`include_str!`) for
     `text.code`. An edit to `text.code` needs a rebuild of `ehr` today.
-- The clinic's name is a constant in `flow.py` (`CLINIC`), not in the prompt file.
+- The clinic's name is a constant in `flow.py` (`CLINIC`), not in the prompt file. (Since
+  2026-11-14 it is the System variable `{clinic}`: SYSTEM-PAGE.md.)
 - The replay cache keys each request by a hash of its exact parameters (`llm.py` ›
   `request_key`). Any edit to the words is a new key: every kept script misses until it is
   recorded again.
@@ -98,8 +99,9 @@ in B (the hospital's cloud account).
   the save control.
 - How the greeting's three required items are held (FUTURE-SETTINGS.md §4).
 - Whether values held in code join the editor: the emergency phrases (`screen.py`), the
-  sensitive-visit list (`visit_about.rs`), the clinic's name, the counts and limits
-  (FUTURE-SETTINGS.md). The owner's words named the prompt only.
+  sensitive-visit list (`visit_about.rs`), the counts and limits (FUTURE-SETTINGS.md). The
+  owner's words named the prompt only. The clinic's name joined on 2026-11-14, as the System
+  variable `{clinic}` on Config › System (SYSTEM-PAGE.md).
 
 ## 8. The analyst's test path (open)
 > **Part:** idea · 2026-11-13

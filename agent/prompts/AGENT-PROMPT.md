@@ -8,8 +8,13 @@ is not one it knows, or if a `{placeholder}` is wrong.
 - Each `## name` starts one section. Change the words under it; keep the `## name` line.
 - Text runs on: lines next to each other join into one paragraph, so wrap lines as you like. A
   blank line starts a new paragraph. A line that starts with `- ` starts a new line (a list item).
-- `{clinic}`, `{today}` and the like are filled in by the code. Keep each one that a section
-  already has; do not add new ones.
+- `{name}` is a variable (SYSTEM-PAGE.md). A System variable (`{clinic}`, and the ones in
+  VARIABLES.md) may go in any section. A code value (`{today}`, `{visit}` and the like) is filled
+  by the code in its own section only: keep each one a section has; add none elsewhere. On
+  Config › Agent, typing `{` lists the variables a section may hold.
+- To name a tool, put its name in backticks: `` `end_call` ``. Only a tool the section's step
+  offers may be named, and never in a `line.*` or `text.code`. On Config › Agent, a space and a
+  period (" .") list the tools a section may name.
 - **Fixed lines** (`line.*`) go to the caller word for word. End each with a question, unless
   the model must act next: a line that ends in a statement lets the model speak, and it tends
   to say the line again (AGENT.md §3).
@@ -20,7 +25,8 @@ is not one it knows, or if a `{placeholder}` is wrong.
   new words (a cent or so each) and runs the tests. By hand: `cd agent`, then
   `uv run python harness/typed_call.py --script tests/scripts/<name>.txt` for each script, then
   `uv run pytest`, then write the new hash to `tests/RECORDED-PROMPT.sha256`
-  (`uv run python -c "from deets_agent.prompts import digest, load; print(digest(load()))"`).
+  (`uv run python -c "from deets_agent.prompts import file_digest; print(file_digest())"`; it
+  covers this file and VARIABLES.md).
 - These are working words. The final words, the agent's name and its voice are the owner's to
   decide (DESIGN.md §2 B).
 - No real patient detail ever goes in this file.

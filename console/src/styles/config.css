@@ -807,3 +807,176 @@ select.cfg-field {
 .prompt-bad .prompt-text {
   border-color: var(--error);
 }
+
+/* A section another page asked for (System's links): the older version's glow (.cfg-changed),
+   once, fading out. */
+.prompt-flash {
+  position: relative;
+  isolation: isolate;
+}
+
+.prompt-flash::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: calc(var(--space-3) - var(--glow-pad)) calc(-1 * var(--glow-pad)) calc(-1 * var(--glow-pad));
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--accent) var(--glow-fill), transparent);
+  box-shadow: 0 0 var(--glow-blur) color-mix(in srgb, var(--accent) var(--glow-strength), transparent);
+  pointer-events: none;
+  opacity: 0;
+  animation: prompt-flash calc(var(--dur-enter) * 6) var(--ease);
+}
+
+@keyframes prompt-flash {
+  from,
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prompt-flash::before {
+    animation-duration: 0s;
+  }
+}
+
+/* A tool named in backticks: the same wash as a variable, in the text color (SYSTEM-PAGE.md
+   §3.5). */
+.prompt-tool {
+  border-radius: var(--radius-control);
+  background: var(--glass-fill-strong);
+  color: var(--text);
+}
+
+/* ---------------------------------------------------------------- Config › System */
+
+/* SYSTEM-PAGE.md §3.6: Config › Agent's sections, with more than one line at the right: each
+   value and meaning (Read's text, Edit's box), then the facts as small lines. */
+.sys-right {
+  grid-area: words;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-top: var(--space-3);
+}
+
+.sys-field {
+  display: grid;
+  grid-template-columns: var(--cfg-number) minmax(0, 1fr);
+  align-items: start;
+  column-gap: var(--space-3);
+}
+
+/* The field's own label sits level with its first line of text (the words' top padding). */
+.sys-field .sys-key {
+  padding-top: var(--space-3);
+}
+
+.sys-field .prompt-control {
+  grid-area: auto;
+}
+
+.sys-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--text-small);
+  color: var(--text-2);
+}
+
+.sys-key {
+  min-width: var(--cfg-number);
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+.sys-key:empty {
+  display: none;
+}
+
+.sys-note {
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+.sys-remove {
+  min-height: 0;
+}
+
+.sys-add-fields {
+  flex-wrap: wrap;
+}
+
+/* Read shows what is there; Remove and Add a variable are Edit's alone. */
+.cfg[data-mode="read"] .sys-remove,
+.cfg[data-mode="read"] .sys-add {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- the `{` and " ." lists */
+
+/* word-picker.ts: the console's frosted menu (app.css › .menu), fixed to the window at the
+   cursor, so no card or scroll box clips it. As wide as the Config control column; scrolls past
+   seven rows. */
+.word-menu {
+  position: fixed;
+  z-index: 30; /* over the Config frame and its sticky top row */
+  width: var(--cfg-control);
+  max-height: calc(var(--field-height) * 7);
+  margin-top: 0;
+  overflow-y: auto;
+}
+
+.word-menu[hidden] {
+  display: none;
+}
+
+.word-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  white-space: normal;
+  cursor: default;
+}
+
+.word-row[aria-selected="true"] {
+  background: var(--hover);
+}
+
+.word-main {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.word-name {
+  color: var(--text);
+}
+
+.word-note {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+.word-note[hidden] {
+  display: none;
+}
+
+.word-detail {
+  font-size: var(--text-small);
+  color: var(--text-2);
+}
+
+.word-group,
+.word-empty {
+  padding: var(--pad-row);
+  font-size: var(--text-small);
+  color: var(--text-3);
+}

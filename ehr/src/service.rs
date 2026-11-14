@@ -3,7 +3,7 @@
 //!
 //! Every error message is a fixed string. None is built from a request or the EHR's reply.
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
 use tonic::{Request, Response, Status};
 
@@ -116,6 +116,28 @@ impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
             .ok_or_else(|| Status::internal("the prompt version has no text.code"))
     }
 
+    /// The System variables of one saved version: the active one when `id` is 0, and the file's
+    /// (compiled in) when the store has none yet. NOT_FOUND for a version that does not exist.
+    async fn system_variables(&self, id: i64) -> Result<settings::Variables, Status> {
+        let store = self.settings_store()?;
+        let (_, _, table) = setting_service("system")?;
+        let found = settings::get(store.pool(), "system", table, id)
+            .await
+            .map_err(|_| Status::internal("the store could not read the System variables"))?;
+        let Some((_, values)) = found else {
+            if id != 0 {
+                return Err(Status::not_found("system_version: no such version"));
+            }
+            return settings::file_variables().map_err(|_| Status::internal("VARIABLES.md does not fit"));
+        };
+        let raw = values
+            .into_iter()
+            .find(|(k, _)| k == "variables")
+            .and_then(|(_, v)| serde_json::from_str::<serde_json::Value>(&v).ok())
+            .ok_or_else(|| Status::internal("the System version has no variables"))?;
+        settings::variables(&raw).map_err(|_| Status::internal("the System version does not fit"))
+    }
+
     fn epic(&self) -> Result<&Arc<EpicEhr>, Status> {
         self.epic.as_ref().ok_or_else(|| Status::failed_precondition("ehr does not serve Epic's sandbox"))
     }
@@ -161,10 +183,20 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         }
         // The text message's words from the call's prompt version (CONSOLE.md §9), read once:
         // a save during the call does not change them.
+        // Its System variables are filled now, from the call's System version (SYSTEM-PAGE.md
+        // §3.4); `{code}` is filled when the text goes out.
+        let system = req.get_ref().system_version;
+        if system < 0 {
+            return Err(Status::invalid_argument("system_version: not a version"));
+        }
         let template = match req.get_ref().prompt_version {
             0 => None,
             id if id < 0 => return Err(Status::invalid_argument("prompt_version: not a version")),
-            id => Some(self.prompt_text_code(id).await?),
+            id => {
+                let words = self.prompt_text_code(id).await?;
+                let vars = self.system_variables(system).await?;
+                Some(settings::fill(&words, &|n| vars.get(n).map(|(_, v)| v.clone()), false))
+            }
         };
         let handle = self.sessions.open(source).await.map_err(refused)?;
         if template.is_some() {
@@ -437,6 +469,46 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let values = settings::check(list, &given).map_err(Status::invalid_argument)?;
         settings::coherent(name, &values).map_err(Status::invalid_argument)?;
         let store = self.settings_store()?;
+        // The words and the System variables agree (SYSTEM-PAGE.md §3.3): a section holds only
+        // its own code values and System variables of the active System version; a System save
+        // keeps every variable the active words use. A Default seed is the files, which the
+        // agent checked together at start-up.
+        if !req.seed {
+            match name {
+                "prompt" => {
+                    let names = self.system_variables(0).await?.into_keys().collect();
+                    settings::prompt_variables(&values, &names).map_err(Status::invalid_argument)?;
+                }
+                "system" => {
+                    let names: BTreeSet<String> = values
+                        .iter()
+                        .find(|(k, _)| *k == "variables")
+                        .map(|(_, v)| settings::variables(v))
+                        .transpose()
+                        .map_err(Status::invalid_argument)?
+                        .unwrap_or_default()
+                        .into_keys()
+                        .collect();
+                    let (_, _, prompt_table) = setting_service("prompt")?;
+                    let prompt = settings::get(store.pool(), "prompt", prompt_table, 0)
+                        .await
+                        .map_err(|_| Status::internal("the store could not read the prompt"))?;
+                    if let Some((_, words)) = prompt {
+                        let words: Vec<(&str, serde_json::Value)> = words
+                            .iter()
+                            .filter_map(|(k, v)| Some((k.as_str(), serde_json::from_str(v).ok()?)))
+                            .collect();
+                        settings::prompt_variables(&words, &names).map_err(|e| {
+                            // "line.x: {name} is not a System variable" → which variable, and where.
+                            let (section, rest) = e.split_once(": ").unwrap_or(("a section", &e));
+                            let var = rest.split_whitespace().next().unwrap_or("a variable");
+                            Status::invalid_argument(format!("variables: {var} is still used in {section}"))
+                        })?;
+                    }
+                }
+                _ => {}
+            }
+        }
         let v = settings::save(store.pool(), name, table, &values, by, req.seed).await.map_err(|e| match e {
             settings::SaveError::DefaultExists => Status::already_exists("the Default version exists"),
             settings::SaveError::Db(_) => Status::internal("the store could not save the settings"),

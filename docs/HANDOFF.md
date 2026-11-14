@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # DeetsHealth — Handoff
 
@@ -122,6 +122,14 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   checked), three RPCs, `GET`/`POST /agent/cartesia`. Voice calls run with the active version.
   **Restart `npm run dev` first** (new `ehr`, the migration). Open: pronunciations need a
   Cartesia dictionary; Make active; Listen (CONSOLE.md §7.6).
+- **Built, desk test open: Config › System, the variables and the tools** (2026-11-14; the
+  owner's forks 1B, " ." opens the tool list, and 2A, analysts add their own variables).
+  SYSTEM-PAGE.md: `{clinic}` and the analyst's own System variables (the `system` service,
+  migration 0006, `agent/prompts/VARIABLES.md`) may go in any section; code values stay in their
+  own; a tool in the words is named in backticks and checked against its steps; `{` and " ."
+  lists on Config › Agent; the Tools tab reads `agent/prompts/TOOLS.md`. **Restart `npm run dev`
+  first**, then SYSTEM-PAGE.md §5. Open: the existing plain tool names in the words are not in
+  backticks yet (a words change: Record and test after); the rules engine (§8).
 - **Built, desk test open: Config › Agent, the agent's words in the console** (2026-11-13; the
   owner's five tabs, Semantic | Flow, the names list). Every section of AGENT-PROMPT.md, versioned
   in the store (`prompt` service, migration 0005); a save writes the file and reaches the next

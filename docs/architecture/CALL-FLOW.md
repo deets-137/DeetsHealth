@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/screen.py, agent/deets_agent/config.py, agent/prompts/AGENT-PROMPT.md, ehr/src/service.rs, ehr/src/session.rs, ehr/src/texts.rs]
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # The default call flow — where each piece lives
 
@@ -37,8 +37,9 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | goodbye | `CallFlow.goodbye` | none | none | the call ends |
 | hand off | `CallFlow.handed_off` | none | none | the call ends (Phase 1 has no transfer) |
 
-- **Global tools:** the list `global_functions` in `TypedCall.__init__`
-  (`agent/deets_agent/call.py`).
+- **Global tools:** `CallFlow.global_functions` (`flow.py`), given to the FlowManager in
+  `TypedCall.__init__` (`call.py`). `tool_steps()` and `tool_scope()` in `flow.py` read the
+  nodes for Config › System and for the tool check (SYSTEM-PAGE.md §3.5).
 - **The role prompt** (every node): `role` in AGENT-PROMPT.md, filled by `role()` in `flow.py`.
 - **Each tool's description** for the model: `tool.<name>` and `arg.<tool>.<arg>` in
   AGENT-PROMPT.md, attached by `_tool()` in `flow.py`.
@@ -70,7 +71,7 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | Booking lines | `_find_slots_fn`, `_choose_option_fn`, `_book_fn`, `_next_visit_fn` | `line.slots`, `line.slot_option`, `line.no_slots`, `line.which_option`, `line.confirm_slot`, `line.slot_taken`, `line.booked`, `line.next_visit`, `line.no_visits` | — |
 | A change or cancel goes to staff, with a flag; the caller hears which visit stays booked | `_change_visit_fn` | `line.change_booked`, `line.change_visit` | — |
 | The holding line when a reply is cut off by the token cap (with a review flag, FLAGS.md §8) | `_CutOffGuard` (`agent/deets_agent/llm.py`), `on_cut_off` (`call.py`) | `line.one_moment` | FUTURE-SETTINGS.md › What the agent may say |
-| The clinic's name | `CLINIC` (`flow.py`) | fills `{clinic}` | the hospital's settings |
+| The clinic's name, and every other System variable | the call's `Words.variables` (`prompts.py`; the store's `system` service, or `agent/prompts/VARIABLES.md`), filled by `prompts.text` | fills `{clinic}` and the analyst's own `{name}`s in any section | Config › System (SYSTEM-PAGE.md) |
 | Today's date | `CallFlow.today`; `FAKE_TODAY` for a typed call, the real date for an Epic call (`TypedCall` › `ehr_source`) | fills `{today}` | — |
 | The EHR read | `CallFlow.ehr_source` → `OpenCall` › `ehr`; `Session.source` in `ehr` | — | — |
 

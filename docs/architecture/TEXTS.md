@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [ehr/src/texts.rs, ehr/src/verify.rs, ehr/src/service.rs, ehr/src/main.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/tests/texts.rs, core/src/text.rs, core/src/shielded.rs, agent/deets_agent/fake_twilio.py, agent/deets_agent/dev_server.py, agent/deets_agent/ehr_process.py, agent/deets_agent/call_record.py, agent/prompts/AGENT-PROMPT.md, agent/tests/test_fake_twilio.py, scripts/dev.mjs]
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # DeetsHealth — The code by text
 
@@ -129,11 +129,18 @@ patient, and every number is in the unused range.
 
 ## 9. The words of the text
 AGENT-PROMPT.md › `text.code`, with every other word the caller reads or hears, so the owner
-edits them in one place. `{code}` is the only placeholder.
+edits them in one place. `{code}` is its one code value; since 2026-11-14 it may also hold any
+System variable, `{clinic}` for one (SYSTEM-PAGE.md §3.4).
 - `ehr` builds the file in at compile time (`PROMPT_FILE`, `template`). Lines next to each
   other join with a space and a blank line starts a paragraph, as in `prompts.py` (a line that
-  starts with "- " is not a list item here: a text has no lists). It refuses to start if `{code}` is missing, doubled, or joined by another
-  placeholder.
+  starts with "- " is not a list item here: a text has no lists). It fills the System variables
+  of `agent/prompts/VARIABLES.md` (compiled in too), and refuses to start if `{code}` is
+  missing or doubled, or another placeholder is left.
+- A call with a saved version: `OpenCall` names the prompt version and the System version;
+  `ehr` fills that version's variables into `text.code` when the call opens, and `{code}` when
+  the text goes out (`settings.rs › fill`, one pass each; a variable's value holds no brace).
+- A value counts toward the segment: a long clinic name can push the text past 160
+  characters. The test below checks the file's own values only.
 - The agent checks the same section at its start (`PLACEHOLDERS` in
   `agent/deets_agent/prompts.py`), so a bad edit fails on both sides.
 - A test holds the filled text to one segment: plain ASCII and at most 160 characters

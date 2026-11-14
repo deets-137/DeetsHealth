@@ -43,6 +43,7 @@ caller's yes and the offered slots live on this object, as `Shielded`.
 
 from __future__ import annotations
 
+import functools
 import re
 import secrets
 import time
@@ -60,7 +61,8 @@ from deets_agent.ehr_client import CheckOutcome, EhrClient, EhrError, ErrorKind,
 from deets_agent.prompts import text
 from deets_agent.shielded import Shielded
 
-CLINIC = "Main Street Clinic"
+# The clinic's name is the System variable `{clinic}` (agent/prompts/VARIABLES.md; SYSTEM-PAGE.md
+# §3.1): `prompts.text` fills it in any section that holds it.
 
 # ehr's fake slots start the week after this day (ehr/src/scheduler.rs). A typed call and the
 # tests use it as "today" so the fakes are in the future and the replay cache holds.
@@ -171,7 +173,7 @@ class StaffFlag:
 def greeting() -> str:
     """The first words of every call, with the disclosures. The hospital sets its own later
     (FUTURE-SETTINGS.md §4)."""
-    return text("line.greeting", clinic=CLINIC)
+    return text("line.greeting")
 
 
 def _words(value: str) -> set[str]:
@@ -182,7 +184,7 @@ def _words(value: str) -> set[str]:
 def role(today: date) -> str:
     """The role prompt. `today` is its only part that changes, once a day, so the prompt cache
     misses once a day per clinic, not once a call."""
-    return text("role", clinic=CLINIC, today=f"{spoken_day(today)}, {today.year}")
+    return text("role", today=f"{spoken_day(today)}, {today.year}")
 
 
 def _tool(name: str, handler, args: dict[str, str] | None = None, required: list[str] | None = None,
@@ -211,6 +213,57 @@ def _tool(name: str, handler, args: dict[str, str] | None = None, required: list
 # here too.
 STEPS = ("greet", "verify", "menu", "schedule", "goodbye", "hand_off")
 CLOSING_STEPS = ("goodbye", "hand_off")
+# The steps where the model runs, each with tools of its own.
+TOOL_STEPS = ("greet", "verify", "menu", "schedule")
+
+# A note goes to the model in the result of one tool, so it is read in that tool's steps.
+NOTE_TOOL = {
+    "note.after_next_visit": "next_visit",
+    "note.after_reminder": "safety_reminder",
+    "note.after_flag": "flag_for_staff",
+}
+
+
+@functools.cache
+def tool_steps() -> dict[str, tuple[str, ...]]:
+    """Each tool and the steps that offer it, read from the nodes themselves; "every" for the
+    tools of every step (Config › System, SYSTEM-PAGE.md §3.6)."""
+    f = CallFlow(ehr=None)  # type: ignore[arg-type]  # builds nodes only; never opens a call
+    out: dict[str, list[str]] = {fn.name: ["every"] for fn in f.global_functions()}
+    for step in TOOL_STEPS:
+        for fn in getattr(f, step)()["functions"]:
+            out.setdefault(fn.name, []).append(step)
+    return {k: tuple(v) for k, v in out.items()}
+
+
+@functools.cache
+def tool_scope() -> dict[str, frozenset[str]]:
+    """The tools each section may name (SYSTEM-PAGE.md §3.5): the tools of the steps where the
+    model reads it. A line or the text message: none, since the caller hears or reads it."""
+    steps = tool_steps()
+    every = frozenset(t for t, s in steps.items() if s == ("every",))
+    own = {step: frozenset(t for t, s in steps.items() if step in s) for step in TOOL_STEPS}
+
+    def of_tool(tool: str) -> frozenset[str]:
+        where = [s for s in steps.get(tool, ()) if s != "every"]
+        if not where:
+            return every
+        return every | frozenset.intersection(*(own[s] for s in where))
+
+    out: dict[str, frozenset[str]] = {}
+    for key in prompts.PLACEHOLDERS:
+        kind, _, rest = key.partition(".")
+        if key == "role":
+            out[key] = every
+        elif kind == "task":
+            out[key] = every | own.get(rest, frozenset())
+        elif kind in ("tool", "arg"):
+            out[key] = of_tool(rest.split(".")[0])
+        elif kind == "note":
+            out[key] = of_tool(NOTE_TOOL.get(key, ""))
+        else:
+            out[key] = frozenset()
+    return out
 
 
 @dataclass
@@ -251,7 +304,8 @@ class CallFlow:
 
     async def start(self) -> None:
         # The call's prompt version: ehr takes the text message's words from it (CONSOLE.md §9).
-        self.handle = await self.ehr.open_call(self.ehr_source, prompts.current().version_id)
+        words = prompts.current()
+        self.handle = await self.ehr.open_call(self.ehr_source, words.version_id, words.system_id)
 
     async def close(self) -> None:
         if self.handle is not None:
@@ -305,7 +359,7 @@ class CallFlow:
         return self._step({
             "name": "greet",
             "role_message": role(self.today),
-            "task_messages": self._task("greet", clinic=CLINIC),
+            "task_messages": self._task("greet"),
             "functions": [self._identify_fn(), self._confirm_details_fn()],
             "pre_actions": [
                 {"type": "tts_say", "text": greeting(), "append_text_to_context": False},
@@ -361,6 +415,18 @@ class CallFlow:
 
     def handed_off(self) -> NodeConfig:
         return self._closing_node("hand_off")
+
+    def global_functions(self) -> list[FlowsFunctionSchema]:
+        """The tools of every step (call.py gives them to the FlowManager)."""
+        return [
+            self.hand_off_fn(),
+            self.offer_staff_fn(),
+            self.end_call_fn(),
+            self.emergency_fn(),
+            self.safety_reminder_fn(),
+            self.medical_question_fn(),
+            self.flag_for_staff_fn(),
+        ]
 
     # ---- staff flags (FLAGS.md) ----
 

@@ -10,6 +10,8 @@
 //! - **Errors name the setting, never its value** (SECURITY.md §4.5). No setting is protected
 //!   data, but the rule is the same everywhere.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use serde_json::Value;
 use sqlx::{PgPool, Row};
 
@@ -29,8 +31,11 @@ pub enum Kind {
     /// all.
     Table { columns: usize, rows: usize, chars: usize },
     /// A section of the agent's words: text that is not empty, at most `PROSE_MAX` characters,
-    /// with exactly these `{placeholders}` (as prompts.py › check reads them).
+    /// holding these code values (as prompts.py › check reads them). Any other `{name}` must be
+    /// a System variable: `prompt_variables` checks that against the System version.
     Prose { placeholders: &'static [&'static str] },
+    /// The System variables (SYSTEM-PAGE.md §3.2): a list of `{name, meaning, value}`.
+    Variables,
 }
 
 /// The longest section of the agent's words. The role prompt, the longest, is about 3,500.
@@ -94,11 +99,11 @@ const fn p(key: &'static str, placeholders: &'static [&'static str]) -> Setting 
 }
 
 /// The agent's words (CONSOLE.md §9): every section of agent/prompts/AGENT-PROMPT.md and the
-/// placeholders it must hold. The agent's prompts.py › PLACEHOLDERS is the same list; a test
-/// fails if the two differ (test_prompts.py).
+/// code values it must hold (SYSTEM-PAGE.md §3.1). The agent's prompts.py › PLACEHOLDERS is
+/// the same list; a test fails if the two differ (test_prompts.py).
 pub const PROMPT: &[Setting] = &[
-    p("role", &["clinic", "today"]),
-    p("task.greet", &["clinic"]),
+    p("role", &["today"]),
+    p("task.greet", &[]),
     p("task.verify", &[]),
     p("task.menu", &[]),
     p("task.schedule", &[]),
@@ -132,7 +137,7 @@ pub const PROMPT: &[Setting] = &[
     p("arg.hand_off.evidence", &[]),
     p("tool.emergency", &[]),
     p("tool.medical_question", &[]),
-    p("line.greeting", &["clinic"]),
+    p("line.greeting", &[]),
     p("line.read_back", &["birth", "family", "given"]),
     p("line.ask_details", &[]),
     p("line.birth_not_possible", &[]),
@@ -177,6 +182,21 @@ pub const PROMPT: &[Setting] = &[
     p("line.ehr_down", &[]),
 ];
 
+/// The System variables (SYSTEM-PAGE.md §3): one setting, the list.
+pub const SYSTEM: &[Setting] = &[s("variables", Kind::Variables)];
+
+/// The System variables that cannot be removed or renamed: the code's own (SYSTEM-PAGE.md §3.1).
+pub const BUILT_IN: &[&str] = &["clinic"];
+/// The limits of SYSTEM-PAGE.md §3.2. The agent's prompts.py holds the same.
+pub const VARIABLE_NAME_MAX: usize = 32;
+pub const VARIABLE_MEANING_MAX: usize = 200;
+pub const VARIABLE_VALUE_MAX: usize = 300;
+pub const VARIABLES_MAX: usize = 100;
+
+/// The System variables the agent's words start from: agent/prompts/VARIABLES.md, compiled in.
+/// ehr fills `text.code` from it when a call names no System version.
+const VARIABLES_FILE: &str = include_str!("../../agent/prompts/VARIABLES.md");
+
 /// A service's name, its list and its table. The names come from here only, never from a
 /// request, so no request text reaches the SQL.
 pub fn service(name: &str) -> Option<(&'static str, &'static [Setting], &'static str)> {
@@ -184,8 +204,186 @@ pub fn service(name: &str) -> Option<(&'static str, &'static [Setting], &'static
         "voice" => Some(("voice", VOICE, "settings_voice")),
         "llm" => Some(("llm", LLM, "settings_llm")),
         "prompt" => Some(("prompt", PROMPT, "settings_prompt")),
+        "system" => Some(("system", SYSTEM, "settings_system")),
         _ => None,
     }
+}
+
+/// Every code value: a `{name}` the code fills, each in its own sections only.
+pub fn code_values() -> BTreeSet<&'static str> {
+    PROMPT
+        .iter()
+        .flat_map(|s| match s.kind {
+            Kind::Prose { placeholders } => placeholders.to_vec(),
+            _ => vec![],
+        })
+        .collect()
+}
+
+/// The System variables, by name: (meaning, value).
+pub type Variables = BTreeMap<String, (String, String)>;
+
+/// Why a variable's name does not fit, or None.
+fn name_problem(name: &str) -> Option<&'static str> {
+    let mut chars = name.chars();
+    if !chars.next().is_some_and(|c| c.is_ascii_lowercase()) {
+        return Some("starts with a lowercase letter");
+    }
+    if !chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_') {
+        return Some("holds only a to z, 0 to 9 and _");
+    }
+    if name.len() > VARIABLE_NAME_MAX {
+        return Some("is too long");
+    }
+    None
+}
+
+fn line_problem(text: &str, max: usize, braces: bool) -> Option<&'static str> {
+    if text.chars().count() > max {
+        return Some("too long");
+    }
+    if text.chars().any(char::is_control) {
+        return Some("more than one line");
+    }
+    if !braces && text.contains(['{', '}']) {
+        return Some("a { or }");
+    }
+    None
+}
+
+/// The System variables in a checked value, or why they do not fit. The message names a
+/// variable, never its value.
+pub fn variables(value: &Value) -> Result<Variables, String> {
+    let Some(list) = value.as_array() else { return Err("variables: not a list".into()) };
+    if list.len() > VARIABLES_MAX {
+        return Err(format!("variables: at most {VARIABLES_MAX}"));
+    }
+    let codes = code_values();
+    let mut out = Variables::new();
+    for item in list {
+        let field = |k: &str| item.get(k).and_then(Value::as_str);
+        let (Some(name), Some(meaning), Some(v)) = (field("name"), field("meaning"), field("value")) else {
+            return Err("variables: each needs a name, a meaning and a value".into());
+        };
+        if item.as_object().is_some_and(|o| o.len() != 3) {
+            return Err("variables: each holds only a name, a meaning and a value".into());
+        }
+        if let Some(p) = name_problem(name) {
+            return Err(format!("variables: a name {p}"));
+        }
+        if codes.contains(name) {
+            return Err(format!("variables: {{{name}}} is filled by the code"));
+        }
+        if out.contains_key(name) {
+            return Err(format!("variables: {{{name}}} is there twice"));
+        }
+        if let Some(p) = line_problem(meaning, VARIABLE_MEANING_MAX, true) {
+            return Err(format!("variables: {{{name}}}'s meaning: {p}"));
+        }
+        if v.trim().is_empty() {
+            return Err(format!("variables: {{{name}}} has no value"));
+        }
+        if let Some(p) = line_problem(v, VARIABLE_VALUE_MAX, false) {
+            return Err(format!("variables: {{{name}}}'s value: {p}"));
+        }
+        out.insert(name.to_string(), (meaning.to_string(), v.to_string()));
+    }
+    for b in BUILT_IN {
+        if !out.contains_key(*b) {
+            return Err(format!("variables: {{{b}}} is built in and cannot be removed"));
+        }
+    }
+    Ok(out)
+}
+
+/// The System variables of agent/prompts/VARIABLES.md: `## name`, then `meaning:` and `value:`
+/// lines (prompts.py › load_variables reads it the same way).
+pub fn file_variables() -> Result<Variables, String> {
+    let mut list: Vec<Value> = vec![];
+    for line in VARIABLES_FILE.lines().map(|l| l.trim_end_matches('\r')) {
+        if let Some(name) = line.strip_prefix("## ") {
+            list.push(serde_json::json!({"name": name.trim(), "meaning": "", "value": ""}));
+        } else if let Some(last) = list.last_mut() {
+            for k in ["meaning", "value"] {
+                if let Some(rest) = line.strip_prefix(&format!("{k}:")) {
+                    last[k] = Value::String(rest.trim().to_string());
+                }
+            }
+        }
+    }
+    variables(&Value::Array(list)).map_err(|e| format!("VARIABLES.md: {e}"))
+}
+
+/// Every section of a prompt set holds only its own code values and System variables of
+/// `names` (SYSTEM-PAGE.md §3.3). The error names the section and the variable.
+pub fn prompt_variables(prompt: &[(&str, Value)], names: &BTreeSet<String>) -> Result<(), String> {
+    let codes = code_values();
+    for (key, value) in prompt {
+        let Some(Setting { kind: Kind::Prose { placeholders: own }, .. }) = PROMPT.iter().find(|s| s.key == *key) else {
+            continue;
+        };
+        let Some(found) = value.as_str().and_then(placeholders) else { continue };
+        for name in found {
+            if own.contains(&name.as_str()) {
+                continue;
+            }
+            // Only a name that fits is ever echoed back: the rest of the text never is.
+            if name_problem(&name).is_some() {
+                return Err(format!("{key}: a {{…}} that is not a variable name"));
+            }
+            if codes.contains(name.as_str()) {
+                return Err(format!("{key}: {{{name}}} is filled only in its own section"));
+            }
+            if !names.contains(&name) {
+                return Err(format!("{key}: {{{name}}} is not a System variable"));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Fill the `{name}`s in `text` in one pass: a name `lookup` knows becomes its value; any other
+/// stays as it is. With `last`, `{{` and `}}` become one brace (the text is final); without,
+/// they stay, so a later pass reads them the same. A value is never read again, so a value
+/// cannot add a `{name}`.
+pub fn fill(text: &str, lookup: &dyn Fn(&str) -> Option<String>, last: bool) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '{' | '}' if chars.peek() == Some(&c) => {
+                chars.next();
+                out.push(c);
+                if !last {
+                    out.push(c);
+                }
+            }
+            '{' => {
+                let mut field = String::new();
+                let mut closed = false;
+                for ch in chars.by_ref() {
+                    if ch == '}' {
+                        closed = true;
+                        break;
+                    }
+                    field.push(ch);
+                }
+                let name = field.split([':', '!']).next().unwrap_or("");
+                match lookup(name).filter(|_| closed) {
+                    Some(v) => out.push_str(&v),
+                    None => {
+                        out.push('{');
+                        out.push_str(&field);
+                        if closed {
+                            out.push('}');
+                        }
+                    }
+                }
+            }
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 /// The `{placeholders}` in a text, read as Python's `string.Formatter().parse` reads them:
@@ -234,9 +432,8 @@ fn prose_problem(placeholders_wanted: &[&str], value: &Value) -> Option<&'static
         return Some("a control character");
     }
     let Some(found) = placeholders(text) else { return Some("a stray { or }") };
-    let wanted: std::collections::BTreeSet<String> = placeholders_wanted.iter().map(|s| s.to_string()).collect();
-    if found != wanted {
-        return Some("the wrong {placeholders}");
+    if !placeholders_wanted.iter().all(|p| found.contains(*p)) {
+        return Some("a code value missing");
     }
     None
 }
@@ -304,6 +501,7 @@ pub fn fits(kind: Kind, value: &Value) -> bool {
             total <= chars
         }
         Kind::Prose { placeholders } => prose_problem(placeholders, value).is_none(),
+        Kind::Variables => variables(value).is_ok(),
     }
 }
 
@@ -328,12 +526,14 @@ pub fn check(list: &[Setting], values: &[(String, String)]) -> Result<Vec<(&'sta
         if let Kind::Prose { placeholders } = setting.kind {
             // The page shows this, so it says what to fix: the kind of problem, never the text.
             if let Some(problem) = prose_problem(placeholders, &value) {
-                let want = if placeholders.is_empty() { "none".to_string() } else { placeholders.join(", ") };
+                let want = placeholders.iter().map(|p| format!("{{{p}}}")).collect::<Vec<_>>().join(" ");
                 return Err(match problem {
-                    "the wrong {placeholders}" => format!("{}: needs the placeholders {want}, no others", setting.key),
+                    "a code value missing" => format!("{}: needs {want}", setting.key),
                     p => format!("{}: {p}", setting.key),
                 });
             }
+        } else if let Kind::Variables = setting.kind {
+            variables(&value)?;
         } else if !fits(setting.kind, &value) {
             return Err(format!("{}: out of range or the wrong kind", setting.key));
         }
@@ -594,12 +794,67 @@ mod tests {
             s.iter_mut().find(|(k, _)| k == key).unwrap().1 = json!(text).to_string();
             check(PROMPT, &s)
         };
-        assert_eq!(with("line.booked", "You're booked.").unwrap_err(), "line.booked: needs the placeholders visit, no others");
-        assert_eq!(with("line.goodbye", "Bye {name}.").unwrap_err(), "line.goodbye: needs the placeholders none, no others");
+        assert_eq!(with("line.booked", "You're booked.").unwrap_err(), "line.booked: needs {visit}");
         assert_eq!(with("line.goodbye", "Bye { now.").unwrap_err(), "line.goodbye: a stray { or }");
         assert_eq!(with("line.goodbye", "  ").unwrap_err(), "line.goodbye: empty");
         assert!(with("line.goodbye", "Use {{braces}} freely.").is_ok());
         assert!(with("line.booked", "Booked: {visit:>3}.").is_ok());
+        // Other names pass `check`; `prompt_variables` holds them to the System variables.
+        assert!(with("line.goodbye", "Bye from {clinic}.").is_ok());
+    }
+
+    fn prompt_with(key: &str, text: &str) -> Vec<(&'static str, Value)> {
+        PROMPT
+            .iter()
+            .map(|s| {
+                let Kind::Prose { placeholders } = s.kind else { unreachable!() };
+                let words = placeholders.iter().map(|p| format!("{{{p}}}")).collect::<Vec<_>>().join(" ");
+                (s.key, json!(if s.key == key { text.to_string() } else { format!("Words {words}.") }))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_section_holds_its_own_code_values_and_system_variables() {
+        let names: BTreeSet<String> = ["clinic", "pharmacy_hours"].map(String::from).into();
+        assert!(prompt_variables(&prompt_with("line.goodbye", "Bye from {clinic}, open {pharmacy_hours}."), &names).is_ok());
+        assert_eq!(
+            prompt_variables(&prompt_with("line.goodbye", "Bye {parking}."), &names).unwrap_err(),
+            "line.goodbye: {parking} is not a System variable"
+        );
+        assert_eq!(
+            prompt_variables(&prompt_with("line.goodbye", "Bye {given}."), &names).unwrap_err(),
+            "line.goodbye: {given} is filled only in its own section"
+        );
+        assert!(prompt_variables(&prompt_with("line.booked", "{clinic}: booked {visit}."), &names).is_ok());
+    }
+
+    #[test]
+    fn the_system_variables_are_checked() {
+        let one = |name: &str, meaning: &str, value: &str| json!({"name": name, "meaning": meaning, "value": value});
+        let clinic = one("clinic", "The clinic's name.", "Main Street Clinic");
+        let ok = |list: Vec<Value>| variables(&Value::Array(list));
+        assert_eq!(ok(vec![clinic.clone(), one("pharmacy_hours", "When it opens.", "9 to 5")]).unwrap().len(), 2);
+        assert_eq!(ok(vec![]).unwrap_err(), "variables: {clinic} is built in and cannot be removed");
+        assert_eq!(ok(vec![clinic.clone(), one("Bad", "", "x")]).unwrap_err(), "variables: a name starts with a lowercase letter");
+        assert_eq!(ok(vec![clinic.clone(), one("given", "", "x")]).unwrap_err(), "variables: {given} is filled by the code");
+        assert_eq!(ok(vec![clinic.clone(), clinic.clone()]).unwrap_err(), "variables: {clinic} is there twice");
+        assert_eq!(ok(vec![clinic.clone(), one("x", "", "{code}")]).unwrap_err(), "variables: {x}'s value: a { or }");
+        assert_eq!(ok(vec![clinic.clone(), one("x", "", " ")]).unwrap_err(), "variables: {x} has no value");
+        assert_eq!(ok(vec![clinic.clone(), one("x", "", "a\nb")]).unwrap_err(), "variables: {x}'s value: more than one line");
+        assert!(file_variables().unwrap().contains_key("clinic"));
+    }
+
+    #[test]
+    fn fill_is_one_pass() {
+        let vars = |n: &str| match n {
+            "clinic" => Some("Main {clinic} Clinic".to_string()),
+            _ => None,
+        };
+        // In one pass a value is never read again (across passes, `variables` refuses a brace in
+        // a value); an unknown name and the escapes stay for the last pass.
+        assert_eq!(fill("{clinic}: {code} {{x}}", &vars, false), "Main {clinic} Clinic: {code} {{x}}");
+        assert_eq!(fill("{{x}} {code}", &|n| (n == "code").then(|| "123".to_string()), true), "{x} 123");
     }
 
     #[test]

@@ -77,9 +77,13 @@ pub fn template() -> Result<String, String> {
     if !current.is_empty() {
         paragraphs.push(current);
     }
-    let text = paragraphs.join("\n\n");
-    if text.matches("{code}").count() != 1 || text.replace("{code}", "").contains(['{', '}']) {
-        return Err(format!("AGENT-PROMPT.md › {SECTION} must hold {{code}} once and no other placeholder"));
+    // The System variables of the variables file, filled now (SYSTEM-PAGE.md §3.4); `{code}`
+    // stays for `send`.
+    let vars = crate::settings::file_variables()?;
+    let text = crate::settings::fill(&paragraphs.join("\n\n"), &|n| vars.get(n).map(|(_, v)| v.clone()), false);
+    let others = crate::settings::placeholders(&text).map(|p| p.into_iter().any(|n| n != "code"));
+    if text.matches("{code}").count() != 1 || others != Some(false) {
+        return Err(format!("AGENT-PROMPT.md › {SECTION} must hold {{code}} once and only System variables besides"));
     }
     Ok(text)
 }
@@ -190,7 +194,9 @@ impl Codes for TwilioCodes {
     async fn send(&self, phone: &Shielded<String>, code: &Shielded<String>, template: Option<&str>) -> Result<(), Down> {
         let pass = TextPass::issue();
         let words = template.unwrap_or(&self.template);
-        let body = Zeroizing::new(words.replace("{code}", code.reveal(&pass)));
+        // The last pass: `{code}`, and `{{` `}}` to one brace. The System variables were filled
+        // when the call opened, and a value holds no brace, so nothing else is left.
+        let body = Zeroizing::new(crate::settings::fill(words, &|n| (n == "code").then(|| code.reveal(&pass).clone()), true));
         let form = [
             ("To", phone.reveal(&pass).as_str()),
             ("MessagingServiceSid", self.messaging_service.as_str()),

@@ -8,6 +8,23 @@ updated: 2026-11-13
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-13 to 11-14 (Windows, config) — Config › System: variables and tools
+- Config › Agent's tab bars: the pill now slides from the old tab (a click drew a new bar, so
+  the pill was born on the new tab). Committed `08b7db7`.
+- The owner asked for a System page: see and configure the variables (`{clinic}`) and the
+  tools, `{` and " ." lists in the words, and a path to a rules engine. I first said 72
+  sections, then counted 77 by hand; the code says 78 (13 hold variables, 65 none).
+- Forks: 1B (" ." opens the tool list; Epic's SmartPhrases use a period), 2A (analysts make
+  their own variables). Design: [SYSTEM-PAGE.md](architecture/SYSTEM-PAGE.md).
+- A test showed plain tool names cannot be checked (`book` is also a word), so a tool in the
+  words is named in backticks. The words in the file were not changed.
+- Built: the `system` settings service (migration 0006), the relaxed section rule and the
+  checks between the two services in `ehr`, `OpenCall` › `system_version`, the variables
+  filled into the text message by `ehr`; `VARIABLES.md` and `TOOLS.md` in `agent/prompts/`;
+  `/agent/system`; Config › System, the lists, tool chips, links to sections on Config › Agent.
+  Record schema 10 (`system_version`). The 142 replay tests pass unchanged, so the recordings
+  stamp was written for the new digest (it now covers the variables too).
+
 ## 2026-11-13 (Windows, tunnel) — The demo over a tunnel, on paper
 - The owner asked for a Cloudflare Tunnel so friends can try the console. He chose full
   access ("pretend they are like me in terms of access"), no spend cap until roles exist, and
