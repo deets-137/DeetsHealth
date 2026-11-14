@@ -44,6 +44,21 @@
   transition: opacity var(--dur-leave) var(--ease);
 }
 
+/* A narrow screen (720px is --compact; app.css › compact bar): the title and the page's own nav
+   leave the panel. The nav is the dropdown at the compact bar's right end, and the view takes
+   the panel's full width. */
+@media (max-width: 720px) {
+  .subnav-page > .stage-head,
+  .subnav-body > .subnav {
+    display: none;
+  }
+
+  .subnav-body {
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: var(--canvas-pad);
+  }
+}
+
 .subnav-blank {
   flex: 1;
   display: flex;

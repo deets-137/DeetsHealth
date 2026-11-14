@@ -11,6 +11,9 @@ export interface Page {
   /** The page became visible, or stopped being visible: start or pause its work here. */
   shown?(): void;
   hidden?(): void;
+  /** The page's own nav as a dropdown, for the compact bar's right end (picker.ts). Read
+   * after build(). A page with no own nav leaves it out. */
+  picker?(): HTMLElement;
 }
 
 export function el(html: string): HTMLElement {

@@ -114,6 +114,12 @@ and the console starts; each next step follows from what the console needs (the 
 
 Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-ORDER.md §3.4).
 
+- **Built, desk tests open: the console on a phone** (2026-11-14; the tracker is
+  architecture/MOBILE-UI.md). The compact nav (CONSOLE.md §11: the page and view dropdowns in
+  halves); Chat's toggles under the text box and Start / End call in halves (CONSOLE.md §11.4);
+  the call panel first in Demo and PHI (CHAT.md §15.1); the rail panels' grow handle (CHAT.md
+  §15.2). Next (MOBILE-UI.md §5): the other pages, the other controls' hover on touch, the safe
+  areas, the on-screen keyboard, a run on a real phone.
 - **Built, not yet run: voice on the Chat page** (2026-11-13; the owner's forks 1B with a tab
   bar, and 2A). Testing's **Text | Voice** bar (Text each time); a voice call through the laptop
   microphone, Ink in and Sonic out (`voice.py`; our own WebRTC seat, no remote code); barge-in,

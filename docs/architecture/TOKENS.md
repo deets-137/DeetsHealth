@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
 | Theme (color roles) | themes.css | 35 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 114 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 119 tokens · overrides:  |
 
 ## Theme roles
 
@@ -91,6 +91,8 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--rail-min` | `300px` | — | the rail never gets narrower than this |
 | `--gap` | `12px` | — | between panels, and the page's outer margin |
 | `--narrow` | `1100px` | — | below this the rail drops under the stage (a media query repeats it: CSS cannot read a token there) |
+| `--compact` | `720px` | — | at or below this the nav and each page's own nav become dropdowns (CONSOLE.md §11; tokens.ts › compactQuery reads it; CSS repeats it in @media rules) |
+| `--tap-min` | `44px` | — | a dropdown's button and rows on a touch screen: the least height a finger hits |
 | `--stage-min` | `320px` | — | the stage's least height when the rail is under it |
 | `--stage-narrow` | `70svh` | — | the stage's height when the rail is under it: 70 % of the window (the owner's sketch, 2026-11-12) |
 
@@ -163,6 +165,8 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--code-tracking` | `0.08em` | — | the six digits on the code button, a little apart |
 | `--chevron` | `14px` | — | the open-and-close arrow on a rail list (a patient's visits) |
 | `--bullet-indent` | `16px` | — | a bulleted list's inset: room for the disc, hung outside the text |
+| `--grow-handle` | `32px` | — | the grow handle's strip at a rail panel's foot (44 px on touch: --tap-min) |
+| `--grow-chevron` | `18px` | — | its chevron |
 | `--rail-panel-min` | `240px` | — | each rail panel's least height; past it, its tab scrolls inside it |
 | `--verdict-height` | `32px` | — | a Review row's Pass · Fail · Unsure control, and each score dot's press area |
 | `--verdict-min` | `180px` | — | the verdict control's least width before the dots wrap under it |
@@ -201,6 +205,7 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--dur-enter` | `220ms` | — | the new page fades in |
 | `--ease` | `ease` | — |  |
 | `--ease-pill` | `cubic-bezier(0.3, 0.7, 0.2, 1)` | — |  |
+| `--dur-swap` | `420ms` | — | Chat's call panel and stage trade places after a pick (chat.ts › placeCall; the pill's curve) |
 | `--dur-collapse` | `220ms` | — | the help box opens and closes |
 | `--dur-wave-out` | `120ms` | — | a mode change: the old controls fade out together |
 | `--dur-wave-in` | `360ms` | — | then each new control rises and fades in... |

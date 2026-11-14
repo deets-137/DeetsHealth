@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [console/src/pages/analytics.ts, console/src/pages/subnav.ts, console/src/styles/subnav.css, docs/architecture/images/analytics-sketch-2026-11-12.png]
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # DeetsHealth — The Analytics page
 
@@ -24,6 +24,8 @@ summary overall". Add **Flags** at the end. "I'll design each subpage manually."
 
 - **The panel:** one glass panel fills the page. Its head is the title *Analytics* alone (the owner,
   2026-11-12: no "Nothing here yet." line). Under the head: the Analytics nav at the left, the view at the right.
+- **On a narrow screen** (2026-11-14, CONSOLE.md §11): the title and the Analytics nav leave the
+  panel; the nav is the dropdown at the compact bar's right, and the view fills the panel.
 - **The Analytics nav:** a panel stacked on the page panel, with the chat canvas's look
   (`--canvas`). As wide as the big nav (`--subnav-width`, which is `--nav-width`). Its items,
   in order: **Home**, **Outcome**, **Cost**, **Logs**, **Speed**, **Flags**.

@@ -205,9 +205,15 @@ p {
   transition: background-color var(--dur-hover) var(--ease);
 }
 
-.app-title:hover,
 .app-title[aria-expanded="true"] {
   background: var(--hover);
+}
+
+/* Hover washes only where the pointer can hover: on a touch screen a tap would leave them on. */
+@media (hover: hover) {
+  .app-title:hover {
+    background: var(--hover);
+  }
 }
 
 /* Installed as an app with the window-controls overlay (Edge and Chrome): the top bar is
@@ -276,11 +282,16 @@ p {
   white-space: nowrap;
 }
 
-.menu-row:hover,
 .menu-row:focus-visible,
 .menu-row[aria-expanded="true"] {
   background: var(--hover);
   outline: none;
+}
+
+@media (hover: hover) {
+  .menu-row:hover {
+    background: var(--hover);
+  }
 }
 
 .menu-chev {
@@ -389,15 +400,143 @@ p {
   transition: background-color var(--dur-hover) var(--ease), color var(--dur-text) var(--ease);
 }
 
-.nav-item:hover {
-  background: var(--hover);
-  color: var(--text);
+@media (hover: hover) {
+  .nav-item:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
 }
 
 .nav-item[aria-current="page"],
 .nav-item[aria-current="page"]:hover {
   background: transparent;
   color: var(--on-accent);
+}
+
+/* --------------------------------------------------------- compact bar */
+
+/* The owner's sketch (2026-11-14, CONSOLE.md §11): on a narrow screen the nav becomes a
+   dropdown under the app name, where the nav's current item was, and a page's own nav a
+   dropdown at the right of the same row, where the page's title was. The page's panels fill
+   the rest. The button is the nav's accent pill with a chevron; the menu is the theme menu's
+   glass, its rows the nav's items. picker.ts builds both. Hidden on a wide screen. */
+.compact-bar {
+  display: none;
+}
+
+.picker {
+  position: relative;
+  min-width: 0;
+}
+
+.picker-button {
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--pad-item);
+  border: 0;
+  border-radius: var(--radius-item);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--text-size);
+  transition: background-color var(--dur-theme) var(--ease);
+}
+
+.picker-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker-chev {
+  line-height: 1;
+}
+
+.picker-menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* A page's own dropdown sits at the right edge: its menu hangs from that edge. */
+.picker[data-side="right"] .picker-menu {
+  left: auto;
+  right: 0;
+}
+
+.picker-row {
+  padding: var(--pad-item);
+  border-radius: var(--radius-item);
+  color: var(--text-2);
+  transition: background-color var(--dur-hover) var(--ease), color var(--dur-text) var(--ease);
+}
+
+@media (hover: hover) {
+  .picker-row:hover {
+    color: var(--text);
+  }
+}
+
+.picker-row[aria-checked="true"],
+.picker-row[aria-checked="true"]:hover,
+.picker-row[aria-checked="true"]:focus-visible {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* The nav's foot (Security, Audit Logs, Settings) sits apart, as in the nav. */
+.picker-divider {
+  margin: var(--space-2) var(--space-3);
+  border: 0;
+  border-top: var(--edge) solid var(--line);
+}
+
+/* A finger needs a taller target than a pointer. */
+@media (pointer: coarse) {
+  .picker-button,
+  .picker-row {
+    min-height: var(--tap-min);
+  }
+}
+
+/* 720px is --compact in skin.css (a media query cannot read a token). */
+@media (max-width: 720px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--topbar) auto minmax(0, 1fr);
+  }
+
+  .nav {
+    display: none;
+  }
+
+  .compact-bar {
+    position: relative;
+    z-index: 15; /* its menus hang over the panels; the top bar's menu (20) over them */
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gap);
+    padding-bottom: var(--gap);
+  }
+
+  /* The two dropdowns share the row in equal halves (the owner, 2026-11-14): the name at the
+     left of each pill, the chevron at its right; a menu is at least as wide as its pill. */
+  .compact-pages,
+  .compact-views {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .compact-bar .picker-button {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .compact-bar .picker-menu {
+    min-width: max(100%, var(--menu-min));
+  }
 }
 
 /* ---------------------------------------------------------------- page */
@@ -599,9 +738,20 @@ html[data-reveal="hold"] .app {
    keeps 70 % of the window's height (--stage-narrow). The rail's panels sit side by side, as
    many in a row as fit at --rail-min each; a row is as tall as its tallest panel. */
 @media (max-width: 1100px) {
+  /* The page grows with its rows and scrolls (not "flex: 1"): held to the window's height, an
+     auto row stays at its panel's least height, so a grown rail panel spilled under the panels
+     after it (the owner, 2026-11-14). Grown, the panels after it are pushed down and glide with
+     its height. */
   .split-page {
+    flex: 1 0 auto;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: max(var(--stage-min), var(--stage-narrow)) auto;
+  }
+
+  /* Demo and PHI before a pick (chat.ts › placeCall; CHAT.md §15.1): the call panel sits in
+     its own row above the stage. */
+  .split-page[data-call-above] {
+    grid-template-rows: auto max(var(--stage-min), var(--stage-narrow)) auto;
   }
 
   .rail {

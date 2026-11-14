@@ -8,6 +8,41 @@ updated: 2026-11-14
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-14 (Windows, night) — the compact nav for narrow screens
+- The owner's ask: start the phone layout with the nav. We went over what browsers can tell a
+  page (width, `pointer`, `hover`, `visualViewport`, safe areas; user-agent checks avoided).
+- His sketch settled both forks: the page dropdown goes under DeetsHealth, where the nav's
+  current item was; the page's own nav goes to the right of the same row, where the title was.
+  Saved as `docs/architecture/images/nav-compact-layout-2026-11-14.png` (no protected data).
+- Built (CONSOLE.md §11): `picker.ts` (the dropdown), the compact bar in `index.html`,
+  `Page.picker()`, the tokens `--compact` (720 px) and `--tap-min` (44 px), and the narrow rules
+  in `app.css`, `subnav.css` and `chat.css`. The nav's, the menus' and the app name's hover
+  washes now need `hover: hover`.
+- Checks: the type check and `npm run check` pass. Not desk-tested.
+- His second screenshot (saved as `docs/architecture/images/chat-compact-toggles-2026-11-14.png`,
+  no protected data: a sandbox patient): the two pills now share the row in halves, and Chat's
+  Text | Voice and Local | Epic bars (and Demo's speed bar) move under the text box on a narrow
+  screen (CONSOLE.md §11.4).
+- Then: Start | End call (and Play | Stop) fill the canvas's width in halves on a narrow screen.
+- Then his fork A (CHAT.md §15.1): at 1100 px or less, Demo's Recorded calls and PHI's Caller
+  panel sit above the stage until a pick, then slide under it; each entry into the mode starts
+  over. New tokens: `--dur-swap`; `tokens.ts` gained `narrowQuery` and `tokenString`.
+- Then the grow handle (CHAT.md §15.2; his sketch saved as
+  `docs/architecture/images/chat-panel-handle-2026-11-14.png`, test call names only): a strip at
+  each rail panel's foot, 1100 px or less; a tap shows the whole list, a second collapses it.
+  His fork B: nothing saved across a reload. `pages/panel-grow.ts`; tokens `--grow-handle`,
+  `--grow-chevron`. Then: the strip hides when the list already fits.
+- His screenshot of a grown list spilling under the canvas and the Tools panel (saved as
+  `docs/architecture/images/chat-panel-overlap-2026-11-14.png`, test call names only). Cause:
+  the narrow split page was held to the window's height, so the call panel's auto row stayed at
+  240 px. Fixed with `flex: 1 0 auto` (app.css); the panels after a grown one now glide down.
+- That fix let a resting panel show its whole list, so the grown panel had no strip (his
+  screenshot, saved as `docs/architecture/images/chat-panel-no-collapse-2026-11-14.png`). A
+  resting panel now has a set height. The pick move no longer crosses: the call panel closes in
+  place, then opens below the stage (CHAT.md §15.1).
+- The tracker for the phone work is new: `docs/architecture/MOBILE-UI.md` (how a page knows,
+  the width tokens, built page by page, open, a log).
+
 ## 2026-11-14 (Windows, evening) — Security › Auth: incomplete cards, missing fields in red
 - The owner's ask, from a screenshot of an add that would not save (a name, no email): turn the
   missing box's title red; let a second Save save an incomplete card, with Save red.

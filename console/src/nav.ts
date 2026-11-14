@@ -3,6 +3,7 @@
 import { el, type Page } from "./pages/page";
 import { reducedMotion, tokenMs } from "./tokens";
 import { shown } from "./agent/store";
+import { picker } from "./picker";
 
 const LAST_PAGE = "deets.console.page";
 
@@ -12,6 +13,7 @@ export function initNav(pages: Page[]) {
   const bottom = document.getElementById("nav-list-bottom") as HTMLElement;
   const highlight = document.getElementById("nav-highlight") as HTMLElement;
   const host = document.getElementById("page-host") as HTMLElement;
+  const views = document.getElementById("compact-views") as HTMLElement;
   const built = new Map<string, HTMLElement>();
   let current: Page | null = null;
   let swap = 0; // the latest click wins when clicks come quickly
@@ -26,6 +28,17 @@ export function initNav(pages: Page[]) {
   top.replaceChildren(...pages.filter((p) => !p.bottom).map(item));
   bottom.replaceChildren(...pages.filter((p) => p.bottom).map(item));
   const buttons = [...nav.querySelectorAll<HTMLButtonElement>(".nav-item")];
+
+  // The same list as a dropdown, for a narrow screen (picker.ts). The foot's pages come after
+  // a divider, as they sit apart in the nav. `go` is defined below; a pick runs only after it is.
+  const ordered = [...pages.filter((p) => !p.bottom), ...pages.filter((p) => p.bottom)];
+  const pagePick = picker(
+    "Pages",
+    ordered.map((p, i) => ({ id: p.id, title: p.title, apart: p.bottom && !ordered[i - 1]?.bottom })),
+    "left",
+    (id) => go(id),
+  );
+  document.getElementById("compact-pages")!.replaceChildren(pagePick.el);
 
   /** Moves the pill onto the current item, in whole pixels. */
   const place = (animate: boolean) => {
@@ -42,6 +55,10 @@ export function initNav(pages: Page[]) {
   const show = (page: Page) => {
     if (!built.has(page.id)) built.set(page.id, page.build());
     host.replaceChildren(built.get(page.id)!);
+    // The page's own dropdown at the compact bar's right end; none for a page with no own nav.
+    const own = page.picker?.();
+    if (own) views.replaceChildren(own);
+    else views.replaceChildren();
     page.shown?.();
     shown(); // a store paused while its page was off screen reads now (store.ts)
   };
@@ -57,6 +74,7 @@ export function initNav(pages: Page[]) {
       else b.removeAttribute("aria-current");
     });
     place(!first);
+    pagePick.set(page.id);
     try {
       localStorage.setItem(LAST_PAGE, page.id);
     } catch {

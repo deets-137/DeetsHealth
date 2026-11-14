@@ -124,6 +124,9 @@ the branch `archive/patient-app`.
 - `CHAT.md` — the Chat page (built, wired to the agent's dev server): the owner's sketch (`images/`), the canvas, the
   bubbles and their line facts, the PHI / Test / Demo toggle, the text box, the connection, the
   catalog of calls, the rail's sandbox patients and the code button (§8); its forks.
+- `MOBILE-UI.md` — the console on a phone: how a page knows it is narrow (width, pointer,
+  hover; no user-agent checks), the width tokens, what is built page by page, what is open.
+  Add a row and a log line with each piece built.
 - `LOADING.md` — the console's reads: one store per kind of data (the newest answer wins, writes
   in click order, polls one at a time, retry when the agent is back), the ledger of every read
   for debugging and health later, and the first-load wave (the owner's fork A: hold, then one

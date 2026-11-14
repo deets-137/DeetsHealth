@@ -14,5 +14,20 @@ export function tokenNumber(name: string, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/** A token's raw value from skin.css (an easing curve, say). `fallback` when it is not set. */
+export function tokenString(name: string, fallback: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
+/** A "this wide or less" media query from a width token. CSS repeats the width in its own
+ * @media rules, because a media query cannot read a token. */
+const widthQuery = (name: string, fallback: string) => matchMedia(`(max-width: ${tokenString(name, fallback)})`);
+
+/** The compact layout: the nav as dropdowns (CONSOLE.md §11). */
+export const compactQuery = () => widthQuery("--compact", "720px");
+
+/** The narrow layout: the rail under the stage (app.css › split-page). */
+export const narrowQuery = () => widthQuery("--narrow", "1100px");
+
 /** True when the OS asks for less motion: a script skips its waits. */
 export const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;

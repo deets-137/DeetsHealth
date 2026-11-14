@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [docs/architecture/images/chat-resources-tab-2026-11-14.png, agent/deets_agent/resources.py, docs/architecture/images/chat-title-box-move-2026-11-14.png, docs/architecture/images/chat-harness-failed-ehrerror-2026-11-14.webp, ehr/src/epic_ehr.rs, agent/deets_agent/ehr_process.py, console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/voice.py, agent/deets_agent/resources.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
+sources: [docs/architecture/images/chat-panel-no-collapse-2026-11-14.png, docs/architecture/images/chat-panel-overlap-2026-11-14.png, console/src/pages/panel-grow.ts, docs/architecture/images/chat-panel-handle-2026-11-14.png, console/src/tokens.ts, docs/architecture/images/chat-resources-tab-2026-11-14.png, agent/deets_agent/resources.py, docs/architecture/images/chat-title-box-move-2026-11-14.png, docs/architecture/images/chat-harness-failed-ehrerror-2026-11-14.webp, ehr/src/epic_ehr.rs, agent/deets_agent/ehr_process.py, console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/voice.py, agent/deets_agent/resources.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
 updated: 2026-11-14
 ---
 # DeetsHealth — The Chat page
@@ -900,6 +900,91 @@ it); Timeline and Caller kept as "Empty for now"; `--tools-min` renamed `--rail-
    "Phone: …", then a full-width row "245 visits" with the arrow at its right. Press it: the
    visits open under it as bullets, ending "and N more". A patient with no visits shows the
    same row, fainter, saying "No visits".
+
+### 15.1 The call panel first, in Demo and PHI (narrow)
+> **Part:** built · 2026-11-14 — desk test open.
+
+§15.1 and §15.2 are Chat's part of the console on a phone; the tracker is
+[MOBILE-UI.md](MOBILE-UI.md).
+
+The owner's ask and fork A (2026-11-14): while the rail sits under the stage (1100 px or
+less), Demo and PHI show the top panel (Recorded calls, Caller) above the stage until a call
+is picked. A pick slides the panel back under the stage. Each new entry into Demo or PHI
+starts over; within a visit, the panel stays below ("the user knows to scroll").
+- **A pick:** in Demo, a press on a row or on **Play** (Demo chooses the newest call by
+  itself, so being chosen is not a pick). In PHI, a press on a live call's row. Following the
+  newest call by itself is not a pick.
+- **The move** (`chat.ts › placeCall`; changed 2026-11-14, the owner: the panels must never
+  cross): the panel closes where it is (its height, padding and the gap after it go to 0, and it
+  fades), so the stage glides up into its room. Then it opens in its new place, so the panels
+  after it glide down. Each half is half of `--dur-swap`, on `--ease`; nothing is held after it.
+  A mode change moves it the same way; a newer move stops the running half. With reduced
+  motion, the move is instant. (Before: a transform slide, in which the stage passed over a
+  grown list.)
+- After the move below, the page scrolls to the top, and a focused row keeps the focus.
+- Test never moves the panel. When the window is wide, the rail sits beside the stage, so
+  nothing moves.
+
+**Desk test**
+1. Make the window narrower than 1100 px. Pick **Demo**. Recorded calls is above the canvas.
+2. Press a call's row. The panel slides under the canvas, and the canvas slides up into view.
+3. Pick **Testing**, then **Demo** again. The panel is above again. Press **Play** without
+   pressing a row: the panel slides under, and the newest call plays.
+4. Pick **PHI**. The Caller panel is above. Press a live call's row: it slides under.
+5. With the panel above, make the window wide. The rail is beside the stage, as before.
+6. Tab to a row and press Enter. After the slide, the focus is still on that row.
+
+### 15.2 The grow handle (narrow)
+> **Part:** built · 2026-11-14 — desk test open.
+
+![The owner's screenshot, 2026-11-14: the Recorded calls panel on a narrow screen, its list cut off; the purple box at its foot asks for a handle, an extension of the panel, that expands it so the whole list shows](images/chat-panel-handle-2026-11-14.png)
+
+The owner's ask (DeetsMusic's card edges) and fork B, 2026-11-14. While the rail sits under the
+stage (1100 px or less), each rail panel (the call panel and the technical record) has a strip
+at its foot (`pages/panel-grow.ts`).
+- **A tap shows the whole list.** The panel grows to its content and the page scrolls; its tab
+  has no inner scroll. The chevron turns over (⌃), and the same strip, now at the list's foot,
+  brings the panel back to its usual height (`--rail-panel-min`). After that, the page scrolls
+  the strip back into view.
+- **Nothing is saved** (fork B: a list thousands of pixels long must not stay open after a
+  reload). Within a page load, a panel stays grown across mode and tab changes.
+- **The strip** is part of the panel: full width, a hairline over it, the panel's lower
+  corners. `--grow-handle` (32 px) tall; `--tap-min` (44 px) on a touch screen. A hover wash
+  only where the pointer can hover. A button: `aria-expanded`, "Show the whole list" / "Show
+  less".
+- **The motion:** the height glides from the old to the new (`--dur-collapse`, `--ease`); the
+  animation holds nothing after it ends. Reduced motion: at once.
+- **The panels after it glide down, never under it** (the owner, 2026-11-14). The fix: at
+  1100 px or less the split page grows with its rows (`flex: 1 0 auto`, app.css). Before, it was
+  held to the window's height, so the call panel's row (above the stage) stayed at its least
+  height, and a grown list spilled under the canvas and the bottom panel.
+- **At rest a panel has a set height** (`--rail-panel-min`, chat.css). Once the page grew with
+  its rows, a resting panel showed its whole list, so the strip never showed and a grown panel
+  had no strip to collapse it (his screenshot below). The set height brings both back.
+
+![The owner's screenshot, 2026-11-14: the foot of the grown Recorded calls list with no strip under it; he asks for the collapse bar](images/chat-panel-no-collapse-2026-11-14.png)
+
+![The owner's screenshot, 2026-11-14: the grown Recorded calls list spilling under the speed bar and the Tools panel; he asks for the panels to glide down instead](images/chat-panel-overlap-2026-11-14.png)
+- Two panels side by side (721 to 1100 px): a grown one does not stretch its neighbor.
+- Wide: no strip; the rail is as before.
+- **The strip shows only when it does something** (the owner, 2026-11-14): collapsed, when the
+  shown tab's content is cut off; grown, when the panel is taller than its usual height. It is
+  checked when a list loads, a tab changes, a row opens or the window resizes. A grown panel
+  whose tab now fits stays grown, so a longer tab shows whole again.
+
+**Desk test**
+1. Make the window narrower than 1100 px. Each rail panel has a strip at its foot with ⌄.
+2. In Demo, tap the strip under Recorded calls. The panel grows to show every call; the
+   chevron is ⌃. Scroll to the list's foot and tap the strip: the panel goes back to its height,
+   and the strip is in view.
+3. Grow the bottom panel, then change its tab and the mode. It stays grown. Reload: both
+   panels are at their usual height.
+4. Between 721 and 1100 px, with the two panels side by side, grow one: the other keeps its
+   height.
+5. On a touch screen (or device mode), the strip is taller and shows no hover wash after a tap.
+6. Make the window wide: no strip.
+7. A tab whose content fits (Steps with no call yet) shows no strip. Open a patient's visits
+   in Sandbox EPTs until the list is cut off: the strip comes in.
 
 ## 16. Demo: the recorded calls in the rail; the speed bar in the canvas
 > **Part:** built · 2026-11-13 · desk test passed 2026-11-13 (a replay from the list; the

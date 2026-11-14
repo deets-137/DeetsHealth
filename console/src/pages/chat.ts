@@ -34,9 +34,11 @@ import { catalog, health, resources, sandbox } from "../agent/stores";
 import { TextSeat, VoiceSeat } from "../agent/transport";
 import { holdReload } from "../reload";
 import { revealing } from "../reveal";
-import { reducedMotion, tokenMs } from "../tokens";
+import { compactQuery, narrowQuery, reducedMotion, tokenMs, tokenNumber, tokenString } from "../tokens";
 import { el, type Page } from "./page";
 import { placePill } from "./subnav";
+import { picker, type Picker } from "../picker";
+import { growHandle } from "./panel-grow";
 
 type Mode = "phi" | "test" | "demo";
 // The Chat nav's order (the owner, 2026-11-13: "testing, demo and phi").
@@ -95,9 +97,12 @@ const savedMode = (): Mode => {
 export function chatPage(): Page {
   // Set by build(): plays the controls' wave each time the page comes into view.
   let shownHook = () => {};
+  // Set by build(): the Chat nav as a dropdown, for the compact bar (picker.ts).
+  let modePick: Picker | null = null;
   return {
     id: "chat",
     title: "Chat",
+    picker: () => modePick!.el,
     shown: () => requestAnimationFrame(() => shownHook()),
     build() {
       const page = el(`
@@ -185,6 +190,9 @@ export function chatPage(): Page {
                   aria-label="What the caller says" disabled />
                 <button class="send" data-wave id="chat-send" type="submit" aria-label="Send" title="Send (Enter)" disabled>${SEND_ICON}</button>
               </form>
+              <!-- A narrow screen only (CONSOLE.md §11.4): the top row's bars move here, under
+                   the text box. -->
+              <div class="chat-toggles" id="chat-toggles"></div>
               </div>
               </div>
             </section>
@@ -261,6 +269,9 @@ export function chatPage(): Page {
       // The rail's two panels and their tab bars (CHAT.md §15).
       const callTabs = new Tabs($("rail-call"), "deets.console.chat.tab.call");
       new Tabs($("rail-tech"), "deets.console.chat.tab.tech");
+      // Each panel's grow handle, under the stage only (CHAT.md §15.2).
+      growHandle($("rail-call"));
+      growHandle($("rail-tech"));
 
       // ---- the Chat nav (CHAT.md §14): Testing, Demo, PHI, one item per mode. Its pill slides
       // as the big nav's does (subnav.ts › placePill).
@@ -268,7 +279,11 @@ export function chatPage(): Page {
       const pill = nav.querySelector<HTMLElement>(".nav-highlight")!;
       const navItems = [...nav.querySelectorAll<HTMLButtonElement>(".nav-item")];
       let mode = savedMode();
+      // The same list as a dropdown, for a narrow screen (picker.ts). `goMode` is defined
+      // below; a pick runs only after it is.
+      modePick = picker("Chat mode", MODES.map((m) => ({ id: m, title: MODE_WORD[m] })), "right", (id) => goMode(id as Mode));
       const markNav = (animate: boolean) => {
+        modePick!.set(mode);
         navItems.forEach((b) => {
           if (b.dataset.mode === mode) b.setAttribute("aria-current", "page");
           else b.removeAttribute("aria-current");
@@ -277,6 +292,86 @@ export function chatPage(): Page {
       };
       // Also places the pill the first time the page is shown, when the nav first has a size.
       new ResizeObserver(() => markNav(false)).observe(nav);
+
+      // ---- a narrow screen (CONSOLE.md §11.4, the owner, 2026-11-14): the seat, EHR and speed
+      // bars move from the canvas's top row to a row under the text box, and back when the
+      // window grows. Each bar keeps its handlers; its pill follows on its next resize.
+      const topRow = page.querySelector<HTMLElement>(".chat-top")!;
+      const underRow = $("chat-toggles");
+      const bars = ["chat-seat", "chat-ehr", "demo-speed"].map($);
+      const compact = compactQuery();
+      const placeBars = () => (compact.matches ? underRow : topRow).append(...bars);
+      compact.addEventListener("change", placeBars);
+      placeBars();
+
+      // ---- the call panel first (CHAT.md §15.1; the owner's fork A, 2026-11-14): while the rail
+      // sits under the stage, Demo and PHI show the rail's top panel (Recorded calls, Caller)
+      // above the stage until a call is picked in this visit to the mode. A pick slides the
+      // panel back under the stage, and the stage up. Entering Demo or PHI again starts over.
+      const railCall = $("rail-call");
+      const rail = page.querySelector<HTMLElement>(".rail")!;
+      const narrow = narrowQuery();
+      let picked = false; // a call was picked since the mode was entered
+      let swap: Animation | null = null; // the half of the move that is running
+      const placeCall = (animate: boolean) => {
+        const above = narrow.matches && mode !== "test" && !picked;
+        swap?.cancel(); // a newer move wins: the half that was running stops where it is
+        if (above === (railCall.parentElement === splitPage)) return;
+        const move = () => {
+          const focused = railCall.contains(document.activeElement) ? (document.activeElement as HTMLElement) : null;
+          if (above) splitPage.prepend(railCall);
+          else rail.prepend(railCall);
+          splitPage.toggleAttribute("data-call-above", above);
+          if (!above) page.scrollTop = 0; // the stage comes into view
+          focused?.focus({ preventScroll: true }); // a move can drop the focus
+        };
+        if (!animate || reducedMotion() || !chat.offsetParent) return move();
+        // The panels never cross (the owner, 2026-11-14): the panel closes where it is, so the
+        // panels after it glide up into its room; then it opens in its new place, so the
+        // panels after that glide down. Its height, padding and the gap after it all go to 0
+        // and back, so nothing jumps. Nothing is held after the motion.
+        const cs = getComputedStyle(railCall);
+        const shut: Keyframe = {
+          height: "0px",
+          minHeight: "0px",
+          paddingTop: "0px",
+          paddingBottom: "0px",
+          marginBottom: `-${tokenNumber("--gap", 12)}px`,
+          opacity: 0,
+        };
+        const full = (h: number): Keyframe => ({
+          height: `${h}px`,
+          minHeight: `${h}px`,
+          paddingTop: cs.paddingTop,
+          paddingBottom: cs.paddingBottom,
+          marginBottom: "0px",
+          opacity: 1,
+        });
+        const timing = { duration: tokenMs("--dur-swap") / 2, easing: tokenString("--ease", "ease") };
+        railCall.classList.add("swapping");
+        // Only the newest half clears the state: a newer move may have started already.
+        const done = (a: Animation) => () => {
+          if (swap !== a) return;
+          swap = null;
+          railCall.classList.remove("swapping");
+        };
+        const close = railCall.animate([full(railCall.getBoundingClientRect().height), shut], { ...timing, fill: "forwards" });
+        swap = close;
+        close.finished.then(() => {
+          if (swap !== close) return;
+          move();
+          close.cancel(); // the panel lays out at its own size in its new place...
+          const open = railCall.animate([shut, full(railCall.getBoundingClientRect().height)], timing);
+          swap = open; // ...and opens from shut to that size
+          open.finished.then(done(open), done(open));
+        }, done(close)); // cancelled by a newer move, which has put the panel in its place
+      };
+      const pickedCall = () => {
+        if (picked) return;
+        picked = true;
+        placeCall(true);
+      };
+      narrow.addEventListener("change", () => placeCall(false));
       const showMode = () => {
         chat.dataset.mode = mode;
         splitPage.dataset.mode = mode;
@@ -289,6 +384,7 @@ export function chatPage(): Page {
         closeCode();
         showSandbox(); // the rail's list follows the mode: Test's toggle, Demo's call
         showReview(false);
+        placeCall(true); // Demo and PHI: the call panel above the stage till a pick
       };
       // ---- the wave (chat.css › the wave): the visible controls come in one after another,
       // top row first, left to right, as one wave.
@@ -313,6 +409,7 @@ export function chatPage(): Page {
       const goMode = (next: Mode) => {
         if (next === mode) return;
         mode = next;
+        picked = false; // a new visit to the mode: the call panel comes first again
         try {
           localStorage.setItem(MODE_KEY, mode);
         } catch {
@@ -754,6 +851,7 @@ export function chatPage(): Page {
         phiPicked = true;
         watchCall(r.dataset.id);
         void loadResources();
+        pickedCall();
       });
       watch(
         (m) => {
@@ -904,6 +1002,7 @@ export function chatPage(): Page {
         chosen = r.dataset.id!;
         markChosen();
         play.disabled = !canPlay();
+        pickedCall();
         // The row's own play button plays it at once (the owner, 2026-11-13).
         if (t.closest(".call-play")) void startDemo();
       });
@@ -934,7 +1033,10 @@ export function chatPage(): Page {
       function loadCatalog() {
         return catalog.refresh("user");
       }
-      play.addEventListener("click", () => void startDemo());
+      play.addEventListener("click", () => {
+        pickedCall(); // Play on the call chosen for you counts as a pick
+        void startDemo();
+      });
       async function startDemo() {
         if (!chosen) return;
         const id = chosen; // the call to play, even if another is chosen while it loads

@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: passed 2026-11-11
-sources: [docs/architecture/images/config-agent-test-button-2026-11-14.png, console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
+sources: [docs/architecture/images/chat-compact-toggles-2026-11-14.png, docs/architecture/images/nav-compact-layout-2026-11-14.png, console/src/picker.ts, console/src/pages/page.ts, console/src/styles/subnav.css, console/src/styles/chat.css, docs/architecture/images/config-agent-test-button-2026-11-14.png, console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
 updated: 2026-11-14
 ---
 # DeetsHealth — The console
@@ -838,3 +838,88 @@ and the desk test. §9.1 to §9.6 hold for everything else on the page.
 The variables and the tools: SYSTEM-PAGE.md is the design, the as-built record (§6) and the
 desk test (§5). Code: `console/src/pages/system.ts`, `word-picker.ts`, `tab-bar.ts`; the
 `system` service in the store (`ehr/migrations/0006_settings_system.sql`).
+
+## 11. The compact layout: the nav on a narrow screen
+> **Part:** built · 2026-11-14 — desk test open.
+
+The first step toward a console on a phone. Only the shell changes here. Each page's own
+narrow layout (Chat's stage and rail, the Config rows) comes after. The tracker for all of it,
+page by page, is [MOBILE-UI.md](MOBILE-UI.md).
+
+![The owner's screenshot, 2026-11-14: the console in a narrow window. The green box marks where the nav collapses to (the current page's pill, under DeetsHealth); the purple box marks where the page's own nav goes (the page title's place, at the right); the panels take the space below](images/nav-compact-layout-2026-11-14.png)
+
+### 11.1 As built
+- **When:** at a window width of `--compact` (720 px) or less. Width only: a tablet with a
+  keyboard keeps the side nav. `tokens.ts › compactQuery()` reads the token; the CSS repeats
+  720px in its `@media` rules (a media query cannot read a token).
+- **The compact bar** (`index.html`, `#compact-bar`): a row under the top bar. At the left, the
+  page dropdown (the green box). At the right, the page's own nav as a dropdown (the purple
+  box). The two dropdowns share the row in equal halves: the name at the left of each pill, ▾
+  at its right; a menu is at least as wide as its pill (the owner, 2026-11-14, §11.4's
+  screenshot). Under the row, the page fills the full width. The side nav, each page's title and each
+  page's own nav are hidden (`app.css`, `subnav.css`, `chat.css`).
+- **The dropdown** (`picker.ts`): the button is the nav's accent pill with "▾" after the name.
+  The menu is the theme menu's glass. Its rows are the nav's items, and the current one is the
+  accent pill. The page menu puts Security, Audit Logs and Settings after a divider. The
+  right-hand menu hangs from the right edge.
+- **One list, two views.** A pick runs the same `go` as a click in the nav (`nav.ts`,
+  `subnav.ts`, Chat's `goMode`), so the saved page, the saved view and the fade are the same.
+  A page gives its dropdown through `Page.picker()`; `nav.ts` puts it in the bar when the page
+  shows. A page with no own nav leaves the right end empty.
+- **Keyboard:** ↓ or ↑ on the button opens the menu on the current row. ↑ ↓ Home End move.
+  Enter picks. Escape closes and returns to the button. Tab or a press outside closes it.
+- **Touch:** with `pointer: coarse`, the button and rows are at least `--tap-min` (44 px)
+  tall. The hover washes of the nav, the menus and the app name now apply only with
+  `hover: hover`, so a tap does not leave them on.
+
+### 11.2 Decided inside his choice (for his review)
+- 720 px for `--compact` and 44 px for `--tap-min` (the drafts of 2026-11-14).
+- The current row in the menu is the accent pill, as in the nav, not the theme menu's dot.
+- The page's title is hidden, because the left button already names the page.
+- The menus open and close at once, as the theme menu does (no motion).
+- Not yet: `:hover` on the other controls (Chat's buttons, the Config rows) still shows on
+  touch; the safe areas (`env(safe-area-inset-*)`) and the on-screen keyboard
+  (`visualViewport`) wait for each page's own narrow layout.
+
+### 11.3 Desk test
+1. `npm run dev`, open the console, and make the window narrower than 720 px (or use the
+   browser's device mode, F12 › the phone icon). The side nav goes. Under **DeetsHealth**, a
+   pill reads the current page with ▾. At the right of the same row, a pill reads the page's
+   own choice (on Chat: Testing, Demo or PHI). The panels fill the width below.
+2. Tap the left pill. The menu lists Chat, Config, Rules, Teams, Analytics, a line, then
+   Security, Audit Logs, Settings. The current page is the accent pill. Pick **Config**: the
+   page fades to Config, and the right pill now reads Config's view.
+3. Tap the right pill and pick another view. The view changes. Reload: the same page and view
+   open.
+4. On Chat, pick **Demo** in the right pill. The mode changes with its wave, as from the nav.
+5. Make the window wide again. The side nav comes back with its pill on the same page and
+   view. An open menu closes.
+6. Keyboard: Tab to a pill, press ↓, move with ↑ ↓, press Enter. Press Escape in an open menu:
+   it closes and the focus returns to the pill.
+7. In device mode with touch, tap a row: no hover wash stays behind on the nav or the menus.
+8. The two pills in the compact bar are equal halves of the row, with a gap between them.
+9. On Chat in Testing (§11.4): the canvas's top row holds only "Chat Title (Optional)", full
+   width. Text | Voice and Local | Epic sit under the text box, side by side, as wide as the text
+   bar. Switch Text to Voice and Local to Epic: the pills slide. Pick **Demo**: the speed bar sits
+   under the canvas, full width. Pick **PHI**: no row. Make the window wide: the bars go back to
+   the canvas's top right.
+10. On a narrow Chat: **Start** and **End call** each take half the canvas's width. In Demo,
+    **Play** and **Stop** do the same. After a code text arrives, the code button sits at the
+    left and the two halves share the rest.
+
+### 11.4 Chat on a narrow screen
+> **Part:** built · 2026-11-14 — desk test open (§11.3, step 9).
+
+![The owner's screenshot, 2026-11-14: the compact Chat page. The arrows ask for the two pills to meet in the middle (each half the row), and for the Text | Voice and Local | Epic bars to move under the text box](images/chat-compact-toggles-2026-11-14.png)
+
+- At `--compact` or less, `chat.ts` moves the seat bar (Text | Voice), the EHR bar (Local |
+  Epic) and the speed bar (Demo) from the canvas's top row into `.chat-toggles`, a row under the
+  text box. When the window grows, they move back. The bars keep their handlers; each pill
+  follows on its bar's next resize.
+- The row is as wide as the text bar. Its bars share it in equal parts, and each bar's parts are
+  equal (decided inside his ask). PHI has no row.
+- The top row keeps the call's title alone, at the full width and the text box's height. In
+  Demo the top row is gone, as its only control moved.
+- Start | End call fills the canvas's width, each button one half (the owner, 2026-11-14).
+  Demo's Play | Stop does the same (decided inside his ask). When the code button shows, it
+  keeps its own width and the split takes the rest.

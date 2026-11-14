@@ -5,6 +5,7 @@
 import { el, type Page } from "./page";
 import { reducedMotion, tokenMs } from "../tokens";
 import { shown } from "../agent/store";
+import { picker, type Picker } from "../picker";
 
 /** One choice in a page's own nav, and what it shows. */
 export interface View {
@@ -41,9 +42,11 @@ export function placePill(highlight: HTMLElement, b: HTMLElement | undefined, an
 }
 
 export function subnavPage(spec: SubnavPageSpec): Page {
+  let pick: Picker | null = null;
   return {
     id: spec.id,
     title: spec.title,
+    picker: () => pick!.el,
     build() {
       const page = el(`
         <section class="page">
@@ -60,13 +63,14 @@ export function subnavPage(spec: SubnavPageSpec): Page {
         </section>`);
       page.querySelector("h1")!.textContent = spec.title;
       page.querySelector(".subnav")!.setAttribute("aria-label", spec.title);
-      initViews(page, spec);
+      pick = initViews(page, spec);
       return page;
     },
   };
 }
 
-function initViews(page: HTMLElement, spec: SubnavPageSpec) {
+/** Wires the page's own nav, and returns the same list as a dropdown for a narrow screen. */
+function initViews(page: HTMLElement, spec: SubnavPageSpec): Picker {
   const views = spec.views;
   const nav = page.querySelector(".subnav") as HTMLElement;
   const list = nav.querySelector(".nav-list") as HTMLElement;
@@ -86,6 +90,8 @@ function initViews(page: HTMLElement, spec: SubnavPageSpec) {
     }),
   );
   const buttons = [...list.querySelectorAll<HTMLButtonElement>(".nav-item")];
+  // `go` is defined below; a pick runs only after it is.
+  const pick = picker(spec.title, views, "right", (id) => go(id));
 
   const place = (animate: boolean) =>
     placePill(highlight, buttons.find((x) => x.dataset.view === current?.id), animate);
@@ -108,6 +114,7 @@ function initViews(page: HTMLElement, spec: SubnavPageSpec) {
       else b.removeAttribute("aria-current");
     });
     place(!first);
+    pick.set(v.id);
     try {
       localStorage.setItem(spec.lastViewKey, v.id);
     } catch {
@@ -148,4 +155,5 @@ function initViews(page: HTMLElement, spec: SubnavPageSpec) {
     /* ignore */
   }
   go(saved ?? views[0].id);
+  return pick;
 }

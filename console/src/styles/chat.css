@@ -48,6 +48,24 @@
   gap: var(--gap);
 }
 
+/* A narrow screen (720px is --compact; app.css › compact bar): the title and the Chat nav
+   leave the panel. The nav is the dropdown at the compact bar's right end, and the canvas takes
+   the panel's full width, its top inset the same as its sides. */
+@media (max-width: 720px) {
+  .chat {
+    padding-top: var(--pad-panel-x);
+  }
+
+  .chat-head,
+  .chat-body > .chat-nav {
+    display: none;
+  }
+
+  .chat-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* The canvas's top row: at its right, in Testing, the seat bar (§17: Text or Voice) and the EHR
    bar (§13: Local or Epic, the EHR the next test call reads); in Demo, the speed bar (§16). A
    row of its own, so the lines scroll under it and never under its controls. In PHI the row
@@ -1242,6 +1260,95 @@
   min-height: var(--rail-panel-min);
 }
 
+/* The call panel above the stage (CHAT.md §15.1): as tall as it would be in the rail. */
+.split-page > .rail-panel {
+  min-height: var(--rail-panel-min);
+}
+
+/* The grow handle (CHAT.md §15.2; panel-grow.ts): a strip at the panel's bottom edge, part of
+   the panel, its corners the panel's. Shown only while the rail sits under the stage (1100px
+   is --narrow): a tap shows the whole list, a second tap brings the panel back. The chevron
+   turns over when the list is open. */
+.grow-handle {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .rail-panel {
+    align-self: start; /* a grown panel never stretches the one beside it */
+  }
+
+  .grow-handle {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--grow-handle);
+    margin: 0 calc(-1 * var(--pad-panel-x)) calc(-1 * var(--pad-panel-y));
+    padding: 0;
+    border: 0;
+    border-top: var(--edge) solid var(--line);
+    border-radius: 0 0 calc(var(--radius) - var(--edge)) calc(var(--radius) - var(--edge));
+    background: transparent;
+    color: var(--text-3);
+    transition: background-color var(--dur-hover) var(--ease), color var(--dur-text) var(--ease);
+  }
+
+  .grow-handle svg {
+    width: var(--grow-chevron);
+    height: var(--grow-chevron);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform var(--dur-collapse) var(--ease);
+  }
+
+  .rail-panel[data-grown] .grow-handle svg {
+    transform: rotate(180deg);
+  }
+
+  /* Grown: the list shows whole, so the panel is as tall as its content. */
+  .rail-panel[data-grown] .tab-body {
+    flex: 1 0 auto;
+    overflow-y: visible;
+  }
+
+  /* At rest a panel is its usual height and its tab scrolls inside it. The page grows with its
+     content here (app.css › split-page), so without a set height a panel would show its whole
+     list and the strip would never be needed. Grown, it is as tall as its content. */
+  .rail-panel:not([data-grown]) {
+    height: var(--rail-panel-min);
+  }
+
+  /* While its height glides, or while it moves above or under the stage (chat.ts › placeCall),
+     the panel cuts what does not fit yet. */
+  .rail-panel.growing,
+  .rail-panel.swapping {
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 1100px) and (hover: hover) {
+  .grow-handle:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
+}
+
+@media (max-width: 1100px) and (pointer: coarse) {
+  .grow-handle {
+    height: var(--tap-min);
+  }
+}
+
+@media (max-width: 1100px) and (prefers-reduced-motion: reduce) {
+  .grow-handle svg {
+    transition: none;
+  }
+}
+
 /* The tab bar: a horizontal nav. A strip in the canvas's color holds the tabs; the accent pill
    (app.css › .nav-highlight, placed by subnav.ts › placePill) slides to the chosen one. Its
    corners nest inside the strip's: the strip's radius less its edge and its padding. If the
@@ -1506,6 +1613,51 @@ button.visits-toggle:hover {
 /* The open list: one bullet per visit, a little below the row. */
 .visits ul {
   padding-top: var(--space-2);
+}
+
+/* ------------------------------------------------- the toggles row, narrow only */
+
+/* A narrow screen (720px is --compact; CONSOLE.md §11.4, the owner, 2026-11-14): the seat, EHR
+   and speed bars move under the text box (chat.ts puts them in .chat-toggles). The row is as
+   wide as the text bar; its bars share it in equal parts, and each bar's parts are equal. The
+   top row keeps the call's title alone, at the full width. Last in the file, so it wins over
+   the bars' own widths above. */
+.chat-toggles {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .chat:not([data-mode="phi"]) .chat-toggles {
+    display: flex;
+    gap: var(--space-4);
+  }
+
+  .chat-toggles > .tabs {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .chat-toggles .tab {
+    flex: 1 1 0;
+    width: auto;
+  }
+
+  .chat:not([data-mode="test"]) .chat-top {
+    display: none;
+  }
+
+  /* Start | End call (and Demo's Play | Stop) fill the canvas's width, each half one half,
+     rather than sitting at the right at their set width (the owner, 2026-11-14). The code
+     button, when it shows, keeps its own width; the split takes the rest. */
+  .chat-controls > .split:not(.split-code) {
+    flex: 1 1 0;
+  }
+
+  .chat-top .call-label {
+    max-width: none;
+    height: var(--control-height); /* alone in its row: as tall as the text box */
+    margin-right: 0;
+  }
 }
 
 /* "and 12 more": the end of the list, not a visit, so no disc. */
