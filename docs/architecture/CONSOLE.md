@@ -73,8 +73,9 @@ web app cannot do.
   themes with a swatch each and a dot on the current one. Keys: ↓ opens it, → enters the
   themes, ↑ and ↓ move, ← and Esc go back. There are no window buttons: the browser owns the
   window.
-- **The nav** (168 px, `--nav-width`): text items. **Chat**, **Analytics**, **Teams** and
-  **Config**, in that order, at the top; **Security**, **Audit Logs** and **Settings**, in that
+- **The nav** (168 px, `--nav-width`): text items. **Chat**, **Config**, **Rules**,
+  **Teams** and **Analytics**, in that order, at the top (the owner, 2026-11-14; before, Chat,
+  Analytics, Teams, Config); **Security**, **Audit Logs** and **Settings**, in that
   order, at the foot (the owner, 2026-11-12 and 2026-11-13). One accent pill slides to the selected item (280 ms). ↑ and ↓ move between pages.
   The old page fades out (120 ms), then the new one fades in (220 ms). With reduced motion,
   both are instant. The last page is reopened on the next visit (`localStorage`,
@@ -90,14 +91,15 @@ web app cannot do.
   The panels are empty. The stage is *Chat*; the rail
   is *Timeline* (the owner's, at the top), then *Caller*, *Step* and *Tools* (a draft for the
   owner).
-- **Teams**, **Config**, **Security**, **Audit Logs** and **Settings** (`pages/teams.ts`,
-  `pages/config.ts`, `pages/security.ts`, `pages/audit.ts`, `pages/settings.ts`): each is one panel with its own nav, the same as Analytics
+- **Teams**, **Config**, **Rules**, **Security**, **Audit Logs** and **Settings** (`pages/teams.ts`,
+  `pages/config.ts`, `pages/rules.ts`, `pages/security.ts`, `pages/audit.ts`, `pages/settings.ts`): each is one panel with its own nav, the same as Analytics
   (`pages/subnav.ts`; [ANALYTICS.md](ANALYTICS.md) §2). The head is the title alone. Each view
   says "Empty for now". The last view is reopened on the next visit (`localStorage`,
   `deets.console.<page>`). The nav items, in order (the owner, 2026-11-13):
   - Teams: **Org Chart**, **People**. People is built (2026-11-14, `pages/people.ts`): who may
     sign in, ops/DEMO.md §3.5 and §7. Org Chart is still empty.
   - Config: **Agent**, **System**, **Cartesia** (§7).
+  - Rules (2026-11-14): **Agents**, **Flags**, **Tools**. All three are empty.
   - Security: **Auth**, **Roles**.
   - Audit Logs: **Config**, **Calls**, **Security**.
   - Settings: **Personalization** (its first item). Settings had one panel with "No settings
@@ -105,7 +107,7 @@ web app cannot do.
 - **Analytics** (`pages/analytics.ts`): one panel with its own nav inside it
   ([ANALYTICS.md](ANALYTICS.md)).
 - **A page with its own nav** (`pages/subnav.ts`, `styles/subnav.css`; 2026-11-13): the one
-  module behind Analytics, Teams, Config, Security, Audit Logs and Settings. A page gives only its title,
+  module behind Analytics, Teams, Config, Rules, Security, Audit Logs and Settings. A page gives only its title,
   its `localStorage` key and its views (`subnavPage`); an empty view is `blankView`. The module
   draws one glass panel: the title alone in its head, then the page's own nav at the left and
   the chosen view beside it. The page's nav is a panel stacked on the page panel, in the chat
@@ -209,7 +211,7 @@ wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
 ![His note, 2026-11-11: remove the eyebrow over Settings](images/console-settings-note-2026-11-11.png)
 ![His sketch, 2026-11-11: a wider rail (the red line marks its new left edge)](images/console-rail-sketch-2026-11-11.png)
 1. `npm run dev`, then open the address in Edge. The page shows the top bar, the nav (Chat,
-   Analytics, Teams and Config at the top; Security, Audit Logs and Settings at the foot), and
+   Config, Rules, Teams and Analytics at the top; Security, Audit Logs and Settings at the foot), and
    Chat's stage with its panels on its right.
 2. Click **DeetsHealth** in the top bar, point at **Theme**, and pick each theme. The colors
    change at once, the dot moves, and a reload keeps the theme.
@@ -226,8 +228,9 @@ wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
 ### The 2026-11-13 additions
 > **Part:** built · 2026-11-13 — desk test open.
 
-1. The nav reads Chat, Analytics, Teams, Config at the top, and Security, Audit Logs, Settings
-   at the foot.
+1. The nav reads Chat, Config, Rules, Teams, Analytics at the top (since 2026-11-14), and
+   Security, Audit Logs, Settings at the foot.
+   Click **Rules**: its own nav reads Agents, Flags, Tools; each view says "Empty for now".
 2. Click **Teams**, **Config**, **Security**, **Audit Logs** and **Settings** in turn. Each shows one panel:
    the title alone, then its own nav at the left (Org Chart, People · Agent, System · Auth,
    Roles · Config, Calls, Security · Personalization). The first item is chosen; the view says "Empty for now".

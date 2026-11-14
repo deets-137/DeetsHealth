@@ -5,6 +5,7 @@ import { chatPage } from "./pages/chat";
 import { analyticsPage } from "./pages/analytics";
 import { teamsPage } from "./pages/teams";
 import { configPage } from "./pages/config";
+import { rulesPage } from "./pages/rules";
 import { securityPage } from "./pages/security";
 import { auditPage } from "./pages/audit";
 import { settingsPage } from "./pages/settings";
@@ -19,12 +20,14 @@ async function boot() {
   // Wait for the bundled serif, so the nav pill is measured in the right face.
   await document.fonts.ready;
   initThemeMenu();
+  // The top's order is the owner's (2026-11-14): Chat, Config, Rules, Teams, Analytics.
   // The pages with `bottom` keep this order at the nav's foot: Security, Audit Logs, Settings.
   initNav([
     chatPage(),
-    analyticsPage(),
-    teamsPage(),
     configPage(),
+    rulesPage(),
+    teamsPage(),
+    analyticsPage(),
     securityPage(),
     auditPage(),
     settingsPage(),
