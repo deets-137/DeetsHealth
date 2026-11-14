@@ -148,9 +148,13 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   (migrations 0007 and 0008: email, name, first and last name, phone sealed; `user_photos`
   sealed), nine RPCs in `ehr`, and Cloudflare's Access group kept equal to the list. The token
   is in `.env`; it has read the group but **no write has been tried**: the first Add, Remove or
-  email change on Security › Auth is the first. Needs a restart of `npm run dev` (new migration,
-  new RPCs). Phone verification by text code is not built: every number shows the scarlet X.
-  Org Chart and Security › Roles are still empty.
+  email change on Security › Auth is the first. The owner has desk-tested the panel, a name and
+  phone save, the Users title and Add's blank row (2026-11-14). **Not yet desk-tested:** a
+  picture upload (`user_photos` is empty), adding a second person, Remove, an email change.
+  Phone verification by text code is not built: every number shows the scarlet X. Role is a
+  placeholder (`users.role` is not read) until roles exist. "Added by" is "First L."; the
+  owner's own row says "Deets". Commits `819b7e3` and `a445276`; the full `npm run check` has
+  not run on them (the dev server held the ehr exe). Org Chart is still empty.
 - **Built, desk test open: the booking keeps the caller's reason; Local half** (2026-11-14,
   after the Priya Raman call; the owner's 1A of 2026-11-13, 1A for odd reasons, A for
   pronouns). `FindSlots` takes `visit_mode` and keeps the reason (checked to be the caller's own

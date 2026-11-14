@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: none
-sources: [docs/architecture/images/demo-tunnel-error-1033-2026-11-14.png, docs/architecture/images/people-owner-card-sketch-2026-11-14.png, scripts/dev.mjs, console/vite.config.ts, agent/deets_agent/cloudflare.py, ehr/src/users.rs, ehr/migrations/0007_users.sql, console/src/pages/people.ts, console/src/pages/auth.ts, console/src/pages/person.ts, ehr/migrations/0008_user_profile.sql, agent/deets_agent/dev_server.py, agent/deets_agent/access.py, agent/deets_agent/turn.py, console/src/agent/api.ts, console/src/agent/transport.ts, console/src/reload.ts, console/public/manifest.webmanifest]
+sources: [docs/architecture/images/demo-tunnel-error-1033-2026-11-14.png, docs/architecture/images/people-owner-card-sketch-2026-11-14.png, docs/architecture/images/auth-panel-actions-2026-11-14.png, docs/architecture/images/auth-users-title-2026-11-14.png, docs/architecture/images/auth-users-title-size-2026-11-14.png, scripts/dev.mjs, console/vite.config.ts, agent/deets_agent/cloudflare.py, ehr/src/users.rs, ehr/migrations/0007_users.sql, console/src/pages/people.ts, console/src/pages/auth.ts, console/src/pages/person.ts, ehr/migrations/0008_user_profile.sql, agent/deets_agent/dev_server.py, agent/deets_agent/access.py, agent/deets_agent/turn.py, console/src/agent/api.ts, console/src/agent/transport.ts, console/src/reload.ts, console/public/manifest.webmanifest]
 updated: 2026-11-14
 ---
 # DeetsHealth — The demo over a tunnel
@@ -389,6 +389,16 @@ and the view as drafted, "will mess with it more when we implement RBAC"):
   panel. One panel is open at a time. A save tells Teams ›
   People to read the list again. **Copy invite is off the page for now** (the owner, the same
   day); `invite` stays in `GET /agent/people`.
+
+  The owner's screenshots, cropped to leave out the table's data row and the panel's fields (they
+  showed his own email and phone number); his phone-jitter screenshot is not saved, since every
+  part of it showed them:
+
+  ![The owner's screenshot, 2026-11-14: the first Auth table, Copy invite struck out, a line asking the add fields to fill the row, and Cancel and Save boxed with an arrow to the panel's top right](../architecture/images/auth-panel-actions-2026-11-14.png)
+
+  ![The owner's screenshot, 2026-11-14: "Users" written where the add fields were, Add kept at the right](../architecture/images/auth-users-title-2026-11-14.png)
+
+  ![The owner's screenshot, 2026-11-14: a line from the top of "Users" to the top of Add, asking the title to be as tall as the button](../architecture/images/auth-users-title-size-2026-11-14.png)
 - **The owner's forks for the card (2026-11-14):**
   - The phone is saved as typed, in E.164 (`+15552345678`; ten digits are a US number), shown
     as `555-234-5678`. **Not verified** until a text code proves it (not built). Its mark, right

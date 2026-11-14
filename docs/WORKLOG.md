@@ -59,7 +59,11 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - After commit `819b7e3`: "Added by" names the adder as "First L." ("Aditya S." format), built
   in `users.rs` (`short_name`) from the adder's card; their email until it has a name. The
   owner's own row (no adder) says "Deets", his choice, set in `auth.ts`. Tested in `users.rs`
-  and `ehr/tests/store.rs`.
+  and `ehr/tests/store.rs`. Committed as `a445276` (only this sitting's files).
+- Screenshots saved, cut to leave out his email and phone number (nothing drawn):
+  `auth-panel-actions-2026-11-14.png`, `auth-users-title-2026-11-14.png`,
+  `auth-users-title-size-2026-11-14.png` (DEMO.md §7). Not saved: the phone-jitter screenshot
+  (his number in every part of it). Saved earlier: `people-owner-card-sketch-2026-11-14.png`.
 
 ## 2026-11-14 (Windows) — Epic's docs over MCP; `$find`'s spec read
 - Epic runs a public MCP server for open.epic's docs: `https://mcp.open.epic.com`, Streamable
