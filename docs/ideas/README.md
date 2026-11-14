@@ -2,7 +2,7 @@
 status: idea
 desk_test: none
 sources: []
-updated: 2026-11-12
+updated: 2026-11-13
 ---
 # Ideas — not built
 
@@ -35,7 +35,8 @@ hospital or a patient that the agent can do any of these things. The patient app
   watch stream all on one address; a test from the hospital's own network first, because many
   block WebSockets to unknown sites; synthetic callers only, and the page says so. A real call
   in front of analysts is the production watch instead (sign-in, roles, an audit row per view;
-  CONSOLE.md).
+  CONSOLE.md). **2026-11-13:** now a project with full access for guests, not watch-only:
+  [ops/DEMO.md](../ops/DEMO.md).
 - **A CLI and an MCP server for the console** (the owner, 2026-11-12):
   [CONSOLE-MCP.md](CONSOLE-MCP.md). One staff API with three clients (the console, `deets` on
   the command line, a remote MCP server), under the same sign-in, roles and audit trail. The

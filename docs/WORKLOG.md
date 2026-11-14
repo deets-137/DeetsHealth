@@ -2,11 +2,30 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-12
+updated: 2026-11-13
 ---
 # DeetsHealth — Work log
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
+
+## 2026-11-13 (Windows, tunnel) — The demo over a tunnel, on paper
+- The owner asked for a Cloudflare Tunnel so friends can try the console. He chose full
+  access ("pretend they are like me in terms of access"), no spend cap until roles exist, and
+  the domain `deets.solutions`.
+- Read the wall: Vite's proxy adds the launch token, so Vite must never face the tunnel; Vite
+  also serves `dev-certs/*.key` through `/@fs/`. The agent allows one call at a time, and its
+  voice seat has no relay.
+- Wrote [ops/DEMO.md](ops/DEMO.md) (project): `healthdemo.deets.solutions` behind Access, the
+  agent serves the built console, a second door in the wall that checks the Access token,
+  TURN for guest voice, each guest write tagged with their email. One fork open: several
+  calls at once, or one shared call. Nothing built; no Cloudflare resource created.
+- Later the same sitting, the owner closed the forks: several calls at once (to test PHI mode
+  by watching each other's calls), the address `deetshealth.deets.solutions/demo`, the guest
+  list managed from the console (staff sign-in replaces its backend later), no email on guest
+  writes until the audit log, no top-bar marker. DEMO.md is now `designed`. Hot reload over
+  the tunnel becomes live reload from a watched build (about 1.7 s for a full build). TURN
+  from Cloudflare: $0.05/GB past 1,000 free GB a month, about 45 MB per relayed hour.
+  "Don't build just yet."
 
 ## 2026-11-13 (Mac, config, later) — Config › Agent: the agent's words in the console
 - Committed Config › Anthropic (`a1aa5c6`); desk test passed on wide screens, narrow screens

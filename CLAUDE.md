@@ -151,6 +151,9 @@ the branch `archive/patient-app`.
 **`docs/ops/`** — build, ship, diagnose
 - `DEBUGGING.md` — how a call is read after it goes wrong: the call log, the call timeline, the
   EHR ledger, record and replay, recipes. Not built.
+- `DEMO.md` — the demo over a Cloudflare Tunnel at `deetshealth.deets.solutions/demo/`:
+  Access in front, the agent's second door (the Access token), the built console with live
+  reload, several calls at once, TURN for voice and its cost, the guest list from the console.
 - `PROTOCOLS.md` — a draft: how the owner, helpers and their agents work here (the rules that
   never bend, joining and leaving, branches and PRs, the review checklist, agents, vendors,
   incidents).
