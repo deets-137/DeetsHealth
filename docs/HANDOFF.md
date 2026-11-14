@@ -163,13 +163,22 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   "online"; `next_visit` does not read out the visit just booked again; an odd reason is booked
   and flagged `visit_reason_review`; a staff summary with a guessed pronoun goes back once.
   EHR-SERVICE.md §4, CALL-FLOW.md, FLAGS.md §3.1–3.2. Also: a saved prompt version that lacks
-  a new section now takes the shipped words for it (PROMPT-EDITOR.md §9). **His steps:** stop
-  `npm run dev` (it holds the old `ehr`), start it again (it builds `ehr`), press **Record and
-  test** on Config › Agent (15 scripts, about 5¢; `npm run check` fails at the recordings
-  stamp until then), then call as Priya Raman on Local: "Can I book a visit for my strawberry
-  water distillation?", choose an option, "What was the reason on the visit again? Is it
-  online?". New words (his to edit): `arg.find_slots.visit_mode`, `line.booked_visit_asked`,
-  `note.summary_pronoun`, a rule each in `role` and `task.menu`.
+  a new section now takes the shipped words for it (PROMPT-EDITOR.md §9). **Recorded
+  2026-11-14:** the owner's Test run recorded all 15 scripts with the new words; 2 failed, both
+  resolved the same night (a wrong assertion; the resend case, his option A, FUTURE-SETTINGS.md
+  §11). All 15 pass on replay, and the recordings stamp was written by hand that night (every
+  reply was already recorded), so Test shows green. **His step:** call as Priya Raman on Local: "Can I book a visit for my strawberry water distillation?", choose an option,
+  "What was the reason on the visit again? Is it online?". New words (his to edit):
+  `arg.find_slots.visit_mode`, `line.booked_visit_asked`, `note.summary_pronoun`, a rule each
+  in `role` and `task.menu`.
+- **Built, desk test open: Test | cost on Config › Agent** (2026-11-14, the owner's design and
+  screenshot; CONSOLE.md §9). Record and test moved to the title bar, left of Discard | Save and
+  the same size: red until the recordings match, a first press for the cost ("$?.??" until
+  known), a second to run with a bar that counts steps, green when passed. The cost step now
+  ends as "failed" on an error, never "running" forever.
+- **Next, the owner's pick in the morning: better kept-script tests** (AGENT.md §4, "What the
+  kept scripts catch"). (1) show why a run failed in the Test hint; (2) several samples per
+  script with a pass rate; (3) assert on events; (4) scripts for the gaps.
 - **Next for booking, the Epic half (E-4):** `EpicScheduler.book` sends the note as
   `appointmentNote` and `visit_mode` picks the hospital's visit types. Waits
   on: what Epic's `$find` needs (the owner's knowledge), then a sandbox probe of `$find` and
@@ -181,10 +190,11 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   owner's five tabs, Semantic | Flow, the names list). Every section of AGENT-PROMPT.md, versioned
   in the store (`prompt` service, migration 0005); a save writes the file and reaches the next
   test call; each call keeps its own copy; ehr texts the code with the call's version; Record
-  and test re-records the kept scripts and runs the tests. **Restart `npm run dev` first**,
-  then CONSOLE.md §9.5. **New rule:** after any edit to the words, `npm run check` fails at
-  `test_the_kept_recordings_match_the_prompt_file` until Record and test passes. Open: CONSOLE.md
-  §9.4.
+  and test (since 2026-11-14 the **Test** button in the title bar) re-records the kept scripts
+  and runs the tests. **Restart `npm run dev` first**, then CONSOLE.md §9.5. **New rule:** after
+  any edit to the words, `npm run check` fails at
+  `test_the_kept_recordings_match_the_prompt_file` until Test passes. Restart `npm run dev`
+  after a change to the agent's Python: it does not reload it. Open: CONSOLE.md §9.4.
 - **Done: Config › Anthropic** (2026-11-13; the owner's option A, the page chooses the model;
   **desk test passed 2026-11-13** on wide screens). Model, Effort, Thinking, the token caps,
   Cache life, Budget and Dollars left; the store's `llm` service (migration 0004); test calls

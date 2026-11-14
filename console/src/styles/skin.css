@@ -62,6 +62,7 @@
   --control-height: 44px; /* every call control: large, and the same size in every state */
   --speed-part: 56px; /* one of the three parts of Demo's speed bar (0.5×, 1×, 2×) */
   --pair-part: 64px; /* one of the two parts of Testing's seat bar (Text, Voice) and EHR bar (Local, Epic) */
+  --action-part: 80px; /* one part of a Config title bar's buttons: Test | cost and Discard | Save, all the same width (the owner, 2026-11-14) */
   --meter-height: 8px; /* the Resources tab's credit meter */
   --field-height: 36px; /* a field or small button on a Config page (select, number, text, Add) */
   --cfg-control: 320px; /* a Config row's control column: every field, slider and list fits it */

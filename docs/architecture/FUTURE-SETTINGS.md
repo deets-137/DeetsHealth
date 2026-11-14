@@ -603,6 +603,12 @@ person at once, one new code only if the caller asks for it.
 **The choices a hospital needs** (once built):
 - Which words: A or B (C makes this a setting).
 - How fast a person takes over when no text comes (§7 holds the counts).
+- **When the caller says no text came and asks for a new code in the same breath** ("I didn't
+  get a code, can you send it again?"): a person at once (the default; the owner's option A,
+  2026-11-14, after the kept script `no_code_after_resend` was recorded again and the model
+  chose it), or one new code first and then a person (the caller's ask honoured; a minute more
+  of waiting for a text that, with no mobile on file or a mismatch, never comes). Today the
+  model decides from `task.verify`; as a setting, the code would decide.
 - **A voice code to a landline**: `ehr` calls the home number on file and reads the code (the
   call back of SECURITY.md §4.4; §8 for which numbers count). It would get a patient with a
   landline through on their own, with no disclosure. Not for Warren: his chart has no number

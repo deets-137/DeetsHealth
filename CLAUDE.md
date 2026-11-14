@@ -93,7 +93,7 @@ the branch `archive/patient-app`.
 - **`agent/prompts/AGENT-PROMPT.md`** — every word of the agent: the role prompt, each step's
   task, each tool's description, every fixed line. The owner edits it by hand or in Config ›
   Agent (a save writes the file); never put prompt words in `flow.py`. After an edit, record
-  the kept scripts again: Record and test on Config › Agent (AGENT.md §3).
+  the kept scripts again: the Test button on Config › Agent (AGENT.md §3; CONSOLE.md §9).
 - `EHR-SERVICE.md` — the Rust `ehr` service and its gRPC wire to the agent: the handle, the
   calls, the PHI tag in the contract, the edge, mTLS, tracing and tests.
 - `CALL-FLOW.md` — the default call flow as a map into the code: each step, fixed line, limit

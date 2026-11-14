@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: passed 2026-11-11
-sources: [console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
+sources: [docs/architecture/images/config-agent-test-button-2026-11-14.png, console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
 updated: 2026-11-14
 ---
 # DeetsHealth — The console
@@ -676,18 +676,31 @@ Sonic: 1 credit per character"](images/config-rates-2026-11-13.png)
   Safety); **Semantic | Flow** at the right; they wrap when narrow. Both are the Read | Edit
   bar's style. The tab and the order are kept in this browser (a way to read, not a change);
   Read | Edit still opens on Read.
-- **Record and test, one quiet line** under the bars: "Recordings match the saved words", or
-  "Recordings are out of date" in the error color; then the button as a link (as Remove is on
-  the Cartesia tables) with its quote; then the last run ("Script 3 of 14", "Passed: 14
-  scripts, the tests pass. Spent under $0.01").
-- **The quote is a free dry run** (dev_server.py › `estimate_record`): when the recordings are
-  out of date, the page asks once for each set of words. The dev server replays each kept script
+- **Test | cost, in the title bar** just left of Discard | Save (the owner, 2026-11-14, with his
+  screenshot; until then Record and test was a quiet line under the bars). Two parts like the
+  Chat page's Start | End: "Test", then the cost. The frame's `top` slot (`config-kit.ts`) holds
+  it; `agent.ts › showTest` keeps it current. It is the same size as Discard | Save (the owner,
+  2026-11-14): every part of both is `--action-part` wide, and the two have the same height.
+  ![The owner's screenshot, 2026-11-14: the Record and test line under the bars, with an arrow to the space left of Discard and Save](images/config-agent-test-button-2026-11-14.png)
+  - **Red** (`--stop`, each theme's End call red) while the kept recordings do not match the
+    saved words: "Test | $?.??" until the cost is known. **The first press** works out the cost
+    (the free dry run below): "Test | $0.02", or "<$0.01", or "$0.00" when nothing is new.
+    **The second press** records and runs the tests.
+  - **Running:** the green (`--go`) fills in from the left, one step at a time (each script,
+    then the tests), so the bar is a count, never a guess of time; the cost part reads
+    "3 of 15".
+  - **Green** (`--go`) once the recordings match: "Test | Passed"; it cannot be pressed.
+  - **A failed run** turns it red again: "Test | Failed" until the next press works out a new
+    cost. The hover hint says what failed ("2 scripts failed, the tests fail") and what was
+    spent; counts only. No key in `.env`: dimmed red, and the hint names the key.
+- **The quote is a free dry run** (dev_server.py › `estimate_record`), asked for by the first
+  press (before 2026-11-14 the page asked by itself). The dev server replays each kept script
   with no Claude call (about 30 s); a script that misses a reply needs recording, and its quote
   is what recording it cost last time (`agent/tests/RECORDED-COSTS.json`, written after each
-  passing run). The button reads "Working out the cost", then "Record and test (3 of 14
-  scripts, about $0.01)" or "(nothing new to record)". It is an over-estimate: the lines before
-  the first changed one replay for free. Measured on 2026-11-13, recording all 14 scripts costs
-  about $0.017 (Haiku 5.5, with US-only inference); the old fixed quote said $0.14.
+  passing run). It is an over-estimate: the lines before the first changed one replay for free.
+  Measured on 2026-11-13, recording all 14 scripts costs about $0.017 (Haiku 5.5, with US-only
+  inference); the old fixed quote said $0.14. A quote that fails on an error ends as "failed"
+  (2026-11-14), and the next press records without one.
 - **Semantic:** the tab's sections under up to four headings, each with its count:
   Instructions (role, step tasks, notes), When to act (each action, then its fields), Caller
   hears, Text message. **Flow:** the same sections in the call's order, each with its tag over
@@ -738,7 +751,8 @@ Sonic: 1 credit per character"](images/config-rates-2026-11-13.png)
 
 ### 9.3 The store, ehr and the agent (as built, 2026-11-13)
 - **A third service, `prompt`** (`ehr/migrations/0005_settings_prompt.sql`): `settings_prompt`,
-  one row per section, insert-only. `settings.rs › PROMPT` lists the 78 sections and the
+  one row per section, insert-only. `settings.rs › PROMPT` lists the 81 sections (78 until
+  2026-11-14) and the
   placeholders each must hold; `Kind::Prose` checks each one (not empty, at most 12,000
   characters, no control character but a line break, the exact placeholders). A test fails if
   it differs from `prompts.py › PLACEHOLDERS`.
@@ -787,13 +801,14 @@ Sonic: 1 credit per character"](images/config-rates-2026-11-13.png)
    delete `{birth}`: "Needs {birth}" shows in red under the words, the box's edge is red, Verify's tab shows a red dot, Save stays off (hover
    says why). Put it back: all clear.
 5. In Open and close › Goodbye, change the words. Press Save: "Saved as 11-13 | 1. Active from
-   the next call". "Recordings are out of date" shows in red. `git diff` shows only that
+   the next call". The Test button turns red, "Test | $?.??". `git diff` shows only that
    section changed in `AGENT-PROMPT.md`.
 6. Chat, Test, a typed call that ends: the agent says the new goodbye. The call's record (the
    newest file in `agent/calls/`) has `"prompt_version": "11-13 | 1"` on its first line.
-7. Config, Agent: the record line reads "Working out the cost" for about 30 s, then "Record and
-   test (N of 14 scripts, about $…)". Press it. It counts the scripts, then says Passed or
-   Failed and what it spent. After a pass, "Recordings match the saved words".
+7. Config, Agent (the Test button since 2026-11-14): press Test once; after about 30 s it
+   reads "Test | $0.02" or the like. Press again: the green fills in as the 15 scripts and then
+   the tests finish, and the cost part counts "3 of 15". After a pass it is green, "Test |
+   Passed"; after a failure, red, "Test | Failed", with what failed under the pointer.
 8. Choose "Default" in the dropdown: Goodbye glows, and the Open and close tab shows a dot.
 9. Read and Edit: press Edit and Read a few times on a long section (Role and rules). The box
    fades in and out over the words; no word moves. Each placeholder in Read sits exactly where

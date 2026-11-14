@@ -2,7 +2,8 @@
 # near-identical records (the fake Casey Morgan and Casey Morgen), so no code goes out, and none
 # goes out after a resend either. No code is ever checked. The agent hands off with an apology
 # (task.verify, FUTURE-SETTINGS.md §7). Since 2026-11-13 (§11, option A) a caller with no text
-# goes to a person at once; a new code goes out only when the caller asks for one, as here.
+# goes to a person at once. Since 2026-11-14 (the owner's option A) that holds even when the
+# caller also asks for a new code, as here: no resend; the second line is never reached.
 # Run: uv run python harness/typed_call.py --script tests/scripts/no_code_after_resend.txt
 Hey, my name is Casey Morgan, I'd like to book an appointment for a pain in my left wrist
 June 5th 1990

@@ -156,12 +156,14 @@ async def test_code_confusion(ehr):
 
 
 async def test_no_code_after_a_resend(ehr):
-    """The owner's test call, 2026-11-12: a twin gets no text, asks for a new code, still gets
-    none, and goes to a person with an apology (FUTURE-SETTINGS.md §7). No code was ever checked.
-    The resend line says a code went out only if the details match."""
+    """The owner's test call, 2026-11-12: a twin gets no text and goes to a person with an
+    apology (FUTURE-SETTINGS.md §7). No code was ever checked. "I didn't get a code, can you send
+    it again?" goes to a person at once, with no new code (the owner's option A, 2026-11-14,
+    FUTURE-SETTINGS.md §11): a resend cannot fix a mismatch or a missing mobile number."""
     call, replies = await run(ehr, "no_code_after_resend.txt")
-    assert text("line.code_resent") in replies, "the caller should be sent a new code first"
-    assert replies[-1] == text("line.hand_off_code"), "no text after a new code goes to a person"
+    asked = next(i for i, line in enumerate(script("no_code_after_resend.txt")) if "send it again" in line)
+    assert replies[asked] == text("line.hand_off_code"), "no text goes to a person at once"
+    assert text("line.code_resent") not in replies, "no new code when a person is coming"
     assert call.ended
 
 
@@ -176,7 +178,9 @@ async def test_booked_reason_asked(ehr):
     assert asked is not None, "the visit just booked should not be read out again"
     assert "The reason on record is strawberry water distillation." in asked
     assert "It is listed as Office Visit." in asked
-    assert not any(r and "member of our staff" in r for r in replies), "no offer or hand-off"
+    # The greeting and the code line also name "a member of our staff": look for the offer and
+    # the hand-off's own lines.
+    assert text("line.offer_staff") not in replies and text("line.hand_off") not in replies, "no offer or hand-off"
     reviews = [f for f in call.flow.flags if f.kind == "visit_reason_review"]
     assert reviews and reviews[0].source == "model", "the odd reason should be flagged for review"
     assert not any(r and "flag" in r.lower() for r in replies), "the caller is not told"

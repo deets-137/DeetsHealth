@@ -328,7 +328,8 @@ export const savePrompt = (values: Record<string, string>) => saveSettings<Promp
 /** Start Record and test. A refusal's reason is a fixed line the page may show. */
 /** Record and test's quote (dev_server.py › estimate_record): the kept scripts that need new
  * replies, by name, and the dollars recording them cost last time. */
-export type Estimate = { state: "running" | "done"; missing: string[]; usd: number | null };
+/** "failed": the quote stopped on an error; Record and test still records, with no quote. */
+export type Estimate = { state: "running" | "done" | "failed"; missing: string[]; usd: number | null };
 
 /** Ask for the quote: a dry run with no Claude call, in the background. */
 export async function estimatePrompt(): Promise<Estimate | null> {

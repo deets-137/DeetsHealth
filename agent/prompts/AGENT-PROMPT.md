@@ -21,8 +21,8 @@ is not one it knows, or if a `{placeholder}` is wrong.
 - You can also edit every section in the console: Config › Agent (CONSOLE.md §9). A save there
   writes this file, changing only the sections you changed. An edit here by hand becomes a new
   version when the dev server starts.
-- After an edit, press Record and test on Config › Agent: it records the kept scripts with the
-  new words (a cent or so each) and runs the tests. By hand: `cd agent`, then
+- After an edit, press Test on Config › Agent (once for the cost, again to run): it records the
+  kept scripts with the new words (a cent or so each) and runs the tests. By hand: `cd agent`, then
   `uv run python harness/typed_call.py --script tests/scripts/<name>.txt` for each script, then
   `uv run pytest`, then write the new hash to `tests/RECORDED-PROMPT.sha256`
   (`uv run python -c "from deets_agent.prompts import file_digest; print(file_digest())"`; it

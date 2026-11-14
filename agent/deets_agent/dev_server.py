@@ -1266,14 +1266,20 @@ async def estimate_record(state: State) -> None:
     words = _words_now()
     run: dict[str, Any] = {"words": words, "state": "running", "missing": [], "usd": None}
     state.estimate = run
-    costs = _script_costs()
-    mean = sum(costs.values()) / len(costs) if costs else RECORD_CENTS_PER_SCRIPT / 100
-    for script in sorted(SCRIPTS.glob("*.txt")):
-        ok, _ = await _dry(script)
-        if not ok:
-            run["missing"].append(script.stem)
-    run["usd"] = round(sum(costs.get(s, mean) for s in run["missing"]), 2)
-    run["state"] = "done"
+    # Any error ends the quote as "failed", never "running": the page stops showing "Working out
+    # the cost" and Record and test still records (2026-11-14: a crash left it waiting forever).
+    try:
+        costs = _script_costs()
+        mean = sum(costs.values()) / len(costs) if costs else RECORD_CENTS_PER_SCRIPT / 100
+        for script in sorted(SCRIPTS.glob("*.txt")):
+            ok, _ = await _dry(script)
+            if not ok:
+                run["missing"].append(script.stem)
+        run["usd"] = round(sum(costs.get(s, mean) for s in run["missing"]), 2)
+        run["state"] = "done"
+    except Exception as e:  # noqa: BLE001 - the quote is a convenience; the record must still run
+        print(f"prompt: the cost quote failed ({type(e).__name__})", file=sys.stderr, flush=True)
+        run["state"] = "failed"
 
 
 async def _measure_costs() -> None:

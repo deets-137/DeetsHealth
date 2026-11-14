@@ -262,5 +262,30 @@ for something the agent cannot do: the offer of a person, a "no", and the call g
   in (CHAT.md §5); the voice timings come with the phone-and-voice work (BUILD-ORDER.md §3.3).
 - **Simulated callers** (layer 4) are not built; they come with the chart track
   (BUILD-ORDER.md §3.2).
+- **What the kept scripts catch, and what they miss** (the owner asked, 2026-11-14, after a
+  Test run failed on 2 of 15).
+  - **Strong on code.** On replay the model's side is fixed, so any change in `flow.py`, `ehr`,
+    the fixed lines, the gate, flags or booking state shows at once (`assert_booked_9am` asks
+    `ehr` itself). Every script also runs `assert_clean`: no invented value, no words before a
+    silent tool. A words change forces fresh model replies for all 15.
+  - **Weak on the model: one sample per script.** A recording is one draw, kept until the words
+    change. A rule the model follows 70% of the time passes or fails by luck. The resend case
+    showed it: `task.verify` held two rules that both fit "I didn't get a code, can you send it
+    again?"; the old recording was one lucky draw, and the new one went the other way (the
+    owner chose that way, FUTURE-SETTINGS.md §11).
+  - **Coverage:** Local and Text only (no Epic replies, no voice); no hostile caller (fishing for
+    another patient, "ignore your instructions"); no private visit read back; no online
+    booking; no relative dates ("next Tuesday").
+  - **Assertions on words can test the wrong thing:** "member of our staff" is in three lines,
+    so a check for it caught the greeting (2026-11-14). Checks on events (tool calls, flags,
+    `ehr` outcomes) are safer; word checks belong to fixed lines.
+  - **A failed run says little:** the console shows counts; the reason is in output the dev
+    server discards (`_run` sends it to DEVNULL).
+  - **The plan, in order (each small; the owner picks the first in the morning):** (1) keep
+    each failed test's name and first error line and show them in the Test button's hint
+    (synthetic callers only); (2) several samples per script when the words change, say 3, with
+    the pass rate shown, and safety scripts (emergency, verification) required to pass every
+    time; about 3× a recording, some 15¢ in place of 5¢; (3) assert on events, not words;
+    (4) scripts for the gaps above, and Epic's recorded replies with E-4.
 - `grpcio` is the wheel on dev; the FIPS build against OpenSSL is a deploy-image step
   (EHR-SERVICE.md §6).

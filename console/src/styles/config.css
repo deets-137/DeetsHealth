@@ -30,7 +30,8 @@
 /* Discard | Save: the tab bar's parts. Save, when it can save, wears the chosen part's look
    (the pill's colors); Discard is a plain part. */
 .cfg-actions .tab {
-  min-width: var(--pair-part);
+  width: var(--action-part);
+  padding-inline: 0;
   text-align: center;
 }
 
@@ -618,22 +619,78 @@ select.cfg-field {
   background: var(--error);
 }
 
-/* Record and test: one quiet line; the button is a link, as Remove is on the Cartesia tables. */
-.prompt-record {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-2) var(--space-4);
-  font-size: var(--text-small);
-  color: var(--text-3);
-}
-
-.prompt-record-old {
-  color: var(--error);
-}
-
-.prompt-record-result {
+/* Test | cost (the owner, 2026-11-14), in the title bar left of Discard | Save: two parts like
+   the Chat page's Start | End, the line between them. Red (--stop) while the kept recordings are
+   out of date, green (--go) once they match; while it runs, the green fills in from the left,
+   one step (a script, then the tests) at a time. Done and running are not greyed. */
+/* The same outer size as Discard | Save (the owner, 2026-11-14): that bar is two
+   --action-part parts, the gap between them, its padding and its edge. */
+.cfg-test {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: calc(2 * var(--action-part) + var(--space-1) + 2 * var(--space-2) + 2 * var(--edge));
+  height: var(--control-height);
+  padding: 0;
+  overflow: hidden;
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-item);
+  background: var(--stop);
+  color: var(--on-call-button);
+  font: inherit;
   font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: filter var(--dur-hover) var(--ease), background var(--dur-hover) var(--ease);
+}
+
+.cfg-test[data-state="done"] {
+  background: var(--go);
+}
+
+.cfg-test:disabled {
+  cursor: default;
+}
+
+/* The same hover as Start | End (chat.css). */
+.cfg-test:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+/* Due and waiting on the quote, or with no key: dimmed, still red. */
+.cfg-test[data-state="due"]:disabled {
+  opacity: var(--disabled-opacity);
+}
+
+.cfg-test-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--go);
+  transform-origin: left center;
+  transform: scaleX(var(--share, 0));
+  transition: transform var(--dur-pill) var(--ease-pill);
+}
+
+.cfg-test-word,
+.cfg-test-cost {
+  position: relative; /* above the fill */
+  flex: 1 1 0;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.cfg-test-cost {
+  border-left: var(--edge) solid var(--line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cfg-test,
+  .cfg-test-fill {
+    transition: none;
+  }
 }
 
 .prompt-sections {

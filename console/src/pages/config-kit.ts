@@ -60,6 +60,9 @@ export type Spec<V, D, S extends SettingsBase<V>> = {
   render: (s: S, d: D, kit: Kit) => { cards: HTMLElement[]; layout: string; glow?: (diff: Set<string>) => void };
   /** Why Save must wait (a section with the wrong placeholders), or null. */
   blocked?: (d: D) => string | null;
+  /** A control of the view's own in the title bar, just left of Discard | Save (Config › Agent's
+   * Test | cost, the owner, 2026-11-14). Built once; the view keeps it current itself. */
+  top?: () => HTMLElement;
 };
 
 // The "i": the letter itself, lower case, in the console's one serif face (the owner,
@@ -104,6 +107,7 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
       const save = root.querySelector<HTMLButtonElement>('[data-act="save"]')!;
       const versionSelect = root.querySelector<HTMLSelectElement>(".cfg-version")!;
       const scroll = root.querySelector<HTMLElement>(".cfg-scroll")!;
+      if (spec.top) root.querySelector(".cfg-top")!.insertBefore(spec.top(), root.querySelector(".cfg-actions"));
 
       // Read each time the view opens: a person changes a value on purpose (the Chat page's
       // Text bar follows the same rule).

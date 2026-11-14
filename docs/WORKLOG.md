@@ -156,6 +156,32 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   FLAGS.md §3.1–3.2, EPIC.md §5.2, FUTURE-SETTINGS.md §9.2, PROMPT-EDITOR.md §9, HANDOFF.
 - The other session worked in the same checkout throughout (People, `store.rs`, the proto,
   `ehr_client.py`); each of its edits was kept, and mine were checked after each of its writes.
+- The owner's first Record and test hung on "Working out the cost": the dev server still ran
+  the agent code from before the change, read the new prompt file, and refused the three new
+  sections; the quote's task died and its state stayed "running". The quote now ends as
+  "failed" on any error (Record and test still records). Restart `npm run dev` after a change
+  to the agent's code: it does not reload Python.
+- The owner asked for Record and test as "Test | cost" left of Discard | Save: red while it
+  needs a run, green once run; a first press for the cost ("$?.??" until known), a second to
+  run, with a bar. Built: the frame's `top` slot (`config-kit.ts`), `showTest` in `agent.ts`
+  (the old line and its auto quote removed), `.cfg-test` in `config.css` (`--stop`, `--go`, the
+  fill counts steps: each script, then the tests). CONSOLE.md §9. Screenshot:
+  `images/config-agent-test-button-2026-11-14.png`. Then the same size as Discard | Save: the
+  token `--action-part` for every part of both.
+- His first full Test failed on 2 of 15 scripts. `booked_reason_asked`: the call was right
+  (the reason kept, "in person, not online", no hand-off, the review flag raised); the test
+  looked for "member of our staff", which the greeting and the code line also say. Fixed.
+  `no_code_after_resend`: recorded again with the new words, the model hands off at "I didn't
+  get a code, can you send it again?" where it sent a new code before. `task.verify` holds both
+  rules; which wins when a caller says both is the owner's fork. **He chose A** (a person at
+  once): the test and the script's note follow it, and FUTURE-SETTINGS.md §11 lists the case
+  as a hospital choice. All 15 kept scripts pass on replay.
+- He asked whether the kept-script tests catch real regressions. Findings, in the reply of this
+  sitting: strong on code (the flow, `ehr`, fixed lines, the invented-value and silent-tool
+  checks, deterministic on replay); weak on the model (one recorded sample per script, so a
+  rule that holds 70% of the time passes or fails by luck, as the resend case showed), on
+  coverage (Local and Text only, no Epic, no voice, few hostile callers) and on why a run failed
+  (the console shows counts only).
 
 ## 2026-11-13 to 11-14 (Windows, config) — Config › System: variables and tools
 - Config › Agent's tab bars: the pill now slides from the old tab (a click drew a new bar, so

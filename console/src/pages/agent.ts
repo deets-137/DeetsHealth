@@ -17,7 +17,6 @@ import {
   promptSettings,
   recordPrompt,
   savePrompt,
-  type Estimate,
   type PromptSettings,
   type Recording,
 } from "../agent/api";
@@ -226,9 +225,73 @@ export const agentView = (): View => {
     redraw?.();
   });
 
+  // Test | cost, in the title bar left of Discard | Save (the owner, 2026-11-14; it replaced the
+  // Record and test line). Red (--stop) while the kept recordings do not match the saved words,
+  // green (--go) once they do. Red: a first press works out the cost (a free dry run; "$?.??"
+  // until it is known), a second press records and runs the tests, the green filling in as the
+  // steps finish (each script, then the tests: a count, not a guess of time).
+  const test = el(
+    `<button class="cfg-test" type="button" data-state="due"><span class="cfg-test-fill" aria-hidden="true"></span><span class="cfg-test-word">Test</span><span class="cfg-test-cost">$?.??</span></button>`,
+  ) as HTMLButtonElement;
+  const testCost = test.querySelector<HTMLElement>(".cfg-test-cost")!;
+  const testFill = test.querySelector<HTMLElement>(".cfg-test-fill")!;
+  const showTest = (p: PromptSettings) => {
+    const run = p.recording;
+    const total = p.recordings.scripts;
+    const running = run?.state === "running";
+    const quoting = p.estimate?.state === "running";
+    const done = p.recordings.match && !running;
+    test.dataset.state = running ? "running" : done ? "done" : "due";
+    test.disabled = done || running || quoting || !p.key;
+    // The steps: each script, then the tests.
+    const steps = run ? run.scripts.length + (run.tests === null ? 0 : 1) : 0;
+    testFill.style.setProperty("--share", running ? String(Math.min(1, steps / (total + 1))) : "0");
+    const e = p.estimate;
+    testCost.textContent = done
+      ? "Passed"
+      : running
+        ? `${Math.min(run!.scripts.length + 1, total)} of ${total}`
+        : run?.state === "failed" && e?.state !== "done"
+          ? "Failed"
+          : e?.state === "done" && e.usd !== null
+            ? shortDollars(e.usd)
+            : "$?.??";
+    test.title = !p.key
+      ? "Needs ANTHROPIC_API_KEY in .env"
+      : done
+        ? `The kept recordings match the saved words${run ? `. ${describe(run, total)}` : ""}`
+        : running
+          ? describe(run!, total)
+          : quoting
+            ? "Working out the cost: a dry run, no Claude call"
+            : e?.state === "done"
+              ? `Press to record ${e.missing.length} of ${total} scripts with the saved words (Claude is called only for new lines), then run the agent's tests${run?.state === "failed" ? `. Last run: ${describe(run, total)}` : ""}`
+              : "The kept recordings are out of date. Press to work out the cost of recording them";
+    test.setAttribute("aria-label", `Test, ${testCost.textContent}`);
+  };
+  test.addEventListener("click", async () => {
+    const p = latest;
+    if (!p) return;
+    try {
+      if (!p.estimate) {
+        // The first press: the quote.
+        p.estimate = await estimatePrompt();
+      } else {
+        // The second: record and test (also after a quote that failed: it records without one).
+        p.recording = await recordPrompt();
+      }
+      showTest(p);
+      follow(showTest);
+    } catch (err) {
+      test.title = err instanceof Error ? err.message : "Not started";
+    }
+  });
+
   const take = (s: PromptSettings) => {
     latest = s as Guided;
     useGuide(latest.guide);
+    showTest(latest);
+    if (latest.recording?.state === "running" || latest.estimate?.state === "running") follow(showTest);
     return latest;
   };
 
@@ -248,6 +311,7 @@ export const agentView = (): View => {
       return null;
     },
     render: (s, d, kit) => render(s as Guided, d, kit),
+    top: () => test,
   });
 
   function render(s: Guided, d: Values, kit: Kit) {
@@ -428,7 +492,7 @@ export const agentView = (): View => {
       if (links.length) body.append(linkRow());
     }
 
-    card.append(bars, recordLine(s), body);
+    card.append(bars, body);
     // The boxes take the height of their words once on screen, and again when the card's width
     // changes; the pills are placed the same way.
     const settle = () => {
@@ -461,51 +525,6 @@ export const agentView = (): View => {
     };
   }
 
-  /** Record and test, as one quiet line (PROMPT-EDITOR.md §5): whether the kept recordings match
-   * the saved words; the quote from a free dry run; the button, a link like Remove on the
-   * Cartesia tables; the last run. It updates itself without drawing the cards again. */
-  function recordLine(s: PromptSettings) {
-    const wrap = el(`<p class="prompt-record"><span class="prompt-record-state"></span><button class="cfg-link" type="button">Record and test</button><span class="prompt-record-result"></span></p>`);
-    const stateEl = wrap.querySelector<HTMLElement>(".prompt-record-state")!;
-    const button = wrap.querySelector<HTMLButtonElement>("button")!;
-    const result = wrap.querySelector<HTMLElement>(".prompt-record-result")!;
-    const show = (p: PromptSettings) => {
-      const run = p.recording;
-      const running = run?.state === "running";
-      const quoting = p.estimate?.state === "running";
-      stateEl.textContent = p.recordings.match ? "Recordings match the saved words" : "Recordings are out of date";
-      stateEl.classList.toggle("prompt-record-old", !p.recordings.match);
-      button.disabled = running || quoting || !p.key;
-      button.textContent = running ? "Recording" : quoting ? "Working out the cost" : `Record and test${quote(p.estimate, p.recordings)}`;
-      button.title = !p.key
-        ? "Needs ANTHROPIC_API_KEY in .env"
-        : `Records the kept scripts with the saved words (Claude is called only for new lines), then runs the agent's tests`;
-      result.textContent = run ? describe(run, p.recordings.scripts) : "";
-    };
-    const current = latest ?? s;
-    show(current);
-    // The quote: asked for once per set of words, when the recordings are out of date.
-    if (!current.recordings.match && !current.estimate && current.recording?.state !== "running") {
-      void estimatePrompt().then((e) => {
-        if (latest) latest.estimate = e;
-        show(latest ?? s);
-        follow(show);
-      });
-    }
-    button.addEventListener("click", async () => {
-      try {
-        const run = await recordPrompt();
-        if (latest) latest.recording = run;
-        show(latest ?? s);
-        follow(show);
-      } catch (e) {
-        result.textContent = e instanceof Error ? e.message : "Not started";
-      }
-    });
-    if (current.recording?.state === "running" || current.estimate?.state === "running") follow(show);
-    return wrap;
-  }
-
   /** Read the dry run's or the recording's state every 2 seconds until both are done. */
   function follow(show: (p: PromptSettings) => void) {
     if (poll !== undefined) return;
@@ -530,13 +549,8 @@ export const agentView = (): View => {
   }
 }
 
-/** The button's quote: " (3 of 14 scripts, about $0.01)", or nothing new to record. */
-function quote(e: Estimate | null, r: PromptSettings["recordings"]): string {
-  if (r.match) return "";
-  if (!e || e.state !== "done" || e.usd === null) return "";
-  if (!e.missing.length) return " (nothing new to record)";
-  return ` (${e.missing.length} of ${r.scripts} scripts, about ${dollars(e.usd)})`;
-}
+/** The Test button's cost: "$0.02", "<$0.01" for a few lines, "$0.00" when nothing is new. */
+const shortDollars = (x: number) => (x > 0 && x < 0.01 ? "<$0.01" : `$${x.toFixed(2)}`);
 
 function describe(run: Recording, total: number): string {
   const failed = run.scripts.filter((x) => !x.ok).length;
