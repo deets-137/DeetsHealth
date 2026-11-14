@@ -205,6 +205,7 @@ class TypedCall:
             today = date.today()
         self.flow = CallFlow(ehr, today=today, ehr_source=ehr_source)
         self._llm = llm
+        self.flow.llm = llm
         self._collector = TurnCollector()
         self._collector.flow = self.flow
         # Reads each caller line before the model does (screen.py).

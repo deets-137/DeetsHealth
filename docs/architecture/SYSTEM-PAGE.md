@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [agent/prompts/AGENT-PROMPT.md, agent/prompts/VARIABLES.md, agent/prompts/TOOLS.md, agent/deets_agent/prompts.py, agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/dev_server.py, agent/deets_agent/call_record.py, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/texts.rs, ehr/src/store.rs, ehr/proto/deets/ehr/v1/ehr.proto, ehr/migrations/0006_settings_system.sql, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, console/src/pages/agent.ts, console/src/pages/config.ts, console/src/styles/config.css]
+sources: [docs/architecture/images/system-test-variable-2026-11-13.png, agent/prompts/AGENT-PROMPT.md, agent/prompts/VARIABLES.md, agent/prompts/TOOLS.md, agent/deets_agent/prompts.py, agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/dev_server.py, agent/deets_agent/call_record.py, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/texts.rs, ehr/src/store.rs, ehr/proto/deets/ehr/v1/ehr.proto, ehr/migrations/0006_settings_system.sql, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, console/src/pages/agent.ts, console/src/pages/config.ts, console/src/styles/config.css]
 updated: 2026-11-14
 ---
 # DeetsHealth — Config › System: variables and tools
@@ -244,6 +244,14 @@ Where this disagrees with §3, this is the code.
 - **The console**: `system.ts` (the page), `word-picker.ts` (the lists), `tab-bar.ts` (the bar,
   shared), `agent.ts` (the new rule, chips, the lists, `deets:show-section`,
   `deets:system-saved`).
+- **First desk test (the owner, 2026-11-13, evening).** He changed `{clinic}` and added
+  `{test}` in Looking it up (`line.one_moment`) and Did not hear clearly (`line.say_again`).
+  The greeting said the new clinic name; `{test}` was never heard, because neither line was
+  spoken on that call: `line.say_again` plays only when `ehr` refuses an input as malformed,
+  and `line.one_moment` only when a reply hits the token cap. The model said "Sorry, I didn't
+  catch that" in its own words. The variable worked; the line's name misled.
+
+  ![The owner's screenshot, 2026-11-13: {test} in two Caller hears lines on Config › Agent, which never played on the call](images/system-test-variable-2026-11-13.png)
 - **Not built from §3:** none. **Known gap:** the cross check reads the active version of the
   other service before the save's own lock, so two saves at the same instant (one on each
   page) could both pass. `active_words` then falls back to the files for the next call, and

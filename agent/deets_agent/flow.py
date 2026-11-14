@@ -301,6 +301,9 @@ class CallFlow:
     # Told each time the Flow moves to a node: its name and its own tools (the dev call record's
     # `step` event; the Chat page's Step panel, CHAT.md §11).
     on_step: Callable[[str, list[str]], None] | None = None
+    # The call's LLM service: `_say` pushes each fixed line out of it, so the line is always
+    # spoken before the model's next words (call.py sets it). None: the pipeline's worker.
+    llm: Any = None
 
     async def start(self) -> None:
         # The call's prompt version: ehr takes the text message's words from it (CONSOLE.md §9).
@@ -325,7 +328,13 @@ class CallFlow:
         A line that ends in a question waits for the caller; any other line lets the model go on.
         """
         frame = emergency_frame() if line == emergency_line() else TTSSpeakFrame(text=line, append_to_context=False)
-        await flow_manager.worker.queue_frame(frame)
+        if self.llm is not None:
+            # Out of the LLM, downstream, now: ahead of this tool's result, and so ahead of
+            # whatever the model says next. Queued at the pipeline's top instead, the line raced
+            # the model's next reply and once came after it (2026-11-13, `next_visit`: 1 of 562).
+            await self.llm.push_frame(frame)
+        else:
+            await flow_manager.worker.queue_frame(frame)
         result = {"spoken_to_caller": line, **extra}
         wait = line.rstrip().endswith("?")
         if next_node is None:

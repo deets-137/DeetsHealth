@@ -269,6 +269,26 @@ async def test_safety_reminder_holds_the_safe_side(ehr):
     assert [(f.kind, f.source) for f in flow.flags] == [("possible_emergency", "code")]
 
 
+async def test_a_fixed_line_leaves_from_the_llm_before_the_tool_result(ehr):
+    """2026-11-13: a fixed line queued at the pipeline's top raced the model's next reply and once
+    came after it. With the call's LLM set, `_say` pushes the line out of the LLM itself, before
+    the handler returns its result, and nothing goes to the pipeline's top."""
+    from deets_agent.prompts import text
+
+    pushed = []
+
+    class FakeLlm:
+        async def push_frame(self, frame) -> None:
+            pushed.append(frame)
+
+    flow = new_flow(ehr)
+    flow.llm = FakeLlm()
+    fm = manager()
+    await flow.end_call_fn().handler({}, fm)
+    assert [f.text for f in pushed] == [text("line.goodbye")]
+    assert fm.worker.frames == [], "nothing queued at the top"
+
+
 async def test_a_flag_keeps_only_what_the_caller_said(ehr):
     """Fork 1A, 2026-11-12: the model's evidence is checked by code. A quote the caller said
     (punctuation and case aside) is kept; one they did not say is counted and dropped. Nothing is

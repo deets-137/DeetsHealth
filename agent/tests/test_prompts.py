@@ -111,7 +111,9 @@ def test_a_section_may_hold_any_system_variable_and_only_its_own_code_values():
         check(_sections(**{"line.goodbye": "Park at {parking}."}))
     with pytest.raises(PromptFileError, match=r"\{given\} is filled only in its own section"):
         check(_sections(**{"line.goodbye": "Bye, {given}."}))
-    check(_sections(**{"line.goodbye": "Park at {parking}."}), {"clinic", "parking"})
+    from deets_agent import prompts
+
+    check(_sections(**{"line.goodbye": "Park at {parking}."}), set(prompts.VARIABLES) | {"parking"})
 
 
 def test_a_call_fills_its_own_system_variables():
