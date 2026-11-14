@@ -302,6 +302,45 @@ every test.
 4. **E-4.** Booking on the sandbox, if it serves `$find` and `$book` (§3); otherwise the fake
    scheduler carries the tests and booking waits for a hospital's test system.
 
+**What the docs say about `$find` and `$book` (research, 2026-11-13).** Epic's own spec pages
+for both operations load by script on fhir.epic.com and could not be read; what follows is from
+the Argonaut guide Epic's `$find` is built on, from Epic staff in the FHIR chat, and from one
+integrator's write-up. Each line says how sure it is. A sandbox `$find` settles the rest.
+- **Epic built `$find` for provider-to-provider scheduling, not for patient-facing apps.** Its
+  developer (FHIR chat, 2021): "our use of $find is only for provider-to-provider scheduling";
+  "there is build needed to determine which visit types, departments, specialties, pools".
+  So each hospital chooses what `$find` may return. *(Epic staff, 2021: may have changed.)*
+- **`$find`'s inputs at Epic:** `patient`, `startTime`, `endTime`, `serviceType` (the visit type,
+  coded in the hospital's own system), `indications` (the reason), `location-reference` (the
+  department). Which are required is each hospital's build: the write-up's example site needs
+  `serviceType` and `location-reference`. No provider input. *(Integrator's write-up; matches
+  the sandbox's 400 to a request with only a patient and a time range.)*
+- **`$find` returns** a Bundle of `proposed` Appointments, each with a contained Slot
+  (`busy-tentative`) and the provider and location as participants. Results are paged by a
+  session that expires (error 4113). *(Write-up; a forum post shows the same contained Slot.)*
+- **`$book`'s inputs:** `patient`, `appointment` (a proposed one's id from `$find`; `$find`
+  must come first) and an optional `appointmentNote`. No time and no visit type: the proposed
+  appointment holds them. *(Write-up; Argonaut's `$book` has the same shape, with `comment`.)*
+- **`$book` returns** the Appointment with status `booked`, its CSN as an identifier, and the
+  same fields as a read: `serviceType` (the visit type), `start`, `end`, `minutesDuration`,
+  participants (patient, practitioner, location). Argonaut: a rejected booking comes back
+  `cancelled`, or as an OperationOutcome. A success code alone does not prove a booking: read
+  the body. *(Write-up and Argonaut.)*
+- **Patient preferences:** no Epic FHIR API returns a patient's scheduling preferences (times,
+  clinician, place). The only preference on `Patient` is `communication` (language). A caller's
+  preference reaches `$find` as its inputs: the visit type (online or in person is a visit type
+  at Epic), the department, the dates. `appointmentNote` carries free text to the scheduler.
+  *(No source shows an API for preferences.)*
+- **No hold, no cancel, no move** through Epic's public FHIR (§2.1, and the write-up): keep the
+  gap between `$find` and `$book` short.
+- **The probe:** `ehr epic-find` (run from the repo root; it needs `epic-client.json` and the
+  key). It reads one of Camila Lopez's visits for a real `serviceType` and department, then
+  sends `$find` six ways: the patient as a resource or a reference; with the times; then
+  `serviceType`; then `location-reference`. It prints each HTTP status, Epic's issue words and
+  the reply's shape, never an id. About eight requests; it books nothing. **First run,
+  2026-11-13 evening: the sandbox answered 503 "OltpServerUnavailable" to everything, even its
+  `smart-configuration`.** Run it again when the sandbox is up.
+
 ## 6. Every request we send to Epic
 > **Part:** built · 2026-11-13 — the ledger. Change it in the same commit as the request.
 

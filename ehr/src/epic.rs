@@ -252,6 +252,35 @@ impl Epic {
         Err(EpicError("FHIR read: HTTP 401".into()))
     }
 
+    /// POSTs a FHIR operation (`$find`, later `$book`) under the base's server with the token in
+    /// use; a 401 gets one new token and one more try. The status and the body, whatever the
+    /// status: an operation's refusal is an OperationOutcome the caller reads. `url` must be on
+    /// the base's host (STU3 and R4 share it).
+    pub async fn post(&self, url: Url, body: &serde_json::Value) -> Result<(u16, Option<serde_json::Value>), EpicError> {
+        if url.host_str() != self.config.base.host_str() || url.scheme() != "https" {
+            return Err(EpicError("FHIR post: not on the base's server".into()));
+        }
+        for fresh in [false, true] {
+            let token = self.bearer(fresh).await?;
+            let reply = self
+                .client
+                .post(url.clone())
+                .bearer_auth(token.secret.as_str())
+                .header("Accept", "application/fhir+json")
+                .header("Content-Type", "application/fhir+json")
+                .body(body.to_string())
+                .send()
+                .await
+                .map_err(|_| EpicError("FHIR post: no answer".into()))?;
+            let status = reply.status().as_u16();
+            if status == 401 && !fresh {
+                continue;
+            }
+            return Ok((status, reply.json().await.ok()));
+        }
+        Err(EpicError("FHIR post: HTTP 401".into()))
+    }
+
     /// Signs the assertion and asks for an access token.
     pub async fn token(&self) -> Result<Token, EpicError> {
         let now = SystemTime::now()

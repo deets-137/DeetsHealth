@@ -25,6 +25,12 @@
 //! - With `DEETS_EPIC_SANDBOX=1`, `ehr` also serves Epic's sandbox: a call that opens with
 //!   `EHR_SOURCE_EPIC_SANDBOX` finds the caller and their visits there (epic_ehr.rs).
 //!
+//!     ehr epic-find
+//!
+//! - Step E-4's probe of Epic's sandbox `Appointment/$find` (STU3; EPIC.md §5.2): learns a real
+//!   visit type and department from a public test patient's visit, then sends `$find` a few
+//!   ways. Prints statuses, Epic's own error words and the replies' shape. Books nothing.
+//!
 //!     ehr epic-sandbox
 //!
 //! - Prints the Chat page's Epic list as JSON (epic_ehr.rs `sandbox_list`): Epic's public test
@@ -122,8 +128,108 @@ async fn epic_check() -> Result<(), String> {
     Ok(())
 }
 
+/// `ehr epic-find`: probes Epic's sandbox `Appointment/$find` (STU3) for step E-4 (EPIC.md §5.2).
+/// Reads one booked visit of a public test patient for a real visit type and department, then
+/// sends `$find` a few ways, each adding one input. Prints, per try: the HTTP status, each
+/// OperationOutcome issue (Epic's own words), and for a Bundle the count and shape of what came
+/// back (field names, statuses, visit type words). Never an id, a token or a patient's value.
+/// About eight requests; `$find` books nothing.
+async fn epic_find() -> Result<(), String> {
+    use serde_json::{json, Value};
+    let config = EpicConfig::sandbox(&PathBuf::from(EPIC_CLIENT), &PathBuf::from(EPIC_KEY))?;
+    let epic = Epic::connect(config).await.map_err(|e| e.to_string())?;
+    // Camila Lopez (EPIC.md §5.2): a rolling set of booked visits gives a real visit type and
+    // department. A public test patient.
+    let patient = "erXuFYUfucBZaryVksYEcMg3";
+    let mut url = epic.base().join("Appointment").map_err(|_| "bad URL")?;
+    url.query_pairs_mut()
+        .append_pair("patient", patient)
+        .append_pair("service-category", "appointment")
+        .append_pair("_count", "5");
+    let bundle = epic.read(url).await.map_err(|e| e.to_string())?;
+    let visit = bundle["entry"]
+        .as_array()
+        .and_then(|e| e.iter().map(|x| &x["resource"]).find(|r| r["resourceType"] == "Appointment"))
+        .cloned()
+        .ok_or("no Appointment to learn a visit type from")?;
+    let coding = visit["serviceType"][0]["coding"][0].clone();
+    let location = visit["participant"]
+        .as_array()
+        .and_then(|p| p.iter().find_map(|x| x["actor"]["reference"].as_str().filter(|r| r.starts_with("Location/"))))
+        .map(str::to_string);
+    println!(
+        "a booked visit: serviceType system {}, display {:?}; a Location participant: {}",
+        coding["system"].as_str().unwrap_or("-"),
+        coding["display"].as_str().unwrap_or("-"),
+        if location.is_some() { "yes" } else { "no" }
+    );
+
+    let stu3 = reqwest::Url::parse(&epic.base().as_str().replace("/R4/", "/STU3/")).map_err(|_| "bad STU3 URL")?;
+    let find = stu3.join("Appointment/$find").map_err(|_| "bad $find URL")?;
+    // The window: the next 14 days, in the sandbox's zone (America/Chicago, -06:00 in November).
+    let start = jiff::Zoned::now().date().checked_add(jiff::Span::new().days(1)).map_err(|_| "date")?;
+    let end = start.checked_add(jiff::Span::new().days(14)).map_err(|_| "date")?;
+    let p = |name: &str, v: Value| {
+        let mut o = v;
+        o["name"] = json!(name);
+        o
+    };
+    let as_resource = p("patient", json!({"resource": {"resourceType": "Patient", "id": patient}}));
+    let as_reference = p("patient", json!({"valueReference": {"reference": format!("Patient/{patient}")}}));
+    let times = vec![
+        p("startTime", json!({"valueDateTime": format!("{start}T08:00:00-06:00")})),
+        p("endTime", json!({"valueDateTime": format!("{end}T17:00:00-06:00")})),
+    ];
+    let service = p("serviceType", json!({"valueCodeableConcept": {"coding": [coding.clone()]}}));
+    let place = location.map(|l| p("location-reference", json!({"valueReference": {"reference": l}})));
+    let mut tries: Vec<(&str, Vec<Value>)> = vec![
+        ("patient as a resource, times", [vec![as_resource.clone()], times.clone()].concat()),
+        ("patient as a reference, times", [vec![as_reference.clone()], times.clone()].concat()),
+        ("patient as a resource, times, serviceType", [vec![as_resource.clone()], times.clone(), vec![service.clone()]].concat()),
+        ("patient as a reference, times, serviceType", [vec![as_reference.clone()], times.clone(), vec![service.clone()]].concat()),
+    ];
+    if let Some(place) = place {
+        tries.push(("patient as a resource, times, serviceType, location", [vec![as_resource], times.clone(), vec![service.clone(), place.clone()]].concat()));
+        tries.push(("patient as a reference, times, serviceType, location", [vec![as_reference], times, vec![service, place]].concat()));
+    }
+    for (label, parameter) in tries {
+        let body = json!({"resourceType": "Parameters", "parameter": parameter});
+        let (status, reply) = epic.post(find.clone(), &body).await.map_err(|e| e.to_string())?;
+        println!("\n$find, {label}: HTTP {status}");
+        let Some(reply) = reply else { continue };
+        let outcomes: Vec<&Value> = match reply["resourceType"].as_str() {
+            Some("OperationOutcome") => vec![&reply],
+            _ => reply["entry"].as_array().map(|e| e.iter().map(|x| &x["resource"]).filter(|r| r["resourceType"] == "OperationOutcome").collect()).unwrap_or_default(),
+        };
+        for o in outcomes {
+            for issue in o["issue"].as_array().into_iter().flatten() {
+                let words = issue["details"]["text"].as_str().or(issue["diagnostics"].as_str()).unwrap_or("-");
+                let code = issue["details"]["coding"][0]["code"].as_str().unwrap_or("-");
+                println!("  issue: {} {} [{}] {}", issue["severity"].as_str().unwrap_or("-"), issue["code"].as_str().unwrap_or("-"), code, words.chars().take(200).collect::<String>());
+            }
+        }
+        let found: Vec<&Value> = reply["entry"].as_array().map(|e| e.iter().map(|x| &x["resource"]).filter(|r| r["resourceType"] == "Appointment").collect()).unwrap_or_default();
+        if reply["resourceType"] == "Bundle" {
+            println!("  Bundle: {} proposed appointment(s)", found.len());
+        }
+        if let Some(a) = found.first() {
+            let keys: Vec<&String> = a.as_object().map(|o| o.keys().collect()).unwrap_or_default();
+            println!("  first: status {}, fields {keys:?}", a["status"].as_str().unwrap_or("-"));
+            println!("  its serviceType: {:?}", a["serviceType"][0]["coding"][0]["display"].as_str().or(a["serviceType"][0]["text"].as_str()).unwrap_or("-"));
+            let slot = a["contained"].as_array().and_then(|c| c.iter().find(|x| x["resourceType"] == "Slot"));
+            println!("  contained Slot: {}", slot.map(|s| s["status"].as_str().unwrap_or("-")).unwrap_or("none"));
+            let actors: Vec<&str> = a["participant"].as_array().into_iter().flatten().filter_map(|x| x["actor"]["reference"].as_str()).map(|r| r.split('/').next().unwrap_or("-")).collect();
+            println!("  participants: {actors:?}");
+        }
+    }
+    Ok(())
+}
+
 async fn run() -> Result<(), String> {
     let mut first = std::env::args().skip(1).peekable();
+    if first.peek().map(String::as_str) == Some("epic-find") {
+        return epic_find().await;
+    }
     if first.peek().map(String::as_str) == Some("ingest") {
         first.next();
         return ingest(first).await;
