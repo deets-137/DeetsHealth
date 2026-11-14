@@ -2,11 +2,33 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # DeetsHealth — Work log
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
+
+## 2026-11-14 (Mac) — Pulled the PC's work; keys per machine; `npm run env:check`
+- Pulled 14 commits (`c664ebd..4f59985`). On the Mac: `npm install`, `uv sync` (new: `pyjwt`),
+  `npm install` in `ehr/jwks-worker` (`check:all` stops without it). `npm run check:all`: all
+  12 steps pass in 83 s. Postgres 18 is EDB's at `/Library/PostgreSQL/18`, which
+  `postgres.mjs` finds.
+- Epic's sandbox still answers 503 `OltpServerUnavailable` on `metadata`,
+  `smart-configuration` and the OAuth well-known URL; the website answers 200. Likely its
+  November upgrade (EPIC.md §5.2). `ehr` signs in again by itself when it is back.
+- **Keys across machines (the owner's go):** a new key for each machine at each vendor, typed
+  in by hand; never copied, synced or kept in a shared password manager. Dropped: a shared
+  vault (one lost machine means every key replaced; 1Password costs money) and an encrypted
+  `.env` in the repo (git keeps every old copy; HANDOFF said no key in a commit).
+- Built: `.env.example` lists every name `.env` may hold, in groups, with the settings filled
+  and the secrets blank; `scripts/env-check.mjs` (`npm run env:check`) reads the groups from it
+  and names what this machine lacks, then the secret files. It prints names, never a value.
+- Epic per machine: `ehr` computed the kid from a constant, so a second machine's key could
+  not sign. Now `thumbprint` in `ehr/src/epic.rs` computes it from the key on disk, and a test
+  checks every kid in `nonprod.jwks.json`. `make-key.mjs` adds a key to the set and keeps the
+  others. EPIC.md §2.3 and HANDOFF › On another machine say so. Nothing deployed.
+- This Mac lacks: `CARTESIA_API_KEY`, the demo, TURN and Access-link groups, Twilio (not set up
+  anywhere), `epic-client.json` and its Epic key. The Anthropic key is set.
 
 ## 2026-11-14 (Windows, roles) — A Rules page; Security › Roles as a draft table
 - **Rules** is a new page with its own nav: Agents, Flags, Tools, all empty. The nav's top is

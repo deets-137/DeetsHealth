@@ -69,10 +69,19 @@ and the pre-push hook is plain `sh`. What a fresh clone needs, in order:
    for the core check), Node, and `uv` (it brings Python 3.12 for `agent/`).
 2. `npm install` (it also turns the pre-push hook on), then `cd agent && uv sync`.
 3. The dev certificates, which are git-ignored: `cargo run -p deetshealth-ehr --example dev_certs`.
-4. **The git-ignored secrets do not travel with the repo.** `.env` (the Anthropic key): make it
-   again on that machine, by hand, never through a chat, a doc or a commit; replay-only tests
-   and `npm run check` need no key. `epic-client.json`: only for Epic work; the build runs
-   without it.
+4. **Keys are made per machine, never copied** (the owner, 2026-11-14). Each vendor gets a new
+   key for each machine, named for it ("deets-mac", "deets-pc"): a lost machine costs only its
+   own keys, and each vendor's usage shows which machine spent what. Copy `.env.example` to
+   `.env` and type each value in by hand, never through a chat, a doc, a commit, a sync folder
+   or a shared password manager. **`npm run env:check`** then names what this machine lacks,
+   group by group, and the secret files outside `.env`. It prints names only, never a value.
+   `.env.example` is the one list of names: a new setting gets its line there (its header says
+   how). Replay-only tests and `npm run check` need no key.
+   - **Epic:** `epic-client.json` (the client IDs) and this machine's own key:
+     `cd ehr/jwks-worker && npm run make-key` adds its public key to `src/nonprod.jwks.json`
+     beside the other machines'. Commit the set and deploy the Worker (EPIC.md §2.3). `ehr`
+     signs with the kid of the key on disk. Only for Epic work; the build runs without it.
+   - **The tunnel** runs on one machine only; its credentials file stays there (DEMO.md §7).
 5. **The sibling repos** for the docs check: `../DeetsMusic` (clone `deets-137/DeetsMusicWindows`
    under that name) and `../DeetsEngine`, or the docs check (and so the pre-push hook) fails on
    their links (Known gotchas).

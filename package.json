@@ -18,7 +18,8 @@
     "db:stop": "node scripts/postgres.mjs stop",
     "db:status": "node scripts/postgres.mjs status",
     "db:ingest": "node scripts/postgres.mjs ingest",
-    "db:test": "node scripts/postgres.mjs test"
+    "db:test": "node scripts/postgres.mjs test",
+    "env:check": "node scripts/env-check.mjs"
   },
   "devDependencies": {
     "typescript": "~5.6.2",

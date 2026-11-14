@@ -34,9 +34,14 @@ use crate::transport;
 
 /// Epic's sandbox (EPIC.md §3). With the trailing slash, so paths join under it.
 pub const SANDBOX_BASE: &str = "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4/";
-/// The key ID: the RFC 7638 thumbprint of the public key in
-/// `ehr/jwks-worker/src/nonprod.jwks.json`. A test checks that the two agree.
-pub const NONPROD_KID: &str = "EsN08Bnv-m-gvEvF-gX8wgsfbch9Kz5COViuihyZeA8";
+/// The key ID of a P-384 public key: its RFC 7638 thumbprint, the same one `make-key.mjs`
+/// writes into `ehr/jwks-worker/src/nonprod.jwks.json`. Each machine has its own key, so the
+/// kid comes from the key on disk, never from a constant (HANDOFF.md › On another machine).
+pub fn thumbprint(x: &str, y: &str) -> String {
+    // RFC 7638: the members crv, kty, x, y in that order, no spaces.
+    let canonical = format!(r#"{{"crv":"P-384","kty":"EC","x":"{x}","y":"{y}"}}"#);
+    URL_SAFE_NO_PAD.encode(aws_lc_rs::digest::digest(&aws_lc_rs::digest::SHA256, canonical.as_bytes()))
+}
 /// Epic refuses an assertion that lives longer than 5 minutes.
 const ASSERTION_LIFE: Duration = Duration::from_secs(240);
 /// The longest any one request to Epic may take.
@@ -70,12 +75,15 @@ impl EpicConfig {
             .map_err(|_| format!("{}: not a PKCS #8 PEM key", key_file.display()))?;
         let key = EcdsaKeyPair::from_pkcs8(&ECDSA_P384_SHA384_FIXED_SIGNING, der.secret_pkcs8_der())
             .map_err(|_| format!("{}: not a P-384 key", key_file.display()))?;
-        Ok(Self {
+        let mut config = Self {
             client_id: file.nonprod_client_id.trim().to_string(),
             base: Url::parse(SANDBOX_BASE).map_err(|_| "bad sandbox URL")?,
             key,
-            kid: NONPROD_KID.to_string(),
-        })
+            kid: String::new(),
+        };
+        let (x, y) = config.public_xy();
+        config.kid = thumbprint(&x, &y);
+        Ok(config)
     }
 
     /// The public key as a JWK's `x` and `y` (base64url), to check against the published set.
@@ -378,12 +386,18 @@ fn oauth_word(s: &str) -> &'static str {
 mod tests {
     use super::*;
 
-    /// The kid in the code is the one in the published set.
+    /// Every key in the published set has the kid `ehr` computes for it, so each machine's
+    /// key, signed with its own thumbprint, matches its entry.
     #[test]
-    fn the_kid_matches_the_published_set() {
+    fn every_kid_in_the_published_set_is_its_thumbprint() {
         let set: serde_json::Value =
             serde_json::from_str(include_str!("../jwks-worker/src/nonprod.jwks.json")).unwrap();
-        assert_eq!(set["keys"][0]["kid"], NONPROD_KID);
+        let keys = set["keys"].as_array().unwrap();
+        assert!(!keys.is_empty());
+        for k in keys {
+            let kid = thumbprint(k["x"].as_str().unwrap(), k["y"].as_str().unwrap());
+            assert_eq!(k["kid"].as_str().unwrap(), kid);
+        }
     }
 
     /// An assertion signed with a fresh key verifies, and carries the claims Epic checks.

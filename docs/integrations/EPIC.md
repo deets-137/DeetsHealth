@@ -106,6 +106,11 @@ every API; `/Specifications/Api?id=N` gives one API's allowed audiences, its URL
   key's RFC 7638 thumbprint. `npm run make-key` in the Worker made it: the private key is in
   `dev-certs/epic-nonprod-es384.key` (git-ignored, never printed), the public set in
   `src/nonprod.jwks.json` (committed). The script refuses to replace a key.
+- **One key per machine** (the owner, 2026-11-14; HANDOFF.md › On another machine): the private
+  key never leaves the machine that made it. On a new machine, `npm run make-key` adds its
+  public key to the set beside the others; commit the set and deploy. `ehr` computes the kid
+  from the key on disk (`thumbprint` in `ehr/src/epic.rs`), and a test checks that every kid in
+  the set is its key's thumbprint. A lost machine: drop its key from the set and deploy.
 - **Rotation, by hand:** add the new public key to the set and deploy; move the `ehr` service to
   the new key; drop the old key and deploy again.
 - **The risk is write access, not reading.** The set is public. Whoever can deploy this Worker

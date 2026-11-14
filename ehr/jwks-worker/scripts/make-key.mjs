@@ -2,12 +2,15 @@
 //   node scripts/make-key.mjs
 // - The private key (P-384, for ES384) goes to <repo>/dev-certs/epic-nonprod-es384.key,
 //   which git ignores. It is never printed.
-// - The public key goes into src/nonprod.jwks.json, which the Worker serves and git keeps.
-// - The kid is the key's RFC 7638 thumbprint, so the JWT header names the key exactly.
-// It refuses to replace an existing private key: a new key is a rotation, done by hand
-// (add the new public key to the set, move the service over, then drop the old one).
+// - The public key is added to src/nonprod.jwks.json, which the Worker serves and git keeps.
+//   The keys already in the set stay: each machine has its own key, never a copy (HANDOFF.md ›
+//   On another machine). Then commit the set and deploy the Worker (EPIC.md §2.3).
+// - The kid is the key's RFC 7638 thumbprint, so the JWT header names the key exactly. `ehr`
+//   computes the same thumbprint from the key on disk (ehr/src/epic.rs, `thumbprint`).
+// It refuses to replace an existing private key: a new key on the same machine is a rotation,
+// done by hand (add the new public key to the set, move the service over, then drop the old one).
 import { generateKeyPairSync, createHash } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,8 +33,10 @@ const thumb = createHash("sha256")
 
 mkdirSync(dirname(keyPath), { recursive: true });
 writeFileSync(keyPath, privateKey.export({ format: "pem", type: "pkcs8" }), { mode: 0o600, flag: "wx" });
-const set = { keys: [{ kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y, kid: thumb, alg: "ES384", use: "sig" }] };
+const set = existsSync(setPath) ? JSON.parse(readFileSync(setPath, "utf8")) : { keys: [] };
+set.keys.push({ kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y, kid: thumb, alg: "ES384", use: "sig" });
 writeFileSync(setPath, JSON.stringify(set, null, "\t") + "\n");
 
 console.log(`Made the sandbox key. kid ${thumb}`);
-console.log("Private key: dev-certs/epic-nonprod-es384.key (git-ignored). Public set: src/nonprod.jwks.json.");
+console.log(`Private key: dev-certs/epic-nonprod-es384.key (git-ignored). Public set: src/nonprod.jwks.json, now ${set.keys.length} key(s).`);
+console.log("Next: commit the set and deploy the Worker (cd ehr/jwks-worker && npx cf deploy). Epic trusts the key once it is served.");
