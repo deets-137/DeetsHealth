@@ -786,6 +786,11 @@ Sonic: 1 credit per character"](images/config-rates-2026-11-13.png)
 - **Another page may show a section:** the `deets:show-section` event opens its tab, scrolls to
   it and flashes it once (`.prompt-flash`, the glow's look).
 
+### 9.7 Arranged by the call (2026-11-13)
+The five tabs and the hard-coded section list gave way to the call's steps, each line under its
+tool, and a "plays when" for every section: AGENT-PAGE.md is the design, the as-built record
+and the desk test. §9.1 to §9.6 hold for everything else on the page.
+
 ## 10. Config › System
 > **Part:** built · 2026-11-14
 

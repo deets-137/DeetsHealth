@@ -190,12 +190,13 @@ names exists.
 
 1. Config: the nav reads Agent, System, Cartesia, Anthropic. Press System. The dropdown reads
    "Active | [Default]"; the bar reads Variables | Tools.
-2. Variables, in Read: "Clinic 1" with `{clinic}`, "Built in", "Used in 3 sections"; its value
-   (Main Street Clinic) and meaning as plain text; Used in: Role and rules · Step 1 · Greeting.
-   Then "Filled by the code 1" (`{today}`) and "From the call 9", the protected ones marked
-   "Protected". No value shows for any of them.
-3. Press "Greeting" under Used in: the page moves to Agent, opens Open and close, scrolls to
-   Greeting, and it glows once.
+2. Variables, in Read: two tables (the owner, 2026-11-13: tables for lists; each row's title
+   alone, the rest under its "i"). "Clinic variables": columns Variable · What it is · Value ·
+   Used in; `{clinic}` as a chip, its value as plain text, "3 sections". Its "i" rolls down
+   "Kind: Built in…" and "Used in:" with links. "Code values 10": Variable · What it is ·
+   Filled from · Protected data (Yes or No); `{today}` first. No value shows for any of them.
+3. In `{clinic}`'s "i", press a section under Used in: the page moves to Agent, opens its tab,
+   scrolls to it, and it glows once.
 4. Back to System, press Edit. Change the clinic's value to "North Clinic". Add a variable:
    name `pharmacy_hours`, a meaning, a value "9 to 5". Try a name `Given`, then `given`, then a
    value with `{`: each shows its reason in red, and Add does nothing. Save: "Saved as 11-14 |
@@ -215,8 +216,11 @@ names exists.
    `{clinic}`; add it there to try).
 10. System, Edit: Remove `pharmacy_hours`, Save: "Not saved: variables: {pharmacy_hours} is
     still used in line.goodbye". Take it out of Goodbye on Agent first; then the Remove saves.
-11. System › Tools: "In every step 7" and "In some steps 9", each with what it does, Steps,
-    Fields, Says (links to the lines) and Its words (links to Agent).
+11. System › Tools: one table, "Tools 16": Tool · Name in the words (a chip) · What it does ·
+    Steps; the tools of some steps first, in the call's order, then those of every step. A
+    row's "i": Record, Fields, Lines it can speak (links) and Its words (links to Agent).
+11a. Edit: the What it is and Value cells fade into boxes with no shift; Remove shows at the
+    row's end (not for `{clinic}`); Add a variable sits under the table. Read hides both.
 12. Choose Default in System's dropdown: the changed variables glow, the Variables tab shows a
     dot.
 13. Agent shows "Recordings are out of date" after step 4 (a value changed what the model

@@ -1,27 +1,31 @@
 // Config › System (SYSTEM-PAGE.md §3.6; the owner, 2026-11-13: "grant visibility and
 // configurability where possible"): every variable and every tool the agent's words can use, in
-// the Config frame (Read | Edit, the versions, Discard | Save). Two tabs:
-// - Variables: the System variables (the clinic's own text: a value and a meaning to edit;
-//   `{clinic}` built in, the others the analyst's own, added and removed here); the code values
-//   (read only: what each is, where it comes from, its section; never a value).
-// - Tools: what each tool does, its steps, its arguments, the lines it can speak, and a link to
-//   its words on Config › Agent. Read only.
+// the Config frame (Read | Edit, the versions, Discard | Save). Two tabs, each a set of tables
+// (the owner, 2026-11-13: "use tables where there are multiple rows of things"):
+// - Variables: the clinic's variables (a value and what it is, to edit; `{clinic}` built in,
+//   the others the analyst's own, added and removed here); the code values (read only: what each
+//   is, where it comes from; never a value).
+// - Tools: what each tool does, the name to type in the words, and its steps. Read only.
+// Each row's title says what it is; the rest is under its "i", as on every Config row: the
+// sections that use it, its fields, the lines it can speak, links to Config › Agent.
 // A save makes a new active version for the next call and writes agent/prompts/VARIABLES.md.
-// Every size, color and timing is an existing token: the rows are Config › Agent's sections.
+// Every size, color and timing is an existing token.
 import { saveSystem, systemSettings, type SystemSettings, type SystemValues, type SystemVariable } from "../agent/api";
-import { SECTIONS, SHOW_SECTION, SYSTEM_SAVED, sectionName } from "./agent";
+import { SHOW_SECTION, SYSTEM_SAVED, hasSection, sectionName, useGuide, type GuideEntry } from "./agent";
 import { settingsView, type Kit } from "./config-kit";
 import { el } from "./page";
 import type { View } from "./subnav";
 import { openConfigView, remember, remembered, tabBar } from "./tab-bar";
 
 type Draft = SystemVariable[];
+type Code = SystemSettings["code_values"][number];
+type Tool = SystemSettings["tools"][number];
 const TABS = ["variables", "tools"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_KEY = "deets.console.system.tab";
 const NAME = /^[a-z][a-z0-9_]*$/;
 const STEP_WORDS: Record<string, string> = { every: "Every step", greet: "Greet", verify: "Verify", menu: "Menu", schedule: "Schedule" };
-const RECORD_WORDS: Record<string, string> = { reads: "Reads the record", writes: "Writes to the record", none: "" };
+const RECORD_WORDS: Record<string, string> = { reads: "Reads the patient's record", writes: "Writes to the patient's record", none: "Does not touch the record" };
 
 /** Show a section on Config › Agent: its tab, the section in view, a flash. */
 function goToSection(key: string) {
@@ -29,30 +33,22 @@ function goToSection(key: string) {
   openConfigView("agent");
 }
 
-/** Links to sections on Config › Agent, by their names there. */
-function sectionLinks(label: string, keys: string[]): HTMLElement {
-  const p = el(`<p class="sys-line"><span class="sys-key"></span></p>`);
-  p.firstElementChild!.textContent = label;
+/** Links to sections on Config › Agent, by their titles there; "None" when there are none. */
+function sectionLinks(keys: string[]): HTMLElement {
+  const span = el(`<span class="sys-links"></span>`);
   if (!keys.length) {
-    p.append("None yet");
-    return p;
+    span.textContent = "None";
+    return span;
   }
   keys.forEach((key, i) => {
-    if (i) p.append(" · ");
-    const a = el(`<button class="cfg-link sys-go" type="button"></button>`) as HTMLButtonElement;
+    if (i) span.append(" · ");
+    const a = el(`<button class="cfg-link" type="button"></button>`) as HTMLButtonElement;
     a.textContent = sectionName(key);
     a.title = "Show it on Config › Agent";
     a.addEventListener("click", () => goToSection(key));
-    p.append(a);
+    span.append(a);
   });
-  return p;
-}
-
-function line(label: string, text: string): HTMLElement {
-  const p = el(`<p class="sys-line"><span class="sys-key"></span><span></span></p>`);
-  p.firstElementChild!.textContent = label;
-  p.lastElementChild!.textContent = text;
-  return p;
+  return span;
 }
 
 /** What is wrong with one variable, in the page's words, or null (SYSTEM-PAGE.md §3.2, as
@@ -66,7 +62,7 @@ function problem(v: SystemVariable, all: Draft, s: SystemSettings): string | nul
   if (/[{}]/.test(v.value)) return "A value holds no { or }";
   if (/[\u0000-\u001f\u007f-\u009f]/.test(v.value) || /[\u0000-\u001f\u007f-\u009f]/.test(v.meaning)) return "One line only";
   if (v.value.length > s.limits.value) return `A value has at most ${s.limits.value} characters`;
-  if (v.meaning.length > s.limits.meaning) return `A meaning has at most ${s.limits.meaning} characters`;
+  if (v.meaning.length > s.limits.meaning) return `What it is has at most ${s.limits.meaning} characters`;
   return null;
 }
 
@@ -83,11 +79,61 @@ function differing(a: Draft, b: Draft): Set<string> {
   return out;
 }
 
-/** A text box as tall as its words; one line of text only (Enter does not break it). */
+/** A text box as tall as its words. */
 function grow(box: HTMLTextAreaElement) {
   if (!box.isConnected) return;
   box.style.height = "auto";
   box.style.height = `${box.scrollHeight}px`;
+}
+
+/** A table with a header row. The first column is the rows' "i" and has no header. */
+function table(label: string, columns: string[]): { wrap: HTMLElement; body: HTMLElement } {
+  const wrap = el(`<div class="sys-table-wrap"><table class="sys-table"><thead><tr><th class="sys-i" scope="col"></th></tr></thead><tbody></tbody></table></div>`);
+  wrap.querySelector("table")!.setAttribute("aria-label", label);
+  const head = wrap.querySelector("tr")!;
+  for (const c of columns) {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = c;
+    head.append(th);
+  }
+  return { wrap, body: wrap.querySelector("tbody")! };
+}
+
+/** One row with its "i": the cells, then a help row under it that rolls down, as on every
+ * Config row (config-kit.ts › row). `facts`: each a label and its text or links. */
+function row(title: string, cells: (string | HTMLElement)[], facts: [string, string | HTMLElement][]): HTMLTableRowElement[] {
+  const tr = el(`<table><tbody><tr class="sys-row"><td class="sys-i"><button class="cfg-info" type="button" aria-expanded="false"><span class="i-glyph" aria-hidden="true">i</span></button></td></tr></tbody></table>`).querySelector("tr")!;
+  for (const c of cells) {
+    const td = document.createElement("td");
+    td.append(c);
+    tr.append(td);
+  }
+  const help = el(`<table><tbody><tr class="sys-help-row"><td></td><td><div class="cfg-help"><div class="cfg-help-text prompt-help"></div></div></td></tr></tbody></table>`).querySelector("tr")!;
+  help.lastElementChild!.setAttribute("colspan", String(cells.length));
+  const text = help.querySelector<HTMLElement>(".prompt-help")!;
+  for (const [label, value] of facts) {
+    const p = el(`<p><span class="prompt-help-key"></span> </p>`);
+    p.firstElementChild!.textContent = label;
+    p.append(value);
+    text.append(p);
+  }
+  const info = tr.querySelector<HTMLButtonElement>(".cfg-info")!;
+  const box = help.querySelector<HTMLElement>(".cfg-help")!;
+  info.setAttribute("aria-label", `About ${title}`);
+  info.addEventListener("click", () => {
+    const open = !box.classList.contains("open");
+    box.classList.toggle("open", open);
+    info.setAttribute("aria-expanded", String(open));
+  });
+  return [tr, help];
+}
+
+/** A cell's title: the name as a chip (`{clinic}`, `book`), so it reads as what is typed. */
+function chip(text: string): HTMLElement {
+  const c = el(`<span class="prompt-tool"></span>`);
+  c.textContent = text;
+  return c;
 }
 
 export const systemView = (): View => {
@@ -98,7 +144,12 @@ export const systemView = (): View => {
   return settingsView<SystemValues, Draft, SystemSettings>({
     id: "system",
     title: "System",
-    load: async (version) => (latest = await systemSettings(version)),
+    load: async (version) => {
+      latest = await systemSettings(version);
+      // The sections' titles and tabs, for the links to Config › Agent.
+      useGuide((latest as SystemSettings & { guide?: GuideEntry[] }).guide);
+      return latest;
+    },
     save: async (_s, d) => {
       latest = await saveSystem({ variables: d.map(({ name, meaning, value }) => ({ name, meaning, value })) });
       // Config › Agent's `{` list and checks take the new variables at once.
@@ -160,44 +211,23 @@ export const systemView = (): View => {
     };
   }
 
-  function heading(text: string, count: number): HTMLElement {
+  function heading(text: string, count: number, note: string): HTMLElement[] {
     const h = el(`<h3 class="prompt-heading"><span></span><span class="prompt-count"></span></h3>`);
     h.firstElementChild!.textContent = text;
     h.lastElementChild!.textContent = String(count);
-    return h;
+    const p = el(`<p class="sys-note"></p>`);
+    p.textContent = note;
+    return [h, p];
   }
 
-  /** A row in the shape of a Config › Agent section: the name at the left, the rest at the
-   * right. */
-  function row(name: string, tags: string[], ...right: HTMLElement[]): HTMLElement {
-    const r = el(`
-      <div class="prompt-section">
-        <div class="prompt-label"><span class="prompt-name"></span></div>
-        <div class="sys-right"></div>
-        <p class="prompt-problem" role="status" hidden></p>
-      </div>`);
-    r.querySelector(".prompt-name")!.textContent = name;
-    const label = r.querySelector(".prompt-label")!;
-    for (const t of tags) {
-      const tag = el(`<span class="prompt-keeps"></span>`);
-      tag.textContent = t;
-      label.append(tag);
-    }
-    r.querySelector(".sys-right")!.append(...right);
-    return r;
-  }
-
-  /** One editable line: the text (Read) and the box (Edit) in one place, as on Config › Agent. */
+  /** An editable cell: the text (Read) and the box (Edit) in one place, as on Config › Agent,
+   * so nothing moves when Edit fades the box in. One line: Enter does not break it. */
   function field(label: string, value: string, max: number, on: (v: string) => void): HTMLElement {
     const wrap = el(`
-      <div class="sys-field">
-        <span class="sys-key"></span>
-        <div class="cfg-control prompt-control">
-          <div class="prompt-words"></div>
-          <textarea class="cfg-field prompt-text" rows="1" spellcheck="true"></textarea>
-        </div>
+      <div class="cfg-control prompt-control">
+        <div class="prompt-words"></div>
+        <textarea class="cfg-field prompt-text" rows="1" spellcheck="true"></textarea>
       </div>`);
-    wrap.querySelector(".sys-key")!.textContent = label;
     const words = wrap.querySelector<HTMLElement>(".prompt-words")!;
     const box = wrap.querySelector<HTMLTextAreaElement>("textarea")!;
     box.value = value;
@@ -216,74 +246,91 @@ export const systemView = (): View => {
   }
 
   function variables(s: SystemSettings, d: Draft, kit: Kit): HTMLElement[] {
-    const out: HTMLElement[] = [heading("Clinic", d.length)];
-    const note = el(`<p class="sys-note">The clinic's own text. Any section of the agent's words may hold these. Never protected data.</p>`);
-    out.push(note);
+    const out = heading(
+      "Clinic variables",
+      d.length,
+      "The clinic's own text. Any section of the agent's words may hold these: type { there. Never protected data.",
+    );
+    const clinic = table("Clinic variables", ["Variable", "What it is", "Value", "Used in", ""]);
     for (const v of d) {
       const builtIn = s.built_in.includes(v.name);
       const used = s.used[v.name] ?? [];
-      const r = row(`{${v.name}}`, [builtIn ? "Built in" : "Added", `Used in ${used.length} ${used.length === 1 ? "section" : "sections"}`]);
-      r.dataset.key = v.name;
-      const right = r.querySelector<HTMLElement>(".sys-right")!;
-      const err = r.querySelector<HTMLElement>(".prompt-problem")!;
+      const err = el(`<p class="prompt-problem" role="status" hidden></p>`);
       const check = () => {
         const p = problem(v, d, s);
         err.textContent = p ?? "";
         err.hidden = !p;
-        r.classList.toggle("prompt-bad", !!p);
+        tr.classList.toggle("prompt-bad", !!p);
       };
-      right.append(
-        field("Value", v.value, s.limits.value, (x) => ((v.value = x), check(), kit.changed())),
-        field("Meaning", v.meaning, s.limits.meaning, (x) => ((v.meaning = x), check(), kit.changed())),
-        sectionLinks("Used in", used),
-      );
-      if (!builtIn) {
-        // Removing one the words still use is refused on save, with the section named.
-        const remove = el(`<div class="cfg-control sys-remove"><button class="cfg-link" type="button">Remove</button></div>`);
-        remove.querySelector("button")!.addEventListener("click", () => {
-          d.splice(d.indexOf(v), 1);
-          kit.changed();
-          kit.rerender();
-        });
-        right.append(remove);
+      const valueCell = el(`<div class="sys-cell"></div>`);
+      valueCell.append(field(`${v.name}: value`, v.value, s.limits.value, (x) => ((v.value = x), check(), kit.changed())), err);
+      // Removing one the words still use is refused on save, with the section named.
+      const remove = el(`<div class="cfg-control sys-remove"><button class="cfg-link" type="button">Remove</button></div>`);
+      const removeButton = remove.querySelector<HTMLButtonElement>("button")!;
+      if (builtIn) {
+        removeButton.dataset.off = "";
+        removeButton.title = "Built in: it cannot be removed";
+        removeButton.hidden = true;
       }
+      removeButton.addEventListener("click", () => {
+        d.splice(d.indexOf(v), 1);
+        kit.changed();
+        kit.rerender();
+      });
+      const [tr, help] = row(
+        `{${v.name}}`,
+        [
+          chip(`{${v.name}}`),
+          field(`${v.name}: what it is`, v.meaning, s.limits.meaning, (x) => ((v.meaning = x), check(), kit.changed())),
+          valueCell,
+          used.length === 1 ? "1 section" : `${used.length} sections`,
+          remove,
+        ],
+        [
+          ["Kind:", builtIn ? "Built in. Its value can change; it cannot be removed." : "Added on this page."],
+          ["Used in:", sectionLinks(used)],
+        ],
+      );
+      tr.dataset.key = v.name;
       check();
-      out.push(r);
+      clinic.body.append(tr, help);
     }
-    out.push(addRow(s, d, kit));
+    out.push(clinic.wrap, addRow(s, d, kit));
 
+    // `today` is the code's own; the rest come from the caller or the record during a call.
     const own = s.code_values.filter((c) => !c.from_call);
     const call = s.code_values.filter((c) => c.from_call);
-    out.push(heading("Filled by the code", own.length));
-    out.push(...own.map(codeRow));
-    out.push(heading("From the call", call.length));
-    out.push(el(`<p class="sys-note">Each is filled by the code in its own section only, during a call. Never shown here.</p>`));
-    out.push(...call.map(codeRow));
+    out.push(
+      ...heading(
+        "Code values",
+        s.code_values.length,
+        "Filled by the code, each in its own sections only, during a call. Read only: a value never shows here.",
+      ),
+    );
+    const code = table("Code values", ["Variable", "What it is", "Filled from", "Protected data"]);
+    for (const c of [...own, ...call]) code.body.append(...codeRow(c));
+    out.push(code.wrap);
     return out;
   }
 
-  function codeRow(c: SystemSettings["code_values"][number]): HTMLElement {
+  function codeRow(c: Code): HTMLTableRowElement[] {
     return row(
       `{${c.name}}`,
-      c.protected ? ["Protected"] : [],
-      line("", c.meaning),
-      line("From", c.source),
-      sectionLinks("Used in", c.sections),
+      [chip(`{${c.name}}`), c.meaning, c.source, c.protected ? "Yes" : "No"],
+      [["Used in:", sectionLinks(c.sections)]],
     );
   }
 
-  /** Add a variable (Edit only): a name, a meaning and a value, then Add. */
+  /** Add a variable (Edit only): a name, what it is and a value, then Add. */
   function addRow(s: SystemSettings, d: Draft, kit: Kit): HTMLElement {
     const wrap = el(`
-      <div class="prompt-section sys-add">
-        <div class="prompt-label"><span class="prompt-name">Add a variable</span></div>
-        <div class="sys-right">
-          <div class="cfg-control sys-add-fields">
-            <input class="cfg-field" type="text" placeholder="name" aria-label="Name" spellcheck="false" />
-            <input class="cfg-field" type="text" placeholder="Meaning" aria-label="Meaning" />
-            <input class="cfg-field" type="text" placeholder="Value" aria-label="Value" />
-            <button class="cfg-button" type="button">Add</button>
-          </div>
+      <div class="sys-add">
+        <p class="sys-add-title">Add a variable</p>
+        <div class="cfg-control sys-add-fields">
+          <input class="cfg-field" type="text" placeholder="name, like pharmacy_hours" aria-label="Name" spellcheck="false" />
+          <input class="cfg-field" type="text" placeholder="What it is" aria-label="What it is" />
+          <input class="cfg-field" type="text" placeholder="Value" aria-label="Value" />
+          <button class="cfg-button" type="button">Add</button>
         </div>
         <p class="prompt-problem" role="status" hidden></p>
       </div>`);
@@ -308,30 +355,31 @@ export const systemView = (): View => {
   }
 
   function tools(s: SystemSettings): HTMLElement[] {
+    // The tools of some steps first, in the call's order; then the tools of every step.
     const every = s.tools.filter((t) => t.steps.includes("every"));
     const some = s.tools.filter((t) => !t.steps.includes("every"));
-    const out: HTMLElement[] = [
-      el(`<p class="sys-note">In the agent's words, type a space and a period to name a tool.</p>`),
-      heading("In every step", every.length),
-      ...every.map(toolRow),
-      heading("In some steps", some.length),
-      ...some.map(toolRow),
-    ];
+    const out = heading(
+      "Tools",
+      s.tools.length,
+      "What the agent can do during a call. To name one in the agent's words, type a space and a period.",
+    );
+    const t = table("Tools", ["Tool", "Name in the words", "What it does", "Steps"]);
+    for (const tool of [...some, ...every]) t.body.append(...toolRow(tool));
+    out.push(t.wrap);
     return out;
   }
 
-  function toolRow(t: SystemSettings["tools"][number]): HTMLElement {
-    const words = [`tool.${t.name}`, ...t.args.map((a) => `arg.${t.name}.${a}`)].filter((k) => SECTIONS.some(([x]) => x === k));
-    const r = row(
-      t.name,
-      RECORD_WORDS[t.record] ? [RECORD_WORDS[t.record]] : [],
-      line("", t.does),
-      line("Steps", t.steps.map((x) => STEP_WORDS[x] ?? x).join(", ")),
-      line("Fields", t.args.length ? t.args.join(", ") : "None"),
-      sectionLinks("Says", t.lines),
-      sectionLinks("Its words", words),
+  function toolRow(t: Tool): HTMLTableRowElement[] {
+    const words = [`tool.${t.name}`, ...t.args.map((a) => `arg.${t.name}.${a}`)].filter(hasSection);
+    return row(
+      sectionName(`tool.${t.name}`),
+      [sectionName(`tool.${t.name}`), chip(t.name), t.does, t.steps.map((x) => STEP_WORDS[x] ?? x).join(", ")],
+      [
+        ["Record:", RECORD_WORDS[t.record] ?? ""],
+        ["Fields:", t.args.length ? t.args.map((a) => sectionName(`arg.${t.name}.${a}`)).join(", ") : "None"],
+        ["Lines it can speak:", sectionLinks(t.lines)],
+        ["Its words:", sectionLinks(words)],
+      ],
     );
-    r.querySelector(".prompt-name")!.classList.add("prompt-tool");
-    return r;
   }
 };

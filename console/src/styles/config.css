@@ -679,6 +679,33 @@ select.cfg-field {
   border-top: var(--edge) solid var(--line);
 }
 
+/* Config › Agent's sections (AGENT-PAGE.md): the "i" of a Config row before the name; its help
+   rolls down under the name and the words. The name alone says what the row is. */
+.prompt-section.prompt-has-info {
+  grid-template-columns: var(--info-size) var(--cfg-label) minmax(0, 1fr);
+  grid-template-areas:
+    "info label words"
+    ".    help  help"
+    ".    .     problem";
+  row-gap: 0;
+}
+
+/* The "i" sits level with the words' first line: centred in a field's height. */
+.prompt-has-info .cfg-info {
+  margin-top: calc((var(--field-height) - var(--info-size)) / 2);
+}
+
+.prompt-help {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: none;
+}
+
+.prompt-help-key {
+  color: var(--text-3);
+}
+
 /* Narrower than one Cartesia card (the same width as its rows' rule): the name over the words. */
 @container cfg (max-width: 581px) {
   .prompt-section {
@@ -687,6 +714,15 @@ select.cfg-field {
       "label"
       "words"
       "problem";
+  }
+
+  .prompt-section.prompt-has-info {
+    grid-template-columns: var(--info-size) minmax(0, 1fr);
+    grid-template-areas:
+      "info label"
+      "words words"
+      "help help"
+      "problem problem";
   }
 }
 
@@ -808,6 +844,40 @@ select.cfg-field {
   border-color: var(--error);
 }
 
+/* Flow: a tool and everything it can produce, as one block set in from the left, with the
+   tool's chip and name at its head. */
+.prompt-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-left: var(--space-4);
+  border-left: calc(var(--edge) * 2) solid var(--line);
+}
+
+.prompt-block-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  font-weight: var(--weight-bold);
+  color: var(--title);
+}
+
+.prompt-block-head .prompt-tool {
+  font-weight: var(--weight-regular);
+}
+
+/* A tool offered here that sits in another step: a link to it. */
+.prompt-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
 /* A section another page asked for (System's links): the older version's glow (.cfg-changed),
    once, fading out. */
 .prompt-flash {
@@ -851,50 +921,72 @@ select.cfg-field {
 
 /* ---------------------------------------------------------------- Config › System */
 
-/* SYSTEM-PAGE.md §3.6: Config › Agent's sections, with more than one line at the right: each
-   value and meaning (Read's text, Edit's box), then the facts as small lines. */
-.sys-right {
-  grid-area: words;
+/* SYSTEM-PAGE.md §3.6 (the owner, 2026-11-13: "use tables where there are multiple rows of
+   things"): each list is a table with a header row; each row's title says what it is, and its
+   "i" rolls the rest down in a row under it. The type is body size, as on Config › Agent; the
+   header is the Cartesia tables' (.cfg-table th). Wider than the view: the table scrolls
+   sideways inside its own box, never the page. */
+.sys-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.sys-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sys-table th {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--edge) solid var(--line);
+  font-size: var(--text-small);
+  font-weight: var(--weight-regular);
+  color: var(--text-3);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sys-table td {
+  padding: var(--space-3);
+  vertical-align: top;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
+/* The "i" column: as wide as the "i", flush with the table's left edge. */
+.sys-table .sys-i {
+  width: var(--info-size);
+  padding-left: 0;
+}
+
+/* The line between rows sits under each row's help, so an open help stays with its row. */
+.sys-help-row td {
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: var(--edge) solid var(--line);
+}
+
+.sys-help-row .cfg-help-text {
+  padding-bottom: var(--space-3);
+}
+
+/* An editable cell keeps Config › Agent's words and box (.prompt-control) at the cell's edge. */
+.sys-table .prompt-control {
+  margin: calc(-1 * var(--space-3)) 0;
+}
+
+.sys-cell {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   min-width: 0;
-  padding-top: var(--space-3);
 }
 
-.sys-field {
-  display: grid;
-  grid-template-columns: var(--cfg-number) minmax(0, 1fr);
-  align-items: start;
-  column-gap: var(--space-3);
+.sys-table tr.prompt-bad .prompt-text {
+  border-color: var(--error);
 }
 
-/* The field's own label sits level with its first line of text (the words' top padding). */
-.sys-field .sys-key {
-  padding-top: var(--space-3);
-}
-
-.sys-field .prompt-control {
-  grid-area: auto;
-}
-
-.sys-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-2);
-  font-size: var(--text-small);
-  color: var(--text-2);
-}
-
-.sys-key {
-  min-width: var(--cfg-number);
-  font-size: var(--text-small);
-  color: var(--text-3);
-}
-
-.sys-key:empty {
-  display: none;
+.sys-links {
+  display: inline;
 }
 
 .sys-note {
@@ -904,6 +996,21 @@ select.cfg-field {
 
 .sys-remove {
   min-height: 0;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+/* Add a variable: under the table, a title, then the three fields and Add on one line. */
+.sys-add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+}
+
+.sys-add-title {
+  font-size: var(--text-small);
+  color: var(--text-3);
 }
 
 .sys-add-fields {

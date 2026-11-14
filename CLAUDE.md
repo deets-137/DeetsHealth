@@ -132,6 +132,10 @@ the branch `archive/patient-app`.
 - `PROMPT-EDITOR.md` — editing the agent's words in the console (built as Config › Agent,
   CONSOLE.md §9): how a save reaches every call that starts after it (versions, a call keeps
   its own copy, the file written back), Record and test, and the analyst's test path later.
+- `AGENT-PAGE.md` — Config › Agent arranged by the call (built; `agent/prompts/GUIDE.md` holds
+  each section's tab, name and "plays when"): the tabs Greet … Failure,
+  each line under the tool that speaks it, Semantic for the new analyst and Flow for the power
+  user, every section's "plays when".
 - `SYSTEM-PAGE.md` — Config › System: the System variables (the clinic's, and the
   analyst's own), the code values, the tools; the `{` and " ." lists on Config › Agent; the
   checks; the rules engine idea.

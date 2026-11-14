@@ -482,6 +482,27 @@ def load_tools(path: Path | None = None) -> dict[str, dict[str, Any]]:
     return out
 
 
+GUIDE_FILE = PROMPT_FILE.with_name("GUIDE.md")
+# Config › Agent's tabs (AGENT-PAGE.md §2), in the call's order; one word each (the owner).
+GUIDE_TABS = ("Greet", "Verify", "Menu", "Schedule", "Anytime", "Failure")
+
+
+def load_guide(path: Path | None = None) -> list[dict[str, str]]:
+    """Config › Agent's guide (GUIDE.md): per section, in the page's order, its key, tab, name,
+    the tool it sits under ("" for none) and when it plays."""
+    out: list[dict[str, str]] = []
+    for line in (path or GUIDE_FILE).read_text(encoding="utf-8").replace("\r\n", "\n").split("\n"):
+        heading = re.match(r"^## (\S+)\s*$", line)
+        if heading:
+            out.append({"key": heading.group(1), "tab": "", "name": "", "under": "", "plays": ""})
+        elif out:
+            for field_name in ("tab", "name", "under", "plays"):
+                if line.startswith(f"{field_name}:"):
+                    value = line[len(field_name) + 1 :].strip()
+                    out[-1][field_name] = "" if value == "-" else value
+    return out
+
+
 def file_digest() -> str:
     """The digest of the prompt file and the variables file."""
     return digest(load(), load_variables())

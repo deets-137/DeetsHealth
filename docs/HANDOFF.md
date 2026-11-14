@@ -129,7 +129,21 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   own; a tool in the words is named in backticks and checked against its steps; `{` and " ."
   lists on Config › Agent; the Tools tab reads `agent/prompts/TOOLS.md`. **Restart `npm run dev`
   first**, then SYSTEM-PAGE.md §5. Open: the existing plain tool names in the words are not in
-  backticks yet (a words change: Record and test after); the rules engine (§8).
+  backticks yet (a words change: Record and test after); the rules engine (§8). Since then its
+  lists are tables, each row with an "i" (SYSTEM-PAGE.md §5 steps 2, 11, 11a).
+- **Built, desk test open: Config › Agent arranged by the call** (2026-11-13; the owner's 2A).
+  Tabs Greet · Verify · Menu · Schedule · Anytime · Failure; each line under the tool that
+  speaks it; Semantic (new analyst) | Flow (power user); each title says what the row is, and
+  its "i" says when it plays. Names and "plays when" live in `agent/prompts/GUIDE.md`; the owner
+  edits them there after the desk test. AGENT-PAGE.md §5a.
+- **The owner's desk-test words are still in the files:** `{test}` in two lines and "First Street
+  Pizza" in `AGENT-PROMPT.md` and `VARIABLES.md` (not committed). Until they go back, or
+  Record and test records them, the replay tests miss and `npm run check` fails at the stamp.
+- **Next for booking (owner's 1A, 2026-11-13):** `find_slots` gets an optional `visit_mode` from
+  the caller's words; `BookReply` carries a `Visit` built from the booked Appointment (type,
+  online, reason, through the sensitive screen), and `line.booked` adds the visit lines. Waits
+  on: what Epic's `$find` needs (the owner's knowledge), then a sandbox probe of `$find` and
+  `$book` (a write to Epic's shared sandbox: ask first). E-4 in EPIC.md.
 - **Built, desk test open: Config › Agent, the agent's words in the console** (2026-11-13; the
   owner's five tabs, Semantic | Flow, the names list). Every section of AGENT-PROMPT.md, versioned
   in the store (`prompt` service, migration 0005); a save writes the file and reaches the next

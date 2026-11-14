@@ -1,10 +1,12 @@
-// Config › Agent (CONSOLE.md §9; the owner, 2026-11-13): every section of the agent's words
-// (agent/prompts/AGENT-PROMPT.md) in the Config frame (config-kit.ts: Read | Edit, the versions,
-// Discard | Save). Under the top row, a tab bar of five groups and a Semantic | Flow bar:
-// Semantic sorts a group's sections under headings (what the section is); Flow lists them in the
-// order of the call. A save makes a new version that the next test call runs with, and writes
-// the prompt file; Record and test records the kept scripts with the new words and runs the
-// tests, after a free dry run has quoted what it will cost.
+// Config › Agent (CONSOLE.md §9; AGENT-PAGE.md, the owner, 2026-11-13): every section of the
+// agent's words (agent/prompts/AGENT-PROMPT.md) in the Config frame (config-kit.ts: Read | Edit,
+// the versions, Discard | Save). The tabs are the call's steps, Greet … Failure; each line sits
+// under the tool that speaks it, and every section says when it plays (agent/prompts/GUIDE.md).
+// Semantic (the default, for the analyst new to this) groups a tab by what each section is;
+// Flow (for the power user) shows the step as the code runs it, a block per tool, with keys. A
+// save makes a new version that the next test call runs with, and writes the prompt file;
+// Record and test records the kept scripts with the new words and runs the tests, after a free
+// dry run has quoted what it will cost.
 //
 // The owner's notes (2026-11-13): the names say what a section does at first try; Read shows the
 // words as text and Edit as boxes, with a fade between them; the name sits left of the words, as
@@ -29,8 +31,30 @@ type Values = Record<string, string>;
 type Kind = "instructions" | "act" | "field" | "hears" | "text";
 type Order = "semantic" | "flow";
 
-const TABS = ["General", "Open and close", "Verify", "Visits", "Safety"] as const;
+// The call's steps, in its order; one word each (the owner, 2026-11-13). prompts.py › GUIDE_TABS.
+const TABS = ["Greet", "Verify", "Menu", "Schedule", "Anytime", "Failure"] as const;
 type Tab = (typeof TABS)[number];
+// A step's tab, for the tools offered there (flow.py › tool_steps; "every" is Anytime).
+const STEP_TAB: Record<string, Tab> = { greet: "Greet", verify: "Verify", menu: "Menu", schedule: "Schedule", every: "Anytime" };
+// The tab a browser remembered from the five groups before (AGENT-PAGE.md §4).
+const OLD_TAB: Record<string, Tab> = { General: "Anytime", "Open and close": "Anytime", Visits: "Menu", Safety: "Anytime" };
+
+/** One section's place on the page (GUIDE.md): its tab, its name, the tool it sits under ("" for
+ * none) and when it plays. */
+export type GuideEntry = { key: string; tab: Tab; name: string; under: string; plays: string };
+/** What prompt_view sends beyond PromptSettings: the guide, and each tool's steps. */
+type Guided = Omit<PromptSettings, "tools"> & { guide: GuideEntry[]; tools: { name: string; does: string; steps: string[] }[] };
+
+// The guide, as the last view loaded it: other pages name sections by it (System's links).
+let GUIDE: GuideEntry[] = [];
+/** Take the guide from a view's reply (this page's or System's). */
+export const useGuide = (g: GuideEntry[] | undefined) => {
+  if (g?.length) GUIDE = g;
+};
+/** A section's name on this page, for another page's links ("Used in"). */
+export const sectionName = (key: string) => GUIDE.find((g) => g.key === key)?.name ?? key;
+/** Whether the page has a section by this key. */
+export const hasSection = (key: string) => GUIDE.some((g) => g.key === key);
 
 /** Ask Config › Agent to show one section: its tab, then the section, which flashes (Config ›
  * System's links). The Agent view need not be built yet: it reads the ask when it is. */
@@ -38,109 +62,12 @@ export const SHOW_SECTION = "deets:show-section";
 /** Config › System saved new variables: the `{` list and the checks use them at once. */
 export const SYSTEM_SAVED = "deets:system-saved";
 
-// Semantic's headings, in their order. An action's fields sit under it in "When to act" (the
-// owner, 2026-11-13), so fields have no heading of their own.
+// Semantic's headings, in their order (AGENT-PAGE.md §3): what each section is, in plain words.
+// A tool's fields sit under it in "What the agent can do".
 const HEADINGS: [string, Kind[]][] = [
-  ["Instructions", ["instructions"]],
-  ["When to act", ["act", "field"]],
-  ["Caller hears", ["hears"]],
-  ["Text message", ["text"]],
-];
-// Flow's tag for each kind, over the name.
-const TAG: Record<Kind, string> = {
-  instructions: "Instructions",
-  act: "When to act",
-  field: "Field",
-  hears: "Caller hears",
-  text: "Text message",
-};
-
-/** Each section: its tab and its name, in the order of the call within the tab (Flow's
- * order); each field right after its action. The kind comes from the key.
- * agent/tests/test_prompts.py checks that every section the agent reads is here once. */
-export const SECTIONS: [string, Tab, string][] = [
-  ["role", "General", "Role and rules"],
-  ["line.one_moment", "General", "Looking it up"],
-  ["line.say_again", "General", "Did not hear clearly"],
-  ["line.not_on_this_call", "General", "Not possible on this call"],
-  ["line.not_now", "General", "Failed for now"],
-  ["line.ehr_down", "General", "Scheduling system down"],
-
-  ["line.greeting", "Open and close", "Greeting"],
-  ["tool.end_call", "Open and close", "End the call"],
-  ["line.goodbye", "Open and close", "Goodbye"],
-  ["tool.hand_off", "Open and close", "Connect to a person"],
-  ["arg.hand_off.kind", "Open and close", "Reason for a person"],
-  ["arg.hand_off.summary", "Open and close", "Summary for staff"],
-  ["arg.hand_off.evidence", "Open and close", "Caller's words for staff"],
-  ["line.hand_off", "Open and close", "Connecting to a person"],
-  ["tool.offer_staff", "Open and close", "Offer a person"],
-  ["arg.offer_staff.why", "Open and close", "Reason for the offer"],
-  ["line.offer_staff", "Open and close", "Cannot help, offer a person"],
-  ["line.offer_staff_private", "Open and close", "Private reason, offer a person"],
-
-  ["task.greet", "Verify", "Step 1: name and date of birth"],
-  ["line.ask_details", "Verify", "Ask for details"],
-  ["line.name_not_said", "Verify", "Full name not heard"],
-  ["line.birth_not_possible", "Verify", "Date of birth not real"],
-  ["tool.identify", "Verify", "Read back details"],
-  ["arg.identify.given_name", "Verify", "First name"],
-  ["arg.identify.family_name", "Verify", "Last name"],
-  ["arg.identify.birth_date", "Verify", "Date of birth"],
-  ["line.read_back", "Verify", "Read back details"],
-  ["tool.confirm_details", "Verify", "Look up and send code"],
-  ["text.code", "Verify", "Code text"],
-  ["line.code_sent", "Verify", "Code sent"],
-  ["task.verify", "Verify", "Step 2: check the code"],
-  ["tool.check_code", "Verify", "Check the code"],
-  ["arg.check_code.code", "Verify", "Code"],
-  ["line.code_length", "Verify", "Code not 6 digits"],
-  ["line.code_wrong", "Verify", "Code does not match"],
-  ["tool.resend_code", "Verify", "Send a new code"],
-  ["line.code_resent", "Verify", "New code sent"],
-  ["line.no_more_codes", "Verify", "No more codes"],
-  ["line.verified", "Verify", "Verified"],
-  ["line.locked", "Verify", "Cannot verify"],
-  ["line.hand_off_code", "Verify", "Code does not work"],
-
-  ["task.menu", "Visits", "Step 3: what the caller needs"],
-  ["tool.find_slots", "Visits", "Find open times"],
-  ["arg.find_slots.reason", "Visits", "Reason for the visit"],
-  ["arg.find_slots.earliest_day", "Visits", "Earliest day"],
-  ["line.slots", "Visits", "Open times"],
-  ["line.slot_option", "Visits", "One open time (part)"],
-  ["line.no_slots", "Visits", "No open times"],
-  ["task.schedule", "Visits", "Step 4: choose and book"],
-  ["line.which_option", "Visits", "Which time?"],
-  ["tool.choose_option", "Visits", "Read back a time"],
-  ["arg.choose_option.option", "Visits", "Option number"],
-  ["line.confirm_slot", "Visits", "Confirm the time"],
-  ["tool.book", "Visits", "Book the time"],
-  ["line.booked", "Visits", "Booked"],
-  ["line.slot_taken", "Visits", "Time just taken"],
-  ["tool.next_visit", "Visits", "Tell the next visit"],
-  ["line.next_visit", "Visits", "Next visit"],
-  ["line.visit_type", "Visits", "Visit type (part)"],
-  ["line.visit_reason", "Visits", "Visit reason (part)"],
-  ["line.visit_online", "Visits", "Online visit (part)"],
-  ["line.no_visits", "Visits", "No visits coming up"],
-  ["note.after_next_visit", "Visits", "After the next visit"],
-  ["tool.change_visit", "Visits", "Change or cancel a visit"],
-  ["line.change_visit", "Visits", "Change or cancel a visit"],
-  ["line.change_booked", "Visits", "Visit stays booked"],
-
-  ["tool.emergency", "Safety", "Emergency"],
-  ["line.emergency", "Safety", "Call 911"],
-  ["tool.safety_reminder", "Safety", "911 reminder"],
-  ["line.emergency_reminder", "Safety", "911 reminder"],
-  ["note.after_reminder", "Safety", "After the 911 reminder"],
-  ["tool.medical_question", "Safety", "Medical question"],
-  ["line.medical_question", "Safety", "Cannot answer medical questions"],
-  ["tool.flag_for_staff", "Safety", "Flag for a nurse"],
-  ["arg.flag_for_staff.kind", "Safety", "Kind of flag"],
-  ["arg.flag_for_staff.summary", "Safety", "Summary for the nurse"],
-  ["arg.flag_for_staff.evidence", "Safety", "Caller's words for the nurse"],
-  ["note.after_flag", "Safety", "After a flag"],
+  ["What the agent is told", ["instructions"]],
+  ["What the agent can do", ["act", "field"]],
+  ["What the caller hears", ["hears", "text"]],
 ];
 
 const kindOf = (key: string): Kind => {
@@ -157,8 +84,16 @@ const kindOf = (key: string): Kind => {
 const ORDER_KEY = "deets.console.agent.order";
 const TAB_KEY = "deets.console.agent.tab";
 
-/** A section's name on this page, for another page's links ("Used in"). */
-export const sectionName = (key: string) => SECTIONS.find(([k]) => k === key)?.[2] ?? key;
+/** The tab this browser opened last; a name from the five groups before maps to its new tab. */
+function rememberedTab(): Tab {
+  try {
+    const v = localStorage.getItem(TAB_KEY) ?? "";
+    if ((TABS as readonly string[]).includes(v)) return v as Tab;
+    return OLD_TAB[v] ?? "Greet";
+  } catch {
+    return "Greet";
+  }
+}
 
 /** What the page knows of the variables and tools (dev_server.py › prompt_view). */
 type Words = Pick<PromptSettings, "variables" | "code_values" | "tools" | "tool_scope" | "placeholders">;
@@ -263,55 +198,63 @@ const dollars = (x: number) => (x > 0 && x < 0.01 ? "under $0.01" : `$${x.toFixe
 
 export const agentView = (): View => {
   let order: Order = remembered(ORDER_KEY, ["semantic", "flow"] as const, "semantic");
-  let tab: Tab = remembered(TAB_KEY, TABS, "General");
+  let tab: Tab = rememberedTab();
   // Set by a click on a tab bar, read by the next drawing: the pill slides from that tab.
   let slideTab: string | undefined;
   let slideOrder: string | undefined;
   // The latest settings, for the Record and test line (it updates without drawing the cards),
   // and for the variables and tools the lists and checks use.
-  let latest: PromptSettings | undefined;
+  let latest: Guided | undefined;
   let poll: number | undefined;
   // Another page's ask to show a section (SHOW_SECTION), until the next drawing shows it.
   let pending: string | undefined;
   let redraw: ((toTop?: boolean) => void) | undefined;
 
-  window.addEventListener(SHOW_SECTION, (e) => {
-    const key = (e as CustomEvent<string>).detail;
-    const found = SECTIONS.find(([k]) => k === key);
+  /** Open a section's tab and bring it into view (System's links; this page's own links). */
+  const showSection = (key: string) => {
+    const found = GUIDE.find((g) => g.key === key);
     if (!found) return;
-    tab = found[1];
+    tab = found.tab;
     remember(TAB_KEY, tab);
     pending = key;
-    redraw?.();
-  });
+    redraw?.(true);
+  };
+  window.addEventListener(SHOW_SECTION, (e) => showSection((e as CustomEvent<string>).detail));
   window.addEventListener(SYSTEM_SAVED, (e) => {
     if (!latest) return;
     latest.variables = (e as CustomEvent<PromptSettings["variables"]>).detail;
     redraw?.();
   });
 
+  const take = (s: PromptSettings) => {
+    latest = s as Guided;
+    useGuide(latest.guide);
+    return latest;
+  };
+
   return settingsView<Values, Values, PromptSettings>({
     id: "agent",
     title: "Agent",
-    load: async (version) => (latest = await promptSettings(version)),
-    save: async (_s, d) => (latest = await savePrompt(d)),
+    load: async (version) => take(await promptSettings(version)),
+    save: async (_s, d) => take(await savePrompt(d)),
     fromValues: (v) => ({ ...v }),
     differing,
     blocked: (d) => {
       if (!latest) return null;
-      for (const [key, t, name] of SECTIONS) {
-        const p = problem(key, d[key] ?? "", latest);
-        if (p) return `${t} › ${name}: ${p}`;
+      for (const g of GUIDE) {
+        const p = problem(g.key, d[g.key] ?? "", latest);
+        if (p) return `${g.tab} › ${g.name}: ${p}`;
       }
       return null;
     },
-    render: (s, d, kit) => render(s, d, kit),
+    render: (s, d, kit) => render(s as Guided, d, kit),
   });
 
-  function render(s: PromptSettings, d: Values, kit: Kit) {
+  function render(s: Guided, d: Values, kit: Kit) {
     redraw = kit.rerender;
     // The variables and tools: the latest known (a System save updates them), else this load's.
-    const w: Words = latest ?? s;
+    const w: Guided = latest ?? s;
+    const guide = w.guide ?? [];
     const wanted = (key: string) => s.placeholders[key] ?? [];
     const card = el(`<section class="cfg-card prompt-card"></section>`);
     card.dataset.card = "prompt";
@@ -323,7 +266,7 @@ export const agentView = (): View => {
     const orderFrom = slideOrder;
     slideTab = slideOrder = undefined;
     const tabBar = bar(
-      "Section group",
+      "Step of the call",
       TABS.map((t) => [t, t]),
       tab,
       (v) => {
@@ -352,38 +295,55 @@ export const agentView = (): View => {
     bars.append(tabBar.el, orderBar.el);
     const markBad = () => {
       for (const t of TABS) {
-        const bad = SECTIONS.some(([key, st]) => st === t && problem(key, d[key] ?? "", w));
+        const bad = guide.some((g) => g.tab === t && problem(g.key, d[g.key] ?? "", w));
         tabBar.button(t)?.classList.toggle("prompt-tab-bad", bad);
       }
     };
     markBad();
 
-    // ---- one section: its name at the left (as on a Cartesia row), its words at the right.
-    // The words are two layers in one place: the text (Read) and the box (Edit), with the same
-    // padding, edge width, type and wrapping, so the box fades in over the text without a shift.
-    const section = (key: string, name: string) => {
+    // ---- one section: the "i", its name (the name alone says what the row is), its words.
+    // The "i" rolls down the rest, as on every Config row (config-kit.ts › row): when it plays,
+    // the code values it keeps, and in Flow its key. The words are two layers in one place: the
+    // text (Read) and the box (Edit), with the same padding, edge width, type and wrapping, so
+    // the box fades in over the text without a shift.
+    const section = (g: GuideEntry) => {
+      const key = g.key;
       const kind = kindOf(key);
       const need = wanted(key);
       const r = el(`
-        <div class="prompt-section">
-          <div class="prompt-label"><span class="prompt-tag"></span><span class="prompt-name"></span><span class="prompt-keeps"></span></div>
+        <div class="prompt-section prompt-has-info">
+          <button class="cfg-info" type="button" aria-expanded="false"><span class="i-glyph" aria-hidden="true">i</span></button>
+          <div class="prompt-label"><span class="prompt-name"></span></div>
           <div class="cfg-control prompt-control">
             <div class="prompt-words"></div>
             <textarea class="cfg-field prompt-text" rows="1" spellcheck="true"></textarea>
           </div>
+          <div class="cfg-help"><div class="cfg-help-text prompt-help"></div></div>
           <p class="prompt-problem" role="status"></p>
         </div>`);
       r.dataset.key = key;
       r.dataset.kind = kind;
-      const tagEl = r.querySelector<HTMLElement>(".prompt-tag")!;
-      tagEl.textContent = TAG[kind];
-      tagEl.hidden = order !== "flow";
-      const nameEl = r.querySelector<HTMLElement>(".prompt-name")!;
-      nameEl.textContent = name;
-      nameEl.title = key; // the key in the prompt file, on hover only
-      const keeps = r.querySelector<HTMLElement>(".prompt-keeps")!;
-      keeps.textContent = need.length ? `Keeps ${need.map((p) => `{${p}}`).join(" ")}` : "";
-      keeps.hidden = !need.length;
+      const name = g.name;
+      r.querySelector<HTMLElement>(".prompt-name")!.textContent = name;
+      const help = r.querySelector<HTMLElement>(".prompt-help")!;
+      const fact = (label: string, text: string) => {
+        const p = el(`<p><span class="prompt-help-key"></span> </p>`);
+        p.firstElementChild!.textContent = label;
+        p.append(text);
+        help.append(p);
+      };
+      fact("Plays when:", g.plays);
+      if (need.length) fact("Keeps:", need.map((p) => `{${p}}`).join(" "));
+      if (order === "flow") fact("Key:", key);
+      const info = r.querySelector<HTMLButtonElement>(".cfg-info")!;
+      const helpBox = r.querySelector<HTMLElement>(".cfg-help")!;
+      info.setAttribute("aria-label", `About ${name}`);
+      // The help rolls down and up (config.css › .cfg-help); the "i" stays live in Read.
+      info.addEventListener("click", () => {
+        const open = !helpBox.classList.contains("open");
+        helpBox.classList.toggle("open", open);
+        info.setAttribute("aria-expanded", String(open));
+      });
       const words = r.querySelector<HTMLElement>(".prompt-words")!;
       const box = r.querySelector<HTMLTextAreaElement>("textarea")!;
       const err = r.querySelector<HTMLElement>(".prompt-problem")!;
@@ -410,19 +370,62 @@ export const agentView = (): View => {
       return r;
     };
 
-    const rows = SECTIONS.filter(([, t]) => t === tab);
+    // A tool offered in more than one step sits once, in its first step; each other step shows a
+    // link to it (AGENT-PAGE.md §2).
+    const home = (steps: string[]) => STEP_TAB[steps[0]];
+    const links = w.tools.filter((t) => t.steps.some((x) => STEP_TAB[x] === tab) && home(t.steps) !== tab);
+    const linkRow = () => {
+      const p = el(`<p class="prompt-links"><span>Also here:</span></p>`);
+      links.forEach((t, i) => {
+        if (i) p.append(" · ");
+        const a = el(`<button class="cfg-link" type="button"></button>`) as HTMLButtonElement;
+        a.textContent = `${sectionName(`tool.${t.name}`)} · in ${home(t.steps)}`;
+        a.addEventListener("click", () => {
+          slideTab = tab;
+          showSection(`tool.${t.name}`);
+        });
+        p.append(a);
+      });
+      return p;
+    };
+    const heading = (text: string, count: number) => {
+      const h = el(`<h3 class="prompt-heading"><span></span><span class="prompt-count"></span></h3>`);
+      h.firstElementChild!.textContent = text;
+      h.lastElementChild!.textContent = String(count);
+      return h;
+    };
+
+    const rows = guide.filter((g) => g.tab === tab);
     const body = el(`<div class="prompt-sections"></div>`);
     if (order === "semantic") {
-      for (const [heading, kinds] of HEADINGS) {
-        const these = rows.filter(([key]) => kinds.includes(kindOf(key)));
-        if (!these.length) continue;
-        const h = el(`<h3 class="prompt-heading"><span></span><span class="prompt-count"></span></h3>`);
-        h.firstElementChild!.textContent = heading;
-        h.lastElementChild!.textContent = String(these.length);
-        body.append(h, ...these.map(([key, , name]) => section(key, name)));
+      // For the analyst new to this: by what each section is, in plain words.
+      for (const [text, kinds] of HEADINGS) {
+        const these = rows.filter((g) => kinds.includes(kindOf(g.key)));
+        const linked = kinds.includes("act") && links.length;
+        if (!these.length && !linked) continue;
+        body.append(heading(text, these.length), ...these.map(section));
+        if (linked) body.append(linkRow());
       }
     } else {
-      body.append(...rows.map(([key, , name]) => section(key, name)));
+      // For the power user: the step as the code runs it. Each tool is a block: its words, its
+      // fields, then every line and note it can produce.
+      const blocks = new Map<string, HTMLElement>();
+      for (const g of rows) {
+        if (!g.under) {
+          body.append(section(g));
+          continue;
+        }
+        let block = blocks.get(g.under);
+        if (!block) {
+          block = el(`<div class="prompt-block"><p class="prompt-block-head"><span class="prompt-tool"></span><span class="prompt-block-name"></span></p></div>`);
+          block.querySelector(".prompt-tool")!.textContent = g.under;
+          block.querySelector(".prompt-block-name")!.textContent = sectionName(`tool.${g.under}`);
+          blocks.set(g.under, block);
+          body.append(block);
+        }
+        block.append(section(g));
+      }
+      if (links.length) body.append(linkRow());
     }
 
     card.append(bars, recordLine(s), body);
@@ -451,7 +454,7 @@ export const agentView = (): View => {
       // An older version: a tab with a changed section shows a dot, in either order.
       glow: (diff: Set<string>) => {
         for (const t of TABS) {
-          const changed = SECTIONS.some(([key, st]) => st === t && diff.has(key));
+          const changed = guide.some((g) => g.tab === t && diff.has(g.key));
           tabBar.button(t)?.classList.toggle("prompt-tab-changed", changed);
         }
       },

@@ -24,6 +24,19 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   `/agent/system`; Config › System, the lists, tool chips, links to sections on Config › Agent.
   Record schema 10 (`system_version`). The 142 replay tests pass unchanged, so the recordings
   stamp was written for the new digest (it now covers the variables too).
+- First desk test: `{clinic}` worked; `{test}` sat in two lines that never played (the line
+  names misled). Screenshot: `images/system-test-variable-2026-11-13.png`.
+- A fixed line once came after the model's next words (1 of 562 in the records): `_say` now
+  pushes it out of the LLM (`c282861`).
+- Booking: Find and Book still use the stand-in on Epic (E-4); `BookReply` echoes the slot. The
+  owner chose 1A (an optional `visit_mode`, from the caller's words); the plan waits on what
+  Epic's `$find` needs. Nothing built.
+- Config › Agent rebuilt by the call (owner's 2A): tabs Greet … Failure, each line under its
+  tool, Semantic for the new analyst and Flow for the power user, titles that say what the row
+  is, the rest under an "i" (`agent/prompts/GUIDE.md`; AGENT-PAGE.md). Config › System's lists
+  became tables with an "i" per row. Desk tests open for both.
+- The tunnel session works in the same checkout: files were split by message; each commit
+  stages by path or by hunk.
 
 ## 2026-11-13 (Windows, tunnel) — The demo over a tunnel, on paper
 - The owner asked for a Cloudflare Tunnel so friends can try the console. He chose full

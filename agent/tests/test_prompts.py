@@ -57,17 +57,34 @@ def test_ehr_checks_the_same_sections_and_placeholders():
     assert found == PLACEHOLDERS
 
 
-def test_the_agent_page_names_every_section_once():
-    """Config › Agent (console/src/pages/agent.ts › SECTIONS) puts each section in one tab with
-    a name; a section left out would be missing from the page."""
-    import re
+def test_the_guide_places_every_section_once_where_the_code_runs_it():
+    """Config › Agent reads agent/prompts/GUIDE.md (AGENT-PAGE.md): each section once, with a
+    tab, a name and a "plays when"; a tool and everything under it sit in the tool's first step
+    (Anytime for the tools of every step); a task in its own step; a field under its tool."""
+    from deets_agent import flow, prompts
 
-    from deets_agent import config
-
-    ts = (config.REPO / "console" / "src" / "pages" / "agent.ts").read_text(encoding="utf-8")
-    block = ts.split("const SECTIONS: [string, Tab, string][] = [", 1)[1].split("];", 1)[0]
-    keys = re.findall(r'\["([a-z_.]+)", "', block)
+    guide = prompts.load_guide()
+    keys = [g["key"] for g in guide]
     assert sorted(keys) == sorted(PLACEHOLDERS) and len(keys) == len(set(keys))
+    # The title alone says what the row is (the owner, 2026-11-13): no two alike.
+    names = [g["name"] for g in guide]
+    assert len(names) == len(set(names)), sorted(n for n in names if names.count(n) > 1)
+    steps = flow.tool_steps()
+    home = {t: ("Anytime" if s == ("every",) else s[0].capitalize()) for t, s in steps.items()}
+    for g in guide:
+        assert g["tab"] in prompts.GUIDE_TABS and g["name"] and g["plays"], g["key"]
+        kind, _, rest = g["key"].partition(".")
+        if kind in ("tool", "arg"):
+            assert g["under"] == rest.split(".")[0], g["key"]
+        if g["under"]:
+            assert g["under"] in steps and g["tab"] == home[g["under"]], g["key"]
+        if kind == "task":
+            assert g["tab"] == rest.capitalize(), g["key"]
+        if kind == "note":
+            assert g["under"] == flow.NOTE_TOOL[g["key"]], g["key"]
+    assert {g["key"] for g in guide if g["tab"] == "Failure"} == {
+        k for k in PLACEHOLDERS if k.startswith("line.") and not any(g["key"] == k and g["under"] for g in guide)
+    } - {"line.greeting"}
 
 
 def test_each_call_uses_its_own_words():

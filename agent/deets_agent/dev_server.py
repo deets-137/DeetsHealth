@@ -773,7 +773,7 @@ async def prompt_view(state: State, version: int) -> dict[str, Any]:
     view.update(
         variables=_variables_list(variables),
         code_values=_code_values(),
-        tools=[{"name": t["name"], "does": t["does"]} for t in _tools()],
+        tools=[{"name": t["name"], "does": t["does"], "steps": t["steps"]} for t in _tools()],
         tool_scope={k: sorted(v) for k, v in tool_scope().items()},
         placeholders={k: sorted(v) for k, v in prompts.PLACEHOLDERS.items()},
         recordings={"match": recordings_match(), "scripts": len(scripts)},
@@ -969,6 +969,8 @@ async def save_settings(state: State, service: str, values: dict[str, Any]) -> N
         if e.kind is ErrorKind.NOT_ALLOWED_NOW:
             raise HTTPException(409, "no settings store: start Postgres (npm run db:start)") from None
         raise HTTPException(502, "ehr could not save the settings") from None
+        # The sections' names and tabs, for the links to Config › Agent.
+        guide=prompts.load_guide(),
 
 
 async def anthropic_view(state: State, version: int) -> dict[str, Any]:
@@ -985,6 +987,8 @@ async def anthropic_view(state: State, version: int) -> dict[str, Any]:
                 "id": mid,
                 "name": m["name"],
                 "effort_default": m["effort_default"],
+        # Where each section shows, its name, and when it plays (GUIDE.md; AGENT-PAGE.md).
+        guide=prompts.load_guide(),
                 "thinking_off": m["thinking_off"] is not None,
                 "price": dict(zip(("input", "output", "cache_read"), m["price"])),
             }
