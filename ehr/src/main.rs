@@ -133,7 +133,7 @@ async fn epic_check() -> Result<(), String> {
 /// sends `$find` a few ways, each adding one input. Prints, per try: the HTTP status, each
 /// OperationOutcome issue (Epic's own words), and for a Bundle the count and shape of what came
 /// back (field names, statuses, visit type words). Never an id, a token or a patient's value.
-/// About eight requests; `$find` books nothing.
+/// About thirteen requests (nine `$find`s); `$find` books nothing.
 async fn epic_find() -> Result<(), String> {
     use serde_json::{json, Value};
     let config = EpicConfig::sandbox(&PathBuf::from(EPIC_CLIENT), &PathBuf::from(EPIC_KEY))?;
@@ -164,6 +164,19 @@ async fn epic_find() -> Result<(), String> {
         if location.is_some() { "yes" } else { "no" }
     );
 
+    // Epic's spec (api:840, EPIC.md §5.2): `patient` is a Patient resource that Epic matches by
+    // demographics. Read the test patient and keep the fields the spec lists.
+    let record = epic.read(epic.base().join(&format!("Patient/{patient}")).map_err(|_| "bad URL")?).await.map_err(|e| e.to_string())?;
+    let mut demographics = json!({"resourceType": "Patient"});
+    let mut kept = Vec::new();
+    for field in ["identifier", "name", "birthDate", "gender", "telecom", "address"] {
+        if !record[field].is_null() {
+            demographics[field] = record[field].clone();
+            kept.push(field);
+        }
+    }
+    println!("the test patient's demographics: {kept:?}");
+
     let stu3 = reqwest::Url::parse(&epic.base().as_str().replace("/R4/", "/STU3/")).map_err(|_| "bad STU3 URL")?;
     let find = stu3.join("Appointment/$find").map_err(|_| "bad $find URL")?;
     // The window: the next 14 days, in the sandbox's zone (America/Chicago, -06:00 in November).
@@ -188,10 +201,33 @@ async fn epic_find() -> Result<(), String> {
         ("patient as a resource, times, serviceType", [vec![as_resource.clone()], times.clone(), vec![service.clone()]].concat()),
         ("patient as a reference, times, serviceType", [vec![as_reference.clone()], times.clone(), vec![service.clone()]].concat()),
     ];
-    if let Some(place) = place {
+    // Tries from Epic's spec (2026-11-14): the patient's demographics; the table's spelling
+    // `service-type`; Epic's own sample visit type, indications and window.
+    let as_demographics = p("patient", json!({"resource": demographics}));
+    let service_dashed = p("service-type", json!({"valueCodeableConcept": {"coding": [coding.clone()]}}));
+    let sample_service = p(
+        "serviceType",
+        json!({"valueCodeableConcept": {"coding": [{"system": "urn:oid:1.2.840.114350.1.13.0.1.7.3.808267.11", "code": "95014", "display": "Office Visit"}]}}),
+    );
+    let sample_indications = p(
+        "indications",
+        json!({"valueCodeableConcept": {"coding": [
+            {"system": "urn:oid:2.16.840.1.113883.6.96", "code": "46866001", "display": "Fracture of lower limb (disorder)"},
+            {"system": "urn:oid:2.16.840.1.113883.6.90", "code": "S82.90XA", "display": "Broken leg"}
+        ], "text": "Broken leg"}}),
+    );
+    let sample_times = vec![
+        p("startTime", json!({"valueDateTime": format!("{start}T13:00:00Z")})),
+        p("endTime", json!({"valueDateTime": format!("{end}T22:00:00Z")})),
+    ];
+    let place_or_none: Vec<Value> = place.iter().cloned().collect();
+    if let Some(place) = place.clone() {
         tries.push(("patient as a resource, times, serviceType, location", [vec![as_resource], times.clone(), vec![service.clone(), place.clone()]].concat()));
-        tries.push(("patient as a reference, times, serviceType, location", [vec![as_reference], times, vec![service, place]].concat()));
+        tries.push(("patient as a reference, times, serviceType, location", [vec![as_reference], times.clone(), vec![service.clone(), place]].concat()));
     }
+    tries.push(("patient's demographics, times, serviceType, location", [vec![as_demographics.clone()], times.clone(), vec![service], place_or_none.clone()].concat()));
+    tries.push(("patient's demographics, times, service-type, location", [vec![as_demographics.clone()], times, vec![service_dashed], place_or_none.clone()].concat()));
+    tries.push(("Epic's sample: demographics, visit type 95014, indications, location", [vec![as_demographics], sample_times, vec![sample_service, sample_indications], place_or_none].concat()));
     for (label, parameter) in tries {
         let body = json!({"resourceType": "Parameters", "parameter": parameter});
         let (status, reply) = epic.post(find.clone(), &body).await.map_err(|e| e.to_string())?;

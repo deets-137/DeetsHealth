@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: [ehr/src/epic.rs, ehr/src/epic_ehr.rs, ehr/fixtures/epic-sandbox.json]
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # DeetsHealth — Epic: the backend app registration and the sandbox
 
@@ -302,8 +302,54 @@ every test.
 4. **E-4.** Booking on the sandbox, if it serves `$find` and `$book` (§3); otherwise the fake
    scheduler carries the tests and booking waits for a hospital's test system.
 
+**Epic's own spec for `$find` and `$book` (read 2026-11-14).** Read through the open.epic MCP
+server (`https://mcp.open.epic.com`, set up in the repo's `.mcp.json`; documents `api:840`
+`$find` and `api:839` `$book`). Where it disagrees with the research below, the spec wins.
+- **`$find`'s only required input is the visit type** (`1..1`). Every other input is optional
+  in the spec; the hospital's Cadence rules may require or ignore any of them. The inputs:
+  `patient`, `startTime`, `endTime`, the visit type, `indications` (a SNOMED or the hospital's
+  diagnosis code), `location-reference`, `referrals` (a referral id; it picks the visit type
+  and providers), `specialties` (the department's specialty) and `time-of-day` (a `Timing`:
+  days of the week, a time, a length). The last three are new to us.
+- **The visit type's name is spelled two ways.** The parameter table says `service-type`;
+  Epic's sample request says `serviceType`. The probe sends only `serviceType`.
+- **`patient` is a whole Patient resource, used to match a record by demographics**: name,
+  birth date, sex, identifiers (the sample sends the EPI and the MRN), phone, address, a time
+  zone extension. The probe sends a resource that holds only the FHIR id. That may be why the
+  sandbox answers "Content invalid".
+- **Epic's sample request is built for its sandbox**: the visit type `95014` "Office Visit" in
+  the system `urn:oid:1.2.840.114350.1.13.0.1.7.3.808267.11`, an `indications` with SNOMED and
+  ICD-10 codes, and a `location-reference` to a Location on the sandbox. Its window is
+  2024-05-01 to 2028-05-05.
+- **`$find`'s reply:** proposed Appointments, 10 a page, with a `next` link (a session id;
+  error 4113 when it expires). The slots are held only for a short time. One slot per time:
+  no overlaps. The ids work only with `$book`; a read of one fails. `$find` never returns the
+  patient's existing visits.
+- **`$book`'s sample** sends `patient` and `appointment` as `valueIdentifier` (each a FHIR
+  id), and `appointmentNote` as `valueString`. Its reply is the Appointment, status `booked`,
+  with the CSN, visit type, times, length and participants.
+- **Sign-in:** both allow Backend Systems; neither checks scopes
+  (`performsScopeValidation: false`).
+- **The sandbox's own rules** (Epic's Developer Testing Guide): it is upgraded each quarter
+  (February, May, August, November), and errors come and go during the upgrade. **The 503
+  "OltpServerUnavailable" of 2026-11-13 may be the November upgrade.** Data written to the
+  sandbox is erased each week, so a `$book` there does not last.
+- **The probe has three more tries (built 2026-11-14):** the patient's demographics in the
+  resource (read from the test patient's record), the `service-type` spelling, and Epic's own
+  sample visit type and indications. **Not run yet:** on 2026-11-14 the whole sandbox still
+  answered 503 "OltpServerUnavailable", even its public `metadata` with no sign-in. At the
+  same time, fhir.epic.com's banner said the sandbox "has been upgraded to the November 2026
+  version and is now available for testing". Epic's FAQ (`faq:87`): a few minutes of
+  maintenance each Thursday, 2–3 PM Central, and a banner before an upgrade; any other outage
+  goes to the contact form on fhir.epic.com.
+- **Epic's API change log (`tutorial:40285`), November 2026 back to 2025:** no item touches
+  `$find`, `$book`, Appointment or Backend Services sign-in. Two items matter later, for the
+  lab reads (R4): "DiagnosticReport (Results) Code System Changed" (Q-8294158) and
+  "Observation (Flowsheets) (R4) Now Required to Retrieve Non-Vital Signs Flowsheet Data"
+  (Q-8427283).
+
 **What the docs say about `$find` and `$book` (research, 2026-11-13).** Epic's own spec pages
-for both operations load by script on fhir.epic.com and could not be read; what follows is from
+for both operations load by script on fhir.epic.com and could not be read then; what follows is from
 the Argonaut guide Epic's `$find` is built on, from Epic staff in the FHIR chat, and from one
 integrator's write-up. Each line says how sure it is. A sandbox `$find` settles the rest.
 - **Epic built `$find` for provider-to-provider scheduling, not for patient-facing apps.** Its
@@ -337,7 +383,7 @@ integrator's write-up. Each line says how sure it is. A sandbox `$find` settles 
   key). It reads one of Camila Lopez's visits for a real `serviceType` and department, then
   sends `$find` six ways: the patient as a resource or a reference; with the times; then
   `serviceType`; then `location-reference`. It prints each HTTP status, Epic's issue words and
-  the reply's shape, never an id. About eight requests; it books nothing. **First run,
+  the reply's shape, never an id. About thirteen requests (nine `$find`s); it books nothing. **First run,
   2026-11-13 evening: the sandbox answered 503 "OltpServerUnavailable" to everything, even its
   `smart-configuration`.** Run it again when the sandbox is up.
 

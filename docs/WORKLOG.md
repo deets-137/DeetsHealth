@@ -8,6 +8,21 @@ updated: 2026-11-13
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-14 (Windows) — Epic's docs over MCP; `$find`'s spec read
+- Epic runs a public MCP server for open.epic's docs: `https://mcp.open.epic.com`, Streamable
+  HTTP, no sign-in, two tools (`search_documents`, `get_document`). Not for PHI. Added to the
+  repo's `.mcp.json` as `open-epic-mcp`; a new session loads it.
+- Read Epic's own spec for `$find` (`api:840`) and `$book` (`api:839`), which could not be
+  read on 2026-11-13. Findings in EPIC.md §5.2: the visit type is the only required input;
+  `patient` is a Patient resource matched by demographics (the probe sends only the id); the
+  name is spelled `service-type` in the table and `serviceType` in the sample; the sandbox is
+  upgraded each November and erased of writes each week.
+- On the owner's go-ahead: `ehr epic-find` has three more tries (the patient's demographics,
+  the `service-type` spelling, Epic's sample visit type and indications). Built into
+  `target/probe/` because the dev server holds `target/debug/deetshealth-ehr.exe`. The run
+  stopped at once: the whole sandbox answers 503 "OltpServerUnavailable", even `metadata`
+  with no sign-in. Run it again when the sandbox is back.
+
 ## 2026-11-13 to 11-14 (Windows, config) — Config › System: variables and tools
 - Config › Agent's tab bars: the pill now slides from the old tab (a click drew a new bar, so
   the pill was born on the new tab). Committed `08b7db7`.

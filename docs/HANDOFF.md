@@ -143,7 +143,10 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   the caller's words; `BookReply` carries a `Visit` built from the booked Appointment (type,
   online, reason, through the sensitive screen), and `line.booked` adds the visit lines. Waits
   on: what Epic's `$find` needs (the owner's knowledge), then a sandbox probe of `$find` and
-  `$book` (a write to Epic's shared sandbox: ask first). E-4 in EPIC.md.
+  `$book` (a write to Epic's shared sandbox: ask first). E-4 in EPIC.md. **Epic's own spec is
+  read (2026-11-14, EPIC.md §5.2):** the visit type is `$find`'s only required input, and
+  `patient` is a Patient resource matched by demographics. `ehr epic-find` has the tries for
+  both; run it when the sandbox answers again.
 - **Built, desk test open: Config › Agent, the agent's words in the console** (2026-11-13; the
   owner's five tabs, Semantic | Flow, the names list). Every section of AGENT-PROMPT.md, versioned
   in the store (`prompt` service, migration 0005); a save writes the file and reaches the next
@@ -303,7 +306,11 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   carries. His call when to move it.
 
 ### To find out
-- Epic's sandbox: does it serve `Appointment/$find` and `$book`? (VOICE-AGENT.md §8.4)
+- Epic's sandbox: which `$find` inputs does it need, and does `$book` work? It serves STU3
+  `$find` (400 to a bare request). `ehr epic-find` answers it (EPIC.md §5.2).
+- **Epic's docs over MCP:** the repo's `.mcp.json` adds `open-epic-mcp`
+  (`https://mcp.open.epic.com`): search and read every open.epic spec, tutorial and FAQ. No
+  sign-in; never put protected data in a query.
 - Which refill and message actions Epic exposes to a backend app (VOICE-AGENT.md §4).
 - Cartesia's multilingual speech-in for Spanish (VOICE-AGENT.md §8.6).
 - Each vendor's BAA and zero-retention terms, in writing (VOICE-AGENT.md §8.2).
