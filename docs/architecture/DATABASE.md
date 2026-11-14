@@ -105,6 +105,15 @@ Plain columns hold no protected data; sealed columns are bytes under `seal.rs`.
   `source`, `owner` (at most one), `added_by`, `added_at`, `last_seen_at`, `removed_at` plain
   (a removal keeps the row, for the audit log); `role` empty until roles. Written by `ehr`'s
   `users.rs` only.
+  Since `0008_user_profile.sql` (2026-11-14; the owner's forks for the card): `first_name`,
+  `last_name` and `phone` (E.164) sealed like the email; `phone_verified` (false until a text
+  code proves it, which is not built; any change to the number sets it back); `updated_at`.
+  `name` stays, kept equal to "first last". Rows from before have no parts: `users.rs` splits
+  `name` at its last space until the card is saved. An email change moves the row to the new
+  email's hash and seals every column again under it.
+- **`user_photos`** (`0008_user_profile.sql`): one picture per person, a 256 px WebP the
+  console makes (at most 256 KB), sealed and bound to the person's id, so an email change does
+  not touch it.
 - **The settings store** (`0002_settings.sql`, 2026-11-13; CONSOLE.md §7.3): `setting_versions`,
   one key–value table per service (`settings_voice`; `settings_llm` since `0004_settings_llm.sql`,
   CONSOLE.md §8.3; `settings_prompt`, the agent's words, since `0005_settings_prompt.sql`,

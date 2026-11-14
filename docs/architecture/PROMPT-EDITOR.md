@@ -117,3 +117,33 @@ caller. What it needs:
 - **Open:** whether an analyst may add scripts of their own; whether the test checks are
   readable to an analyst (today they are Python in `test_typed_call.py`); who may make a tested
   draft current (§7).
+
+## 9. A release that changes the words, at a hospital
+> **Part:** built · 2026-11-14 — found while adding three sections for the booking work (the
+> owner asked whether building it this way causes issues in customer environments). The rules
+> here apply from the first hospital deploy; in dev nothing below shows.
+
+A hospital's store holds its own versions of the words. A release can add a section, or change
+one; the hospital's active version was saved before the release. How each case reaches a call:
+- **A section the release adds:** it takes the shipped words, and every other section keeps the
+  hospital's words (`active_words` in `dev_server.py`; the stderr line counts the sections it
+  filled). Before 2026-11-14 a missing section failed the check, and the whole call fell back to
+  the shipped files, so a hospital's edits were lost without a word.
+- **A section the release removes:** dropped from the call's words. Avoid it: an older version
+  shown on Config › Agent still lists it.
+- **A code value the release adds to an existing section** (a new `{name}`): the hospital's
+  version fails the check and the call falls back to the shipped files. **From the first
+  hospital deploy on, a release does not add a code value to an existing section;** it adds a
+  new section, or brings a migration for the saved versions. Until then (active development,
+  the owner, 2026-11-14: "I don't think it quite matters") sections and code values change
+  freely: dev saves the file as a new version at start-up, so nothing is ever missing.
+- **Changed words in a section the hospital never edited:** the hospital keeps the words of its
+  saved version until someone saves again. Open: whether a release should offer "take the new
+  shipped words" per section on Config › Agent, and how the hospital sees what changed.
+- **In dev** none of this shows: at start-up, a file that differs from the active version is
+  saved as a new version (CONSOLE.md §9), so the active version always has every section.
+- **The settings pages need no change by hand:** Config › Agent lists the sections from
+  `PLACEHOLDERS` and their names and "plays when" from `agent/prompts/GUIDE.md`; Config › System
+  › Tools reads `agent/prompts/TOOLS.md`. A new section needs its entry in AGENT-PROMPT.md,
+  `PLACEHOLDERS` (`prompts.py`), `PROMPT` (`ehr/src/settings.rs`) and GUIDE.md; tests hold the
+  four together.

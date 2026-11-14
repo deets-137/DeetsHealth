@@ -45,6 +45,12 @@
      Moonlight's navy, Light's orange. Demo's play button in each recorded-call row. */
   --theme-color: var(--paint-black);
   --on-theme-color: var(--paint-white);
+  /* A phone number's mark on a person's card (the owner, 2026-11-14): a white serif X on
+     scarlet when not verified, a white V on forest green when verified. The same in every
+     theme. */
+  --unverified: var(--paint-scarlet);
+  --verified: var(--paint-forest);
+  --on-mark: var(--paint-white);
 }
 
 [data-theme="dark"] {

@@ -134,6 +134,7 @@ async def test_a_whole_call_through_the_handlers(ehr):
     assert result["reason_for_visit"] == "said" and nxt is None
     assert not result["spoken_to_caller"].rstrip().endswith("?")
 
+    flow.heard("I'd like to book a check-up, please.")
     result, node = await handler(flow.menu(), "find_slots")({"reason": "a check-up"}, fm)
     assert node["name"] == "schedule" and result["options"] == [1, 2, 3]
     assert "Option 1: Monday, November 2, at 9 AM" in result["spoken_to_caller"]
@@ -145,10 +146,17 @@ async def test_a_whole_call_through_the_handlers(ehr):
     result, node = await handler(node, "book")({}, fm)
     assert node["name"] == "menu" and result["spoken_to_caller"].startswith("You're booked for Monday, November 2")
 
+    # The model learns how the visit takes place and that its reason went with it (2026-11-14).
+    assert (result["visit_is"], result["reason_for_visit"]) == ("in person", "said")
+
+    # Asked again (the Priya Raman call, 2026-11-13): the time is not read out a second time; the
+    # type and the caller's own reason are, from the booking.
     result, _ = await handler(node, "next_visit")({}, fm)
-    assert "Monday, November 2" in result["spoken_to_caller"]
-    # A visit booked on this call has no type or reason on record.
-    assert result["reason_for_visit"] == "none on record"
+    assert result["spoken_to_caller"].startswith("That's the visit we just booked.")
+    assert "Monday, November 2" not in result["spoken_to_caller"]
+    assert "It is listed as Office Visit." in result["spoken_to_caller"]
+    assert "The reason on record is a check-up." in result["spoken_to_caller"]
+    assert result["reason_for_visit"] == "said"
 
     # Every line the model was told about is a line the caller heard, word for word.
     assert len(spoken(fm)) == 8  # the read-back, then seven lines
@@ -320,3 +328,58 @@ async def test_an_unknown_flag_kind_becomes_other_and_code_flags_raise_once(ehr)
     assert flow.raise_flag("made_up_kind", "model").kind == "other"
     assert flow.raise_flag("verification_failed", "code") is not None
     assert flow.raise_flag("verification_failed", "code") is None
+
+
+async def test_a_summary_that_guesses_a_pronoun_goes_back_once(ehr):
+    """The owner's option A (2026-11-14, FLAGS.md §3.2), after the Priya Raman call's "She
+    asks…": the first such summary goes back to the model with nothing spoken and no flag; a
+    second one is kept as it is. Evidence (the caller's own words) is never checked for it."""
+    from deets_agent.prompts import text
+
+    flow = CallFlow(ehr, today=FAKE_TODAY)
+    flow.heard("What was the reason on the visit again? Is it online?")
+    seen = []
+    flow.on_flag = seen.append
+    fm = manager()
+    args = {"kind": "other", "summary": "She asks what the visit is for.", "evidence": ["Is it online?"]}
+    result, nxt = await flow.hand_off_fn().handler(args, fm)
+    assert result == {"summary_refused": text("note.summary_pronoun")} and nxt is None
+    assert spoken(fm) == [] and seen == [], "the caller hears nothing; no flag yet"
+    named = {**args, "summary": "Priya Raman asks what the visit is for."}
+    result, node = await flow.hand_off_fn().handler(named, fm)
+    assert node["name"] == "hand_off" and seen[0].summary.reveal() == named["summary"]
+    # flag_for_staff gets its own one chance; after it, a pronoun is kept.
+    result, _ = await flow.flag_for_staff_fn().handler(args, manager())
+    assert "summary_refused" in result
+    result, _ = await flow.flag_for_staff_fn().handler(args, manager())
+    assert result["flag_raised"] == "other" and seen[-1].summary.reveal() == args["summary"]
+
+
+def test_the_reason_sent_is_the_callers_own_words(ehr):
+    """The visit's note is the caller's words, never the model's (2026-11-14): the model's reason
+    is kept only if the caller said it, as for a flag's evidence; else the caller's latest line."""
+    flow = CallFlow(ehr, today=FAKE_TODAY)
+    flow.heard("Can I book a visit for my strawberry water distillation?")
+    assert flow._reason_words("strawberry water distillation") == "strawberry water distillation"
+    assert flow._reason_words("Strawberry-water distillation.") == "Strawberry-water distillation."
+    line = "Can I book a visit for my strawberry water distillation?"
+    assert flow._reason_words("distilling water at home") == line
+    assert flow._reason_words("  ") == "a visit"
+
+
+async def test_an_online_wish_offers_online_times_and_says_so(ehr):
+    flow = new_flow(ehr)
+    fm = manager()
+    await flow.start()
+    await identify(flow, JORDAN, fm)
+    await handler(flow.verify(), "check_code")(CODE, fm)
+    flow.heard("Could I do a video visit for my follow-up?")
+    result, node = await handler(flow.menu(), "find_slots")(
+        {"reason": "follow-up", "visit_mode": "online"}, fm
+    )
+    assert node["name"] == "schedule" and len(result["options"]) == 2
+    assert result["spoken_to_caller"].count(", online, for") == 2
+    await handler(node, "choose_option")({"option": result["options"][0]}, fm)
+    result, _ = await handler(node, "book")({}, fm)
+    assert ", online, for" in result["spoken_to_caller"] and result["visit_is"] == "online"
+    await flow.close()

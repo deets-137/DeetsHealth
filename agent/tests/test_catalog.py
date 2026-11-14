@@ -48,6 +48,15 @@ def test_a_failed_request_is_a_crash():
     assert summarize("a", events).outcome == "crashed"
 
 
+def test_an_ehr_that_did_not_answer_is_a_crash():
+    # Epic's sandbox down at the call's start (2026-11-14): no turn ran.
+    events = [
+        BOOKED[0],
+        {"t_ms": 1, "kind": "call_end", "reason": "the EHR did not answer (OpenCall: unavailable)"},
+    ]
+    assert summarize("a", events).outcome == "crashed"
+
+
 def test_annotations_survive_a_rebuild_and_the_latest_rating_wins(tmp_path):
     _write(tmp_path, "a", BOOKED)
     c = Catalog(tmp_path).build()

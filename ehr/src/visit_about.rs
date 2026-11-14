@@ -68,7 +68,35 @@ pub struct VisitAbout {
     pub private: bool,
 }
 
+/// The caller's reason for a visit they book: the note the scheduler gets with the booking
+/// (Epic's `appointmentNote`, EPIC.md §5.2) and the reason the read-back may say. Screened once,
+/// as plain words, before they are wrapped (edge.rs). The words go to the scheduler even when
+/// private: the screen governs only what the agent says back on the phone.
+#[derive(Clone)]
+pub struct BookNote {
+    pub words: Shielded<String>,
+    pub private: bool,
+}
+
+impl BookNote {
+    pub fn screen(words: String) -> Self {
+        let private = names_any(&words, SENSITIVE);
+        Self { words: Shielded::new(words), private }
+    }
+}
+
 impl VisitAbout {
+    /// A visit this call booked: the slot's own type, and the caller's reason from the note.
+    /// A sensitive type or note makes the whole visit private, as for a visit read from the
+    /// record.
+    pub fn booked(visit_type: Option<&str>, note: &BookNote) -> Self {
+        let about = Self::from_record(visit_type, None);
+        if about.private || note.private {
+            return Self { visit_type: None, reason: None, online: about.online, private: true };
+        }
+        Self { reason: Some(note.words.clone()), ..about }
+    }
+
     /// From the record's plain words. Empty words count as none.
     pub fn from_record(visit_type: Option<&str>, reason: Option<&str>) -> Self {
         let clean = |s: Option<&str>| s.map(str::trim).filter(|s| !s.is_empty()).map(str::to_string);

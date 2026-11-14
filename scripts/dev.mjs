@@ -48,20 +48,47 @@ function envValue(name) {
 }
 
 /** The tunnel's open connections, as Cloudflare lists them (`cf tunnels connections list`):
- * a number, or null when the list cannot be read. */
-function openConnections(id) {
-  const r = spawnSync("cf", ["tunnels", "connections", "list", "--tunnel-id", id], {
-    encoding: "utf8",
-    shell: process.platform === "win32", // cf is a .cmd file on Windows
-    timeout: 20_000,
-  });
-  if (r.status !== 0) return null;
+ * `{ open }`, or `{ error }` with why the list could not be read. */
+function openConnectionsOnce(id) {
+  const args = ["tunnels", "connections", "list", "--tunnel-id", id];
+  // cf is a .cmd file on Windows, which only cmd.exe can start. The id passed the uuid test in
+  // demoTunnel(), so nothing in these arguments can be read as a shell word.
+  const [cmd, argv] = process.platform === "win32" ? ["cmd.exe", ["/d", "/s", "/c", "cf", ...args]] : ["cf", args];
+  const r = spawnSync(cmd, argv, { encoding: "utf8", timeout: 20_000, windowsHide: true });
+  if (r.error) return { error: r.error.code === "ETIMEDOUT" ? "`cf` gave no answer in 20 s" : `\`cf\` did not start (${r.error.code})` };
+  if (r.status !== 0) {
+    const out = `${r.stderr ?? ""}\n${r.stdout ?? ""}`;
+    // cf signed out prints a box, then Node aborts on exit (0xC0000409, a libuv assertion):
+    // say what to do, not the crash. A sign-in made from Claude Code's sandboxed shell lands in
+    // the sandbox's own AppData, not this Windows user's (seen 2026-11-14; DEMO.md §7).
+    if (out.includes("No authentication token found")) {
+      return { error: "`cf` is not signed in for this Windows user: run `cf auth login` in your own terminal", final: true };
+    }
+    // The box's lines start with │ ┌ └; its first word is "Error". Name the first real line.
+    const said = out
+      .split(/\r?\n/)
+      .map((l) => l.replace(/^[\s│┌└─]+/, "").trim())
+      .find((l) => l && l !== "Error");
+    return { error: `\`cf\` stopped with code ${r.status}${said ? `: ${said.slice(0, 160)}` : ""}` };
+  }
   try {
     const list = JSON.parse(r.stdout.slice(r.stdout.indexOf("[")));
-    return list.reduce((n, c) => n + (Array.isArray(c.conns) ? c.conns.length : 1), 0);
+    return { open: list.reduce((n, c) => n + (Array.isArray(c.conns) ? c.conns.length : 1), 0) };
   } catch {
-    return null;
+    return { error: "`cf` answered with something that is not a list" };
   }
+}
+
+/** The same, tried up to three times for a passing failure (a slow network, a sign-in being
+ * renewed). A missing sign-in is final: trying again cannot fix it. */
+async function openConnections(id) {
+  let last;
+  for (let tries = 0; tries < 3; tries++) {
+    last = openConnectionsOnce(id);
+    if (!last.error || last.final) return last;
+    await new Promise((ok) => setTimeout(ok, 2_000));
+  }
+  return last;
 }
 
 /** Whether this checkout is a git worktree rather than the main one. */
@@ -94,8 +121,8 @@ async function demoTunnel() {
   // One connector only. A run stopped a moment ago can still be listed while Cloudflare notices
   // it is gone, so a listed connection gets 20 s to clear before the demo stays off.
   for (let tries = 0; ; tries++) {
-    const open = openConnections(id);
-    if (open === null) return { off: "Cloudflare's list of tunnel connections could not be read (is `cf` signed in?)" };
+    const { open, error } = await openConnections(id);
+    if (error) return { off: `Cloudflare's list of tunnel connections could not be read (${error})` };
     if (open === 0) break;
     if (tries === 4) return { off: "the tunnel already has a connector (another PC or run); this run opens none" };
     if (tries === 0) console.log("[demo] the tunnel has a connector open; waiting up to 20 s for it to clear");
@@ -158,17 +185,41 @@ if (proto.status !== 0) {
 }
 
 const children = [];
-const stop = (code = 0) => {
-  for (const c of children) {
-    if (c.exitCode !== null) continue;
+/** True once the dev server is stopping: the children's exit lines and the tunnel's shutdown
+ *  lines are expected then, so they are not printed. */
+let stopping = false;
+const running = (c) => c.exitCode === null && c.signalCode === null;
+const exited = (c, ms) =>
+  running(c)
+    ? new Promise((ok) => {
+        const timer = setTimeout(ok, ms);
+        c.once("exit", () => {
+          clearTimeout(timer);
+          ok();
+        });
+      })
+    : Promise.resolve();
+const stop = async (code = 0) => {
+  if (stopping) return;
+  stopping = true;
+  // The tunnel first, so Cloudflare sends nothing more to an agent that is going away. On
+  // Windows, Ctrl+C reaches every child at once too; this order still holds for the kills.
+  const order = [...children].sort((a, b) => Number(b === tunnelChild) - Number(a === tunnelChild));
+  for (const c of order) {
+    if (!running(c)) continue;
     // On Windows a kill reaches the child only (here `uv`), not the Python under it or the ehr
     // under that; an ehr left behind holds the binary and blocks the next build. So end the
     // whole tree.
     if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(c.pid), "/T", "/F"], { stdio: "ignore" });
     else c.kill("SIGTERM");
   }
+  // Wait for each child to end (5 s at most), so the shell's prompt comes back last.
+  await Promise.all(children.map((c) => exited(c, 5_000)));
+  console.log("[dev] stopped");
   process.exit(code);
 };
+/** The tunnel's process, when the demo is on; stop() ends it first. */
+let tunnelChild = null;
 process.on("SIGINT", () => stop(0));
 process.on("SIGTERM", () => stop(0));
 
@@ -194,6 +245,7 @@ const agent = spawn(
 );
 children.push(agent);
 agent.on("exit", (code) => {
+  if (stopping) return;
   console.error(`[dev] the agent dev server stopped (${code ?? "signal"})`);
   stop(code || 1);
 });
@@ -237,6 +289,7 @@ if (tunnel) {
   children.push(build);
   // A guard: the demo's parts stopping never stops the dev server.
   build.on("exit", (code) => {
+    if (stopping) return;
     console.error(`[demo] the demo build stopped (${code ?? "signal"}); guests see the last build`);
   });
 
@@ -255,10 +308,16 @@ if (tunnel) {
       `http://127.0.0.1:${agentPort}`,
       tunnel.id,
     ],
-    { cwd: root, stdio: ["ignore", "inherit", "inherit"] },
+    { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
   );
   children.push(cf);
+  tunnelChild = cf;
+  // Its lines pass through while the dev server runs. Once it is stopping they are dropped:
+  // the tunnel logs a normal shutdown (streams cut, connections closed) at ERR level.
+  cf.stdout.on("data", (chunk) => stopping || process.stdout.write(chunk));
+  cf.stderr.on("data", (chunk) => stopping || process.stderr.write(chunk));
   cf.on("exit", (code) => {
+    if (stopping) return;
     console.error(`[demo] the tunnel stopped (${code ?? "signal"}); the demo is off, the rest runs on`);
   });
   console.log(`[demo] on: ${tunnel.origin}/demo/ (Access sign-in; npm run dev -- --no-demo to keep it off)`);

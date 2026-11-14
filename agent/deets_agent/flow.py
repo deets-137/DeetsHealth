@@ -57,9 +57,20 @@ from pipecat.flows import NO_RESPONSE, FlowManager, FlowsFunctionSchema, NodeCon
 from pipecat.frames.frames import TTSSpeakFrame
 
 from deets_agent import prompts
-from deets_agent.ehr_client import CheckOutcome, EhrClient, EhrError, ErrorKind, Slot, Visit
+from deets_agent.ehr_client import (
+    VISIT_MODES,
+    CheckOutcome,
+    EhrClient,
+    EhrError,
+    ErrorKind,
+    Slot,
+    Visit,
+)
 from deets_agent.prompts import text
 from deets_agent.shielded import Shielded
+
+# The longest reason ehr takes (edge.rs › MAX_REASON).
+MAX_REASON_CHARS = 500
 
 # The clinic's name is the System variable `{clinic}` (agent/prompts/VARIABLES.md; SYSTEM-PAGE.md
 # §3.1): `prompts.text` fills it in any section that holds it.
@@ -95,12 +106,41 @@ def spoken_time(starts_at: str) -> str:
     return f"{spoken_day(t.date())}, at {hour}{minute} {half}"
 
 
-def _visit_words(v: Slot | Visit) -> str:
-    """The one place a visit's values become words (a reveal on purpose)."""
+def _visit_words(v: Slot | Visit, say_online: bool = True) -> str:
+    """The one place a visit's values become words (a reveal on purpose). An online visit says
+    so after its place (2026-11-14), so the caller knows before choosing; an in-person one reads
+    as it always did. `say_online=False` where a line of its own says it (`line.visit_online`)."""
+    how = ", online," if v.online and say_online else ","
     return (
         f"{spoken_time(v.starts_at.reveal())}, with {v.clinician.reveal()} "
-        f"at {v.place.reveal()}, for {v.minutes} minutes"
+        f"at {v.place.reveal()}{how} for {v.minutes} minutes"
     )
+
+
+def _reason_status(v: Visit) -> str:
+    """For the model only: whether the visit's reason is known, never its words. "private": ehr's
+    sensitive screen dropped them (FUTURE-SETTINGS.md §9)."""
+    if v.reason_private:
+        return "private"
+    return "said" if v.reason else "none on record"
+
+
+def _same_visit(a: Slot | Visit, b: Slot | Visit) -> bool:
+    """The same time with the same clinician at the same place."""
+    return (a.starts_at.reveal(), a.clinician.reveal(), a.place.reveal()) == (
+        b.starts_at.reveal(),
+        b.clinician.reveal(),
+        b.place.reveal(),
+    )
+
+
+# Words a staff summary must not hold (the owner's option A, 2026-11-14, FLAGS.md §3.2): a
+# pronoun guessed from a name. The summary names the caller or says "the caller".
+_GUESSED_PRONOUNS = re.compile(r"\b(he|she|him|her|his|hers|himself|herself)\b", re.IGNORECASE)
+
+
+def guesses_a_pronoun(summary: str) -> bool:
+    return bool(_GUESSED_PRONOUNS.search(summary))
 
 
 # The fixed 911 line (the owner's option A, 2026-11-11). Spoken by the `emergency` tool and by
@@ -134,6 +174,9 @@ FLAG_KINDS = (
     "safety_concern",
     "clinical_question_waiting",
     "booking_change",
+    # A reason that does not read as a health need: booked as said, for clinical staff to
+    # review and call back (the owner's 1A, 2026-11-14, FLAGS.md §3.1).
+    "visit_reason_review",
     "other",
 )
 
@@ -221,6 +264,8 @@ NOTE_TOOL = {
     "note.after_next_visit": "next_visit",
     "note.after_reminder": "safety_reminder",
     "note.after_flag": "flag_for_staff",
+    # Also sent back by hand_off; both are global tools, so the scope is the same.
+    "note.summary_pronoun": "flag_for_staff",
 }
 
 
@@ -298,6 +343,9 @@ class CallFlow:
     # the store and the rules engine later, FLAGS.md §5).
     flags: list[StaffFlag] = field(default_factory=list)
     on_flag: Callable[[StaffFlag], None] | None = None
+    # The tools (`hand_off`, `flag_for_staff`) whose summary went back to the model once for a
+    # guessed pronoun (FLAGS.md §3.2). A second summary is kept as it is.
+    summary_retries: set[str] = field(default_factory=set)
     # Told each time the Flow moves to a node: its name and its own tools (the dev call record's
     # `step` event; the Chat page's Step panel, CHAT.md §11).
     on_step: Callable[[str, list[str]], None] | None = None
@@ -474,10 +522,23 @@ class CallFlow:
             self.on_flag(flag)
         return flag
 
+    def _summary_back(self, tool: str, summary: str) -> dict[str, str] | None:
+        """A summary that guesses a pronoun goes back to the model once, to be written again
+        with the caller's name or "the caller" (FLAGS.md §3.2). None: keep it. The caller hears
+        nothing: neither tool has spoken yet."""
+        if tool in self.summary_retries or not guesses_a_pronoun(summary):
+            return None
+        self.summary_retries.add(tool)
+        logger.info("{}: summary sent back once for a guessed pronoun", tool)
+        return {"summary_refused": text("note.summary_pronoun")}
+
     def flag_for_staff_fn(self) -> FlowsFunctionSchema:
         # The owner, 2026-11-12: the model raises a flag with its notes and its evidence; the
         # caller is not told (2A). Nothing is spoken, so the result tells the model to go on.
         async def handler(args, flow_manager: FlowManager):
+            back = self._summary_back("flag_for_staff", str(args.get("summary", "")))
+            if back is not None:
+                return back, None
             quotes = args.get("evidence") or []
             if isinstance(quotes, str):
                 quotes = [quotes]
@@ -561,6 +622,9 @@ class CallFlow:
     def hand_off_fn(self) -> FlowsFunctionSchema:
         async def handler(args, flow_manager: FlowManager):
             logger.info("hand off requested")
+            back = self._summary_back("hand_off", str(args.get("summary") or ""))
+            if back is not None:
+                return back, None
             # A hand-off carries its own flag (FLAGS.md §2): the staff member learns why the
             # caller is coming to them. A hand-off ends the call, so a separate flag_for_staff
             # in a later reply would never run.
@@ -692,12 +756,29 @@ class CallFlow:
 
     # ---- the chart and booking (only in menu and schedule) ----
 
+    def _reason_words(self, given: str) -> str:
+        """The reason that goes to the scheduler as the visit's note: the caller's own words, never
+        the model's (2026-11-14). The model's words are kept only if the caller said them, as for
+        a flag's evidence; otherwise the caller's latest line goes, whole. No reason at all:
+        "a visit"."""
+        given = given.strip()
+        if not given:
+            return "a visit"
+        if self._caller_said(given):
+            return given
+        logger.info("find_slots: the reason was not the caller's words; their latest line is sent")
+        latest = self.caller_lines[-1].reveal().strip() if self.caller_lines else ""
+        return latest[:MAX_REASON_CHARS] or "a visit"
+
     def _find_slots_fn(self) -> FlowsFunctionSchema:
         async def handler(args, flow_manager: FlowManager):
-            reason = Shielded(str(args.get("reason", "")).strip() or "a visit")
+            reason = Shielded(self._reason_words(str(args.get("reason", ""))))
             day = str(args.get("earliest_day", "")).strip()
+            mode = str(args.get("visit_mode", "") or "either").strip()
+            if mode not in VISIT_MODES:
+                mode = "either"
             try:
-                slots = await self.ehr.find_slots(self.handle, reason, Shielded(day) if day else None)
+                slots = await self.ehr.find_slots(self.handle, reason, Shielded(day) if day else None, mode)
             except EhrError as e:
                 return await self._ehr_trouble(flow_manager, e, "find_slots")
             logger.info("find_slots: {} found", len(slots))
@@ -712,7 +793,13 @@ class CallFlow:
                 flow_manager, text("line.slots", options=options), self.schedule(), options=numbers
             )
 
-        return _tool("find_slots", handler, {"reason": "", "earliest_day": ""}, required=["reason"])
+        return _tool(
+            "find_slots",
+            handler,
+            {"reason": "", "earliest_day": "", "visit_mode": ""},
+            required=["reason"],
+            schemas={"visit_mode": {"type": "string", "enum": list(VISIT_MODES)}},
+        )
 
     def _number_for(self, slot: Slot) -> int:
         """The slot's option number on this call: its old number if the caller heard this time
@@ -762,7 +849,17 @@ class CallFlow:
                 return await self._say(flow_manager, text("line.slot_taken"))
             logger.info("book: booked")
             self.last_booked = booked
-            return await self._say(flow_manager, text("line.booked", visit=_visit_words(booked)), self.menu())
+            # The caller hears the visit as booked, "online" in it when it is (2026-11-14). For the
+            # model only: how the visit takes place and whether its reason went with it, so a
+            # question about this visit is answered, not handed to a person (the Priya Raman
+            # call, 2026-11-13).
+            return await self._say(
+                flow_manager,
+                text("line.booked", visit=_visit_words(booked)),
+                self.menu(),
+                visit_is="online" if booked.online else "in person",
+                reason_for_visit=_reason_status(booked),
+            )
 
         return _tool("book", handler)
 
@@ -792,7 +889,13 @@ class CallFlow:
             # The time, then what the visit is, as the record says (the owner, 2026-11-13: an
             # online visit keeps its place). The line ends without a question, so the model goes
             # on and answers the rest of what the caller asked (Camila's call, 2026-11-13).
-            words = [text("line.next_visit", visit=_visit_words(visit))]
+            # The visit this call just booked is not read out again: the caller heard it a moment
+            # ago (the Priya Raman call); only what it is follows.
+            just_booked = self.last_booked is not None and _same_visit(visit, self.last_booked)
+            if just_booked:
+                words = [text("line.booked_visit_asked")]
+            else:
+                words = [text("line.next_visit", visit=_visit_words(visit, say_online=False))]
             if visit.online:
                 words.append(text("line.visit_online"))
             elif visit.visit_type:
@@ -801,14 +904,11 @@ class CallFlow:
                 words.append(text("line.visit_reason", reason=visit.reason.reveal()))
             # For the model only: what the record holds, so it answers from facts and offers
             # staff for the rest (offer_staff). Never the words of a private visit: ehr dropped them.
-            if visit.reason_private:
-                reason = "private"
-            elif visit.reason:
-                reason = "said"
-            else:
-                reason = "none on record"
             return await self._say(
-                flow_manager, " ".join(words), reason_for_visit=reason, next_step=text("note.after_next_visit")
+                flow_manager,
+                " ".join(words),
+                reason_for_visit=_reason_status(visit),
+                next_step=text("note.after_next_visit"),
             )
 
         return _tool("next_visit", handler)

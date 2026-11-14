@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: passed 2026-11-11
-sources: [console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
+sources: [console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
 updated: 2026-11-14
 ---
 # DeetsHealth — The console
@@ -97,10 +97,32 @@ web app cannot do.
   says "Empty for now". The last view is reopened on the next visit (`localStorage`,
   `deets.console.<page>`). The nav items, in order (the owner, 2026-11-13):
   - Teams: **Org Chart**, **People**. People is built (2026-11-14, `pages/people.ts`): who may
-    sign in, ops/DEMO.md §3.5 and §7. Org Chart is still empty.
+    sign in, ops/DEMO.md §3.5 and §7; since the owner's sketch of 2026-11-14, one card per
+    person, read only. Org Chart is still empty.
   - Config: **Agent**, **System**, **Cartesia** (§7).
   - Rules (2026-11-14): **Agents**, **Flags**, **Tools**. All three are empty.
-  - Security: **Auth**, **Roles**.
+  - Security: **Auth**, **Roles**. Auth is built (2026-11-14, `pages/auth.ts`): who may sign
+    in as a table that can be edited, a panel under each row (ops/DEMO.md §7). Roles (2026-11-14, `pages/roles.ts`,
+    `styles/roles.css`) is the role templates as a table in Auth's look: one row per role, one
+    column per lever, each cell None, View or Edit ([ideas/ACCESS-ROLES.md](../ideas/ACCESS-ROLES.md)
+    §4). A click on a cell moves it to the next level. Nothing is saved: a reload puts back
+    the draft. Two tables, each with its title above it: **Customer** (the hospital's six
+    roles), then **DeetsHealth Team** (our two); no page title and no status line (the owner's
+    sketch, 2026-11-14). **Add** at the right of each title (the owner, 2026-11-14) puts a new
+    role at that table's foot: its name the placeholder "Role name", every lever None, its
+    panel open. **Clicking a role's name** opens a panel under its row, as on Auth: the name in
+    a text box with no label, as tall as Discard | Save and on one row with them (the owner's
+    sketch below), a result line under them only when there is one, and "Users with this role", a read-only table (picture,
+    first, last, email, last seen). It is empty for now ("No users yet: roles are not
+    stored"). One panel is open at a time, across both tables. Discard on a new role takes it
+    away, and so does opening another role. Save refuses an empty name or a name already in
+    that table. Desk test: Security, Roles. Two tables, Customer then DeetsHealth Team. Click
+    a cell three times: None, View, Edit, then back. Click Add on Customer: a row with "Role
+    name" and every cell None, its panel open. Type a name, Save: the row shows it. Click
+    Director's name: the new role's panel closes, Director's opens. Reload: the draft is back.
+
+    ![The owner's screenshot, 2026-11-14: Security › Roles; the title Roles struck out, the status line boxed, a red line under Compliance to split the table in two](images/security-roles-split-2026-11-14.png)
+    ![The owner's screenshot, 2026-11-14: a role's panel; the empty row beside Discard and Save boxed in yellow, for the name box to fill; the Role name label to go](images/security-roles-panel-name-2026-11-14.png)
   - Audit Logs: **Config**, **Calls**, **Security**.
   - Settings: **Personalization** (its first item). Settings had one panel with "No settings
     yet." until 2026-11-13; with it went `pageHead` and the `.page-head` styles.

@@ -25,6 +25,8 @@ import {
   type CallEvent,
   type LiveInfo,
   type CallRow,
+  type AnthropicCycle,
+  type CallUse,
   type CartesiaCycle,
   type EhrSource,
   type Rating,
@@ -121,6 +123,8 @@ export function chatPage(): Page {
               <div class="chat-main">
               <div class="chat-canvas">
                 <div class="chat-top">
+                  <input class="call-label" data-wave id="call-label" type="text" maxlength="200" autocomplete="off"
+                    placeholder="Chat Title (Optional)" aria-label="The next call's title" />
                   <div class="tabs seat" data-wave id="chat-seat" role="radiogroup" aria-label="How you call">
                     <span class="nav-highlight tab-pill" aria-hidden="true"></span>
                     ${SEATS.map(
@@ -163,8 +167,6 @@ export function chatPage(): Page {
                     </div>
                   </div>
 
-                  <input class="call-label" data-wave id="call-label" type="text" maxlength="200" autocomplete="off"
-                    placeholder="What this call tests (optional)" aria-label="A label for the next call" />
                   <div class="split split-call" data-wave role="group" aria-label="The call">
                     <button class="split-go" id="call-start" type="button"><span>Start</span></button>
                     <button class="split-stop" id="call-end" type="button" disabled>
@@ -317,6 +319,7 @@ export function chatPage(): Page {
           /* the mode holds for this visit only */
         }
         markNav(true); // the pill starts its slide at once
+        void loadResources(); // the Resources tab shows this mode's call (CHAT.md §17)
         if (reducedMotion()) return showMode();
         // The old controls fade out together; then the mode swaps and the new controls come in
         // as a wave. The latest press wins when presses come quickly.
@@ -733,6 +736,7 @@ export function chatPage(): Page {
         if (!r?.dataset.id || !lives.has(r.dataset.id)) return;
         phiPicked = true;
         watchCall(r.dataset.id);
+        void loadResources();
       });
       watch(
         (m) => {
@@ -743,6 +747,7 @@ export function chatPage(): Page {
               phiPicked = false;
               watchCall(m.live);
             } else drawLives();
+            watchResources();
             return;
           }
           if (m.type === "started") {
@@ -754,6 +759,7 @@ export function chatPage(): Page {
             }
             if (!phiPicked) watchCall(m.call);
             else drawLives();
+            watchResources();
             return;
           }
           if (m.type === "event") {
@@ -780,6 +786,7 @@ export function chatPage(): Page {
             // The dev server adds the call to the catalog before it says "ended".
             if (m.call === myCall) finished("test", m.call);
             void loadCatalog();
+            watchResources();
           }
         },
         (up) => {
@@ -793,14 +800,19 @@ export function chatPage(): Page {
         },
       );
 
-      // ---- the Resources tab (CHAT.md §17): Cartesia's credits this cycle. Read when the page
-      // opens and after each call; every few seconds while a voice call runs.
+      // ---- the Resources tab (CHAT.md §17): Claude's dollars and Cartesia's credits left this
+      // cycle, and the use of the call this page shows: Testing's own call (kept after it ends,
+      // till the next Start), the call PHI watches, the call Demo played. Read when the page
+      // opens, when the shown call changes, after each call, and every few seconds while any
+      // call runs (local reads only: no request to a vendor).
       const resourcesBox = $("chat-resources");
       let resourcesTimer = 0;
+      let demoPlayed: string | null = null;
+      const shownCall = () => (mode === "test" ? myCall : mode === "phi" ? phiCall : demoPlayed);
       const loadResources = async () => {
         try {
-          const r = await resources();
-          resourcesBox.replaceChildren(...resourceRows(r.cartesia, r.voice));
+          const r = await resources(shownCall());
+          resourcesBox.replaceChildren(...resourceRows(r.anthropic, r.cartesia, r.call, r.voice));
         } catch {
           resourcesBox.replaceChildren(note("The agent's dev server is not running"));
         }
@@ -808,7 +820,7 @@ export function chatPage(): Page {
       function watchResources() {
         window.clearInterval(resourcesTimer);
         void loadResources();
-        if (live && callSeat === "voice") resourcesTimer = window.setInterval(() => void loadResources(), RESOURCES_LIVE_MS);
+        if (live || lives.size > 0) resourcesTimer = window.setInterval(() => void loadResources(), RESOURCES_LIVE_MS);
       }
       void loadResources();
 
@@ -883,6 +895,8 @@ export function chatPage(): Page {
       async function startDemo() {
         if (!chosen) return;
         const id = chosen; // the call to play, even if another is chosen while it loads
+        demoPlayed = id;
+        void loadResources();
         stopDemo();
         play.disabled = true;
         stop.disabled = false;
@@ -1606,9 +1620,23 @@ function agentFacts(llm: CallEvent[]): string | undefined {
   return typeof ms === "number" ? `text ${(ms / 1000).toFixed(1)} s` : undefined;
 }
 
-/** The Resources tab's rows (CHAT.md §17): counts and dates only, never a value from a call. */
-function resourceRows(c: CartesiaCycle, keyed: boolean): HTMLElement[] {
+/** The Resources tab (CHAT.md §17; the owner, 2026-11-14): two columns, Anthropic | Cartesia,
+ * in three blocks split by lines: what is left this cycle (a bar and "N of M left"), the shown
+ * call's use (Claude in cents, Cartesia in credits), and the cycle's facts. Then the notes.
+ * Counts and dates only, never a value from a call. */
+function resourceRows(
+  a: AnthropicCycle,
+  c: CartesiaCycle,
+  call: CallUse | null,
+  keyed: boolean,
+): HTMLElement[] {
   const n = (x: number) => Math.round(x).toLocaleString("en-US");
+  const usd = (x: number) =>
+    `$${x.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(x) ? 0 : 2, maximumFractionDigits: 2 })}`;
+  const cents = (x: number) => {
+    const c100 = x * 100;
+    return `${c100.toLocaleString("en-US", { maximumFractionDigits: c100 < 10 ? 2 : 1 })}¢`;
+  };
   const minutes = (s: number) => {
     const whole = Math.round(s);
     return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
@@ -1617,55 +1645,106 @@ function resourceRows(c: CartesiaCycle, keyed: boolean): HTMLElement[] {
     const [y, m, d] = iso.split("-").map(Number);
     return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
-  const row = (term: string, value: string) => {
-    const r = document.createElement("div");
-    r.className = "res-row";
-    const t = document.createElement("span");
-    t.className = "res-term";
-    t.textContent = term;
-    const v = document.createElement("span");
-    v.className = "res-value";
-    v.textContent = value;
-    r.append(t, v);
-    return r;
+  const plural = (k: number, one: string, many: string) => `${k} ${k === 1 ? one : many}`;
+  const text = (tag: string, cls: string, words: string) => {
+    const e = document.createElement(tag);
+    e.className = cls;
+    e.textContent = words;
+    return e;
   };
-  const head = document.createElement("h2");
-  head.className = "res-head";
-  head.textContent = "Cartesia credits";
+  // The bar fills with the share left; aria says the same in numbers.
+  const meter = (label: string, left: number, total: number) => {
+    const m = document.createElement("div");
+    m.className = "res-meter";
+    m.setAttribute("role", "meter");
+    m.setAttribute("aria-label", label);
+    m.setAttribute("aria-valuemin", "0");
+    m.setAttribute("aria-valuemax", String(total));
+    m.setAttribute("aria-valuenow", String(Math.max(0, Math.min(left, total))));
+    const fill = document.createElement("span");
+    fill.className = "res-fill";
+    fill.style.setProperty("--share", String(total > 0 ? Math.max(0, Math.min(1, left / total)) : 0));
+    m.append(fill);
+    return m;
+  };
+  const cell = (side: "anthropic" | "cartesia", ...parts: HTMLElement[]) => {
+    const e = document.createElement("div");
+    e.className = `res-cell res-${side}`;
+    e.append(...parts);
+    return e;
+  };
 
-  const left = document.createElement("p");
-  left.className = "res-left";
-  left.textContent = `${n(c.left)} left of ${n(c.plan)}`;
-
-  const meter = document.createElement("div");
-  meter.className = "res-meter";
-  meter.setAttribute("role", "meter");
-  meter.setAttribute("aria-label", "Credits used this cycle");
-  meter.setAttribute("aria-valuemin", "0");
-  meter.setAttribute("aria-valuemax", String(c.plan));
-  meter.setAttribute("aria-valuenow", String(Math.min(c.used, c.plan)));
-  const fill = document.createElement("span");
-  fill.className = "res-fill";
-  fill.style.setProperty("--used", String(Math.min(1, c.plan ? c.used / c.plan : 0)));
-  meter.append(fill);
-
-  const rows = [
-    row("Used this cycle", `${n(c.used)} (${c.calls} voice ${c.calls === 1 ? "call" : "calls"})`),
-    row("Ink, speech in", `${minutes(c.ink_s)} · ${n(c.ink_s * c.rates.ink_per_s)}`),
-    row("Sonic, speech out", `${n(c.sonic_chars)} characters · ${n(c.sonic_chars * c.rates.sonic_per_char)}`),
+  const aBudget = a.budget - a.offset;
+  const cPlan = c.plan - c.offset;
+  const top = [
+    cell(
+      "anthropic",
+      text("h2", "res-head", "Anthropic"),
+      meter("Claude dollars left this cycle", a.left, aBudget),
+      text("p", "res-left", `${usd(Math.max(0, a.left))} of ${usd(aBudget)} left`),
+    ),
+    cell(
+      "cartesia",
+      text("h2", "res-head", "Cartesia"),
+      meter("Cartesia credits left this cycle", c.left, cPlan),
+      text("p", "res-left", `${n(c.left)} of ${n(cPlan)} left`),
+    ),
   ];
-  if (c.live) rows.push(row("This call", `${minutes(c.live.seconds ?? 0)} · ${n(c.live.credits)}`));
-  rows.push(row("Renews", day(c.renews)));
 
-  const limits = document.createElement("p");
-  limits.className = "res-note";
-  limits.textContent = keyed
+  const callHead = call?.live ? "This call so far" : "This call";
+  const middle = [
+    cell(
+      "anthropic",
+      text("p", "res-term", callHead),
+      text("p", "res-value", call ? cents(call.usd) : "No call yet"),
+    ),
+    cell(
+      "cartesia",
+      text("p", "res-term", callHead),
+      text(
+        "p",
+        "res-value",
+        !call ? "No call yet" : call.credits === null ? "Text call" : `${n(call.credits)} credits`,
+      ),
+    ),
+  ];
+
+  const bottom = [
+    cell(
+      "anthropic",
+      text("p", "res-fact", plural(a.calls, "call this cycle", "calls this cycle")),
+      text("p", "res-fact", `Renews ${day(a.renews)}`),
+    ),
+    cell(
+      "cartesia",
+      text("p", "res-fact", plural(c.calls, "voice call this cycle", "voice calls this cycle")),
+      text(
+        "p",
+        "res-fact",
+        `Ink ${minutes(c.ink_s)} · Sonic ${n(c.sonic_chars)} ${c.sonic_chars === 1 ? "character" : "characters"}`,
+      ),
+      text("p", "res-fact", `Renews ${day(c.renews)}`),
+    ),
+  ];
+
+  const grid = document.createElement("div");
+  grid.className = "res-grid";
+  for (const [i, block] of [top, middle, bottom].entries()) {
+    for (const e of block) {
+      e.classList.toggle("res-after-line", i > 0);
+      grid.append(e);
+    }
+  }
+
+  const limits = keyed
     ? `A voice test call ends after ${c.limits.idle_s} s with no speech, or at ${minutes(c.limits.max_s)}.`
     : "No Cartesia key in .env: voice calls are off.";
-  const floor = document.createElement("p");
-  floor.className = "res-note";
-  floor.textContent = "Counts this machine's voice calls only. Cartesia's dashboard has the full count.";
-  return [head, left, meter, ...rows, limits, floor];
+  const notes = text(
+    "p",
+    "res-note",
+    `${limits} Counted from this machine's call records; not read from Anthropic or Cartesia. Their dashboards have the full count.`,
+  );
+  return [grid, notes];
 }
 
 function endNote(reason: string): HTMLElement {

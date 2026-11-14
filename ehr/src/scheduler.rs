@@ -8,7 +8,11 @@ use std::{collections::HashSet, future::Future, sync::Mutex};
 
 use deetshealth_core::Shielded;
 
-use crate::{sandbox::sandbox, session::PatientKey, visit_about::VisitAbout};
+use crate::{
+    sandbox::sandbox,
+    session::PatientKey,
+    visit_about::{BookNote, VisitAbout},
+};
 
 /// The EHR's own id for a slot. It never leaves this service: the agent gets a token.
 #[derive(Clone, PartialEq, Eq, Hash)]
@@ -29,11 +33,34 @@ pub struct Slot {
     pub about: VisitAbout,
 }
 
+/// How the caller wants to be seen (the owner's 1A, 2026-11-13). At Epic, online or in person
+/// is a visit type, so this picks among the hospital's visit types (EPIC.md §5.2).
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum VisitMode {
+    #[default]
+    Either,
+    InPerson,
+    Online,
+}
+
+impl VisitMode {
+    /// Whether a slot that is (or is not) online fits.
+    pub fn fits(self, online: bool) -> bool {
+        match self {
+            VisitMode::Either => true,
+            VisitMode::InPerson => !online,
+            VisitMode::Online => online,
+        }
+    }
+}
+
 /// What the caller asked for.
 pub struct SlotWish {
-    pub reason: Shielded<String>,
+    /// The caller's reason, screened: the visit's note when they book (Book).
+    pub note: BookNote,
     /// YYYY-MM-DD; none means from the next open day.
     pub earliest_day: Option<Shielded<String>>,
+    pub mode: VisitMode,
 }
 
 #[derive(Clone)]
@@ -56,10 +83,13 @@ pub trait Scheduler: Send + Sync + 'static {
         wish: &SlotWish,
     ) -> impl Future<Output = Result<Vec<Slot>, SchedulerDown>> + Send;
 
+    /// Books `slot` with `note`, the caller's reason, as the visit's note for the scheduler
+    /// (Epic's `appointmentNote`). The booked slot's `about` holds its type and the reason.
     fn book(
         &self,
         patient: &PatientKey,
         slot: &SlotId,
+        note: &BookNote,
     ) -> impl Future<Output = Result<BookResult, SchedulerDown>> + Send;
 
     /// The patient's soonest visit still to come, if any (DESIGN.md S5).
@@ -69,15 +99,17 @@ pub trait Scheduler: Send + Sync + 'static {
     ) -> impl Future<Output = Result<Option<Slot>, SchedulerDown>> + Send;
 }
 
-/// The fake's fixed slots: synthetic clinicians at a synthetic clinic.
-const FAKE_SLOTS: &[(&str, &str, &str, u32, &str)] = &[
-    // (id, day, time, minutes, clinician)
-    ("slot-01", "2026-11-02", "09:00", 20, "Dr. Avery Lin"),
-    ("slot-02", "2026-11-02", "14:30", 20, "Dr. Avery Lin"),
-    ("slot-03", "2026-11-03", "10:00", 30, "Dr. Sam Okafor"),
-    ("slot-04", "2026-11-04", "08:30", 20, "Dr. Avery Lin"),
-    ("slot-05", "2026-11-05", "11:00", 30, "Dr. Sam Okafor"),
-    ("slot-06", "2026-11-06", "15:00", 20, "Dr. Avery Lin"),
+/// The fake's fixed slots: synthetic clinicians at a synthetic clinic, each with a visit type
+/// as Epic names them (2026-11-14). The first three stay in person, so a list for "either"
+/// reads as before; two are online, for `VisitMode::Online`.
+const FAKE_SLOTS: &[(&str, &str, &str, u32, &str, &str)] = &[
+    // (id, day, time, minutes, clinician, visit type)
+    ("slot-01", "2026-11-02", "09:00", 20, "Dr. Avery Lin", "Office Visit"),
+    ("slot-02", "2026-11-02", "14:30", 20, "Dr. Avery Lin", "Office Visit"),
+    ("slot-03", "2026-11-03", "10:00", 30, "Dr. Sam Okafor", "Office Visit"),
+    ("slot-04", "2026-11-04", "08:30", 20, "Dr. Avery Lin", "Video Visit"),
+    ("slot-05", "2026-11-05", "11:00", 30, "Dr. Sam Okafor", "Office Visit"),
+    ("slot-06", "2026-11-06", "15:00", 20, "Dr. Avery Lin", "Video Visit"),
 ];
 
 /// The in-memory scheduler for tests and the text harness (VOICE-AGENT.md §9).
@@ -125,15 +157,16 @@ impl FakeScheduler {
         Self::with_days(days, place)
     }
 
+    /// An open slot: its type is known (and so whether it is online), its reason is not yet.
     fn slot(&self, i: usize) -> Slot {
-        let (id, _, time, minutes, clinician) = FAKE_SLOTS[i];
+        let (id, _, time, minutes, clinician, visit_type) = FAKE_SLOTS[i];
         Slot {
             id: SlotId(id.to_string()),
             starts_at: Shielded::new(format!("{}T{time}", self.days[i])),
             minutes,
             clinician: Shielded::new(clinician.to_string()),
             place: Shielded::new(self.place.clone()),
-            about: VisitAbout::default(),
+            about: VisitAbout::from_record(Some(visit_type), None),
         }
     }
 
@@ -154,19 +187,23 @@ impl Scheduler for FakeScheduler {
                     .as_ref()
                     .is_none_or(|from| Shielded::new(self.days[i].clone()) >= *from)
             })
-            .take(MAX_OFFERED)
             .map(|i| self.slot(i))
+            .filter(|slot| wish.mode.fits(slot.about.online))
+            .take(MAX_OFFERED)
             .collect())
     }
 
-    async fn book(&self, patient: &PatientKey, slot: &SlotId) -> Result<BookResult, SchedulerDown> {
+    async fn book(&self, patient: &PatientKey, slot: &SlotId, note: &BookNote) -> Result<BookResult, SchedulerDown> {
         let Some(i) = FAKE_SLOTS.iter().position(|s| s.0 == slot.0) else {
             return Ok(BookResult::Taken);
         };
         if !self.taken.lock().unwrap().insert(slot.0.clone()) {
             return Ok(BookResult::Taken);
         }
-        let booked = self.slot(i);
+        // The visit keeps the caller's reason as its note, as Epic's `$book` will
+        // (`appointmentNote`); NextVisit reads it back, through the sensitive screen.
+        let mut booked = self.slot(i);
+        booked.about = VisitAbout::booked(Some(FAKE_SLOTS[i].5), note);
         self.booked.lock().unwrap().push((patient.clone(), booked.clone()));
         Ok(BookResult::Booked(booked))
     }

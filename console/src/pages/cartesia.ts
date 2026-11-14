@@ -159,7 +159,7 @@ export const cartesiaView = (): View => {
     fromValues,
     differing,
     extra: async () => {
-      cycle = await resources()
+      cycle = await resources(null)
         .then((r) => r.cartesia)
         .catch(() => undefined);
     },

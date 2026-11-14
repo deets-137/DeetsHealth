@@ -12,6 +12,7 @@ is dropped anyway: the agent acts on the kind only.
 from __future__ import annotations
 
 import asyncio
+import base64
 import enum
 import json
 import time
@@ -100,6 +101,16 @@ class Slot:
     minutes: int
     clinician: Shielded[str]
     place: Shielded[str]
+    # An online visit (from its visit type); the place is still the record's.
+    online: bool = False
+
+
+# How the caller wants to be seen (the owner's 1A, 2026-11-13): FindSlots's `visit_mode`.
+VISIT_MODES = {
+    "either": pb.VISIT_MODE_UNSPECIFIED,
+    "in_person": pb.VISIT_MODE_IN_PERSON,
+    "online": pb.VISIT_MODE_ONLINE,
+}
 
 
 @dataclass(frozen=True)
@@ -124,6 +135,20 @@ def _slot(s) -> Slot:
         minutes=s.minutes,
         clinician=Shielded(s.clinician),
         place=Shielded(s.place),
+        online=s.online,
+    )
+
+
+def _visit(v) -> Visit:
+    return Visit(
+        starts_at=Shielded(v.starts_at),
+        minutes=v.minutes,
+        clinician=Shielded(v.clinician),
+        place=Shielded(v.place),
+        visit_type=Shielded(v.visit_type),
+        reason=Shielded(v.reason),
+        online=v.online,
+        reason_private=v.reason_private,
     )
 
 
@@ -276,9 +301,38 @@ class EhrClient:
                 "added_by": u.added_by or None,
                 "added_at": u.added_at,
                 "last_seen_at": u.last_seen_at or None,
+                "first_name": u.first_name,
+                "last_name": u.last_name,
+                "phone": u.phone or None,
+                "phone_verified": u.phone_verified,
+                "source": u.source,
+                "photo_at": u.photo_at or None,
             }
             for u in reply.users
         ]
+
+    async def update_user(self, user_id: str, first_name: str, last_name: str, phone: str, email: str) -> str | None:
+        """Saves a person's card; the old email when the email changed, else None. Raises
+        EhrError with ehr's fixed reason in `detail` (BAD_INPUT names the field)."""
+        reply = await self._users_call(
+            "UpdateUser",
+            pb.UpdateUserRequest(id=user_id, first_name=first_name, last_name=last_name, phone=phone, email=email),
+        )
+        return reply.old_email or None
+
+    async def user_photo(self, user_id: str) -> bytes | None:
+        """A person's picture (WebP bytes), or None when they have none."""
+        reply = await self._users_call("GetUserPhoto", pb.GetUserPhotoRequest(id=user_id))
+        return base64.b64decode(reply.photo) if reply.photo else None
+
+    async def set_user_photo(self, user_id: str, photo: bytes | None) -> None:
+        """Saves a person's picture (a WebP); None clears it."""
+        text = base64.b64encode(photo).decode() if photo else ""
+        await self._users_call("SetUserPhoto", pb.SetUserPhotoRequest(id=user_id, photo=text))
+
+    async def seen_owner(self) -> None:
+        """The owner was seen on this PC (the launch token): ehr stamps last seen."""
+        await self._users_call("SeenOwner", pb.SeenOwnerRequest())
 
     async def add_user(self, email: str, name: str, by: str) -> str:
         """Puts a person on the list; their id. `by`: the adder's email, "" for the owner's PC.
@@ -367,22 +421,30 @@ class EhrClient:
         return outcome, reply.tries_left
 
     async def find_slots(
-        self, handle: Shielded[str], reason: Shielded[str], earliest_day: Shielded[str] | None
+        self,
+        handle: Shielded[str],
+        reason: Shielded[str],
+        earliest_day: Shielded[str] | None,
+        visit_mode: str = "either",
     ) -> list[Slot]:
+        """`reason`: the caller's own words (flow.py checks them); ehr keeps them for this call
+        and Book sends them to the scheduler as the visit's note."""
         reply = await self._call(
             "FindSlots",
             pb.FindSlotsRequest(
                 handle=handle.reveal(),
                 reason=reason.reveal(),
                 earliest_day=earliest_day.reveal() if earliest_day else "",
+                visit_mode=VISIT_MODES.get(visit_mode, pb.VISIT_MODE_UNSPECIFIED),
             ),
         )
         return [_slot(s) for s in reply.slots]
 
     async def book(
         self, handle: Shielded[str], slot_token: Shielded[str], idempotency_key: str
-    ) -> Slot | None:
-        """The booked slot, or None when someone else took it first."""
+    ) -> Visit | None:
+        """The booked visit (its type, whether it is online, the reason sent as its note), or
+        None when someone else took it first."""
         reply = await self._call(
             "Book",
             pb.BookRequest(
@@ -393,22 +455,12 @@ class EhrClient:
             deadline=BOOK_DEADLINE_S,
             result=lambda r: "booked" if r.outcome == pb.BOOK_OUTCOME_BOOKED else "slot_taken",
         )
-        if reply.outcome == pb.BOOK_OUTCOME_BOOKED and reply.HasField("booked"):
-            return _slot(reply.booked)
+        if reply.outcome == pb.BOOK_OUTCOME_BOOKED and reply.HasField("visit"):
+            return _visit(reply.visit)
         return None
 
     async def next_visit(self, handle: Shielded[str]) -> Visit | None:
         reply = await self._call("NextVisit", pb.NextVisitRequest(handle=handle.reveal()))
         if not reply.HasField("visit"):
             return None
-        v = reply.visit
-        return Visit(
-            starts_at=Shielded(v.starts_at),
-            minutes=v.minutes,
-            clinician=Shielded(v.clinician),
-            place=Shielded(v.place),
-            visit_type=Shielded(v.visit_type),
-            reason=Shielded(v.reason),
-            online=v.online,
-            reason_private=v.reason_private,
-        )
+        return _visit(reply.visit)

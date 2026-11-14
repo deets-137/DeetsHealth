@@ -25,7 +25,7 @@ use crate::{
     scheduler::{BookResult, FakeScheduler, Scheduler, SchedulerDown, Slot, SlotId, SlotWish},
     session::PatientKey,
     verify::{Candidate, Claimed, Down, Patients},
-    visit_about::VisitAbout,
+    visit_about::{BookNote, VisitAbout},
 };
 
 /// The list of Epic's public test patients, built into the binary.
@@ -172,8 +172,10 @@ impl Scheduler for EpicScheduler {
         self.stand_in.find(patient, wish).await
     }
 
-    async fn book(&self, patient: &PatientKey, slot: &SlotId) -> Result<BookResult, SchedulerDown> {
-        self.stand_in.book(patient, slot).await
+    /// The stand-in books until E-4. Then `$book` sends `note` as `appointmentNote`, the
+    /// caller's reason in their words, revealed here with the `EhrPass` (EPIC.md §5.2).
+    async fn book(&self, patient: &PatientKey, slot: &SlotId, note: &BookNote) -> Result<BookResult, SchedulerDown> {
+        self.stand_in.book(patient, slot, note).await
     }
 
     async fn next_visit(&self, patient: &PatientKey) -> Result<Option<Slot>, SchedulerDown> {
@@ -372,6 +374,62 @@ pub async fn connect_sandbox(client_file: &Path, key_file: &Path) -> Result<Epic
     let config = crate::epic::EpicConfig::sandbox(client_file, key_file)?;
     let epic = Epic::connect(config).await.map_err(|e| e.to_string())?;
     EpicEhr::new(epic)
+}
+
+/// How long ehr waits between sign-in tries while Epic's sandbox is down.
+pub const SANDBOX_RETRY: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Epic's sandbox as ehr serves it: signed in, or not yet. Epic's sandbox goes down at times
+/// (2026-11-14: every FHIR request answered 503 "OltpServerUnavailable"). A sign-in that fails
+/// at start is tried again in the background, so Epic comes back without a restart of ehr.
+#[derive(Default)]
+pub struct EpicSandbox {
+    ehr: std::sync::RwLock<Option<Arc<EpicEhr>>>,
+}
+
+impl EpicSandbox {
+    /// Already signed in (the tests, and a start where Epic answered).
+    pub fn ready(ehr: Arc<EpicEhr>) -> Arc<Self> {
+        Arc::new(Self { ehr: std::sync::RwLock::new(Some(ehr)) })
+    }
+
+    /// The signed-in sandbox, or None while Epic does not answer.
+    pub fn get(&self) -> Option<Arc<EpicEhr>> {
+        self.ehr.read().ok()?.clone()
+    }
+
+    /// Signs in now; on a failure, says so once on stderr and tries again every
+    /// [`SANDBOX_RETRY`] in the background, saying when it is back. Errors name a status only.
+    pub async fn start(client: std::path::PathBuf, key: std::path::PathBuf) -> Arc<Self> {
+        let me = Arc::new(Self::default());
+        match connect_sandbox(&client, &key).await {
+            Ok(ehr) => me.set(ehr),
+            Err(e) => {
+                eprintln!(
+                    "ehr: no Epic sandbox yet ({e}); Epic calls are refused, trying again every {} s",
+                    SANDBOX_RETRY.as_secs()
+                );
+                let slot = Arc::clone(&me);
+                tokio::spawn(async move {
+                    loop {
+                        tokio::time::sleep(SANDBOX_RETRY).await;
+                        if let Ok(ehr) = connect_sandbox(&client, &key).await {
+                            slot.set(ehr);
+                            eprintln!("ehr: Epic sandbox signed in; Epic calls work again");
+                            return;
+                        }
+                    }
+                });
+            }
+        }
+        me
+    }
+
+    fn set(&self, ehr: EpicEhr) {
+        if let Ok(mut slot) = self.ehr.write() {
+            *slot = Some(Arc::new(ehr));
+        }
+    }
 }
 
 #[cfg(test)]

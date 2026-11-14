@@ -1,0 +1,4 @@
+{"t_ms": 0.0, "kind": "call_start", "schema_version": 11, "call_id": "20261113-225604-test", "source": "test", "scenario": null, "ehr": "epic", "seat": "text", "mode": "live", "model": "claude-haiku-5-5", "llm": {"effort": "low", "thinking": "on", "max_tokens": 1200, "retry_max_tokens": 2400, "cache_ttl": "5m"}, "inference_geo": "us", "prompt_version": "11-14 | 2", "system_version": "11-14 | 3", "started": "2026-11-13T22:56:04", "started_by": "owner"}
+{"t_ms": 370.3, "kind": "ehr", "call": "OpenCall", "ms": 2.2, "outcome": "FAILED_PRECONDITION"}
+{"t_ms": 370.5, "kind": "error", "type": "EhrError", "message": "OpenCall: not_allowed_now"}
+{"t_ms": 370.8, "kind": "call_end", "reason": "the harness failed (EhrError)", "turns": 0, "requests": {"live": 0, "replayed": 0, "failed": 0}, "tokens": {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}, "cost_usd": 0.0}

@@ -1,0 +1,124 @@
+/* Security › Roles (roles.ts; docs/ideas/ACCESS-ROLES.md): the role templates as a table. The
+   frame, the heading and the table are Auth's (auth.css); this adds the two titled tables,
+   the role names and the level in each cell. */
+
+/* Two titled tables, "Customer" then "DeetsHealth Team", in one scroll box. */
+.roles-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pad-panel-y);
+}
+
+.roles-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Add at the title row's right end (Auth's status line pushes it there; here nothing does). */
+.roles-add {
+  margin-inline-start: auto;
+}
+
+/* Only the column heads stick; a role's name scrolls with the table. */
+.roles-table > tbody > tr > th {
+  position: static;
+  background: none;
+  border-top: var(--edge) solid var(--line);
+}
+
+/* A role's name: a button that opens its panel, in the row's look (auth.css › .auth-row). */
+.roles-open {
+  width: 100%;
+  padding: var(--pad-row);
+  border: none;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: var(--weight-bold);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease);
+}
+
+.roles-open:hover {
+  background: var(--hover);
+}
+
+.roles-open[aria-expanded="true"] {
+  background: var(--press);
+}
+
+.roles-open:focus-visible {
+  outline: var(--focus-ring) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-ring));
+}
+
+/* The panel's top row: the name box fills the row, as tall as Discard | Save beside it. */
+.roles-name-box {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-height);
+  border-radius: var(--radius-item); /* Discard | Save's corners */
+}
+
+/* A save's result or a refusal, under the top row; no line at all while there is none. */
+.roles-edit-status:empty {
+  display: none;
+}
+
+/* The panel's users: a small read-only table under the name box. Its heads do not stick. */
+.roles-users {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.roles-users-title {
+  color: var(--text-2);
+  font-size: var(--text-small);
+  font-weight: var(--weight-bold);
+}
+
+.roles-users-table th {
+  position: static;
+}
+
+.roles-level {
+  min-width: 100%;
+  padding: var(--pad-row);
+  border: var(--edge) solid transparent;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease);
+}
+
+.roles-level:hover {
+  background: var(--hover);
+}
+
+.roles-level:focus-visible {
+  outline: var(--focus-ring) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-ring));
+}
+
+/* None is dim; View is plain text; Edit is filled in the accent. */
+.roles-level[data-level="none"] {
+  color: var(--text-3);
+}
+
+.roles-level[data-level="edit"] {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: var(--weight-bold);
+}
+
+.roles-level[data-level="edit"]:hover {
+  background: var(--accent);
+}

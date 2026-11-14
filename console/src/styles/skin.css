@@ -98,6 +98,15 @@
   --star-size: 20px; /* the Review panel's star */
   --disabled-opacity: 0.45; /* a control that cannot be used now */
 
+  /* ---------- people ---------- */
+  --card-width: 240px; /* a person's card on Teams › People; the cards wrap in rows */
+  --avatar-size: 96px; /* the round picture slot on a person's card */
+  --card-band: 64px; /* the darker band at a card's top; it ends at the picture's middle */
+  --mark-size: 20px; /* a phone number's verified mark (X or V), a rounded square */
+  --thumb-photo: 32px; /* a person's picture in a Security › Auth row */
+  --phone-col: 176px; /* Security › Auth's Phone column, at least: a number and its mark, so the mark never moves the columns */
+  --photo-px: 256; /* the side of the square picture the console makes before it sends it (a number: person.ts reads it) */
+
   /* ---------- glass ---------- */
   --blur: 28px; /* the panels' backdrop blur */
   --saturate: 1.2; /* the panels' backdrop saturation */

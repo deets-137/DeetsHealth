@@ -118,6 +118,7 @@ pub const PROMPT: &[Setting] = &[
     p("tool.find_slots", &[]),
     p("arg.find_slots.reason", &[]),
     p("arg.find_slots.earliest_day", &[]),
+    p("arg.find_slots.visit_mode", &[]),
     p("tool.choose_option", &[]),
     p("arg.choose_option.option", &[]),
     p("tool.book", &[]),
@@ -161,6 +162,7 @@ pub const PROMPT: &[Setting] = &[
     p("line.booked", &["visit"]),
     p("line.no_visits", &[]),
     p("line.next_visit", &["visit"]),
+    p("line.booked_visit_asked", &[]),
     p("line.visit_online", &[]),
     p("line.visit_type", &["visit_type"]),
     p("line.visit_reason", &["reason"]),
@@ -172,6 +174,7 @@ pub const PROMPT: &[Setting] = &[
     p("line.hand_off_code", &[]),
     p("note.after_reminder", &[]),
     p("note.after_flag", &[]),
+    p("note.summary_pronoun", &[]),
     p("line.emergency_reminder", &[]),
     p("line.emergency", &[]),
     p("line.medical_question", &[]),
@@ -787,7 +790,7 @@ mod tests {
                 (s.key.to_string(), json!(format!("Words {words}.")).to_string())
             })
             .collect();
-        assert_eq!(check(PROMPT, &set).unwrap().len(), 78);
+        assert_eq!(check(PROMPT, &set).unwrap().len(), 81);
 
         let with = |key: &str, text: &str| {
             let mut s = set.clone();

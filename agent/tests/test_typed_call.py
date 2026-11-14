@@ -10,7 +10,7 @@ words before a fixed-line tool and for values the model said that no one gave it
 from pathlib import Path
 
 from deets_agent.call import TypedCall
-from deets_agent.flow import greeting
+from deets_agent.flow import greeting, guesses_a_pronoun
 from deets_agent.llm import Mode, build_llm
 from deets_agent.prompts import text
 from deets_agent.shielded import Shielded
@@ -163,6 +163,25 @@ async def test_no_code_after_a_resend(ehr):
     assert text("line.code_resent") in replies, "the caller should be sent a new code first"
     assert replies[-1] == text("line.hand_off_code"), "no text after a new code goes to a person"
     assert call.ended
+
+
+async def test_booked_reason_asked(ehr):
+    """The Priya Raman call (2026-11-13), as fixed on 2026-11-14: an odd reason is booked as said
+    and flagged for clinical review, silent to the caller (FLAGS.md §3.1); asked what the visit
+    is for and whether it is online, the agent answers from the booking with no hand-off and
+    without reading the time again; no staff summary guesses a pronoun (FLAGS.md §3.2)."""
+    call, replies = await run(ehr, "booked_reason_asked.txt")
+    assert any(r and r.startswith("You're booked for") for r in replies), "the visit should be booked"
+    asked = next((r for r in replies if r and "That's the visit we just booked." in r), None)
+    assert asked is not None, "the visit just booked should not be read out again"
+    assert "The reason on record is strawberry water distillation." in asked
+    assert "It is listed as Office Visit." in asked
+    assert not any(r and "member of our staff" in r for r in replies), "no offer or hand-off"
+    reviews = [f for f in call.flow.flags if f.kind == "visit_reason_review"]
+    assert reviews and reviews[0].source == "model", "the odd reason should be flagged for review"
+    assert not any(r and "flag" in r.lower() for r in replies), "the caller is not told"
+    assert not any(f.summary and guesses_a_pronoun(f.summary.reveal()) for f in call.flow.flags)
+    assert call.ended and (replies[-1] or "").endswith("Thank you for calling. Goodbye.")
 
 
 async def test_visit_reason_then_an_offer(ehr):

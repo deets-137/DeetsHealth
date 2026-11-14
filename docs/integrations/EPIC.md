@@ -330,6 +330,16 @@ server (`https://mcp.open.epic.com`, set up in the repo's `.mcp.json`; documents
   with the CSN, visit type, times, length and participants.
 - **Sign-in:** both allow Backend Systems; neither checks scopes
   (`performsScopeValidation: false`).
+- **What we will send and keep (decided 2026-11-14; Local built, Epic at E-4).** The caller's
+  reason, in their own words (the agent checks them), goes in `$book`'s `appointmentNote`; `ehr`
+  already passes it to every adapter's `book` (`BookNote`, EHR-SERVICE.md §4), and
+  `EpicScheduler.book` sends it once E-4 is built. A coded `indications` waits until a hospital
+  maps reasons to codes. The caller's in person or online (`visit_mode`) picks among the
+  hospital's visit types for `$find`. From `$book`'s reply, the call keeps the visit one call
+  long: CSN, visit type (so online or not), time, length, clinician, place, and the reason sent.
+  Open, for the probe or the hospital: the note's length limit; where the note shows on a later
+  read (`comment` or `reasonCode`; `visit_about.rs` never reads `comment`); which visit types are
+  online at each site.
 - **The sandbox's own rules** (Epic's Developer Testing Guide): it is upgraded each quarter
   (February, May, August, November), and errors come and go during the upgrade. **The 503
   "OltpServerUnavailable" of 2026-11-13 may be the November upgrade.** Data written to the

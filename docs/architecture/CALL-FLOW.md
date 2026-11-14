@@ -56,6 +56,10 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | The hand-off (it may carry a staff flag) | `hand_off_fn` → `handed_off()` | `line.hand_off`; its flag fields: `arg.hand_off.*` | the transfer number: FUTURE-SETTINGS.md › Booking |
 | The offer of a person when the agent cannot help (a yes is `hand_off`, a no goes on) | `offer_staff_fn`, `OFFER_REASONS` | `tool.offer_staff`, `arg.offer_staff.why`, `line.offer_staff`, `line.offer_staff_private`; the rule: `role`, `task.menu` | FUTURE-SETTINGS.md §10 |
 | What the next visit is: its type, reason, online | `_next_visit_fn`; the screen in `ehr/src/visit_about.rs` | `line.visit_online`, `line.visit_type`, `line.visit_reason`; the model's next step: `note.after_next_visit` | FUTURE-SETTINGS.md §9 |
+| The next visit is the one just booked: its time is not said again | `_next_visit_fn`, `_same_visit`, `CallFlow.last_booked` | `line.booked_visit_asked` | — |
+| In person, online or either (the caller's words) | `_find_slots_fn`, `VISIT_MODES` (`ehr_client.py`); the filter: `VisitMode` (`ehr/src/scheduler.rs`) | `arg.find_slots.visit_mode` | a hospital's visit types: FUTURE-SETTINGS.md › Booking |
+| An odd reason: booked as said, flagged for clinical review | `FLAG_KINDS` › `visit_reason_review` | the rule: `task.menu` | FLAGS.md §3.1 |
+| A staff summary never guesses a pronoun | `CallFlow._summary_back`, `guesses_a_pronoun` | the rule: `role`; `note.summary_pronoun` | FLAGS.md §3.2 |
 | A caller for someone else goes to a person | the rule in `role` | — | — |
 | A staff flag (silent to the caller) | `flag_for_staff_fn`, `CallFlow.raise_flag`, `FLAG_KINDS` (FLAGS.md) | `tool.flag_for_staff`, `arg.flag_for_staff.*`; the model's next step: `note.after_flag` | FUTURE-SETTINGS.md §5 |
 | A hand-off after the code did not work (the model's `hand_off` with kind `verification_failed`; the same for every caller, matched or not) | `hand_off_fn` | `line.hand_off_code`; the rule: `task.verify` | FUTURE-SETTINGS.md §7 |
@@ -68,7 +72,7 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | The medical-question line | `medical_question_fn` | `line.medical_question` | FUTURE-SETTINGS.md §2 |
 | Verification lines | `_identify_fn`, `_confirm_details_fn`, `_check_code_fn`, `_resend_code_fn` | `line.read_back`, `line.ask_details`, `line.birth_not_possible`, `line.name_not_said`, `line.code_sent`, `line.code_length`, `line.code_wrong`, `line.code_resent`, `line.verified` | — |
 | The text message with the code | `SECTION` (`ehr/src/texts.rs`) | `text.code` | — |
-| Booking lines | `_find_slots_fn`, `_choose_option_fn`, `_book_fn`, `_next_visit_fn` | `line.slots`, `line.slot_option`, `line.no_slots`, `line.which_option`, `line.confirm_slot`, `line.slot_taken`, `line.booked`, `line.next_visit`, `line.no_visits` | — |
+| Booking lines | `_find_slots_fn`, `_choose_option_fn`, `_book_fn`, `_next_visit_fn` | `line.slots`, `line.slot_option`, `line.no_slots`, `line.which_option`, `line.confirm_slot`, `line.slot_taken`, `line.booked`, `line.next_visit`, `line.no_visits`; after `book`, the model also gets `visit_is` and `reason_for_visit` | — |
 | A change or cancel goes to staff, with a flag; the caller hears which visit stays booked | `_change_visit_fn` | `line.change_booked`, `line.change_visit` | — |
 | The holding line when a reply is cut off by the token cap (with a review flag, FLAGS.md §8) | `_CutOffGuard` (`agent/deets_agent/llm.py`), `on_cut_off` (`call.py`) | `line.one_moment` | FUTURE-SETTINGS.md › What the agent may say |
 | The clinic's name, and every other System variable | the call's `Words.variables` (`prompts.py`; the store's `system` service, or `agent/prompts/VARIABLES.md`), filled by `prompts.text` | fills `{clinic}` and the analyst's own `{name}`s in any section | Config › System (SYSTEM-PAGE.md) |
@@ -99,6 +103,10 @@ The verification limits are a floor: a hospital may make them stricter, never lo
 | The reminder only after the full 911 line; before that, the full line plays | `CallFlow.warned`, set by `emergency_fn` and `CallerScreen`; read by `safety_reminder_fn` |
 | After a fixed line that ends in a statement, a note in the tool result tells the model what comes next | `note.*` sections; `safety_reminder_fn` |
 | A flag keeps only the quotes the caller really said | `CallFlow._caller_said`; the count of the rest: `StaffFlag.unverified` |
+| The reason sent as the booking's note is the caller's own words: the model's are kept only if the caller said them, else the caller's latest line goes | `CallFlow._reason_words` (uses `_caller_said`) |
+| An online time says "online" in its words; an in-person one reads as before | `_visit_words` (`say_online`) |
+| A staff summary with he, she, him, her, his or hers goes back to the model once; nothing is spoken and no flag is raised until it comes back | `CallFlow._summary_back`, `CallFlow.summary_retries` |
+| The booked visit keeps the caller's reason, through the sensitive screen | `BookNote`, `VisitAbout::booked` (`ehr/src/visit_about.rs`); `Session.note` (`ehr/src/session.rs`) |
 | A code flag of one kind is raised once per call | `CallFlow.raise_flag` |
 | The details are read back before the lookup | `_identify_fn`, `_confirm_details_fn` |
 | The chosen time is read back before it is booked; `book` books nothing without it | `_choose_option_fn`, `_book_fn`, `CallFlow.chosen` |

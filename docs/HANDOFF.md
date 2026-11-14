@@ -136,12 +136,38 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   speaks it; Semantic (new analyst) | Flow (power user); each title says what the row is, and
   its "i" says when it plays. Names and "plays when" live in `agent/prompts/GUIDE.md`; the owner
   edits them there after the desk test. AGENT-PAGE.md §5a.
-- **The owner's desk-test words are still in the files:** `{test}` in two lines and "First Street
-  Pizza" in `AGENT-PROMPT.md` and `VARIABLES.md` (not committed). Until they go back, or
-  Record and test records them, the replay tests miss and `npm run check` fails at the stamp.
-- **Next for booking (owner's 1A, 2026-11-13):** `find_slots` gets an optional `visit_mode` from
-  the caller's words; `BookReply` carries a `Visit` built from the booked Appointment (type,
-  online, reason, through the sensitive screen), and `line.booked` adds the visit lines. Waits
+- **Built, desk test open: the demo over the tunnel** (2026-11-13/14; ops/DEMO.md). `npm run
+  dev` opens `deetshealth.deets.solutions/demo/` behind Access when every guard passes (one
+  connector, the main checkout, `cf` and `cloudflared` ready); it prints `[demo] on` or
+  `[demo] off: <reason>`. Several calls at once, a label beside Start, PHI's Caller list, live
+  reload from a watched build, TURN for guest voice. Desk test: DEMO.md §6. Then DEMO.md
+  becomes `built`. A Cloudflare error 1033 at the address means no connector runs: read the
+  `[demo]` line.
+- **Built, desk test open: Teams › People (cards, read only) and Security › Auth (the table
+  that edits them)** (2026-11-14; DEMO.md §3.5, §7). Who may sign in: the `users` table
+  (migrations 0007 and 0008: email, name, first and last name, phone sealed; `user_photos`
+  sealed), nine RPCs in `ehr`, and Cloudflare's Access group kept equal to the list. The token
+  is in `.env`; it has read the group but **no write has been tried**: the first Add, Remove or
+  email change on Security › Auth is the first. Needs a restart of `npm run dev` (new migration,
+  new RPCs). Phone verification by text code is not built: every number shows the scarlet X.
+  Org Chart and Security › Roles are still empty.
+- **Built, desk test open: the booking keeps the caller's reason; Local half** (2026-11-14,
+  after the Priya Raman call; the owner's 1A of 2026-11-13, 1A for odd reasons, A for
+  pronouns). `FindSlots` takes `visit_mode` and keeps the reason (checked to be the caller's own
+  words) as the booking's note; `Book` returns the visit (type, online, reason, through the
+  sensitive screen); the fake's slots have visit types, two of them online; an online time says
+  "online"; `next_visit` does not read out the visit just booked again; an odd reason is booked
+  and flagged `visit_reason_review`; a staff summary with a guessed pronoun goes back once.
+  EHR-SERVICE.md §4, CALL-FLOW.md, FLAGS.md §3.1–3.2. Also: a saved prompt version that lacks
+  a new section now takes the shipped words for it (PROMPT-EDITOR.md §9). **His steps:** stop
+  `npm run dev` (it holds the old `ehr`), start it again (it builds `ehr`), press **Record and
+  test** on Config › Agent (15 scripts, about 5¢; `npm run check` fails at the recordings
+  stamp until then), then call as Priya Raman on Local: "Can I book a visit for my strawberry
+  water distillation?", choose an option, "What was the reason on the visit again? Is it
+  online?". New words (his to edit): `arg.find_slots.visit_mode`, `line.booked_visit_asked`,
+  `note.summary_pronoun`, a rule each in `role` and `task.menu`.
+- **Next for booking, the Epic half (E-4):** `EpicScheduler.book` sends the note as
+  `appointmentNote` and `visit_mode` picks the hospital's visit types. Waits
   on: what Epic's `$find` needs (the owner's knowledge), then a sandbox probe of `$find` and
   `$book` (a write to Epic's shared sandbox: ask first). E-4 in EPIC.md. **Epic's own spec is
   read (2026-11-14, EPIC.md §5.2):** the visit type is `$find`'s only required input, and
@@ -342,6 +368,19 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   `archive/src/` (CONSOLE.md §4).
 
 ## Known gotchas
+- **A sign-in made from Claude's shell is not the owner's** (2026-11-14). Claude Code's Bash
+  runs in a sandbox with its own `AppData`. `cf`'s OAuth token (made there on 2026-11-13 for
+  the tunnel) was in the sandbox only, so `npm run dev` in his terminal had no sign-in and the
+  demo stayed off (error 1033 at the address). Fix: `cf auth login` in his own terminal. Test
+  what his shell sees in a Terminal panel tab, not in Bash. `~/.cloudflared/<id>.json` and
+  `.env` were on the real disk. ~/.claude/CLAUDE.md has the rule for every project.
+- **Epic's sandbox goes down** (2026-11-14: 503 `OltpServerUnavailable` on every FHIR request).
+  An Epic test call then ends "the EHR did not answer"; `ehr` says so in the terminal and signs
+  in again every 30 s (CHAT.md §13). Check with `deetshealth-ehr.exe epic-check`. Use Local
+  meanwhile.
+- **`cf` signed out crashes on exit** (`cf` 1.0.0-beta.10, Node 24): it prints "No
+  authentication token found", then a libuv assertion, exit 0xC0000409. `dev.mjs` reads the
+  message and says to run `cf auth login`.
 - **A cloud session cannot push a tag** (git proxy, HTTP 403, 2026-10-19). Branches push.
 - **`../DeetsMusic` in a cloud session.** The Tauri DeetsMusic is the repo
   `deets-137/DeetsMusicWindows` (public). `deets-137/DeetsMusic` is an older Swift app. Clone

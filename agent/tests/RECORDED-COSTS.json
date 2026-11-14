@@ -1,5 +1,6 @@
 {
  "book_a_visit": 0.0029,
+ "booked_reason_asked": 0.0031,
  "change_after_booking": 0.0014,
  "code_confusion": 0.0008,
  "emergency_reminder": 0.0016,

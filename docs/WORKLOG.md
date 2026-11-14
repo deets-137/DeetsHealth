@@ -8,6 +8,55 @@ updated: 2026-11-13
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-14 (Windows, roles) — A Rules page; Security › Roles as a draft table
+- **Rules** is a new page with its own nav: Agents, Flags, Tools, all empty. The nav's top is
+  now Chat, Config, Rules, Teams, Analytics (the owner). Committed as `37abad8`.
+- **Roles, decided (the owner):** each lever is None, View or Edit. His starting roles, with
+  Compliance (Claude's addition, kept "for now"), are the draft in ideas/ACCESS-ROLES.md §4.
+- **Security › Roles** shows the templates as two tables in Auth's look, Customer and
+  DeetsHealth Team (his sketch). A click moves a cell to the next level; nothing is saved.
+  It uses `auth.css`, so it is committed with the Auth work or after it.
+- Then **Add** on each title (a new role, every lever None) and a **panel under a role**
+  (click its name): the name in a text box, Discard | Save, and its users, read only and
+  empty until roles are stored.
+- Then the panel neatened (his sketch): the name box, with no label, on one row with
+  Discard | Save and as tall as them.
+- Saved: `docs/architecture/images/security-roles-split-2026-11-14.png`,
+  `docs/architecture/images/security-roles-panel-name-2026-11-14.png`.
+
+## 2026-11-14 (Windows) — Teams › People as cards: the owner's card
+- The owner asked how his sign-in differs from a guest's. On `localhost` the launch token
+  admits him as `"owner"` (no email, no row id, `last_seen_at` not stamped); a guest passes
+  Access, the agent's own token check and the `users` list. The `users` table had one row:
+  the owner, `source = access`, the email and name sealed, `role` empty.
+- His sketch (saved: `docs/architecture/images/people-owner-card-sketch-2026-11-14.png`):
+  one card per person, the round picture slot, then name, role, phone, email. "For now, let
+  the page only hold the single card." Built in `pages/people.ts` and `styles/people.css`;
+  two skin tokens (`--card-width`, `--avatar-size`). Placeholders where the store holds
+  nothing: "Name", "Role", "XXX-XXX-XXXX". DEMO.md §7 records the view.
+- Then: the band above the picture in the theme's own color (`--theme-color`; first built
+  with `--canvas` by mistake, fixed), everything left aligned. His forks for the card's data:
+  phone saved and marked not verified (white serif X on scarlet; V on forest green when
+  verified), picture sealed in Postgres, role shown not editable, email editable.
+- He paused the edit dropdown on the cards: People is read only, and editing moved to a table
+  on Security › Auth (his choice A: a panel opens under the clicked row). Built: migration
+  `0008_user_profile.sql` (first, last, phone, phone_verified, `user_photos`), `users.rs`
+  (`update`, the picture, `seen_owner`), four RPCs (`UpdateUser`, `GetUserPhoto`,
+  `SetUserPhoto`, `SeenOwner`), four routes, `pages/auth.ts`, `pages/person.ts`, `auth.css`.
+- Checks: ehr's tests pass (a new store test for the card). `test_people.py` passes (11). The
+  console type check passes. 18 other agent tests fail with `ReplayMiss` and a kept-script
+  count of 15 against 14: the prompt edits of a parallel session in this folder, not this work.
+- His first desk test of Auth: Save and Cancel became Config's Discard | Save tab bar at the
+  panel's top right; Copy invite and the empty status line under the add row are gone (the
+  status is now at the row's right end). His screenshot is not saved: it shows his real email,
+  which is PII (CLAUDE.md › protected data never goes in).
+- Next: the add fields became the title "Users"; Add puts a blank row with its panel open, and
+  the first Save puts the person on the list (DEMO.md §7). A save now keeps its panel open.
+  His `ECONNREFUSED 127.0.0.1:8790` at `npm run dev` was the page asking `/agent/people` before
+  the agent had finished starting; the agent was up on 8790 after. Also seen: Vite reloads the
+  `localhost` page each time the demo build rewrites `console/dist-demo/` (not ignored by its
+  watcher).
+
 ## 2026-11-14 (Windows) — Epic's docs over MCP; `$find`'s spec read
 - Epic runs a public MCP server for open.epic's docs: `https://mcp.open.epic.com`, Streamable
   HTTP, no sign-in, two tools (`search_documents`, `get_document`). Not for PHI. Added to the
@@ -22,6 +71,83 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   `target/probe/` because the dev server holds `target/debug/deetshealth-ehr.exe`. The run
   stopped at once: the whole sandbox answers 503 "OltpServerUnavailable", even `metadata`
   with no sign-in. Run it again when the sandbox is back.
+
+## 2026-11-14 (Windows, tunnel) — The demo's connector check, HANDOFF caught up
+- The owner listed what is open for desk testing: Config › Agent, Teams › People, the tunnel.
+  HANDOFF's Open now lacked the tunnel and People and still said the desk-test words were in
+  the files (they were gone; the tree was clean). Both corrected.
+- His first tunnel test: `npm run dev` said `[demo] off: … could not be read (is cf signed
+  in?)` with a DEP0190 warning, and the address gave error 1033 (no connector). `cf` was signed
+  in for Claude; the same `cf tunnels connections list` passed every time in Claude's shell.
+- `scripts/dev.mjs`: the check now tries three times, 2 s apart, names the real reason when it
+  gives up, and starts `cf` through `cmd.exe` on Windows (no `shell` option, no DEP0190).
+- His restart said `cf stopped with code 3221226505: ┌ Error`. 0xC0000409 is a crash. The
+  same probe in a Terminal panel tab (his real shell) printed "No authentication token found"
+  and a libuv assertion. Root cause: Claude Code's shell runs in a sandbox with its own
+  `AppData`; the `cf` sign-in of 2026-11-13 lives only there. Fix for him: `cf auth login` in
+  his own terminal. `dev.mjs` now says exactly that, and skips the retries for it.
+- Friction recorded, as he asked: HANDOFF › Known gotchas, DEMO.md §7, and two new sections
+  in `~/.claude/CLAUDE.md` for every project (Claude's shell is not his; Windows scripting).
+  Also slow: `.env` is closed to Claude, so the tunnel id came from `cf tunnels list`; the
+  auto-mode reviewer gave "no verdict" to tool calls sent together, so terminal calls go one
+  per message.
+- Screenshot saved: `images/demo-tunnel-error-1033-2026-11-14.png` (linked in DEMO.md §7).
+- After `cf auth login` in his terminal, the demo came on. His first Epic test call then ended
+  "the harness failed (EhrError)" (`20261113-225604-test`: `OpenCall` FAILED_PRECONDITION after
+  370 ms). Root cause: Epic's sandbox was down (`ehr epic-check`: smart-configuration HTTP 503;
+  curl: 503 `OltpServerUnavailable` on every FHIR URL). `ehr` signed in once at start, failed,
+  and refused Epic till a restart; its stderr line was never read, so nobody saw why.
+- Fixed: `EpicSandbox` in `epic_ehr.rs` signs in again every 30 s and says when it is back; an
+  Epic call meanwhile is `UNAVAILABLE` "Epic's sandbox is not answering"; the agent ends it
+  "the EHR did not answer (…)" (catalog: `crashed`); `ehr_process.py` relays `ehr`'s stderr
+  as `[ehr] …`. Tests: 1 new in `service.rs`, 1 in `test_catalog.py`; ehr's Epic tests (12) and
+  the agent's catalog, dev server and live-call tests (66) pass. Not rebuilt in place: the
+  running dev server holds `deetshealth-ehr.exe`. Screenshot:
+  `images/chat-harness-failed-ehrerror-2026-11-14.webp` (CHAT.md §13; kept as WebP, as sent).
+- The owner: move the label box to the canvas's top left and name it "Chat Title (Optional)".
+  Done: the box is the top row's first item (`chat.ts`), the bars stay at the right
+  (`.call-label` takes `margin-right: auto`), as tall as the bars; aria-label "The next call's
+  title". CHAT.md §8 and DEMO.md §7 say so. Screenshot: `images/chat-title-box-move-2026-11-14.png`.
+- The Resources tab restructured (the owner's layout): Anthropic | Cartesia in two columns,
+  what is left with a bar, then the shown call's use (Claude in cents; Cartesia in credits, his
+  answer: "credits is enough"), then the cycle. `/agent/resources` adds `anthropic` (the
+  cycle against the active budget) and `?call=` (`call_now` live, `resources.py › call_use`
+  ended). The tab reads every 3 s while any call runs. 1 new test in `test_dev_server.py`.
+  CHAT.md §17, DEV-API.md. Screenshot: `images/chat-resources-tab-2026-11-14.png`.
+- The Resources note now says the counts come from this machine's records, not from either
+  vendor (the owner's wording). Not wired to Anthropic: its Usage and Cost API needs an Admin
+  key. The ways to sign in without a key file are in ANTHROPIC.md §4.0; the owner's idea of
+  the console as the hub for every vendor account is in ideas/README.md.
+- Read the Priya Raman call (`20261113-232112-test`): the booked reason is dropped (`Book`
+  takes the slot only), "Is it online?" went to a hand-off, `next_visit` repeated the visit,
+  and the staff summary guessed "she". The owner chose 1A for odd reasons plus a silent flag
+  for clinical review (FLAGS.md §3.1, designed). Next: what Epic's `$book` accepts and returns
+  decides what the call keeps and sends. Pronouns: Epic documents its own extensions for legal
+  sex, sex for clinical use and the pronouns to use; the fork is the owner's.
+- The owner chose A for pronouns (always neutral, no gender field read; FLAGS.md §3.2) and
+  "build it" for the Local half, documented thoroughly.
+- Built in `ehr`: `FindSlots.visit_mode` and `Slot.online`; the reason screened at the edge
+  (`BookNote::screen`) and kept in `Session.note`; `Scheduler::book(patient, slot, note)`;
+  `BookReply.visit` (`VisitAbout::booked`); the fake's slots with visit types ("Office Visit"
+  for 01–03 and 05, "Video Visit" for 04 and 06) and the mode filter. Epic's stand-in passes the
+  note through. 4 new Rust tests (77 pass).
+- Built in the agent: `VISIT_MODES` and `Visit` from `Book`; `_reason_words` (the model's reason
+  only if the caller said it, else the caller's latest line); "online" in an online time's
+  words; `visit_is` and `reason_for_visit` after `book`; `next_visit` says
+  `line.booked_visit_asked` for the visit just booked; `visit_reason_review`; the pronoun check
+  (`_summary_back`). New words, drafts for the owner: `arg.find_slots.visit_mode`,
+  `line.booked_visit_asked`, `note.summary_pronoun`, a rule in `role`, a paragraph in
+  `task.menu`; GUIDE.md and TOOLS.md entries. New kept script `booked_reason_asked.txt`.
+- A customer-side gap found and fixed: a saved prompt version that lacked a new section failed
+  the check, and the call fell back to the shipped files, dropping a hospital's own words.
+  `active_words` now lays the version over the shipped words (PROMPT-EDITOR.md §9, with the rule
+  that a release never adds a code value to an existing section).
+- Tests: the gate, prompt and dev server suites pass against an `ehr` built in
+  `target/check-alt` (the running dev server holds the main exe). The replay tests and the
+  recordings stamp fail until Record and test. Docs: EHR-SERVICE.md §4, CALL-FLOW.md,
+  FLAGS.md §3.1–3.2, EPIC.md §5.2, FUTURE-SETTINGS.md §9.2, PROMPT-EDITOR.md §9, HANDOFF.
+- The other session worked in the same checkout throughout (People, `store.rs`, the proto,
+  `ehr_client.py`); each of its edits was kept, and mine were checked after each of its writes.
 
 ## 2026-11-13 to 11-14 (Windows, config) — Config › System: variables and tools
 - Config › Agent's tab bars: the pill now slides from the old tab (a click drew a new bar, so

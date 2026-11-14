@@ -8,5 +8,11 @@ export function tokenMs(name: string): number {
   return v.endsWith("ms") ? n : n * 1000;
 }
 
+/** A plain number token from skin.css (no unit). `fallback` when it is not set. */
+export function tokenNumber(name: string, fallback: number): number {
+  const n = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
+  return Number.isFinite(n) ? n : fallback;
+}
+
 /** True when the OS asks for less motion: a script skips its waits. */
 export const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;

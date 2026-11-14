@@ -51,6 +51,8 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "tool.find_slots": set(),
     "arg.find_slots.reason": set(),
     "arg.find_slots.earliest_day": set(),
+    # In person, online or either (the owner's 1A, 2026-11-13).
+    "arg.find_slots.visit_mode": set(),
     "tool.choose_option": set(),
     "arg.choose_option.option": set(),
     "tool.book": set(),
@@ -96,6 +98,8 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "line.booked": {"visit"},
     "line.no_visits": set(),
     "line.next_visit": {"visit"},
+    # In place of line.next_visit when the next visit is the one this call just booked.
+    "line.booked_visit_asked": set(),
     # What the visit is, as the record says (FUTURE-SETTINGS.md §9; the owner, 2026-11-13).
     "line.visit_online": set(),
     "line.visit_type": {"visit_type"},
@@ -115,6 +119,8 @@ PLACEHOLDERS: dict[str, set[str]] = {
     # A note in a tool result, for the model only: never spoken.
     "note.after_reminder": set(),
     "note.after_flag": set(),
+    # A staff summary that guessed a pronoun goes back once (FLAGS.md §3.2).
+    "note.summary_pronoun": set(),
     "line.medical_question": set(),
     "line.not_on_this_call": set(),
     "line.not_now": set(),

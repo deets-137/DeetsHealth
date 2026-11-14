@@ -5,13 +5,15 @@
 
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
+use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use tonic::{Request, Response, Status};
 
 use crate::{
     edge,
-    epic_ehr::EpicEhr,
+    epic_ehr::{EpicEhr, EpicSandbox},
     proto::v1::{self as pb, ehr_server::Ehr},
     scheduler::{BookResult, Scheduler, SchedulerDown, Slot, SlotId, SlotWish},
+    visit_about::BookNote,
     session::{Pending, PatientKey, Refusal, Sessions, Source, Stage, Token},
     settings,
     store::Store,
@@ -35,10 +37,10 @@ impl<S: Scheduler> Sched<S> {
         }
     }
 
-    async fn book(&self, patient: &PatientKey, slot: &SlotId) -> Result<BookResult, SchedulerDown> {
+    async fn book(&self, patient: &PatientKey, slot: &SlotId, note: &BookNote) -> Result<BookResult, SchedulerDown> {
         match self {
-            Sched::Local(s) => s.book(patient, slot).await,
-            Sched::Epic(e) => e.scheduler.book(patient, slot).await,
+            Sched::Local(s) => s.book(patient, slot, note).await,
+            Sched::Epic(e) => e.scheduler.book(patient, slot, note).await,
         }
     }
 
@@ -67,8 +69,9 @@ pub struct EhrService<S, P, C> {
     /// The call store (DATABASE.md), when ehr has one: `FileCall` files each ended call.
     store: Option<Arc<Store>>,
     /// Epic's sandbox (epic_ehr.rs), when ehr serves it: a call that opens with
-    /// `EHR_SOURCE_EPIC_SANDBOX` finds the caller and their visits there (dev only).
-    epic: Option<Arc<EpicEhr>>,
+    /// `EHR_SOURCE_EPIC_SANDBOX` finds the caller and their visits there (dev only). It may be
+    /// not signed in yet while Epic is down (`EpicSandbox::start`).
+    epic: Option<Arc<EpicSandbox>>,
 }
 
 impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
@@ -90,7 +93,12 @@ impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
     }
 
     /// Serves Epic's sandbox as a second source (OpenCall's `ehr`).
-    pub fn with_epic(mut self, epic: Arc<EpicEhr>) -> Self {
+    pub fn with_epic(self, epic: Arc<EpicEhr>) -> Self {
+        self.with_epic_sandbox(EpicSandbox::ready(epic))
+    }
+
+    /// The same, signed in now or later (main.rs).
+    pub fn with_epic_sandbox(mut self, epic: Arc<EpicSandbox>) -> Self {
         self.epic = Some(epic);
         self
     }
@@ -139,14 +147,16 @@ impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
         settings::variables(&raw).map_err(|_| Status::internal("the System version does not fit"))
     }
 
-    fn epic(&self) -> Result<&Arc<EpicEhr>, Status> {
-        self.epic.as_ref().ok_or_else(|| Status::failed_precondition("ehr does not serve Epic's sandbox"))
+    fn epic(&self) -> Result<Arc<EpicEhr>, Status> {
+        let sandbox =
+            self.epic.as_ref().ok_or_else(|| Status::failed_precondition("ehr does not serve Epic's sandbox"))?;
+        sandbox.get().ok_or_else(|| Status::unavailable("Epic's sandbox is not answering"))
     }
 
     fn sched(&self, source: Source) -> Result<Sched<S>, Status> {
         Ok(match source {
             Source::Local => Sched::Local(Arc::clone(&self.scheduler)),
-            Source::EpicSandbox => Sched::Epic(Arc::clone(self.epic()?)),
+            Source::EpicSandbox => Sched::Epic(self.epic()?),
         })
     }
 }
@@ -328,7 +338,9 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let patient = session.patient().map_err(refused)?;
         let found = self.sched(session.source)?.find(&patient, &wish).await.map_err(scheduler_down)?;
 
-        // New tokens each time: a token from an older FindSlots no longer books.
+        // New tokens each time: a token from an older FindSlots no longer books. The reason
+        // asked with these slots is the one Book sends.
+        session.note = Some(wish.note.clone());
         session.offered.clear();
         let mut slots = Vec::with_capacity(found.len());
         for slot in &found {
@@ -365,7 +377,12 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                     let slot_id = session.offered.get(&slot_token).cloned().ok_or_else(|| {
                         Status::failed_precondition("slot_token: not offered on this call")
                     })?;
-                    let result = scheduler.book(&patient, &slot_id).await.map_err(scheduler_down)?;
+                    // A token exists only after a FindSlots, which set the note.
+                    let note = session
+                        .note
+                        .clone()
+                        .ok_or_else(|| Status::failed_precondition("slot_token: not offered on this call"))?;
+                    let result = scheduler.book(&patient, &slot_id, &note).await.map_err(scheduler_down)?;
                     session.booked.insert(key, (slot_token.clone(), result.clone()));
                     result
                 }
@@ -374,10 +391,13 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                 BookResult::Booked(slot) => pb::BookReply {
                     outcome: pb::BookOutcome::Booked.into(),
                     booked: Some(edge::slot(&slot_token, &slot)),
+                    visit: Some(edge::visit(&slot)),
                 },
-                BookResult::Taken => {
-                    pb::BookReply { outcome: pb::BookOutcome::SlotTaken.into(), booked: None }
-                }
+                BookResult::Taken => pb::BookReply {
+                    outcome: pb::BookOutcome::SlotTaken.into(),
+                    booked: None,
+                    visit: None,
+                },
             })
         });
         let reply = task.await.map_err(|_| Status::internal("the booking stopped"))??;
@@ -530,6 +550,12 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                 added_by: u.added_by.to_string(),
                 added_at: u.added_at,
                 last_seen_at: u.last_seen_at.unwrap_or_default(),
+                first_name: u.first_name.to_string(),
+                last_name: u.last_name.to_string(),
+                phone: u.phone.to_string(),
+                phone_verified: u.phone_verified,
+                source: u.source,
+                photo_at: u.photo_at.unwrap_or_default(),
             })
             .collect();
         Ok(Response::new(pb::ListUsersReply { users }))
@@ -566,6 +592,51 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let added = users::seed(store, &emails).await.map_err(users_status)?;
         Ok(Response::new(pb::SeedUsersReply { added: added as i32 }))
     }
+
+    async fn update_user(&self, req: Request<pb::UpdateUserRequest>) -> Result<Response<pb::UpdateUserReply>, Status> {
+        let req = req.into_inner();
+        let store = self.settings_store()?;
+        let profile = users::Profile {
+            first_name: &req.first_name,
+            last_name: &req.last_name,
+            phone: &req.phone,
+            email: &req.email,
+        };
+        let saved = users::update(store, &req.id, &profile).await.map_err(users_status)?;
+        let old_email = if saved.email_changed { saved.old_email.to_string() } else { String::new() };
+        Ok(Response::new(pb::UpdateUserReply { old_email }))
+    }
+
+    async fn get_user_photo(&self, req: Request<pb::GetUserPhotoRequest>) -> Result<Response<pb::UserPhoto>, Status> {
+        let store = self.settings_store()?;
+        let bytes = users::photo(store, &req.get_ref().id).await.map_err(users_status)?;
+        let photo = bytes.map(|b| B64.encode(b.as_slice())).unwrap_or_default();
+        Ok(Response::new(pb::UserPhoto { photo }))
+    }
+
+    async fn set_user_photo(&self, req: Request<pb::SetUserPhotoRequest>) -> Result<Response<pb::SetUserPhotoReply>, Status> {
+        let req = req.into_inner();
+        // Base64 of 256 KB is about 350 KB: anything far longer is refused before it is decoded.
+        if req.photo.len() > users::MAX_PHOTO * 4 / 3 + 8 {
+            return Err(Status::invalid_argument("photo: at most 256 KB"));
+        }
+        let store = self.settings_store()?;
+        if req.photo.is_empty() {
+            users::clear_photo(store, &req.id).await.map_err(users_status)?;
+        } else {
+            let bytes = Zeroizing::new(
+                B64.decode(req.photo.as_bytes()).map_err(|_| Status::invalid_argument("photo: not base64"))?,
+            );
+            users::set_photo(store, &req.id, &bytes).await.map_err(users_status)?;
+        }
+        Ok(Response::new(pb::SetUserPhotoReply {}))
+    }
+
+    async fn seen_owner(&self, _: Request<pb::SeenOwnerRequest>) -> Result<Response<pb::SeenOwnerReply>, Status> {
+        let store = self.settings_store()?;
+        users::seen_owner(store).await.map_err(users_status)?;
+        Ok(Response::new(pb::SeenOwnerReply {}))
+    }
 }
 
 /// The service a settings request names, with its list and table (settings.rs).
@@ -576,6 +647,7 @@ fn users_status(e: users::UsersError) -> Status {
         users::UsersError::Exists => Status::already_exists("that email is already on the list"),
         users::UsersError::NotFound => Status::not_found("no such person on the list"),
         users::UsersError::Owner => Status::permission_denied("the owner cannot be removed"),
+        users::UsersError::Taken => Status::already_exists("that email is already a removed person's: add them back instead"),
         users::UsersError::Store(_) => Status::internal("the store could not read or write the list"),
     }
 }
@@ -643,10 +715,15 @@ mod tests {
     }
 
     fn find_req(handle: &str, day: &str) -> Request<pb::FindSlotsRequest> {
+        find_req_with(handle, day, "a check-up", pb::VisitMode::Unspecified)
+    }
+
+    fn find_req_with(handle: &str, day: &str, reason: &str, mode: pb::VisitMode) -> Request<pb::FindSlotsRequest> {
         Request::new(pb::FindSlotsRequest {
             handle: handle.into(),
-            reason: "a check-up".into(),
+            reason: reason.into(),
             earliest_day: day.into(),
+            visit_mode: mode.into(),
         })
     }
 
@@ -869,6 +946,50 @@ mod tests {
         assert_eq!(next(&s, &h).await.unwrap().unwrap().starts_at, "2026-11-02T09:00");
     }
 
+    /// The Priya Raman call (2026-11-13): the reason given with FindSlots was lost at Book, so
+    /// NextVisit said "none on record" about the visit just booked.
+    #[tokio::test]
+    async fn a_booking_keeps_the_callers_reason_and_its_type() {
+        let s = svc();
+        let h = verified(&s).await;
+        let reason = "strawberry water distillation";
+        let req = find_req_with(&h, "", reason, pb::VisitMode::Unspecified);
+        let slot = s.find_slots(req).await.unwrap().into_inner().slots.remove(0);
+        assert!(!slot.online);
+        let reply = s.book(book_req(&h, &slot.token, "key-0000000000000001")).await.unwrap().into_inner();
+        let visit = reply.visit.unwrap();
+        assert_eq!((visit.reason.as_str(), visit.visit_type.as_str()), (reason, "Office Visit"));
+        assert!(!visit.online && !visit.reason_private);
+        let next_visit = next(&s, &h).await.unwrap().unwrap();
+        assert_eq!(next_visit.reason, reason);
+    }
+
+    #[tokio::test]
+    async fn an_online_wish_offers_only_online_slots() {
+        let s = svc();
+        let h = verified(&s).await;
+        let req = find_req_with(&h, "", "a follow-up", pb::VisitMode::Online);
+        let slots = s.find_slots(req).await.unwrap().into_inner().slots;
+        assert_eq!(slots.len(), 2);
+        assert!(slots.iter().all(|x| x.online));
+        let req = find_req_with(&h, "", "a follow-up", pb::VisitMode::InPerson);
+        let slots = s.find_slots(req).await.unwrap().into_inner().slots;
+        assert!(slots.iter().all(|x| !x.online));
+    }
+
+    /// The note still goes to the scheduler; only the read-back is held back (FUTURE-SETTINGS.md
+    /// §9).
+    #[tokio::test]
+    async fn a_sensitive_reason_makes_the_booked_visit_private() {
+        let s = svc();
+        let h = verified(&s).await;
+        let req = find_req_with(&h, "", "a prenatal check", pb::VisitMode::Unspecified);
+        let slot = s.find_slots(req).await.unwrap().into_inner().slots.remove(0);
+        let reply = s.book(book_req(&h, &slot.token, "key-0000000000000001")).await.unwrap().into_inner();
+        let visit = reply.visit.unwrap();
+        assert!(visit.reason_private && visit.reason.is_empty() && visit.visit_type.is_empty());
+    }
+
     #[tokio::test]
     async fn another_patient_has_no_visit() {
         let s = svc();
@@ -888,6 +1009,19 @@ mod tests {
         assert!(s.open_call(Request::new(local)).await.is_ok());
         let unknown = pb::OpenCallRequest { ehr: 99, ..Default::default() };
         assert_eq!(s.open_call(Request::new(unknown)).await.unwrap_err().code(), Code::InvalidArgument);
+    }
+
+    /// Epic served but not signed in yet (Epic's sandbox down at start, 2026-11-14): an Epic
+    /// call is UNAVAILABLE, so the agent can say Epic is not answering; Local still works.
+    #[tokio::test]
+    async fn an_epic_call_is_unavailable_while_the_sandbox_is_not_signed_in() {
+        let s = svc().with_epic_sandbox(Arc::new(EpicSandbox::default()));
+        let epic = pb::OpenCallRequest { ehr: pb::EhrSource::EpicSandbox.into(), ..Default::default() };
+        let err = s.open_call(Request::new(epic)).await.unwrap_err();
+        assert_eq!(err.code(), Code::Unavailable);
+        assert_eq!(err.message(), "Epic's sandbox is not answering");
+        let local = pb::OpenCallRequest { ehr: pb::EhrSource::Local.into(), ..Default::default() };
+        assert!(s.open_call(Request::new(local)).await.is_ok());
     }
 
     /// A chart with no mobile number: the patient matches, but no code goes out, so the code
@@ -975,6 +1109,16 @@ mod tests {
             ("User", "email"),
             ("User", "name"),
             ("User", "added_by"),
+            ("User", "first_name"),
+            ("User", "last_name"),
+            ("User", "phone"),
+            ("UpdateUserRequest", "first_name"),
+            ("UpdateUserRequest", "last_name"),
+            ("UpdateUserRequest", "phone"),
+            ("UpdateUserRequest", "email"),
+            ("UpdateUserReply", "old_email"),
+            ("UserPhoto", "photo"),
+            ("SetUserPhotoRequest", "photo"),
             ("AddUserRequest", "email"),
             ("AddUserRequest", "name"),
             ("AddUserRequest", "by"),

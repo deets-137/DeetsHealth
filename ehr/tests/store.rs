@@ -198,3 +198,94 @@ async fn the_people_list_seals_guards_the_owner_and_keeps_removed_rows() {
     store.pool().close().await;
     sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
 }
+
+/// A person's card (users.rs › update, the picture; migration 0008): the old name split, a save
+/// sealed, the email moved to its new hash, a taken email refused, the phone's mark, the owner's
+/// last seen, and the picture sealed under the person's id.
+#[tokio::test]
+async fn a_card_saves_sealed_moves_its_email_and_keeps_a_picture() {
+    use deetshealth_ehr::users::{self, Profile, UsersError};
+    let Ok(url) = std::env::var("DEETS_DATABASE_URL") else {
+        eprintln!("skipped: DEETS_DATABASE_URL is not set");
+        return;
+    };
+    let mut admin = PgConnection::connect(&url).await.unwrap();
+    let name = format!("deets_cards_test_{}", std::process::id());
+    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    let base = url.rsplit_once('/').unwrap().0;
+    let store = Store::connect(&format!("{base}/{name}"), key()).await.unwrap();
+    let pool = store.pool();
+
+    users::seed(&store, &["owner@example.com".into()]).await.unwrap();
+    let id = users::add(&store, "mary@example.com", "Mary Ann Lee", "").await.unwrap();
+    let gone = users::add(&store, "gone@example.com", "Gone", "").await.unwrap();
+    users::remove(&store, &gone).await.unwrap();
+    let find = |list: Vec<users::User>, id: &str| list.into_iter().find(|u| u.id == id).unwrap();
+
+    // Before a save: the name split at its last space; the owner's email-name is no name.
+    let people = users::list(&store).await.unwrap();
+    assert_eq!((people[0].first_name.as_str(), people[0].last_name.as_str()), ("", ""));
+    let mary = find(people, &id);
+    assert_eq!((mary.first_name.as_str(), mary.last_name.as_str()), ("Mary Ann", "Lee"));
+    assert!(mary.phone.is_empty() && mary.photo_at.is_none() && mary.source == "access");
+
+    // A save: the parts as typed, the phone as E.164, not verified; every column sealed.
+    let card = |email: &'static str| Profile { first_name: "Mary", last_name: "de la Cruz", phone: "(555) 234-5678", email };
+    let saved = users::update(&store, &id, &card("mary@example.com")).await.unwrap();
+    assert!(!saved.email_changed);
+    let mary = find(users::list(&store).await.unwrap(), &id);
+    assert_eq!((mary.first_name.as_str(), mary.last_name.as_str(), mary.name.as_str()), ("Mary", "de la Cruz", "Mary de la Cruz"));
+    assert_eq!((mary.phone.as_str(), mary.phone_verified), ("+15552345678", false));
+    let row: (Vec<u8>, Vec<u8>, Vec<u8>) =
+        sqlx::query_as("SELECT first_name, last_name, phone FROM users WHERE id = $1::uuid").bind(&id).fetch_one(pool).await.unwrap();
+    for bytes in [&row.0, &row.1, &row.2] {
+        let text = String::from_utf8_lossy(bytes);
+        assert!(!text.contains("Mary") && !text.contains("Cruz") && !text.contains("5552345678"));
+    }
+
+    // A verified number keeps its mark on a save that keeps the number, and loses it on a change.
+    sqlx::query("UPDATE users SET phone_verified = true WHERE id = $1::uuid").bind(&id).execute(pool).await.unwrap();
+    users::update(&store, &id, &card("mary@example.com")).await.unwrap();
+    assert!(find(users::list(&store).await.unwrap(), &id).phone_verified);
+    let other = Profile { phone: "555-234-0000", ..card("mary@example.com") };
+    users::update(&store, &id, &other).await.unwrap();
+    assert!(!find(users::list(&store).await.unwrap(), &id).phone_verified);
+
+    // The email: someone else's, or a removed person's, is refused; a new one moves the row.
+    assert_eq!(users::update(&store, &id, &card("owner@example.com")).await.err(), Some(UsersError::Exists));
+    assert_eq!(users::update(&store, &id, &card("gone@example.com")).await.err(), Some(UsersError::Taken));
+    let moved = users::update(&store, &id, &card("Mary.Lee@Example.com")).await.unwrap();
+    assert!(moved.email_changed && moved.old_email.as_str() == "mary@example.com");
+    assert!(!users::admit(&store, "mary@example.com").await.unwrap());
+    assert!(users::admit(&store, "mary.lee@example.com").await.unwrap());
+    let mary = find(users::list(&store).await.unwrap(), &id);
+    assert_eq!((mary.email.as_str(), mary.first_name.as_str(), mary.phone.as_str()), ("mary.lee@example.com", "Mary", "+15552345678"));
+
+    // Bad fields name the field; no name at all is refused.
+    let blank = Profile { first_name: " ", last_name: "", ..card("mary.lee@example.com") };
+    assert_eq!(users::update(&store, &id, &blank).await.err(), Some(UsersError::Bad("first_name: a first or a last name")));
+    let bad_phone = Profile { phone: "555-1234", ..card("mary.lee@example.com") };
+    assert!(matches!(users::update(&store, &id, &bad_phone).await, Err(UsersError::Bad(_))));
+    assert_eq!(users::update(&store, &gone, &card("x@example.com")).await.err(), Some(UsersError::NotFound));
+
+    // The owner's PC stamps the owner's last seen.
+    assert!(users::list(&store).await.unwrap()[0].last_seen_at.is_none());
+    users::seen_owner(&store).await.unwrap();
+    assert!(users::list(&store).await.unwrap()[0].last_seen_at.is_some());
+
+    // The picture: a WebP only, sealed, back as it went in, and cleared.
+    let webp = b"RIFF\x10\0\0\0WEBPVP8 face-bytes".to_vec();
+    assert!(matches!(users::set_photo(&store, &id, b"not a picture").await, Err(UsersError::Bad(_))));
+    users::set_photo(&store, &id, &webp).await.unwrap();
+    assert_eq!(users::photo(&store, &id).await.unwrap().unwrap().as_slice(), webp.as_slice());
+    let sealed: Vec<u8> = sqlx::query_scalar("SELECT photo FROM user_photos WHERE user_id = $1::uuid").bind(&id).fetch_one(pool).await.unwrap();
+    assert!(!String::from_utf8_lossy(&sealed).contains("face-bytes"));
+    assert!(find(users::list(&store).await.unwrap(), &id).photo_at.is_some());
+    users::clear_photo(&store, &id).await.unwrap();
+    assert!(users::photo(&store, &id).await.unwrap().is_none());
+    assert_eq!(users::photo(&store, &gone).await.err(), Some(UsersError::NotFound));
+
+    store.pool().close().await;
+    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+}

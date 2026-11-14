@@ -42,7 +42,7 @@ use std::{net::IpAddr, path::PathBuf, process::ExitCode, sync::Arc, time::Durati
 
 use deetshealth_ehr::{
     epic::{Epic, EpicConfig},
-    epic_ehr::{self, EpicEhr},
+    epic_ehr::{self, EpicSandbox},
     proto::v1::ehr_server::EhrServer,
     scheduler::FakeScheduler,
     seal_key::SealKey,
@@ -320,9 +320,9 @@ async fn run() -> Result<(), String> {
 
 /// Epic's sandbox as a second source, when `DEETS_EPIC_SANDBOX=1` (the dev server sets it,
 /// with `DEETS_EPIC_CLIENT_FILE` and `DEETS_EPIC_KEY_FILE`).
-/// When the sign-in fails, ehr serves the local fakes only and says so once on stderr: a call
-/// that asks for Epic is refused.
-async fn open_epic() -> Option<Arc<EpicEhr>> {
+/// When the sign-in fails (Epic's sandbox goes down at times), ehr says so on stderr, refuses
+/// Epic calls as UNAVAILABLE, and signs in again in the background (`EpicSandbox::start`).
+async fn open_epic() -> Option<Arc<EpicSandbox>> {
     if std::env::var("DEETS_EPIC_SANDBOX").as_deref() != Ok("1") {
         return None;
     }
@@ -330,13 +330,7 @@ async fn open_epic() -> Option<Arc<EpicEhr>> {
     let path = |var: &str, default: &str| PathBuf::from(std::env::var(var).unwrap_or_else(|_| default.into()));
     let client = path("DEETS_EPIC_CLIENT_FILE", EPIC_CLIENT);
     let key = path("DEETS_EPIC_KEY_FILE", EPIC_KEY);
-    match epic_ehr::connect_sandbox(&client, &key).await {
-        Ok(epic) => Some(Arc::new(epic)),
-        Err(e) => {
-            eprintln!("ehr: no Epic sandbox: {e}");
-            None
-        }
-    }
+    Some(EpicSandbox::start(client, key).await)
 }
 
 /// The call store, when its settings are set (DATABASE.md). Without them, or when Postgres is
@@ -367,7 +361,7 @@ async fn serve<C: Codes>(
     config: Arc<ServerConfig>,
     codes: C,
     store: Option<Arc<Store>>,
-    epic: Option<Arc<EpicEhr>>,
+    epic: Option<Arc<EpicSandbox>>,
 ) -> Result<(), String> {
     let (health, health_service) = tonic_health::server::health_reporter();
     health.set_serving::<EhrServer<EhrService<FakeScheduler, FakePatients, C>>>().await;
@@ -376,7 +370,7 @@ async fn serve<C: Codes>(
         service = service.with_store(store);
     }
     if let Some(epic) = epic {
-        service = service.with_epic(epic);
+        service = service.with_epic_sandbox(epic);
     }
     let ehr = EhrServer::new(service)
         .max_decoding_message_size(MESSAGE_LIMIT)

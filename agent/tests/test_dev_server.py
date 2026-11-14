@@ -78,6 +78,33 @@ def test_the_resources_count_this_cycles_voice_calls(client, tmp_path):
     assert c["left"] == c["plan"] - 800 and c["live"] is None
 
 
+def test_the_resources_give_claudes_dollars_and_one_calls_use(tmp_path):
+    from datetime import date
+
+    stamp = date.today().strftime("%Y%m%d")
+    voice = [
+        {"t_ms": 0, "kind": "call_start", "schema_version": 7, "seat": "voice"},
+        {"t_ms": 9, "kind": "call_end", "reason": "x", "cost_usd": 0.032, "cartesia": {"credits": 1750}},
+    ]
+    text = [
+        {"t_ms": 0, "kind": "call_start", "schema_version": 7, "seat": "text"},
+        {"t_ms": 9, "kind": "call_end", "reason": "x", "cost_usd": 0.01},
+    ]
+    for name, events in ((f"{stamp}-120000-test", voice), (f"{stamp}-130000-test", text)):
+        (tmp_path / f"{name}.jsonl").write_text("\n".join(json.dumps(e) for e in events) + "\n", encoding="utf-8")
+    # The catalog reads the folder when the state is made, so the records go in first.
+    client = TestClient(build_app(State(TOKEN, {ORIGIN}, 8790, calls=tmp_path)))
+    r = client.get("/agent/resources", headers=OK).json()
+    a = r["anthropic"]
+    assert (a["calls"], a["spent"]) == (2, 0.042) and a["left"] == round(a["budget"] - a["offset"] - 0.042, 4)
+    assert r["call"] is None
+    one = client.get(f"/agent/resources?call={stamp}-120000-test", headers=OK).json()["call"]
+    assert one == {"seat": "voice", "usd": 0.032, "credits": 1750, "live": False}
+    typed = client.get(f"/agent/resources?call={stamp}-130000-test", headers=OK).json()["call"]
+    assert typed == {"seat": "text", "usd": 0.01, "credits": None, "live": False}
+    assert client.get("/agent/resources?call=../secret", headers=OK).json()["call"] is None
+
+
 def test_the_cartesia_view_shows_the_levers_and_never_the_key(client):
     c = client.get("/agent/cartesia", headers=OK).json()
     assert c["tts"]["model"] == "sonic-3.6" and c["stt"]["model"] == "ink-2"
@@ -157,8 +184,8 @@ def test_the_agent_view_shows_the_file_without_a_store(client):
 
     assert (c["store"], c["versions"], c["version"]) == (False, [], None)
     assert c["values"] == c["active"] == prompts.load()
-    assert c["placeholders"]["line.booked"] == ["visit"] and len(c["placeholders"]) == 78
-    assert c["recordings"]["scripts"] == 14 and isinstance(c["recordings"]["match"], bool)
+    assert c["placeholders"]["line.booked"] == ["visit"] and len(c["placeholders"]) == 81
+    assert c["recordings"]["scripts"] == 15 and isinstance(c["recordings"]["match"], bool)
 
 
 def test_a_prompt_save_waits_for_ehr_and_needs_words(client):
@@ -258,3 +285,33 @@ def test_an_annotation_that_is_not_an_object_is_400(client):
     assert client.post("/agent/annotations", headers=OK, json=[1]).status_code == 400
     assert client.post("/agent/annotations", headers={**OK, "content-type": "application/json"},
                        content=b"{").status_code == 400
+
+
+async def test_a_version_saved_before_a_release_keeps_its_words_and_gets_the_new_sections(tmp_path):
+    """PROMPT-EDITOR.md §9 (2026-11-14): a hospital's saved words stay; a section added by a
+    release takes the shipped words; a section the code no longer knows is dropped. Before, a
+    missing section sent the whole call back to the files."""
+    from types import SimpleNamespace
+
+    from deets_agent import prompts
+    from deets_agent.dev_server import active_words
+
+    saved = {k: v for k, v in prompts.load().items() if k != "line.booked_visit_asked"}
+    saved["line.goodbye"] = "Thanks for calling the clinic. Bye now."
+    saved["line.retired"] = "A section from an older release."
+    version = SimpleNamespace(id=7, label="11-14 | 1")
+
+    class Ehr:
+        async def list_setting_versions(self, service):
+            return [SimpleNamespace(seq=0)]
+
+        async def get_settings(self, service):
+            return (version, saved) if service == "prompt" else None
+
+    state = State(TOKEN, {ORIGIN}, 8790, calls=tmp_path)
+    state.ehr = Ehr()
+    words = await active_words(state)
+    assert words.version_id == 7, "the saved version is used, not the files"
+    assert words.sections["line.goodbye"] == "Thanks for calling the clinic. Bye now."
+    assert words.sections["line.booked_visit_asked"] == prompts.load()["line.booked_visit_asked"]
+    assert "line.retired" not in words.sections

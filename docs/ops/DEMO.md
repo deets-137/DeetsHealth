@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: none
-sources: [scripts/dev.mjs, console/vite.config.ts, agent/deets_agent/cloudflare.py, ehr/src/users.rs, ehr/migrations/0007_users.sql, console/src/pages/people.ts, agent/deets_agent/dev_server.py, agent/deets_agent/access.py, agent/deets_agent/turn.py, console/src/agent/api.ts, console/src/agent/transport.ts, console/src/reload.ts, console/public/manifest.webmanifest]
+sources: [docs/architecture/images/demo-tunnel-error-1033-2026-11-14.png, docs/architecture/images/people-owner-card-sketch-2026-11-14.png, scripts/dev.mjs, console/vite.config.ts, agent/deets_agent/cloudflare.py, ehr/src/users.rs, ehr/migrations/0007_users.sql, console/src/pages/people.ts, console/src/pages/auth.ts, console/src/pages/person.ts, ehr/migrations/0008_user_profile.sql, agent/deets_agent/dev_server.py, agent/deets_agent/access.py, agent/deets_agent/turn.py, console/src/agent/api.ts, console/src/agent/transport.ts, console/src/reload.ts, console/public/manifest.webmanifest]
 updated: 2026-11-14
 ---
 # DeetsHealth — The demo over a tunnel
@@ -117,7 +117,9 @@ launch token never leaves this PC.
   in `~/.cloudflared/<id>.json`, outside the repo. `npm run dev` (the owner, 2026-11-13:
   "tie it to npm run dev with the guards"; §7) also starts the build watch (§3.2) and runs
   `cloudflared tunnel run --credentials-file … --url http://127.0.0.1:<agent port> <id>`. The port is
-  free-picked at each launch. Ctrl+C stops the tunnel with everything else. When the dev server
+  free-picked at each launch. Ctrl+C stops the tunnel first, then everything else, and waits
+  (5 s at most) for each to end. The tunnel's shutdown lines are dropped: it logs a normal
+  shutdown at ERR level (streams cut, connections closed). When the dev server
   is not running, the address shows Cloudflare's error page and reaches nothing.
 
 ### 3.5 The guest list from the console
@@ -220,7 +222,7 @@ their row in [architecture/DEV-API.md](../architecture/DEV-API.md) in the same c
    gets no code.
 3. Sign in with a listed email. The console opens.
 4. Start a typed call on Local, then a voice call. Both run.
-5. On the PC, type a label beside Start and start a second call at the same time. In PHI's
+5. On the PC, type a title in "Chat Title (Optional)" at the canvas's top left and start a second call at the same time. In PHI's
    Caller tab on each side, both calls are listed, the label on the PC's; press the other
    call's row and watch it from its start. When it ends, its label is in Demo's list.
 5a. Start `npm run dev` in a second terminal while the first runs: it says the tunnel already
@@ -229,7 +231,8 @@ their row in [architecture/DEV-API.md](../architecture/DEV-API.md) in the same c
    call runs; during a call it waits for the call to end.
 7. `https://deetshealth.deets.solutions/` and `/demo/@fs/` give 404.
 8. Remove the phone's email from the guest list. Within 30 s its page stops getting answers.
-9. Ctrl+C. The address stops answering.
+9. Keep a demo page open and press Ctrl+C. No tunnel ERR lines show. `[dev] stopped` is the
+   last line, then the prompt. The address stops answering.
 
 ## 7. As built
 > **Part:** built · 2026-11-13 — steps 1 to 5 of §5. Not desk tested.
@@ -245,7 +248,17 @@ every piece is there it also runs `vite build --watch` under `/demo/` into
 - **One connector only.** `cf tunnels connections list` before the tunnel opens. A listed
   connection gets 20 s to clear (a run stopped a moment ago); then the demo stays off. So two
   dev servers never share the tunnel and split a guest's requests. If the list cannot be read
-  (`cf` signed out), the demo stays off too.
+  three times, 2 s apart, the demo stays off too, and the line names why (`cf`'s own first
+  line, its exit code, or no answer in 20 s). On Windows `cf` starts through `cmd.exe`, not
+  Node's `shell` option (that option printed a DEP0190 warning).
+- **Seen 2026-11-14, the root cause:** `cf` was signed in only inside Claude Code's sandboxed
+  shell, which keeps its own `AppData` (the token file `xdg.config/cloudflare/config/default.json`
+  was there and not on the real disk). In the owner's terminal `cf` said "No authentication
+  token found" and then crashed on exit (0xC0000409). Each check Claude ran passed, which hid
+  it. **The owner signs `cf` in from his own terminal:** `cf auth login`. A missing sign-in is
+  now final (no retries) and the `[demo] off` line says to run that command. With the demo off,
+  no connector runs, so the address gives Cloudflare's error 1033 (the tunnel cannot be found).
+  ![The owner's screenshot, 2026-11-14: error 1033 at deetshealth.deets.solutions, the tunnel had no connector because the demo was off at start](../architecture/images/demo-tunnel-error-1033-2026-11-14.png)
 - **The main checkout only.** A git worktree (`git rev-parse --absolute-git-dir` differs from
   `--git-common-dir`) never opens the tunnel.
 - **A stopped tunnel or build ends the demo, not the dev server.**
@@ -269,8 +282,9 @@ every piece is there it also runs `vite build --watch` under `/demo/` into
   by it.
 - The console: PHI's Caller tab lists the live calls, newest first (label or "<who>'s call";
   time, starter, seat, EHR, step, turns). PHI follows the newest call until a row is pressed;
-  then it stays on that call, drawn from its start, until it ends. The label box sits left of
-  Start | End in Testing, greyed during a call, cleared after it.
+  then it stays on that call, drawn from its start, until it ends. The label box, "Chat Title
+  (Optional)", sits at the canvas's top left in Testing (the owner, 2026-11-14; it sat left of
+  Start | End until then), greyed during a call, cleared after it.
 - Not yet: the `calls` row at Start with status `live`, and the user profile table that
   `started_by` will point to (the owner, 2026-11-13: "a user profile record in our db"). Both
   touch `ehr` and the schema; their draft comes first.
@@ -320,10 +334,10 @@ half set up.
 - `console/public/manifest.webmanifest` — its paths are relative now, so the installed app
   works under `/demo/` too. On this PC they resolve to the same `/` as before.
 
-**Teams › People** (§3.5; the owner, 2026-11-14: fork A, the adder types the name; the table
+**Teams › People and Security › Auth** (§3.5; the owner, 2026-11-14: fork A, the adder types the name; the table
 and the view as drafted, "will mess with it more when we implement RBAC"):
 - **The store is the record:** `users` (migration 0007; DATABASE.md §4). `ehr`'s `users.rs`
-  and five RPCs (EHR-SERVICE.md §3). The email and name sealed; a row found by a keyed hash of
+  and nine RPCs (EHR-SERVICE.md §3). The email and name sealed; a row found by a keyed hash of
   the email, with a key made from the data key by HKDF (`SealKey::lookup`), so no new secret.
 - **Cloudflare's group follows the list** (`agent/deets_agent/cloudflare.py`): after each add
   or remove the agent writes the group's whole list of emails; a remove also ends the person's
@@ -342,14 +356,60 @@ and the view as drafted, "will mess with it more when we implement RBAC"):
   "Access: Organizations Revoke" on this account, made by a script that wrote its value into
   `.env` unseen (append only, the owner's leave). Checked: it reads the group (1 email). No
   write was tried before the owner's desk test.
-- **The view** (`console/src/pages/people.ts`, `styles/people.css`): Email, Name, Add; Copy
-  invite; one row per person, "You" on the asker's own; who added them and when; when last
-  seen; Remove asks "Confirm?" for the End call's hold. The owner has no Remove. It reads the
-  list again when the window comes back to the front.
+- **Teams › People** (`console/src/pages/people.ts`, `styles/people.css`), from the owner's
+  sketch of 2026-11-14: one card per person, **read only** (the owner, the same day: "let's make
+  the teams tab's people uneditable"). The owner's card first, then the rest as they are added.
+  A card: a band in the theme's own color (`--theme-color`: black, orange, navy), the round
+  picture over its lower edge, then left-aligned rows: the full name, the role, the phone number
+  with its mark, the email. A value the store does not hold shows a placeholder in the dimmest
+  text color: "Name", "Role" (no roles yet), "XXX-XXX-XXXX". The cards sit in a grid that wraps
+  (`--card-width`, `--avatar-size`, `--card-band`).
+
+  ![The owner's screenshot, 2026-11-14: a person's card — a round picture slot on a line, then Name, Role, a phone number as XXX-XXX-XXXX, and Email](../architecture/images/people-owner-card-sketch-2026-11-14.png)
+- **Security › Auth** (`console/src/pages/auth.ts`, `styles/auth.css`; the owner, 2026-11-14:
+  "a table of data that can be editable instead", and fork A for the edit). The title "Users"
+  at the left and Add at the right, above a table: picture, First, Last, Email, Phone and its
+  mark, Role, Source, Added by, Added, Last seen, Remove. A result or a refusal shows between
+  them, as Config's status does. **Add puts a blank row at the table's foot** (the owner,
+  2026-11-14: "a blank row with all placeholders with a panel underneath"): every cell a
+  placeholder, its panel open. Nothing is stored until Save, because a person on the list needs
+  an email (the sign-in) and a name. The first Save puts them on the list; the row becomes theirs
+  with its panel still open, so the picture can be added (Choose picture waits for that save).
+  Discard on the blank row takes it away; so does opening another row. Clicking a row (or Enter on it) opens a panel under
+  it: the picture (Choose picture, Remove picture), a text box for the first name, the last
+  name, the email and the phone, the role as "Role · set by roles, later". Config's
+  Discard | Save tab bar sits at the panel's top right, with its result to its left (the owner,
+  2026-11-14: "use similar styles and texts as we use already", "move the save/discard to the
+  top right"); each greys when the boxes hold the stored values, and Discard puts them back.
+  A save keeps the panel open, its boxes now the stored values (the phone as the store keeps
+  it). Clicking the row again closes the panel. One panel is open at a time. A save tells Teams ›
+  People to read the list again. **Copy invite is off the page for now** (the owner, the same
+  day); `invite` stays in `GET /agent/people`.
+- **The owner's forks for the card (2026-11-14):**
+  - The phone is saved as typed, in E.164 (`+15552345678`; ten digits are a US number), shown
+    as `555-234-5678`. **Not verified** until a text code proves it (not built). Its mark, right
+    of the number: a white serif X on scarlet (not verified), a white serif V on forest green
+    (verified), with the "i" button's rounding (`--unverified`, `--verified`, `--on-mark`,
+    `--mark-size`). A changed number loses its mark.
+  - The picture is **sealed in Postgres** (`user_photos`). The browser crops the middle square,
+    makes it 256 px (`--photo-px`) and a WebP, and sends it. A browser that cannot make a WebP
+    says so.
+  - The role is **shown, not editable** until roles exist.
+  - The email is **editable**. Save asks "Confirm?" first when the email changed: it moves who
+    can sign in. Then the group is written again and the old email's Access sessions end.
+    Another person's email, or a removed person's, is refused.
+- **Decided inside his choices** (for his review): anyone signed in may edit any row, the
+  owner's too (his rule until roles: guests are "like me"); the Add form takes a first and a
+  last name; a first or a last name is required, each at most 49 characters; the owner's
+  requests on this PC stamp his row's last seen at most once a minute (`SeenOwner`), as a
+  guest's admit does; the panel is the canvas color; Remove picture deletes the stored picture.
 - **Tests:** `ehr/tests/store.rs` (the table against Postgres: the owner from the first seed,
   sealed columns, last seen, the owner guard, a removal that keeps the row, a return on the same
-  row); `users.rs`'s own (emails, names, ids); `agent/tests/test_people.py` (8: the routes, the
-  group kept as the list, a Cloudflare failure as a warning, the start sync, the wall).
+  row; and the card: the old name split, a sealed save, the phone's mark kept and lost, the
+  email moved, a taken email refused, the owner's last seen, the picture sealed and cleared);
+  `users.rs`'s own (emails, names, phones, pictures, ids); `agent/tests/test_people.py` (11:
+  the routes, the group kept as the list, an email move, a Cloudflare failure as a warning, the
+  picture, the owner's last seen, the start sync, the wall).
 
 **Tests:** `agent/tests/test_access.py` (21), `test_turn.py` (10), `test_demo_door.py` (21):
 the two doors, the sockets, the fake Twilio behind the tunnel, the static files and their
@@ -362,6 +422,6 @@ label and tag rules.
 id with a credentials file, so no `cloudflared login` is needed; an ICE failure for a guest
 says "a guest voice call needs the TURN key in .env"; the live reload compares the page's
 entry script, so a change that does not change the code does not reload anyone; at most 8
-calls at once; the label box's words "What this call tests (optional)", its place left of
-Start | End and its 200-character limit; a list row's name is the label, else "Owner's call"
+calls at once; the label box's 200-character limit (its words and place were his on
+2026-11-14: "Chat Title (Optional)", the canvas's top left); a list row's name is the label, else "Owner's call"
 or "<email>'s call"; the connector check waits 20 s for a stale connection.

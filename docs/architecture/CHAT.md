@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/voice.py, agent/deets_agent/resources.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
+sources: [docs/architecture/images/chat-resources-tab-2026-11-14.png, agent/deets_agent/resources.py, docs/architecture/images/chat-title-box-move-2026-11-14.png, docs/architecture/images/chat-harness-failed-ehrerror-2026-11-14.webp, ehr/src/epic_ehr.rs, agent/deets_agent/ehr_process.py, console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/voice.py, agent/deets_agent/resources.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
 updated: 2026-11-14
 ---
 # DeetsHealth — The Chat page
@@ -298,8 +298,10 @@ Since 2026-11-13 the patients are the top panel's first tab, not a panel (§15).
 `data-mode` on `.split-page` as well as on `.chat` (`showMode`), and CSS picks the tab's word
 and content: **Sandbox EPTs** (`.sandbox`) in Testing and Demo, **Caller** (`.live-calls`) in
 PHI: since 2026-11-13 the list of live calls, newest first, and the one PHI watches. A press on
-a row watches that call from its start. The label box left of Start | End in Testing names a
-call in this list. Both are ops/DEMO.md §3.6 and §7.
+a row watches that call from its start. The title box, "Chat Title (Optional)", at the
+canvas's top left in Testing names a call in this list (moved there from beside Start | End,
+the owner, 2026-11-14:
+![The owner's screenshot, 2026-11-14: an arrow from the label box beside Start to the canvas's top left, asking to move it there and name it Chat Title (Optional)](images/chat-title-box-move-2026-11-14.png)). Both are ops/DEMO.md §3.6 and §7.
 
 Each patient (`sandboxRows`), in the fixture's order, all of them (the near-twins too). Since
 2026-11-13 (the owner: "main line and their contact info, DOB as bullets with the visits as a
@@ -746,6 +748,22 @@ It names the EHR the next test call reads, and the page keeps the choice
 `TypedCall` (`ehr_source`) and the record (`call_start` › `ehr`, schema 6). `OpenCall` carries
 it to `ehr` (EPIC.md §5.2). An Epic call uses the real date for "today".
 
+**When Epic's sandbox is down** (2026-11-14; Epic's FHIR server answered every request with
+503 `OltpServerUnavailable` while fhir.epic.com's home page loaded):
+- `ehr` signs in at start. If that fails, it prints `[ehr] no Epic sandbox yet (<status>) …` in
+  the `npm run dev` terminal and signs in again every 30 s in the background
+  (`epic_ehr.rs › EpicSandbox`). When Epic is back it prints `[ehr] Epic sandbox signed in`, and no
+  restart is needed. Before this, `ehr` tried once at start, and its line was lost
+  (`ehr_process.py` never read `ehr`'s stderr).
+- Until then an Epic call is refused with `UNAVAILABLE`, "Epic's sandbox is not answering". The
+  call ends with "the EHR did not answer (OpenCall: unavailable)" on the canvas, not "the
+  harness failed (EhrError)". The catalog files it as `crashed`. Local calls work all along.
+- To check Epic by hand: `target/debug/deetshealth-ehr.exe epic-check` (about 5 requests).
+- Open: the Epic button stays on while `ehr` is not signed in (`/agent/health` › `epic` says only
+  that the files are there).
+
+![The owner's screenshot, 2026-11-14: an Epic test call during the demo ended "Call ended: the harness failed (EhrError)" on both the PHI view and the Testing view](images/chat-harness-failed-ehrerror-2026-11-14.webp)
+
 **The rail's Sandbox EPTs tab** shows the button's source, in Testing only (since 2026-11-13
 Demo's first tab is its recorded calls, §16). Demo still reads the source of the call that
 plays (its `call_start` › `ehr`; a call before schema 6 is Local), for the code card's name of
@@ -969,15 +987,41 @@ rail's `.tabs`), two parts each `--pair-part` (64 px) wide, as the EHR bar (§13
 
 **The Resources tab** (`#chat-resources`, `resourceRows` in `chat.ts`; the bottom panel's third
 tab, after Tools and Timeline):
-- **Cartesia credits:** the credits left of the plan's, in large type; a meter of the share used
-  (accent fill); then rows: used this cycle (and how many voice calls), Ink (minutes heard and
-  their credits), Sonic (characters and their credits), **this call** (its length and credits,
-  while a voice call runs), and the day the credits renew.
-- **Two notes:** the limits ("A voice test call ends after 60 s with no speech, or at 6:00"),
-  or "No Cartesia key in .env: voice calls are off"; and "Counts this machine's voice calls only.
-  Cartesia's dashboard has the full count."
-- **When it reads:** when the page opens, after each call, and every 3 s while a voice call runs
-  (`RESOURCES_LIVE_MS`).
+> **Part:** built · 2026-11-14 · desk test open — the owner's layout: "the top of the panel
+> split into two via a | divider", Anthropic's budget left and Cartesia's left "in a simple
+> bar", then under a line "the call's current API cost"; Cartesia in credits, not cents ("credits
+> is enough").
+
+![The owner's screenshot, 2026-11-14: the Resources tab before, Cartesia credits only, which he asked to restructure](images/chat-resources-tab-2026-11-14.png)
+
+- **Two columns, Anthropic | Cartesia,** split by a vertical line (`.res-grid`), in three
+  blocks split by lines across both:
+  1. **What is left this cycle:** the heading, a bar that fills with the share left (accent),
+     and "$98.40 of $100 left" / "20,000 of 20,000 left". The budget and the plan are less the
+     active offset (Config › Anthropic, Config › Cartesia).
+  2. **This call** ("This call so far" while it runs): Claude's cost in cents (for example
+     "3.2¢") and Cartesia's credits ("1,750 credits", or "Text call" for a typed call). "No call
+     yet" when the page shows none.
+  3. **The cycle:** calls this cycle and the renewal day per column; Cartesia's also shows Ink's
+     minutes and Sonic's characters.
+- **The call it shows:** Testing's own call (kept after it ends, till the next Start), the call
+  PHI watches, the call Demo last played. `GET /agent/resources?call=<id>`: a live call's
+  running totals (`record.cost()`, the voice meter), else its record's `call_end`
+  (`resources.py › call_use`); the catalog checks the id.
+- **One note** under the columns: the voice limits ("A voice test call ends after 60 s with no
+  speech, or at 6:00", or "No Cartesia key in .env: voice calls are off"), then "Counted from
+  this machine's call records; not read from Anthropic or Cartesia. Their dashboards have the
+  full count." (the owner's wording, 2026-11-14). Not wired to either vendor: Anthropic's Usage
+  and Cost API needs an Admin key, which can also make keys and add members; the local count is
+  exact for our own calls.
+- **When it reads:** when the page opens, when the mode or PHI's watched call changes, when
+  Demo plays, after each call, and every 3 s while any call runs (`RESOURCES_LIVE_MS`). Local
+  reads only: no request to Anthropic or Cartesia.
+- **Decided inside his choices** (for his review): the bar shows the share left (it showed the
+  share used); the headings "Anthropic" and "Cartesia"; "This call so far" while live; cents
+  with two decimals under 10¢, one above; Ink and Sonic as a line in Cartesia's cycle block (the
+  draft had them under an "i"; the Chat page has no "i" control yet); the two notes joined
+  into one.
 - **Where the numbers come from:** Cartesia has no API that reports usage, so the dev server
   counts (`resources.py`): each voice call's record carries its `cartesia` totals on `call_end`
   (record schema 7), summed for the cycle, plus the live call's meter (`voice.py › VoiceMeter`,
@@ -1017,11 +1061,16 @@ and `_watch_limits`), `screen.py` (a spoken line), `flow.py › emergency_frame`
 1. Chat, Testing. The top row shows Text | Voice with the pill on Text, then Local | Epic with
    the pill on the EHR last chosen. Press the other EHR: its pill slides, and the rail lists its
    patients. During a call both bars are locked.
-   The bottom panel has a Resources tab: 20,000 left of 20,000, 0 voice calls.
+   The bottom panel has a Resources tab: Anthropic | Cartesia, each with a bar and "N of M
+   left"; under a line, "This call: No call yet" in both columns; under another, the cycle.
+   Start a text call: Anthropic's "This call so far" counts up in cents every few seconds, and
+   Cartesia's says "Text call". Switch to PHI: the columns show the watched call. In Demo, play
+   a call: they show its cost.
 2. Press Voice, then Start. Allow the microphone. The agent greets you aloud. Say you want a
    check-up. Your words show as a caller bubble; the agent answers aloud.
 3. Speak while the agent speaks: it stops. Type a line and press Enter: it answers aloud.
-4. Open Resources during the call: "This call" counts up every few seconds.
+4. Open Resources during the call: "This call so far" counts up every few seconds, cents on
+   the left, credits on the right.
 5. Stay silent for 60 s: the call ends with "Call ended: 60 s with no speech from the caller".
    The bar is back on Text, and Resources shows one voice call and the credits it used.
 6. Without the key in `.env`: Voice is dimmed, and its hint names the key.

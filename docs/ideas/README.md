@@ -2,7 +2,7 @@
 status: idea
 desk_test: none
 sources: []
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # Ideas — not built
 
@@ -49,6 +49,15 @@ hospital or a patient that the agent can do any of these things. The patient app
   build it out"): [STAFF-SIGN-IN.md](STAFF-SIGN-IN.md). Sign-in through the hospital's IdP,
   what each standard asks of staff access, the modules, and the work with a hospital's
   security team. Built together with the roles; the plan and sizes are its §10.
+- **The console as the hub for every vendor account** (the owner, 2026-11-14: "we'll have to
+  consider having DeetsHealth's console being a central hub for everything it'd need
+  (cartesia, anthropic, twilio, etc)"). Each vendor connected from the console, not from a
+  `.env` file: Anthropic by Workload Identity Federation or OAuth, or Bedrock under the
+  hospital's AWS (integrations/ANTHROPIC.md §4.0); Cartesia, Twilio and Epic by whatever each
+  allows (an OAuth app, a key the console seals under the hospital's key, or the hospital's own
+  account). Each connection names its BAA. Open: which vendors offer anything but a long-lived
+  key; who in a hospital may connect one (STAFF-SIGN-IN.md, ACCESS-ROLES.md); where a sealed key
+  lives in deploy A2 and in B.
 - **Spanish and other languages.** Cartesia's Ink-2 is English only (VOICE-AGENT.md §8.6).
 - **Running on Epic's Agent Factory** once Epic opens external connectors (VOICE-AGENT.md §5).
 - **Other health products in this repo** (the owner, 2026-10-19: "if we ever get more health

@@ -68,6 +68,16 @@ service Ehr {
   rpc AdmitUser(AdmitUserRequest) returns (AdmitUserReply);
   // Brings in the emails already in Cloudflare's group that the list lacks (users.rs › seed).
   rpc SeedUsers(SeedUsersRequest) returns (SeedUsersReply);
+  // Saves a person's card (Security › Auth; users.rs › update): the whole profile at once.
+  // INVALID_ARGUMENT names the field; NOT_FOUND for no such person; ALREADY_EXISTS when the new
+  // email is someone else's (a removed person's too). The old email comes back when it changed.
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserReply);
+  // A person's picture, a sealed WebP: get, set, or clear (an empty `photo`). NOT_FOUND for no
+  // such person; INVALID_ARGUMENT for a picture that is not a WebP of at most 256 KB.
+  rpc GetUserPhoto(GetUserPhotoRequest) returns (UserPhoto);
+  rpc SetUserPhoto(SetUserPhotoRequest) returns (SetUserPhotoReply);
+  // The owner was seen: the console on the owner's PC (the launch token) stamps last seen.
+  rpc SeenOwner(SeenOwnerRequest) returns (SeenOwnerReply);
 }
 
 // One person on the list. A staff member's identity, not a patient's, but marked: it never goes
@@ -83,7 +93,51 @@ message User {
   string added_at = 6;
   // RFC 3339, UTC; empty when never seen.
   string last_seen_at = 7;
+  string first_name = 8 [(phi) = true];
+  string last_name = 9 [(phi) = true];
+  // E.164, or empty.
+  string phone = 10 [(phi) = true];
+  bool phone_verified = 11;
+  // `access` or `idp`.
+  string source = 12;
+  // When the picture was saved, RFC 3339, UTC; empty when there is none.
+  string photo_at = 13;
 }
+
+message UpdateUserRequest {
+  string id = 1;
+  string first_name = 2 [(phi) = true];
+  string last_name = 3 [(phi) = true];
+  string phone = 4 [(phi) = true];
+  string email = 5 [(phi) = true];
+}
+
+message UpdateUserReply {
+  // The email before the save; empty when it did not change.
+  string old_email = 1 [(phi) = true];
+}
+
+message GetUserPhotoRequest {
+  string id = 1;
+}
+
+// A picture travels as base64 text: only a string field can carry the PHI mark (build.rs).
+message UserPhoto {
+  // Base64 of the WebP's bytes; empty when there is no picture.
+  string photo = 1 [(phi) = true];
+}
+
+message SetUserPhotoRequest {
+  string id = 1;
+  // Base64 of a WebP; empty clears the picture.
+  string photo = 2 [(phi) = true];
+}
+
+message SetUserPhotoReply {}
+
+message SeenOwnerRequest {}
+
+message SeenOwnerReply {}
 
 message ListUsersRequest {}
 
@@ -284,10 +338,20 @@ message CheckCodeReply {
 
 message FindSlotsRequest {
   string handle = 1 [(secret) = true];
-  // What the visit is for, in the caller's words.
+  // What the visit is for, in the caller's words (the agent checks they are the caller's). ehr
+  // keeps it for this call, and Book sends it to the scheduler as the visit's note.
   string reason = 2 [(phi) = true];
   // The earliest day the caller can come, YYYY-MM-DD. Empty: from the next open day.
   string earliest_day = 3 [(phi) = true];
+  // How the caller wants to be seen, from their words (the owner's 1A, 2026-11-13). Unset:
+  // either way. At Epic this becomes the hospital's visit types (EPIC.md §5.2).
+  VisitMode visit_mode = 4;
+}
+
+enum VisitMode {
+  VISIT_MODE_UNSPECIFIED = 0;
+  VISIT_MODE_IN_PERSON = 1;
+  VISIT_MODE_ONLINE = 2;
 }
 
 message FindSlotsReply {
@@ -302,6 +366,8 @@ message Slot {
   uint32 minutes = 3;
   string clinician = 4 [(phi) = true];
   string place = 5 [(phi) = true];
+  // An online visit (video or phone), from its visit type. The place is still the record's.
+  bool online = 6;
 }
 
 message BookRequest {
@@ -322,6 +388,10 @@ message BookReply {
   BookOutcome outcome = 1;
   // Set when the outcome is BOOKED.
   Slot booked = 2;
+  // Set when the outcome is BOOKED: the visit as booked, with its type, whether it is online,
+  // and the caller's reason that went to the scheduler as the visit's note (the last
+  // FindSlots's reason; Epic's `appointmentNote`), after the sensitive screen.
+  Visit visit = 3;
 }
 
 message NextVisitRequest {

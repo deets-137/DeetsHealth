@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: none
-sources: [ehr/proto/deets/ehr/v1/ehr.proto, ehr/src/service.rs, ehr/src/edge.rs, ehr/src/transport.rs, ehr/build.rs, agent/deets_agent/ehr_client.py]
+sources: [ehr/proto/deets/ehr/v1/ehr.proto, ehr/src/service.rs, ehr/src/edge.rs, ehr/src/transport.rs, ehr/build.rs, agent/deets_agent/ehr_client.py, ehr/src/scheduler.rs, ehr/src/visit_about.rs, ehr/src/session.rs]
 updated: 2026-11-14
 ---
 # DeetsHealth — The `ehr` service and its wire
@@ -30,8 +30,10 @@ agent                                    ehr
                                          the reply never says if one matched
   ResendCode(handle)             ──►     the code again; the reply never says if one went out
   CheckCode(handle, code)        ──►     PASS · FAIL · LOCKED, with tries left
-  FindSlots(handle, wish)        ──►     slots, each with an opaque slot token
-  Book(handle, slot token, key)  ──►     booked, or why not; `key` makes a retry safe
+  FindSlots(handle, wish)        ──►     slots, each with an opaque slot token; the wish's reason
+                                         is kept for this call as the booking's note
+  Book(handle, slot token, key)  ──►     the visit as booked (type, online, the reason sent as
+                                         its note), or why not; `key` makes a retry safe
   CloseCall(handle)              ──►     session wiped (zeroized)
 ```
 - **Every chart and booking call takes only the handle.** No message has a patient field. A
@@ -87,6 +89,10 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `RemoveUser` | `remove_user` | `remove_user` |
 | `AdmitUser` | `admit_user` | `admit_user` |
 | `SeedUsers` | `seed_users` | `seed_users` |
+| `UpdateUser` | `update_user` | `update_user` |
+| `GetUserPhoto` | `get_user_photo` | `user_photo` |
+| `SetUserPhoto` | `set_user_photo` | `set_user_photo` |
+| `SeenOwner` | `seen_owner` | `seen_owner` |
 
 The three settings RPCs are the settings store (CONSOLE.md §7.3; `ehr/src/settings.rs`): no
 handle, no protected data, `FAILED_PRECONDITION` when `ehr` runs without a store.
@@ -237,11 +243,25 @@ is ignored. So nothing past the edge sees a wire type.
   wrong handle and a closed call get the same reply.
 - **Slots:** at most 3 per `FindSlots` (enough to choose from, short enough to say). New
   tokens each time, so an old token no longer books. A token works on its own call only.
+  `visit_mode` (2026-11-14; the owner's 1A of 2026-11-13): in person, online, or either when
+  unset; an unknown value is `INVALID_ARGUMENT`. Each slot says whether it is online.
+- **The reason becomes the booking's note (2026-11-14).** `FindSlots`'s reason (the caller's
+  own words: the agent checks them, CALL-FLOW.md §5) is screened at the edge
+  (`BookNote::screen`, `visit_about.rs`), before it is wrapped, and kept in the session one call
+  long (`Session.note`, the last `FindSlots`'s). `Book` passes it to the adapter
+  (`Scheduler::book(patient, slot, note)`): the fake keeps it on the booked visit; Epic's `$book`
+  will send it as `appointmentNote` (E-4, EPIC.md §5.2). The words go to the scheduler even when
+  they name sensitive care; the screen governs only what the agent may say back.
 - **Booking:** the idempotency key is 16 to 128 of `[A-Za-z0-9_-]`. A retry with the same key
-  gets the same answer; the same key for another slot is refused.
+  gets the same answer; the same key for another slot is refused. `BookReply.visit` is the visit
+  as booked (`edge::visit`): its type, whether it is online, and the reason, after the screen
+  (`VisitAbout::booked`; a sensitive type or reason makes it private). `BookReply.booked` (the
+  slot) stays for older agents.
 - **The fake scheduler:** six fixed slots, 2026-11-02 to 2026-11-06, two synthetic clinicians
-  at one synthetic clinic. No clock. It filters by day with `Shielded`'s comparison, without a
-  reveal.
+  at one synthetic clinic, each with a visit type as Epic names them: four "Office Visit" (in
+  person; the first three, so a list for "either" reads as before) and two "Video Visit"
+  (online). No clock. It filters by day with `Shielded`'s comparison, without a reveal, and by
+  `visit_mode`.
 - **The Python side** is built: AGENT.md.
 - **The code check is constant time** (2026-11-12, the owner's ask): `CheckCode` compares with
   `Shielded::ct_eq` (the `subtle` crate), so a reply's timing never says how many digits were

@@ -112,6 +112,22 @@ def anthropic_cycle(
     }
 
 
+def call_use(events: list[dict[str, Any]]) -> dict[str, Any]:
+    """One ended call's use, from its record's events (the Resources tab's "This call", CHAT.md
+    §17): its seat, Claude's dollars (`call_end` › `cost_usd`) and Cartesia's credits
+    (`call_end` › `cartesia`; None for a text call). Counts only."""
+    seat = next((e.get("seat") for e in events if e.get("kind") == "call_start"), None) or "text"
+    end = next((e for e in reversed(events) if e.get("kind") == "call_end"), {})
+    cartesia = end.get("cartesia") if isinstance(end.get("cartesia"), dict) else None
+    cost = end.get("cost_usd")
+    return {
+        "seat": seat,
+        "usd": float(cost) if isinstance(cost, (int, float)) else 0.0,
+        "credits": int(cartesia.get("credits") or 0) if cartesia else None,
+        "live": False,
+    }
+
+
 def cartesia_cycle(
     folder: Path,
     today: date | None = None,

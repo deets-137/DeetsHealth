@@ -14,7 +14,10 @@ use deetshealth_core::Shielded;
 use tokio::sync::Mutex;
 use zeroize::Zeroize;
 
-use crate::scheduler::{BookResult, SlotId};
+use crate::{
+    scheduler::{BookResult, SlotId},
+    visit_about::BookNote,
+};
 
 /// The most sessions held at once. A flood of OpenCall cannot grow memory without end.
 const MAX_SESSIONS: usize = 10_000;
@@ -100,6 +103,9 @@ pub struct Session {
     pub code_failures: u32,
     /// The slots of the last FindSlots, by the token the agent got for each.
     pub offered: HashMap<Token, SlotId>,
+    /// The last FindSlots's reason, screened: Book sends it to the scheduler as the visit's
+    /// note. Lives one call long, like the rest of the session.
+    pub note: Option<BookNote>,
     /// The text message's words for this call, from its prompt version (OpenCall's
     /// `prompt_version`); None: the prompt file compiled into ehr.
     pub text_template: Option<String>,
@@ -139,6 +145,7 @@ impl Sessions {
             resends: 0,
             code_failures: 0,
             offered: HashMap::new(),
+            note: None,
             text_template: None,
             booked: HashMap::new(),
             opened: Instant::now(),

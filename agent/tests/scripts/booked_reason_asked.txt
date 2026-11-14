@@ -1,0 +1,15 @@
+# A typed call, from the owner's test call as Priya Raman (2026-11-13,
+# agent/calls/20261113-232112-test.jsonl). The caller books a visit for a reason that does not
+# read as a health need, then asks what the reason on the visit is and whether it is online.
+# The agent books it as said and flags it for clinical review, silent to the caller (FLAGS.md
+# §3.1); the booking keeps the caller's reason as its note; asked again, the agent says it is
+# the visit just booked, its type and the caller's reason, with no hand-off (2026-11-14).
+# Run: uv run python harness/typed_call.py --script tests/scripts/booked_reason_asked.txt
+Priya Raman, November 30, 1971
+Yes, that's right.
+246810
+Can I book a visit for my strawberry water distillation?
+Option 3 please.
+Yes
+What was the reason on the visit again? Is it online?
+No, that's all. Thank you.

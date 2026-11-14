@@ -16,7 +16,7 @@ use std::path::Path;
 
 use deetshealth_core::{
     platform::Cipher,
-    seal::{open_text, seal, Place},
+    seal::{open, open_text, seal, Place},
 };
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool};
@@ -180,6 +180,16 @@ impl Store {
     /// A sealed value back as text, wiped when it drops.
     pub(crate) fn open(&self, table: &str, row: &str, column: &str, sealed: &[u8]) -> Result<Zeroizing<String>, String> {
         open_text(&AwsLc, &self.key, &Place { table, row, column }, sealed).map_err(|_| "opening failed".to_string())
+    }
+
+    /// Bytes sealed the same way (a picture).
+    pub(crate) fn seal_bytes(&self, table: &str, row: &str, column: &str, plain: &[u8]) -> Result<Vec<u8>, String> {
+        seal(&AwsLc, &self.key, &Place { table, row, column }, plain).map_err(|_| "sealing failed".to_string())
+    }
+
+    /// Sealed bytes back, wiped when they drop.
+    pub(crate) fn open_bytes(&self, table: &str, row: &str, column: &str, sealed: &[u8]) -> Result<Zeroizing<Vec<u8>>, String> {
+        open(&AwsLc, &self.key, &Place { table, row, column }, sealed).map_err(|_| "opening failed".to_string())
     }
 
     /// The keyed hash a sealed column is found by (SealKey::lookup), as hex for a seal's row.

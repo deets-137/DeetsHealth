@@ -14,6 +14,10 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: false,
+    // The demo's build (docs/ops/DEMO.md §3.2) is written inside this folder on each save. It
+    // is not this page's source: watching it reloaded the open page on every rebuild, which
+    // threw away an edit not saved (the owner, 2026-11-14).
+    watch: { ignored: ["**/dist-demo/**", "**/dist/**"] },
     // The agent's dev server (CHAT.md §5), when scripts/dev.mjs started one: /agent/* goes
     // there, with the launch token added here so the page never holds it. The Origin header
     // passes through unchanged; the agent checks it.

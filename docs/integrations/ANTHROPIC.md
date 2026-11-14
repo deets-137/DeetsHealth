@@ -2,7 +2,7 @@
 status: project
 desk_test: passed 2026-11-13
 sources: [agent/deets_agent/llm.py, agent/deets_agent/config.py, agent/deets_agent/call_record.py]
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # Anthropic — the language model
 
@@ -49,6 +49,33 @@ the same recorded test calls. The owner picks from the numbers.
   Server-side refusal fallbacks are a beta: check the BAA before using them.
 - **Streaming** with fine-grained tool input streaming, so a short tool call does not wait.
 - **One Flow node, one small tool set** (PIPECAT.md): fewer tools, faster and more accurate.
+
+### 4.0 Signing in without a key file
+> **Part:** idea · 2026-11-14 — found while asking whether the Resources tab can read Anthropic's
+> own spend. Nothing built. Dev today: `ANTHROPIC_API_KEY` in the git-ignored `.env`.
+
+Facts (the claude-api skill's reference, cached 2026-11-03):
+- **Workload Identity Federation (generally available): the way for a server.** The server's own
+  cloud identity (an AWS IAM role in `us-east-1`, CLOUD.md C1) is traded for short-lived
+  Anthropic credentials; the SDK does it from four settings (`ANTHROPIC_FEDERATION_RULE_ID`,
+  `ANTHROPIC_ORGANIZATION_ID`, `ANTHROPIC_SERVICE_ACCOUNT_ID`, an identity token file) and
+  renews them itself. No key is stored anywhere. A federation rule is made once in the Anthropic
+  Console: in our organization for deploy A2, in the hospital's for deploy B. A set
+  `ANTHROPIC_API_KEY` wins over it, so the deploy must not set one.
+- **OAuth sign-in (`ant auth login`): the way for a person's PC.** A browser sign-in saves a
+  profile under `~/.config/anthropic/`; the SDKs use it with no key in `.env`; its refresh token
+  expires after a while. Run it in your own terminal: a sign-in from Claude Code's sandboxed
+  shell lands in the sandbox's own profile (HANDOFF › Known gotchas, the `cf` case of
+  2026-11-14).
+- **Claude on Amazon Bedrock: the way for a hospital that pays for Claude itself.** IAM in its
+  own AWS account and its AWS BAA; no Anthropic key at all. Bedrock's models, prices and
+  features differ from the Claude API's: check each lever before choosing it.
+- **The Usage and Cost API is not for us.** It needs an Admin key (`sk-ant-admin…`) or an
+  `org:admin` OAuth token; either can also make and delete keys and add members. The Resources
+  tab counts our own calls from their records instead (CHAT.md §17).
+
+**The owner, 2026-11-14:** "we'll have to consider having DeetsHealth's console being a central
+hub for everything it'd need (cartesia, anthropic, twilio, etc)" — ideas/README.md.
 
 ### 4.1 The levers, and how we set them
 > **Part:** built · 2026-11-13 — Config › Anthropic sets them for test calls (CONSOLE.md §8).

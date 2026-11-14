@@ -2,7 +2,7 @@
 status: project
 desk_test: open
 sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/deets_agent/catalog.py, agent/prompts/AGENT-PROMPT.md]
-updated: 2026-11-12
+updated: 2026-11-14
 ---
 # Staff flags — the agent marks a call for a person
 
@@ -38,6 +38,39 @@ and value lives in the code; this doc points to it (DOCS-ORG.md §1, rule 8).
 ## 3. The kinds
 `FLAG_KINDS` in `agent/deets_agent/flow.py`. A draft list for the owner to edit. An unknown kind
 becomes `other`. A hospital will add its own (FUTURE-SETTINGS.md §5).
+
+### 3.1 A visit reason to review (decided, not built)
+> **Part:** built · 2026-11-14 · desk test open — the owner, after the Priya Raman test call
+> (`agent/calls/20261113-232112-test.jsonl`): fork 1A, "silent flag we can throw for nursing /
+> clinical staff to review and call back for". Built: the kind in `FLAG_KINDS`, the rule in
+> `task.menu`; the kept script `booked_reason_asked.txt`.
+- **The agent books the visit as the caller said it,** whatever the reason ("strawberry water
+  distillation" in that call). It never asks the caller to justify a reason, so no caller with
+  a rare but real need hears doubt.
+- **When the reason does not read as a health need, it raises a flag, silent to the caller,**
+  for nursing or clinical staff to review and call back. The evidence is the caller's own words
+  for the reason, checked by code as for every flag (§2).
+- Kind name: a draft, `visit_reason_review`, in the kinds list (§3) for the owner to edit.
+- Whether a reason "reads as a health need" is the model's call; nothing in code judges it. The
+  booking never waits on the flag.
+- Built with the booking work that carries the reason into the visit (EHR-SERVICE.md §4, the
+  owner's 1A of 2026-11-13).
+
+### 3.2 No guessed pronouns in a summary (decided, not built)
+> **Part:** built · 2026-11-14 · desk test open — the owner's option A, after the Priya Raman
+> call, whose hand-off summary said "She asks…" from the name alone. Built:
+> `guesses_a_pronoun`, `CallFlow._summary_back` (`flow.py`), the rule in `role`,
+> `note.summary_pronoun`; tests `test_a_summary_that_guesses_a_pronoun_goes_back_once`
+> (`test_gate.py`) and `test_booked_reason_asked` (`test_typed_call.py`).
+- A flag's or a hand-off's summary names the caller by name or as "the caller", never "he",
+  "she", "him", "her", "his" or "hers". ehr reads no gender, sex or pronoun field for it: staff
+  see the chart's own pronouns in the EHR, and no gender identity data goes to the model.
+- Code checks each summary for those words. A summary that has one goes back to the model once
+  with a fixed instruction to rewrite it (`note.summary_pronoun`); nothing is spoken and no flag
+  is raised until it comes back. Each tool gets one chance per call; a second summary with a
+  pronoun is kept as it is, so the call never loops. The caller hears no extra words; the
+  hand-off's own line waits one model turn (about a second). The quotes in the evidence are
+  the caller's own words and are never checked for pronouns.
 
 ## 4. Protected data
 - **The kind leaves the wall; the notes do not.** An alert, a toast, a log line or a catalog

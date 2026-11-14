@@ -1,0 +1,205 @@
+/* Security › Auth (auth.ts; docs/ops/DEMO.md §3.5): who may sign in, as a table that can be
+   edited. The fields and buttons are the Config page's (.cfg-field, .cfg-button, .cfg-save);
+   the phone mark and the picture's fill are people.css's. */
+
+.auth {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  container: auth / inline-size;
+}
+
+.auth-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* "Users" at the left, Add at the right. The title is as tall as Add (the owner, 2026-11-14:
+   "increase the font size of Users so it matches the size of the Add button"): a page
+   heading's size, on a row of a field's height. */
+.auth-title {
+  flex: none;
+  height: var(--field-height);
+  display: flex;
+  align-items: center;
+  font-size: var(--text-page);
+  font-weight: var(--weight-bold);
+  line-height: var(--line-height-tight);
+  color: var(--title);
+}
+
+/* A result or a refusal between the title and Add (Config's .cfg-status), pushed right. */
+.auth-status {
+  text-align: right;
+}
+
+.auth-add {
+  flex: none;
+}
+
+/* The table scrolls both ways inside the panel; the page itself never does. */
+.auth-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.auth-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-small);
+}
+
+.auth-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--pad-row);
+  background: var(--glass-fill-strong);
+  color: var(--text-2);
+  font-weight: var(--weight-bold);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.auth-table td {
+  padding: var(--pad-row);
+  border-top: var(--edge) solid var(--line);
+  color: var(--text);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.auth-row {
+  cursor: pointer;
+  transition: background-color var(--dur-hover) var(--ease);
+}
+
+.auth-row:hover {
+  background: var(--hover);
+}
+
+.auth-row[aria-expanded="true"] {
+  background: var(--press);
+}
+
+.auth-row:focus-visible {
+  outline: var(--focus-ring) solid var(--accent);
+  outline-offset: calc(-1 * var(--focus-ring));
+}
+
+.auth-photo {
+  width: var(--thumb-photo);
+  height: var(--thumb-photo);
+  border-radius: 50%;
+  border: var(--edge) solid var(--line);
+  background: var(--glass-fill-strong);
+  overflow: hidden;
+}
+
+.auth-table .auth-col-phone {
+  min-width: var(--phone-col);
+}
+
+.auth-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* The panel under an open row: the picture at the left, the fields beside it. */
+.auth-panel > td {
+  padding: var(--pad-panel);
+  background: var(--canvas);
+  white-space: normal;
+}
+
+.auth-edit {
+  display: flex;
+  gap: var(--pad-panel-x);
+  align-items: flex-start;
+}
+
+.auth-edit-photo {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.auth-photo-big {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border-radius: 50%;
+  border: var(--edge) solid var(--line);
+  background: var(--glass-fill-strong);
+  overflow: hidden;
+}
+
+.auth-photo-pick {
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+/* A blank row's picture waits for its first Save (the picture is stored under the id). */
+.auth-photo-pick.is-disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+.auth-edit-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* The panel's top: the result at the left, Config's Discard | Save at the right. */
+.auth-edit-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.auth-edit-bar > .tabs {
+  height: var(--control-height);
+  flex: none;
+}
+
+.auth-edit-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width), 1fr));
+  gap: var(--space-4);
+  align-items: end;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--text-2);
+}
+
+.auth-field .cfg-field {
+  flex: none;
+}
+
+.auth-role {
+  height: var(--field-height);
+  display: flex;
+  align-items: center;
+  color: var(--text-3);
+}
+
+/* A narrow panel: the picture sits above the fields. */
+@container auth (max-width: 581px) {
+  .auth-edit {
+    flex-wrap: wrap;
+  }
+}

@@ -109,7 +109,14 @@ export type CartesiaCycle = {
   rates: { ink_per_s: number; sonic_per_char: number };
   limits: { idle_s: number; max_s: number };
 };
-export const resources = () => get<{ cartesia: CartesiaCycle; voice: boolean }>("/agent/resources");
+/** One call's use for the Resources tab: Claude's dollars and, for a voice call, Cartesia's
+ * credits; a live call's running totals, else its record's (CHAT.md §17). */
+export type CallUse = { seat: "text" | "voice"; usd: number; credits: number | null; live: boolean };
+/** The Resources tab's numbers. `call`: the call the page shows, if any. */
+export const resources = (call: string | null) =>
+  get<{ cartesia: CartesiaCycle; anthropic: AnthropicCycle; call: CallUse | null; voice: boolean }>(
+    `/agent/resources${call ? `?${new URLSearchParams({ call })}` : ""}`,
+  );
 
 /** A lever's range and Cartesia's default (agent/deets_agent/config.py). */
 export type Range = { min: number; max: number; step: number; default: number };
@@ -373,6 +380,16 @@ export type Person = {
   added_by: string | null;
   added_at: string;
   last_seen_at: string | null;
+  /** The card (edited on Security › Auth): empty when not set. */
+  first_name: string;
+  last_name: string;
+  /** E.164, or null. */
+  phone: string | null;
+  phone_verified: boolean;
+  /** Where they sign in from: "access" or "idp". */
+  source: string;
+  /** When the picture was saved; null when there is none. */
+  photo_at: string | null;
 };
 
 /** The People view: the list, whether the store and Cloudflare's group are there, the invite
@@ -389,13 +406,14 @@ export type People = {
 
 export const people = () => get<People>("/agent/people");
 
-async function peopleChange(method: "POST" | "DELETE", path: string, body?: unknown): Promise<People> {
+async function peopleChange(method: "POST" | "PATCH" | "PUT" | "DELETE", path: string, body?: unknown): Promise<People> {
   let r: Response;
   try {
+    const blob = body instanceof Blob;
     r = await fetch(at(path), {
       method,
-      headers: body === undefined ? {} : { "content-type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: body === undefined ? {} : { "content-type": blob ? body.type : "application/json" },
+      body: body === undefined ? undefined : blob ? body : JSON.stringify(body),
     });
   } catch {
     throw new AgentDown("the agent's dev server is not running");
@@ -408,6 +426,28 @@ async function peopleChange(method: "POST" | "DELETE", path: string, body?: unkn
 
 export const addPerson = (email: string, name: string) => peopleChange("POST", "/agent/people", { email, name });
 export const removePerson = (id: string) => peopleChange("DELETE", `/agent/people/${encodeURIComponent(id)}`);
+
+/** A card's Save on Security › Auth: the whole profile. */
+export type Profile = { first_name: string; last_name: string; phone: string; email: string };
+export const updatePerson = (id: string, p: Profile) =>
+  peopleChange("PATCH", `/agent/people/${encodeURIComponent(id)}`, p);
+
+/** Saves a person's picture, a 256 px WebP the page made; null clears it. */
+export const setPersonPhoto = (id: string, webp: Blob | null) =>
+  peopleChange(webp ? "PUT" : "DELETE", `/agent/people/${encodeURIComponent(id)}/photo`, webp ?? undefined);
+
+/** A person's picture as an object URL (the caller revokes it), or null when there is none.
+ * Fetched, not set as an <img> address, so it goes through the same door as every request. */
+export async function personPhoto(id: string): Promise<string | null> {
+  let r: Response;
+  try {
+    r = await fetch(at(`/agent/people/${encodeURIComponent(id)}/photo`), { cache: "no-store" });
+  } catch {
+    return null;
+  }
+  if (!r.ok) return null;
+  return URL.createObjectURL(await r.blob());
+}
 
 /** The ICE servers for a voice call, asked for before the offer (docs/ops/DEMO.md §3.7): none
  * on this PC; Cloudflare STUN and TURN for a guest. A refusal's reason names no value. */

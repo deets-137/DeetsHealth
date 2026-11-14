@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/deets_agent/config.py, agent/prompts/AGENT-PROMPT.md, ehr/src/epic_ehr.rs, ehr/src/verify.rs, ehr/src/visit_about.rs]
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # Future settings — what a hospital will configure
 
@@ -70,7 +70,8 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
   and our setting today is CARTESIA.md §9. Not a setting yet.
 
 **Booking**
-- Hours, visit types and transfer numbers. Not built (DESIGN.md K2).
+- Hours, visit types and transfer numbers. Not built (DESIGN.md K2). The visit types per mode
+  (in person, online) and the booking's note: §9.2.
 - Which providers and locations are open to booking. Not built (OTHER-EHRS.md).
 
 **Records kept**
@@ -507,6 +508,8 @@ to describe by phone.
 | Whether the reason is said | yes | no | The same; the reason helps the caller most. |
 | The spoken name of each visit type | the record's words | a hospital's own words per type ("MyChart Video Visit" → "a video visit") | Plainer words for the caller; a list to keep current. |
 | Which types count as online | the word list above | the hospital's own list of type codes | Codes are exact; words can miss a type. |
+| Which visit types the agent books, for in person and for online (`visit_mode`, 2026-11-14) | the fake's "Office Visit" and "Video Visit" | the hospital's own list per mode, by type code | Epic's `$find` needs one visit type per search (EPIC.md §5.2); without the list, Epic booking cannot start. |
+| The note sent with a booking | the caller's reason, in their words | add a fixed prefix ("Booked by the phone agent: …"), or a length limit the site's Cadence build needs | A prefix tells the scheduler where the visit came from; a limit cuts the caller's words. |
 
 ### 9.3 Open
 - **A private visit still says its time, clinician and place.** A clinician's title or a

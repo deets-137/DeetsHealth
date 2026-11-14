@@ -15,8 +15,8 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 | Tier | File | Count |
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
-| Theme (color roles) | themes.css | 31 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 100 tokens · overrides:  |
+| Theme (color roles) | themes.css | 34 roles · 3 themes (dark, light, moonlight) |
+| Skin (everything else) | skin.css base block | 107 tokens · overrides:  |
 
 ## Theme roles
 
@@ -55,6 +55,9 @@ The `:root` value is Dark's, and the fallback when a theme does not map the role
 | `--on-call-button` | `var(--paint-white)` | — | text on --go and --stop |
 | `--theme-color` | `var(--paint-black)` | light, moonlight | The theme's own color (the owner, 2026-11-13: "black / navy / orange"): Dark's black, Moonlight's navy, Light's orange. Demo's play button in each recorded-call row. |
 | `--on-theme-color` | `var(--paint-white)` | light, moonlight |  |
+| `--unverified` | `var(--paint-scarlet)` | — | A phone number's mark on a person's card (the owner, 2026-11-14): a white serif X on scarlet when not verified, a white V on forest green when verified. The same in every theme. |
+| `--verified` | `var(--paint-forest)` | — |  |
+| `--on-mark` | `var(--paint-white)` | — |  |
 
 ## Skin tokens
 
@@ -164,6 +167,18 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--dot-size` | `12px` | — | a score dot |
 | `--star-size` | `20px` | — | the Review panel's star |
 | `--disabled-opacity` | `0.45` | — | a control that cannot be used now |
+
+### people
+
+| Token | Base | Overridden by | Note |
+|---|---|---|---|
+| `--card-width` | `240px` | — | a person's card on Teams › People; the cards wrap in rows |
+| `--avatar-size` | `96px` | — | the round picture slot on a person's card |
+| `--card-band` | `64px` | — | the darker band at a card's top; it ends at the picture's middle |
+| `--mark-size` | `20px` | — | a phone number's verified mark (X or V), a rounded square |
+| `--thumb-photo` | `32px` | — | a person's picture in a Security › Auth row |
+| `--phone-col` | `176px` | — | Security › Auth's Phone column, at least: a number and its mark, so the mark never moves the columns |
+| `--photo-px` | `256` | — | the side of the square picture the console makes before it sends it (a number: person.ts reads it) |
 
 ### glass
 

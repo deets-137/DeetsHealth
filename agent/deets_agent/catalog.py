@@ -217,7 +217,9 @@ def summarize(call_id: str, events: list[dict[str, Any]]) -> Summary:
     s.tool_calls = len(tools)
     s.flags = sorted(flags)
     ended = s.end_reason is not None and "ended it" in s.end_reason
-    if crashed or (s.end_reason or "").startswith(("Claude's request failed", "the harness failed")):
+    if crashed or (s.end_reason or "").startswith(
+        ("Claude's request failed", "the harness failed", "the EHR did not answer")
+    ):
         s.outcome = "crashed"
     elif booked:
         s.outcome = "booked"

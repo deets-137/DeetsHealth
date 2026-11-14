@@ -177,6 +177,12 @@ name: Next visit
 under: next_visit
 plays: The next visit: its time, clinician, place and length.
 
+## line.booked_visit_asked
+tab: Menu
+name: Next visit, just booked
+under: next_visit
+plays: In place of Next visit when the next visit is the one booked on this call: the caller heard its time a moment ago.
+
 ## line.visit_online
 tab: Menu
 name: Online visit (added)
@@ -218,6 +224,12 @@ tab: Menu
 name: Earliest day
 under: find_slots
 plays: The model fills it when the caller names a day.
+
+## arg.find_slots.visit_mode
+tab: Menu
+name: In person or online
+under: find_slots
+plays: The model fills it when the caller says how they want to be seen; otherwise either.
 
 ## line.slots
 tab: Menu
@@ -452,6 +464,12 @@ tab: Anytime
 name: Note after a flag
 under: flag_for_staff
 plays: Sent to the model after a flag. Never heard.
+
+## note.summary_pronoun
+tab: Anytime
+name: Note when a summary guessed a pronoun
+under: flag_for_staff
+plays: Sent to the model once, when a summary for staff (in a flag or a hand-off) uses he, she, him, her, his or hers. Never heard.
 
 ## line.one_moment
 tab: Failure

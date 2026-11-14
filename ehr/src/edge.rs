@@ -10,9 +10,10 @@ use tonic::Status;
 
 use crate::{
     proto::v1 as pb,
-    scheduler::{Slot, SlotWish},
+    scheduler::{Slot, SlotWish, VisitMode},
     session::{Source, Token},
     verify::Claimed,
+    visit_about::BookNote,
 };
 
 /// The longest reason for a visit the agent may pass on.
@@ -104,7 +105,15 @@ pub fn find_slots(mut req: pb::FindSlotsRequest) -> Result<(Token, SlotWish), St
     } else {
         return Err(Status::invalid_argument("earliest_day: not YYYY-MM-DD"));
     };
-    Ok((handle, SlotWish { reason: Shielded::new(reason), earliest_day }))
+    let mode = match pb::VisitMode::try_from(req.visit_mode) {
+        Ok(pb::VisitMode::Unspecified) => VisitMode::Either,
+        Ok(pb::VisitMode::InPerson) => VisitMode::InPerson,
+        Ok(pb::VisitMode::Online) => VisitMode::Online,
+        Err(_) => return Err(Status::invalid_argument("visit_mode: not a known value")),
+    };
+    // Screened here, as plain words, before they are wrapped (visit_about.rs).
+    let note = BookNote::screen(reason.trim().to_string());
+    Ok((handle, SlotWish { note, earliest_day, mode }))
 }
 
 pub fn book(req: &pb::BookRequest) -> Result<(Token, Token, String), Status> {
@@ -129,10 +138,11 @@ pub fn slot(token: &Token, slot: &Slot) -> pb::Slot {
         minutes: slot.minutes,
         clinician: slot.clinician.reveal(&pass).clone(),
         place: slot.place.reveal(&pass).clone(),
+        online: slot.about.online,
     }
 }
 
-/// The one reveal for a visit the caller already has.
+/// The one reveal for a visit the caller already has, or has just booked.
 pub fn visit(slot: &Slot) -> pb::Visit {
     let pass = WirePass::issue();
     pb::Visit {
@@ -284,8 +294,34 @@ mod tests {
             handle: Token::random().to_hex(),
             reason: "CANARY".into(),
             earliest_day: "CANARY-DAY".into(),
+            visit_mode: 0,
         };
         let err = find_slots(req).err().unwrap();
         assert!(!err.message().contains("CANARY"));
+    }
+
+    #[test]
+    fn a_visit_mode_is_read_and_an_unknown_one_refused() {
+        let req = |mode: i32| pb::FindSlotsRequest {
+            handle: Token::random().to_hex(),
+            reason: "a check-up".into(),
+            earliest_day: String::new(),
+            visit_mode: mode,
+        };
+        assert_eq!(find_slots(req(0)).ok().unwrap().1.mode, VisitMode::Either);
+        assert_eq!(find_slots(req(2)).ok().unwrap().1.mode, VisitMode::Online);
+        assert!(find_slots(req(9)).is_err());
+    }
+
+    #[test]
+    fn a_sensitive_reason_is_marked_private_at_the_edge() {
+        let req = pb::FindSlotsRequest {
+            handle: Token::random().to_hex(),
+            reason: "  a prenatal check  ".into(),
+            earliest_day: String::new(),
+            visit_mode: 0,
+        };
+        let (_, wish) = find_slots(req).ok().unwrap();
+        assert!(wish.note.private);
     }
 }

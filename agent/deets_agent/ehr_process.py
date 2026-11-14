@@ -62,14 +62,26 @@ async def running_ehr(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
+    relay: asyncio.Task[None] | None = None
     try:
         line = await asyncio.wait_for(proc.stdout.readline(), timeout=10)
         match = _LISTENING.match(line.decode().strip())
         if not match:
             err = (await proc.stderr.read()).decode().strip()
             raise RuntimeError(f"ehr did not start: {err or 'no output'}")
+        # ehr's stderr lines (no Epic sandbox, no call store, Epic back) go to this terminal.
+        # Unread, they were lost (2026-11-14: Epic's 503 was only seen by running ehr by hand),
+        # and a full pipe would stall ehr. ehr's lines name a status, never a value.
+        relay = asyncio.create_task(_relay(proc.stderr))
         yield match.group(1)
     finally:
         if proc.returncode is None:
             proc.kill()
             await proc.wait()
+        if relay is not None:
+            relay.cancel()
+
+
+async def _relay(stream: asyncio.StreamReader) -> None:
+    while line := await stream.readline():
+        print(f"[ehr] {line.decode(errors='replace').rstrip().removeprefix('ehr: ')}", flush=True)

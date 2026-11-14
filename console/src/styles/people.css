@@ -1,77 +1,124 @@
-/* Teams › People (people.ts; docs/ops/DEMO.md §3.5). The fields and buttons are the Config
-   page's (.cfg-field, .cfg-button, .cfg-save); this file lays out the view and its rows. */
+/* Teams › People (people.ts; docs/ops/DEMO.md §3.5): one card per person, in rows that wrap.
+   The owner's sketch, 2026-11-14: a round picture slot, then name, role, phone and email.
+   His next step the same day: the part above the picture in the theme's own color (black,
+   orange, navy: --theme-color), and everything left aligned. Also the phone number's mark,
+   which Security › Auth's table shares (.person-mark). */
 
 .people {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  container: people / inline-size;
 }
 
-.people-top {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.people-add {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  gap: var(--space-3);
-}
-
-.people-invite {
-  margin-left: auto;
-}
-
-.people-status {
-  min-height: 1lh;
-  color: var(--text-2);
-  font-size: var(--text-small);
-}
-
-.people-list {
+/* The cards: as many to a row as fit, each the same width. */
+.people-cards {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-width), var(--card-width)));
+  align-content: start;
+  gap: var(--gap);
+}
+
+.people-card {
+  display: flex;
+  flex-direction: column;
+  border: var(--edge) solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden; /* the band follows the card's round corners */
+  text-align: left;
+}
+
+/* The darker band. Its lower edge runs through the picture's middle (the sketch's line). */
+.people-band {
+  height: var(--card-band);
+  background: var(--theme-color);
+  border-bottom: var(--edge) solid var(--line);
+}
+
+.people-photo {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  margin: calc(var(--avatar-size) / -2) var(--pad-panel-x) 0;
+  border-radius: 50%;
+  border: var(--edge) solid var(--line);
+  background: var(--glass-fill-strong); /* opaque, so the band's edge does not cross it */
+  overflow: hidden;
+}
+
+/* A picture fills its round slot (here, and in Security › Auth). */
+.people-photo img,
+.auth-photo img,
+.auth-photo-big img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.people-body {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  padding: var(--space-4) var(--pad-panel-x) var(--pad-panel-y);
 }
 
-/* One person: who, who added them and when, when last seen, Remove. Demo's call rows' edge. */
-.people-row {
+.people-line {
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--pad-row);
-  border: var(--edge) solid var(--line);
-  border-radius: var(--radius-control);
+  gap: var(--space-3);
+  color: var(--text);
 }
 
-.people-who {
-  flex: 1;
+.people-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text);
 }
 
-.people-meta {
+/* The phone number's mark (the owner, 2026-11-14): a white serif letter in a rounded square,
+   with the "i" button's rounding. X on scarlet: not verified. V on forest green: verified. */
+.person-mark {
   flex: none;
-  color: var(--text-2);
+  width: var(--mark-size);
+  height: var(--mark-size);
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-control);
+  font-family: var(--font);
   font-size: var(--text-small);
+  font-weight: var(--weight-bold);
+  color: var(--on-mark);
 }
 
-/* A narrow panel (Config's own step, config.css): the fields and each row wrap. */
-@container people (max-width: 581px) {
-  .people-top,
-  .people-add,
-  .people-row {
-    flex-wrap: wrap;
-  }
+.person-mark.is-unverified {
+  background: var(--unverified);
+}
+
+.person-mark.is-verified {
+  background: var(--verified);
+}
+
+.people-name {
+  font-size: var(--text-panel);
+  font-weight: var(--weight-bold);
+  line-height: var(--line-height-tight);
+}
+
+.people-role,
+.people-phone,
+.people-email {
+  font-size: var(--text-small);
+  color: var(--text-2);
+}
+
+/* No value in the store yet: the placeholder is dimmer than any real value (here and in
+   Security › Auth's table). */
+.people-line.is-placeholder,
+.is-placeholder {
+  color: var(--text-3);
 }

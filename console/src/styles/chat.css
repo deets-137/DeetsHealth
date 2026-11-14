@@ -465,14 +465,16 @@
   margin-left: auto;
 }
 
-/* The label beside Start (docs/ops/DEMO.md §3.6): the Review panel's text box, as wide as the
-   room left of Start | End allows, up to the help card's width. Greyed while a call runs. */
+/* The call's title, "Chat Title (Optional)" (docs/ops/DEMO.md §3.6; the catalog's label): the
+   Review panel's text box at the top row's left (the owner, 2026-11-14; it sat beside Start
+   until then), as tall as the bars and as wide as the room left of them allows, up to the help
+   card's width. The bars stay at the right. Greyed while a call runs. */
 .call-label {
   flex: 1 1 auto;
   min-width: 0;
   max-width: var(--help-width);
   align-self: stretch;
-  margin-left: auto;
+  margin-right: auto;
   -webkit-appearance: none;
   appearance: none;
   padding: 0 var(--space-4);
@@ -489,11 +491,6 @@
 
 .call-label:disabled {
   opacity: 0.6;
-}
-
-/* The split right after the label sits beside it, not pushed apart. */
-.call-label + .split {
-  margin-left: 0;
 }
 
 /* ------------------------------------------------------------ the narrow canvas */
@@ -710,10 +707,41 @@
 
 /* ------------------------------------------------------------- the Resources tab */
 
-/* The bottom panel's third tab (CHAT.md §17): Cartesia's credits this cycle. A heading, the
-   credits left in large type, a meter of the share used, then term and value rows. */
+/* The bottom panel's third tab (CHAT.md §17; the owner, 2026-11-14): two columns, Anthropic |
+   Cartesia, split by a vertical line; three blocks split by lines across both (what is left,
+   this call, the cycle). Each column stays side by side at any width: its values are short. */
 .tab-body.resources {
   gap: var(--space-3);
+}
+
+.res-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.res-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.res-anthropic {
+  padding-left: 0;
+  border-right: var(--edge) solid var(--line);
+}
+
+.res-cartesia {
+  padding-right: 0;
+}
+
+.res-after-line {
+  border-top: var(--edge) solid var(--line);
+}
+
+.res-grid > .res-cell:nth-child(-n + 2) {
+  padding-top: 0;
 }
 
 .res-head {
@@ -721,10 +749,15 @@
 }
 
 .res-left {
-  font-size: var(--text-page);
-  font-weight: var(--weight-bold);
-  line-height: var(--line-height-tight);
-  color: var(--text);
+  font-size: var(--text-small);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.res-fact {
+  font-size: var(--text-small);
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
 }
 
 .res-meter {
@@ -740,26 +773,20 @@
   inset: 0;
   background: var(--accent);
   transform-origin: left center;
-  transform: scaleX(var(--used, 0));
+  transform: scaleX(var(--share, 0));
   transition: transform var(--dur-pill) var(--ease-pill);
 }
 
-.res-row {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding-top: var(--space-2);
-  border-top: var(--edge) solid var(--line);
-  font-size: var(--text-small);
-}
-
 .res-term {
+  font-size: var(--text-small);
   color: var(--text-2);
 }
 
+/* The call's use: the block's one large value. */
 .res-value {
+  font-size: var(--text-panel);
+  font-weight: var(--weight-bold);
   color: var(--text);
-  text-align: right;
   font-variant-numeric: tabular-nums;
 }
 

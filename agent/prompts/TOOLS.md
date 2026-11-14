@@ -40,8 +40,11 @@ record: reads
 lines: line.code_resent, line.no_more_codes
 
 ## find_slots
-Finds open times for a visit, for the verified caller only, from the day the caller asks. Each
-time gets an option number that stays the same for the whole call.
+Finds open times for a visit, for the verified caller only, from the day the caller asks, in
+person, online or either, as the caller said. Each time gets an option number that stays the
+same for the whole call, and an online time says "online". The reason goes with the search in
+the caller's own words: the code keeps the model's words only if the caller said them, or else
+sends the caller's latest line. ehr keeps it for the booking.
 record: reads
 lines: line.no_slots, line.slots, line.slot_option
 
@@ -52,7 +55,8 @@ record: none
 lines: line.which_option, line.confirm_slot
 
 ## book
-Books the time the caller said yes to. A retry never books twice. If someone else took the time
+Books the time the caller said yes to, with the caller's reason as the visit's note for the
+scheduler (Epic's `appointmentNote`). A retry never books twice. If someone else took the time
 first, the caller hears so and can choose again.
 record: writes
 lines: line.which_option, line.slot_taken, line.booked
@@ -65,13 +69,15 @@ lines: line.change_booked, line.change_visit
 
 ## next_visit
 Reads the verified caller's next visit: its time, then what it is (online, its type, its
-reason), as the record says. A private visit's type and reason are never spoken.
+reason), as the record says. A private visit's type and reason are never spoken. If it is the
+visit booked on this call, its time is not said again.
 record: reads
-lines: line.no_visits, line.next_visit, line.visit_online, line.visit_type, line.visit_reason
+lines: line.no_visits, line.next_visit, line.booked_visit_asked, line.visit_online, line.visit_type, line.visit_reason
 
 ## hand_off
 Ends the call with a hand-off to a person, with the model's reason and summary for staff.
-After a code that did not work, the caller hears an apology.
+After a code that did not work, the caller hears an apology. A summary that uses a pronoun for
+the caller goes back to the model once, to name the caller instead.
 record: none
 lines: line.hand_off, line.hand_off_code
 
@@ -105,6 +111,8 @@ lines: line.medical_question
 
 ## flag_for_staff
 Marks the call for staff, silent to the caller, with the model's summary and the caller's own
-words as evidence. The code keeps only the words the caller said.
+words as evidence. The code keeps only the words the caller said. A summary that uses a pronoun
+for the caller goes back to the model once, to name the caller instead. A reason that does not
+read as a health need is booked as said and flagged as `visit_reason_review`.
 record: none
 lines: none

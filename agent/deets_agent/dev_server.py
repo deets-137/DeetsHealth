@@ -20,8 +20,8 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
 - `GET  /agent/system`, `POST /agent/system` — Config › System (SYSTEM-PAGE.md): the System
   variables' versions, the code values and the tools; a save makes a new active version for the
   next test call and writes the variables file.
-- `GET  /agent/resources` — Cartesia's credits this cycle, counted from the records and the live
-  voice call (resources.py; CHAT.md §17).
+- `GET  /agent/resources?call=` — Cartesia's credits and Claude's dollars this cycle, counted
+  from the records and the live calls, and one call's use (resources.py; CHAT.md §17).
 - `POST /agent/voice?ehr=local|epic` — the voice seat: a WebRTC offer in, the answer out; the
   call runs over that connection (CHAT.md §17).
 - `GET  /agent/catalog` — every dev call record, its row and current ratings (catalog.py), and
@@ -80,7 +80,13 @@ import aiohttp
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+    StreamingResponse,
+)
 from pipecat.services.cartesia.tts import _CARTESIA_API_VERSION as CARTESIA_API_VERSION
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.smallwebrtc.connection import SmallWebRTCConnection
@@ -105,7 +111,7 @@ from deets_agent.ehr_process import running_ehr
 from deets_agent.fake_twilio import FakeTwilio
 from deets_agent.flow import tool_scope, tool_steps
 from deets_agent.llm import Mode, build_llm
-from deets_agent.resources import anthropic_cycle, cartesia_cycle
+from deets_agent.resources import anthropic_cycle, call_use, cartesia_cycle
 from deets_agent.rtvi_json import RtviJsonSerializer
 from deets_agent.turn import TurnError, TurnSettings, for_aiortc, ice_servers
 from deets_agent.voice import Voice
@@ -113,6 +119,10 @@ from deets_agent.voice import Voice
 TOKEN_HEADER = "x-deets-token"
 # Who a request is (State.admit): the owner, through the launch token; else a guest's email.
 OWNER = "owner"
+# How often the owner's requests on this PC stamp their row's last seen, in seconds.
+OWNER_SEEN_EVERY = 60.0
+# The largest picture the People routes take (ehr's users.rs › MAX_PHOTO).
+MAX_PHOTO = 256 * 1024
 # The demo's base path (docs/ops/DEMO.md §3.1): the built console and its routes under it.
 DEMO_BASE = "/demo"
 # The most calls that run at once (docs/ops/DEMO.md §3.6): room for the owner and a few
@@ -226,6 +236,9 @@ class State:
         # one change at a time to the list and the group.
         self.cloudflare = cloudflare
         self.people_lock = asyncio.Lock()
+        # When the owner's row was last stamped as seen (the launch token's door), so this PC's
+        # requests stamp it at most once a minute.
+        self.owner_seen_at = 0.0
         self.twilio = FakeTwilio(port)
         self.calls = calls
         self.catalog = Catalog(calls).build()
@@ -313,6 +326,12 @@ def build_app(state: State) -> FastAPI:
         if who is None:
             return JSONResponse({"error": "forbidden"}, status_code=403)
         request.state.who = who
+        if who == OWNER and state.ehr is not None and time.monotonic() - state.owner_seen_at > OWNER_SEEN_EVERY:
+            state.owner_seen_at = time.monotonic()
+            try:
+                await state.ehr.seen_owner()
+            except EhrError:
+                pass  # no store, or no owner yet: nothing to stamp
         return await call_next(request)
 
     @app.post("/2010-04-01/Accounts/{account}/Messages.json")
@@ -496,9 +515,11 @@ def build_app(state: State) -> FastAPI:
         return await anthropic_view(state, 0)
 
     @app.get("/agent/resources")
-    async def resources():
+    async def resources(call: str | None = None):
         """Cartesia's credits this cycle, from the records and the live voice calls (summed when
-        several run at once), less the active settings' offset (CHAT.md §17)."""
+        several run at once), less the active settings' offset; Claude's dollars this cycle
+        against the active budget; and, with `call`, that one call's use so far: Claude's
+        dollars and Cartesia's credits (CHAT.md §17). Counts only."""
         live: dict[str, Any] | None = None
         for c in state.lives.values():
             if c.voice is None:
@@ -514,7 +535,15 @@ def build_app(state: State) -> FastAPI:
             day=int(values["cycle_day"]),
             limits=(int(values["idle_s"]), int(values["max_s"])),
         )
-        return {"cartesia": cycle, "voice": state.has_voice}
+        llm = await active_settings(state, "llm")
+        claude = anthropic_cycle(
+            state.calls,
+            live=sum(c.record.cost() for c in state.lives.values()) if state.lives else None,
+            budget=float(llm["budget_usd"]),
+            offset=float(llm["offset_usd"]),
+            day=int(llm["cycle_day"]),
+        )
+        return {"cartesia": cycle, "anthropic": claude, "call": call_now(state, call), "voice": state.has_voice}
 
     @app.get("/agent/sandbox")
     async def sandbox(ehr: str = "local"):
@@ -795,7 +824,74 @@ def build_app(state: State) -> FastAPI:
                     warning = str(e)
         return {**await _people_view(state, request.state.who), "warning": warning}
 
+    @app.patch("/agent/people/{person_id}")
+    async def update_person(person_id: str, request: Request):
+        """Security › Auth's Save (DEMO.md §3.5): `{first_name, last_name, phone, email}`, the
+        whole card. Anyone signed in may edit any card, the owner's too (the owner's rule until
+        roles). When the email changed, Cloudflare's group follows, and the old email's Access
+        sessions end. 400 names the field; 404 for no such person; 409 when the email is taken."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "not JSON") from None
+        keys = ("first_name", "last_name", "phone", "email")
+        if not isinstance(body, dict) or not all(isinstance(body.get(k), str) for k in keys):
+            raise HTTPException(400, "an object with first_name, last_name, phone and email")
+        assert state.ehr is not None
+        async with state.people_lock:
+            try:
+                old = await state.ehr.update_user(person_id, *(body[k] for k in keys))
+            except EhrError as e:
+                raise HTTPException(_people_status(e), e.detail or "not saved") from None
+            warning = None
+            if old is not None:
+                if state.access is not None:
+                    state.access.forget(old)
+                warning = await _push_people(state)
+                if state.cloudflare is not None and warning is None:
+                    try:
+                        await state.cloudflare.end_sessions(old)
+                    except CloudflareError as e:
+                        warning = str(e)
+        return {**await _people_view(state, request.state.who), "warning": warning}
+
+    @app.get("/agent/people/{person_id}/photo")
+    async def person_photo(person_id: str):
+        """A person's picture, a WebP; 404 when they have none. Never cached: it is PII."""
+        assert state.ehr is not None
+        try:
+            photo = await state.ehr.user_photo(person_id)
+        except EhrError as e:
+            raise HTTPException(_people_status(e), e.detail or "no picture") from None
+        if photo is None:
+            raise HTTPException(404, "no picture")
+        return Response(photo, media_type="image/webp", headers={"cache-control": "no-store"})
+
+    @app.put("/agent/people/{person_id}/photo")
+    async def set_person_photo(person_id: str, request: Request):
+        """Saves a person's picture: the body is the WebP the console made (256 px square)."""
+        if request.headers.get("content-type", "").split(";")[0].strip() != "image/webp":
+            raise HTTPException(415, "photo: image/webp")
+        body = await request.body()
+        if not body or len(body) > MAX_PHOTO:
+            raise HTTPException(400, "photo: at most 256 KB")
+        return await _photo_change(state, request, person_id, body)
+
+    @app.delete("/agent/people/{person_id}/photo")
+    async def clear_person_photo(person_id: str, request: Request):
+        """Deletes a person's picture."""
+        return await _photo_change(state, request, person_id, None)
+
     return app
+
+
+async def _photo_change(state: State, request: Request, person_id: str, photo: bytes | None) -> dict[str, Any]:
+    assert state.ehr is not None
+    try:
+        await state.ehr.set_user_photo(person_id, photo)
+    except EhrError as e:
+        raise HTTPException(_people_status(e), e.detail or "not saved") from None
+    return {**await _people_view(state, request.state.who), "warning": None}
 
 
 def _people_status(e: EhrError) -> int:
@@ -990,7 +1086,15 @@ async def active_words(state: State) -> prompts.Words:
         return files
     if got is None or got[0] is None:
         return files
-    version, values = got
+    version, saved = got
+    # A version saved before a release lacks the sections the release added: those take the
+    # shipped words, and the version's own words stay (PROMPT-EDITOR.md §9). A section the code
+    # no longer knows is dropped. Without this, one new section sent every call back to the
+    # files, and a hospital's own words were lost without a word (2026-11-14).
+    values = {**files.sections, **{k: v for k, v in saved.items() if k in prompts.PLACEHOLDERS}}
+    filled = sorted(set(prompts.PLACEHOLDERS) - set(saved))
+    if filled:
+        print(f"prompt: {len(filled)} section(s) new since the active version take the shipped words", file=sys.stderr, flush=True)
     try:
         if system is not None and system[0] is not None:
             variables = prompts.variables_from_store(system[1].get("variables"))
@@ -1234,6 +1338,23 @@ async def active_settings(state: State, service: str) -> dict[str, Any]:
     if got is not None:
         values.update(got[1])
     return values
+
+
+def call_now(state: State, call: str | None) -> dict[str, Any] | None:
+    """One call's use for the Resources tab: a live call's running totals, else its record's
+    (the catalog checks the id). None when there is no such call."""
+    if not call:
+        return None
+    lc = state.lives.get(call)
+    if lc is not None:
+        return {
+            "seat": lc.seat,
+            "usd": round(lc.record.cost(), 6),
+            "credits": int(lc.voice.meter.totals().get("credits") or 0) if lc.voice is not None else None,
+            "live": True,
+        }
+    events = state.catalog.events(call)
+    return call_use(events) if events is not None else None
 
 
 async def active_voice_settings(state: State) -> dict[str, Any]:
@@ -1526,6 +1647,14 @@ async def _run_call(
         reason = await typed.serve()
     except CallFailed as e:
         reason = f"Claude's request failed ({e})"
+    except EhrError as e:
+        # An EHR that does not answer (Epic's sandbox down, 2026-11-14) is not our crash: say so,
+        # in words the canvas can show. ehr's terminal line says why and when it is back.
+        if e.kind is ErrorKind.UNAVAILABLE:
+            reason = f"the EHR did not answer ({e})"
+        else:
+            reason = f"the harness failed ({type(e).__name__})"
+        record.event("error", type=type(e).__name__, message=str(e))
     except Exception as e:  # noqa: BLE001 - the record must close, and the server must live on
         reason = f"the harness failed ({type(e).__name__})"
         record.event("error", type=type(e).__name__, message=str(e))

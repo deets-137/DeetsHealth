@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [console/src/pages/agent.ts, console/src/pages/system.ts, console/src/styles/config.css, agent/prompts/GUIDE.md, agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/prompts.py, agent/deets_agent/dev_server.py, agent/tests/test_prompts.py, agent/prompts/AGENT-PROMPT.md, agent/prompts/TOOLS.md, docs/architecture/images/system-test-variable-2026-11-13.png]
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # DeetsHealth — Config › Agent, arranged by the call
 
@@ -232,6 +232,16 @@ Counts: Greet 13, Verify 10, Menu 17, Schedule 8, Anytime 25, Failure 5 = 78.
    under them, the help under the words.
 6. Config, System, a variable's "Used in" link: Agent opens on the right tab, the section glows.
 7. Change a "plays when" line in GUIDE.md and restart: the page shows the new words.
+
+**Three new sections (2026-11-14, the booking work; EHR-SERVICE.md §4).** No page code changed:
+the page lists `PLACEHOLDERS` and reads GUIDE.md, so each new section needed only its words, its
+two list entries (`prompts.py`, `ehr/src/settings.rs`) and its GUIDE.md entry
+(PROMPT-EDITOR.md §9). Where each shows: Menu › Find open times › **In person or online**
+(`arg.find_slots.visit_mode`); Menu › Tell the next visit › **Next visit, just booked**
+(`line.booked_visit_asked`); Anytime › Flag for a nurse › **Note when a summary guessed a
+pronoun** (`note.summary_pronoun`). Two existing sections gained a rule: Anytime › Role and
+rules (no guessed pronoun in a staff summary) and Menu › Menu instructions (an odd reason is
+booked and flagged). Desk test: open each and check its "i".
 
 ## 6. Every place it runs
 The console only (a browser). No change to the call, the store, `ehr` or any EHR: the
