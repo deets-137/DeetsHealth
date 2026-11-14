@@ -29,6 +29,15 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   others. EPIC.md §2.3 and HANDOFF › On another machine say so. Nothing deployed.
 - This Mac lacks: `CARTESIA_API_KEY`, the demo, TURN and Access-link groups, Twilio (not set up
   anywhere), `epic-client.json` and its Epic key. The Anthropic key is set.
+- Then (the owner): the Cartesia key, added by him. `cloudflared` 2026.11.0 installed (brew).
+  The Mac runs the **same tunnel** (his choice over a second tunnel or the PC only): a script
+  fetched its credentials, made the TURN key `deetshealth-demo-mac` and wrote the demo
+  settings into `.env`, printing no value (DEMO.md §7). TURN checked: 2 ICE servers, a relay.
+  The tunnel itself is not run yet: his first `npm run dev` on the Mac is its test.
+- `cf` cannot make API tokens: no scope for them, even after his forced sign-in. The
+  Access-link token is his to make in the dashboard. He made it and pasted it into `.env`.
+  Checked: it reads the Access group (1 email). `env:check` now lacks only Twilio and the
+  Epic files.
 
 ## 2026-11-14 (Windows, roles) — A Rules page; Security › Roles as a draft table
 - **Rules** is a new page with its own nav: Agents, Flags, Tools, all empty. The nav's top is

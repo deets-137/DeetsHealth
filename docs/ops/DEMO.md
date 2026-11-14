@@ -312,6 +312,17 @@ half set up.
 - TURN key `deetshealth-demo` (`38e4f591…`). A script made it and appended the six settings to
   `.env` (append only, with the owner's leave), without printing the token. A first try made
   two keys it could not read (Cloudflare wraps its answer in `result`); both were deleted.
+- **The Mac (2026-11-14), the same tunnel (the owner's choice):** a script fetched the tunnel's
+  credentials with `cf tunnels token get` into `~/.cloudflared/<id>.json` (mode 600), made the
+  Mac's own TURN key `deetshealth-demo-mac`, and wrote the demo settings into `.env`; it printed
+  no value. `cf` names the new key's secret `secret`, not `key`: three keys made before that was
+  found were deleted. Checked: 2 ICE servers with a relay (8 URLs). Both machines now hold the
+  same tunnel secret; `npm run dev`'s one-connector guard keeps one of them serving. A lost
+  machine: rotate the tunnel's secret and fetch it again on the other.
+- **`cf` cannot make API tokens.** Its sign-in has no scope for them (`/user/tokens` and
+  `/accounts/<id>/tokens` answer 403, and a forced sign-in asks for the same scopes). The
+  Access-link token (`DEETS_CF_API_TOKEN`) is made by hand in the dashboard, one per machine,
+  with the two permissions below, and pasted into `.env` by the owner.
 - **Checked 2026-11-13:** the agent reads the settings, and Cloudflare gives 2 ICE servers with
   a relay (8 URLs after the port-53 filter). The tunnel connected (`healthy`). Without a
   sign-in, `https://deetshealth.deets.solutions/demo/` answers 302 to the team's email-code
