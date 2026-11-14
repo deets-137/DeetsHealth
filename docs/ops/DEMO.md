@@ -170,7 +170,26 @@ Yes, the console can manage it.
   Past the free GB, an hour of relayed voice costs about $0.002.
 - Still to check when the TURN key is made: whether Cloudflare asks for a payment method.
 
-### 3.8 The route ledger
+### 3.8 Later: Twilio over the same tunnel
+TURN and Twilio sit at different layers (the owner asked, 2026-11-13):
+- **The swap point is the transport.** `Call` (`call.py`) takes any Pipecat `BaseTransport`,
+  and `_run_call` (`dev_server.py`) passes one in. The typed seat uses a WebSocket; the voice
+  seat uses `SmallWebRTCTransport`. Twilio becomes a third seat: a route that builds
+  `FastAPIWebsocketTransport` with Pipecat's Twilio serializer (8 kHz μ-law, Media Streams)
+  and calls the same `_run_call`. The call loop does not change.
+- **TURN serves only the browser seat.** It stays under that seat when Twilio comes; phone
+  calls never use it. So TURN stays small (§3.7): no interface of its own.
+- **The tunnel carries over.** BUILD-ORDER.md plans "a real Twilio number and a tunnel". The
+  same tunnel brings Twilio's webhook and its Media Streams WebSocket to this PC. That route
+  cannot sit behind Access (Twilio cannot sign in): it gets its own path outside Access and
+  checks Twilio's request signature (`X-Twilio-Signature`) instead.
+- **The BAA first.** A real person's phone audio is protected data. Until the BAA is signed,
+  only synthetic test calls reach the number. Guests could then call a phone number, which is
+  closer to the product than the browser seat.
+- **Before a number exists**, the fake Twilio caller (VOICE-AGENT.md §9, layer 5) tests the
+  Twilio seat, the 8 kHz path and barge-in from WAV files.
+
+### 3.9 The route ledger
 New routes (the build watch's reload signal, the guest list, the TURN credentials) each get
 their row in [architecture/DEV-API.md](../architecture/DEV-API.md) in the same commit.
 
