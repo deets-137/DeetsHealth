@@ -269,6 +269,14 @@ async fn a_card_saves_sealed_moves_its_email_and_keeps_a_picture() {
     assert!(matches!(users::update(&store, &id, &bad_phone).await, Err(UsersError::Bad(_))));
     assert_eq!(users::update(&store, &gone, &card("x@example.com")).await.err(), Some(UsersError::NotFound));
 
+    // "Added by" is the adder as "First L.", read from their row: the owner's email until the
+    // owner's card has a name, then the name.
+    assert_eq!(find(users::list(&store).await.unwrap(), &id).added_by.as_str(), "owner@example.com");
+    let owner_id = users::list(&store).await.unwrap()[0].id.clone();
+    let olive = Profile { first_name: "Olive", last_name: "Ng", phone: "", email: "owner@example.com" };
+    users::update(&store, &owner_id, &olive).await.unwrap();
+    assert_eq!(find(users::list(&store).await.unwrap(), &id).added_by.as_str(), "Olive N.");
+
     // The owner's PC stamps the owner's last seen.
     assert!(users::list(&store).await.unwrap()[0].last_seen_at.is_none());
     users::seen_owner(&store).await.unwrap();

@@ -42,8 +42,8 @@ pub struct User {
     /// When the picture was last saved (RFC 3339, UTC); None when there is no picture.
     pub photo_at: Option<String>,
     pub owner: bool,
-    /// The name of the person who added them; empty for the owner and for people who were in
-    /// Cloudflare's group before the list existed.
+    /// The person who added them, as "First L." (`short_name`); empty for the owner and for
+    /// people who were in Cloudflare's group before the list existed.
     pub added_by: Zeroizing<String>,
     /// RFC 3339, UTC.
     pub added_at: String,
@@ -133,6 +133,17 @@ fn split_name(name: &str, email: &str) -> (String, String) {
     }
 }
 
+/// A person as "Added by" names them: the first name and the last name's first letter
+/// ("Aditya S."). Only one part: that part. No name yet: their email.
+fn short_name(first: &str, last: &str, email: &str) -> String {
+    match (first.is_empty(), last.chars().next()) {
+        (false, Some(l)) => format!("{first} {l}."),
+        (false, None) => first.to_string(),
+        (true, Some(_)) => last.to_string(),
+        (true, None) => email.to_string(),
+    }
+}
+
 /// A picture as the store takes it: a WebP (`RIFF`, its size, `WEBP`) of at most `MAX_PHOTO`.
 fn check_photo(bytes: &[u8]) -> Result<(), UsersError> {
     if bytes.len() > MAX_PHOTO {
@@ -187,7 +198,8 @@ pub async fn list(store: &Store) -> Result<Vec<User>, UsersError> {
     let sql = format!(
         "SELECT u.id::text AS id, u.email_hash, u.email, u.name, u.owner,
                 u.first_name, u.last_name, u.phone, u.phone_verified, u.source,
-                a.email_hash AS by_hash, a.name AS by_name,
+                a.email_hash AS by_hash, a.name AS by_name, a.email AS by_email,
+                a.first_name AS by_first, a.last_name AS by_last,
                 to_char(u.added_at AT TIME ZONE 'UTC', {TIME}) AS added_at,
                 to_char(u.last_seen_at AT TIME ZONE 'UTC', {TIME}) AS last_seen_at,
                 to_char(p.updated_at AT TIME ZONE 'UTC', {TIME}) AS photo_at
@@ -200,9 +212,24 @@ pub async fn list(store: &Store) -> Result<Vec<User>, UsersError> {
     let mut out = Vec::with_capacity(rows.len());
     for r in rows {
         let row = Store::hex(&r.get::<Vec<u8>, _>("email_hash"));
-        let by_name = match (r.get::<Option<Vec<u8>>, _>("by_hash"), r.get::<Option<Vec<u8>>, _>("by_name")) {
-            (Some(h), Some(n)) => opened(store, &Store::hex(&h), "name", &n)?,
-            _ => Zeroizing::new(String::new()),
+        // The adder as "First L." (the owner, 2026-11-14), read from their row each time, so a
+        // rename shows at once.
+        let by_name = match r.get::<Option<Vec<u8>>, _>("by_hash") {
+            Some(h) => {
+                let by = Store::hex(&h);
+                // (the query's name for it, the column it was sealed under)
+                let col = |alias: &str, column: &str| -> Result<Option<Zeroizing<String>>, UsersError> {
+                    r.get::<Option<Vec<u8>>, _>(alias).map(|b| opened(store, &by, column, &b)).transpose()
+                };
+                let name = col("by_name", "name")?.unwrap_or_default();
+                let email = col("by_email", "email")?.unwrap_or_default();
+                let (first, last) = match (col("by_first", "first_name")?, col("by_last", "last_name")?) {
+                    (Some(f), Some(l)) => (f.to_string(), l.to_string()),
+                    _ => split_name(&name, &email),
+                };
+                Zeroizing::new(short_name(&first, &last, &email))
+            }
+            None => Zeroizing::new(String::new()),
         };
         let email = opened(store, &row, "email", &r.get::<Vec<u8>, _>("email"))?;
         let name = opened(store, &row, "name", &r.get::<Vec<u8>, _>("name"))?;
@@ -547,6 +574,10 @@ mod tests {
         assert_eq!(split_name("Cher", "c@x.com"), ("Cher".into(), String::new()));
         assert_eq!(split_name("o@x.com", "o@x.com"), (String::new(), String::new()));
         assert_eq!(full_name("", "Lee"), "Lee");
+        assert_eq!(short_name("Mary Ann", "de la Cruz", "m@x.com"), "Mary Ann d.");
+        assert_eq!(short_name("Cher", "", "c@x.com"), "Cher");
+        assert_eq!(short_name("", "Lee", "l@x.com"), "Lee");
+        assert_eq!(short_name("", "", "o@x.com"), "o@x.com");
         assert!(normal_name_part(&"x".repeat(50), "first_name").is_err());
     }
 

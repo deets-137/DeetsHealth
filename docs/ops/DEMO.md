@@ -382,7 +382,11 @@ and the view as drafted, "will mess with it more when we implement RBAC"):
   2026-11-14: "use similar styles and texts as we use already", "move the save/discard to the
   top right"); each greys when the boxes hold the stored values, and Discard puts them back.
   A save keeps the panel open, its boxes now the stored values (the phone as the store keeps
-  it). Clicking the row again closes the panel. One panel is open at a time. A save tells Teams ›
+  it). "Added by" names the adder as "First L." (the owner, 2026-11-14: "Aditya S." format),
+  read from their row each time, so a rename shows at once; their email until their card has a
+  name; "Deets" on the owner's own row, which no one added (the owner, the same day: "instead
+  of owner can we at least manually set it to Deets"). Clicking the row again closes the
+  panel. One panel is open at a time. A save tells Teams ›
   People to read the list again. **Copy invite is off the page for now** (the owner, the same
   day); `invite` stays in `GET /agent/people`.
 - **The owner's forks for the card (2026-11-14):**

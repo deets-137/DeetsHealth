@@ -87,7 +87,8 @@ message User {
   string email = 2 [(phi) = true];
   string name = 3 [(phi) = true];
   bool owner = 4;
-  // The adder's name; empty for the owner and for people brought in from Cloudflare's group.
+  // The adder as "First L." (their email until their card has a name); empty for the owner and
+  // for people brought in from Cloudflare's group.
   string added_by = 5 [(phi) = true];
   // RFC 3339, UTC.
   string added_at = 6;

@@ -466,7 +466,7 @@ function row(p: Person, you: string, isOpen: boolean, confirming: boolean): HTML
         phone,
         dim("Role"),
         p.source === "idp" ? "IdP" : "Access",
-        p.owner ? "owner" : p.added_by ?? "Cloudflare's group",
+        p.owner ? "Deets" : p.added_by ?? "Cloudflare's group",
         day(p.added_at),
         p.last_seen_at ? ago(p.last_seen_at) : "never",
       ];
