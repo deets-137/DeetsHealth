@@ -58,8 +58,9 @@ service Ehr {
   // record, and the agent keeps Cloudflare's Access group in step. FAILED_PRECONDITION without a
   // store. Everyone on the list now, the owner first.
   rpc ListUsers(ListUsersRequest) returns (ListUsersReply);
-  // Puts a person on the list. ALREADY_EXISTS when the email is on it; INVALID_ARGUMENT names
-  // the field that does not fit.
+  // Puts a person on the list. The email or the name may be empty, not both (a card to fill in
+  // later; with no email, no sign-in). ALREADY_EXISTS when the email is on it; INVALID_ARGUMENT
+  // names the field that does not fit.
   rpc AddUser(AddUserRequest) returns (AddUserReply);
   // Takes a person off the list (the row stays, for audits) and returns their email.
   // NOT_FOUND for no such person; PERMISSION_DENIED for the owner.
@@ -71,6 +72,7 @@ service Ehr {
   // Saves a person's card (Security › Auth; users.rs › update): the whole profile at once.
   // INVALID_ARGUMENT names the field; NOT_FOUND for no such person; ALREADY_EXISTS when the new
   // email is someone else's (a removed person's too). The old email comes back when it changed.
+  // Any field may be empty, but a saved email cannot be cleared.
   rpc UpdateUser(UpdateUserRequest) returns (UpdateUserReply);
   // A person's picture, a sealed WebP: get, set, or clear (an empty `photo`). NOT_FOUND for no
   // such person; INVALID_ARGUMENT for a picture that is not a WebP of at most 256 KB.
@@ -114,8 +116,10 @@ message UpdateUserRequest {
 }
 
 message UpdateUserReply {
-  // The email before the save; empty when it did not change.
+  // The email before the save; empty when it did not change, and when the card had none yet.
   string old_email = 1 [(phi) = true];
+  // Whether the email changed: true too when a card with no email gets its first one.
+  bool email_changed = 2;
 }
 
 message GetUserPhotoRequest {

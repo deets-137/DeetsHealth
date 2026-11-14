@@ -14,6 +14,7 @@
   --on-accent: var(--paint-black); /* text on the accent */
   --title: var(--paint-white); /* the app name in the top bar */
   --error: var(--paint-red); /* an error line */
+  --on-error: var(--paint-white); /* text on the error color: Save that will save an incomplete card */
 
   --shape-1: rgba(255, 255, 255, 0.13); /* the backdrop's three soft light shapes */
   --shape-2: rgba(196, 204, 222, 0.1);

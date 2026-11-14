@@ -2,6 +2,7 @@
 // lines). The pages with `bottom` sit at the nav's foot.
 import { el, type Page } from "./pages/page";
 import { reducedMotion, tokenMs } from "./tokens";
+import { shown } from "./agent/store";
 
 const LAST_PAGE = "deets.console.page";
 
@@ -42,6 +43,7 @@ export function initNav(pages: Page[]) {
     if (!built.has(page.id)) built.set(page.id, page.build());
     host.replaceChildren(built.get(page.id)!);
     page.shown?.();
+    shown(); // a store paused while its page was off screen reads now (store.ts)
   };
 
   const go = (id: string) => {

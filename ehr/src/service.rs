@@ -564,8 +564,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
     async fn add_user(&self, req: Request<pb::AddUserRequest>) -> Result<Response<pb::AddUserReply>, Status> {
         let req = req.into_inner();
         // Checked before the store, so a bad request is refused the same way with or without one.
-        users::normal_email(&req.email).map_err(users_status)?;
-        users::normal_name(&req.name).map_err(users_status)?;
+        users::normal_new(&req.email, &req.name).map_err(users_status)?;
         let store = self.settings_store()?;
         let id = users::add(store, &req.email, &req.name, &req.by).await.map_err(users_status)?;
         Ok(Response::new(pb::AddUserReply { id }))
@@ -604,7 +603,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         };
         let saved = users::update(store, &req.id, &profile).await.map_err(users_status)?;
         let old_email = if saved.email_changed { saved.old_email.to_string() } else { String::new() };
-        Ok(Response::new(pb::UpdateUserReply { old_email }))
+        Ok(Response::new(pb::UpdateUserReply { old_email, email_changed: saved.email_changed }))
     }
 
     async fn get_user_photo(&self, req: Request<pb::GetUserPhotoRequest>) -> Result<Response<pb::UserPhoto>, Status> {

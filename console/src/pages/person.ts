@@ -1,15 +1,12 @@
 // What Teams › People's cards and Security › Auth's table share (docs/ops/DEMO.md §3.5): a
-// person's picture, their phone number and its mark, and the signal that the list changed.
+// person's picture, and their phone number and its mark. The list itself is the people store
+// (agent/stores.ts): a change on one view draws on the other.
 //
 // Names, emails, phone numbers and pictures here are staff identities. They show only in these
 // two views: never in a toast, a hint or a log line.
 import { personPhoto, type Person } from "../agent/api";
+import { once } from "../agent/store";
 import { tokenNumber } from "../tokens";
-
-/** Sent on `window` after any change to the list, so the other view reads it again. */
-export const PEOPLE_CHANGED = "deets:people-changed";
-
-export const changed = () => window.dispatchEvent(new Event(PEOPLE_CHANGED));
 
 /** "555-234-5678" for a US number; any other E.164 number as it is. */
 export function showPhone(e164: string): string {
@@ -51,7 +48,7 @@ export function fillPhoto(slot: HTMLElement, p: Person): void {
   let kept = photos.get(p.id);
   if (!kept || kept.at !== p.photo_at) {
     if (kept) void kept.url.then((u) => u && URL.revokeObjectURL(u));
-    const entry: { at: string; url: Promise<string | null>; ready?: string } = { at: p.photo_at, url: personPhoto(p.id) };
+    const entry: { at: string; url: Promise<string | null>; ready?: string } = { at: p.photo_at, url: once("photo", () => personPhoto(p.id)) };
     void entry.url.then((u) => {
       if (u) entry.ready = u;
     });

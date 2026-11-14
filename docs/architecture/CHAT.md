@@ -148,7 +148,10 @@ on this PC only. The demo for an analyst team over a Cloudflare Tunnel is an ide
 
 **Run it:** `npm run dev`. `scripts/dev.mjs` takes a free port for Vite (from 1420) and one
 for the agent (from 8790), makes a fresh 256-bit token, starts the agent's dev server
-(`agent/deets_agent/dev_server.py`), then starts Vite. Vite's proxy sends `/agent/*` to the
+(`agent/deets_agent/dev_server.py`), waits until its port accepts a connection, then starts
+Vite (and the demo's tunnel). The agent prints its first line before it starts `ehr` and the
+syncs and opens its port, so a start on that line let the page's first requests meet a closed
+port (`ECONNREFUSED`, 2026-11-14). Vite's proxy sends `/agent/*` to the
 agent and adds the token. Ctrl+C stops both. `npm run dev:web` starts the console alone; then
 the Chat page says the dev server is not running. **Test calls are always live** (the owner,
 2026-11-12: "limit replaying conversations only to the Demo view"): every line goes to Claude,

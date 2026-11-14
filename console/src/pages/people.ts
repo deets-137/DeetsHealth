@@ -9,9 +9,10 @@
 //
 // Emails, names, phone numbers and pictures here are staff identities, not patients'. They show
 // only in this view and on Security › Auth: never in a toast, a hint or a log line.
-import { people, type Person } from "../agent/api";
+import type { Person } from "../agent/api";
+import { people } from "../agent/stores";
 import { el } from "./page";
-import { fillPhoto, forgetPhotos, PEOPLE_CHANGED, phoneMark, showPhone } from "./person";
+import { fillPhoto, forgetPhotos, phoneMark, showPhone } from "./person";
 import type { View } from "./subnav";
 
 /** What a row shows while the store has no value for it. */
@@ -33,31 +34,26 @@ export function peopleView(): View {
         </div>`);
       const cards = root.querySelector<HTMLElement>(".people-cards")!;
 
-      const load = async () => {
-        try {
-          const view = await people();
-          if (!view.store) {
-            cards.replaceChildren(empty("No store: start Postgres (npm run db:start), then restart npm run dev"));
-            return;
-          }
-          forgetPhotos(view.people);
-          cards.replaceChildren(
-            ...(view.people.length
-              ? view.people.map(card)
-              : [empty("No one yet: the list fills from Cloudflare's group at start")]),
-          );
-        } catch {
-          cards.replaceChildren(empty("The agent's dev server is not running"));
+      // The people store (LOADING.md §3), shared with Security › Auth: a save there draws here.
+      // It reads again on focus, and on its own when the agent comes back.
+      people.subscribe(cards, (s) => {
+        const view = s.value;
+        if (!view) {
+          if (s.status === "down") cards.replaceChildren(empty("The agent's dev server is not running"));
+          else if (s.status === "refused") cards.replaceChildren(empty("The agent's dev server refused"));
+          return;
         }
-      };
-
-      // Read again each time the window comes back, and after a change on Security › Auth.
-      const again = () => {
-        if (root.isConnected) void load();
-      };
-      window.addEventListener("focus", again);
-      window.addEventListener(PEOPLE_CHANGED, () => void load());
-      void load();
+        if (!view.store) {
+          cards.replaceChildren(empty("No store: start Postgres (npm run db:start), then restart npm run dev"));
+          return;
+        }
+        forgetPhotos(view.people);
+        cards.replaceChildren(
+          ...(view.people.length
+            ? view.people.map(card)
+            : [empty("No one yet: the list fills from Cloudflare's group at start")]),
+        );
+      });
       return root;
     },
   };

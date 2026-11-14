@@ -7,6 +7,7 @@
 // Moved from cartesia.ts on 2026-11-13 without a change of behavior, so Config › Cartesia and
 // Config › Anthropic work the same way.
 import type { Range, SettingVersion } from "../agent/api";
+import type { Store } from "../agent/store";
 import { holdReload } from "../reload";
 import { el } from "./page";
 import { placePill, type View } from "./subnav";
@@ -48,7 +49,12 @@ export type Kit = {
 export type Spec<V, D, S extends SettingsBase<V>> = {
   id: string;
   title: string;
-  load: (version: number) => Promise<S>;
+  /** The view's store, by version (0: the active one; agent/stores.ts). The kit reads it on
+   * open and on a version pick, and sends Save through version 0's `write` (LOADING.md §3). */
+  store: (version: number) => Store<S>;
+  /** Called with each settings the view takes: the first load, a version, a save. */
+  took?: (s: S) => void;
+  /** The Save request only; the kit sends it through the store. */
   save: (s: S, d: D) => Promise<S>;
   fromValues: (v: V) => D;
   /** The setting names that differ between two drafts. */
@@ -193,6 +199,7 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         versionSelect.title = s.version ? `Saved ${s.version.created_at.replace("T", " ").replace("Z", " UTC")}` : "";
       };
       const take = (next: S) => {
+        spec.took?.(next);
         settings = next;
         active = spec.fromValues(next.active);
         saved = spec.fromValues(next.values);
@@ -200,15 +207,15 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
       };
       /** Show one version (0: the active one). Edits not saved are dropped. */
       const load = async (version: number) => {
-        let next: S;
-        try {
-          next = await spec.load(version);
-        } catch {
+        const st = spec.store(version);
+        await st.refresh("user");
+        const got = st.get();
+        if (got.status !== "ready" || !got.value) {
           say("That version could not be read");
           if (settings) showVersions();
           return;
         }
-        take(next);
+        take(got.value);
         if (older()) mode = "read";
         showVersions();
         render();
@@ -223,7 +230,8 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         showStatus();
         say("Saving");
         try {
-          const next = await spec.save(settings, draft);
+          const [s, d] = [settings, draft];
+          const next = await spec.store(0).write(() => spec.save(s, d));
           take(next);
           mode = "read";
           animate = true;
@@ -472,18 +480,31 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         showMode();
       }
 
-      void (async () => {
-        try {
-          take(await spec.load(0));
-        } catch {
-          scroll.replaceChildren(el(`<p class="empty">The agent's dev server is not running</p>`));
-          versionSelect.hidden = true;
+      // The first load, from the active version's store. Only its first value draws the cards:
+      // later values come from this view's own Save and version picks, which draw themselves,
+      // so an edit in progress is never drawn over. If the agent is down, the store tries again
+      // and the cards draw when it answers (LOADING.md §2, rule 7).
+      let first = true;
+      spec.store(0).subscribe(scroll, (s) => {
+        if (!first) return;
+        if (!s.value) {
+          if (s.status === "down" || s.status === "refused") {
+            scroll.replaceChildren(
+              el(`<p class="empty">${s.status === "down" ? "The agent's dev server is not running" : "The agent's dev server refused"}</p>`),
+            );
+            versionSelect.hidden = true;
+          }
           return;
         }
-        await spec.extra?.().catch(() => undefined);
-        showVersions();
-        render();
-      })();
+        first = false;
+        versionSelect.hidden = false;
+        take(s.value);
+        void (async () => {
+          await spec.extra?.().catch(() => undefined);
+          showVersions();
+          render();
+        })();
+      });
       return root;
     },
   };

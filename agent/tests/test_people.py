@@ -45,11 +45,15 @@ class FakeEhr:
 
     async def add_user(self, email, name, by):
         email = email.strip().lower()
-        if "@" not in email:
+        if email and "@" not in email:
             e = EhrError(ErrorKind.BAD_INPUT, "AddUser")
             e.detail = "email: not an email address"
             raise e
-        if any(r["email"] == email for r in self._active()):
+        if not email and not name.strip():
+            e = EhrError(ErrorKind.BAD_INPUT, "AddUser")
+            e.detail = "email: an email or a name"
+            raise e
+        if email and any(r["email"] == email for r in self._active()):
             e = EhrError(ErrorKind.OTHER, "AddUser")
             e.detail = "that email is already on the list"
             raise e
@@ -86,13 +90,13 @@ class FakeEhr:
             e.detail = "no such person on the list"
             raise e
         email = email.strip().lower()
-        if any(x["email"] == email and x["id"] != uid for x in self.rows.values()):
+        if email and any(x["email"] == email and x["id"] != uid for x in self.rows.values()):
             e = EhrError(ErrorKind.OTHER, "UpdateUser")
             e.detail = "that email is already on the list"
             raise e
-        if not (first_name.strip() or last_name.strip()):
+        if not email and r["email"]:
             e = EhrError(ErrorKind.BAD_INPUT, "UpdateUser")
-            e.detail = "first_name: a first or a last name"
+            e.detail = "email: a saved email can be changed, not cleared"
             raise e
         old = r["email"]
         r.update(first_name=first_name.strip(), last_name=last_name.strip(), phone=phone or None, email=email)
@@ -245,16 +249,43 @@ async def test_a_save_that_moves_the_email_moves_the_group_and_ends_the_old_sess
     assert sorted(cf.emails()) == [OWNER_EMAIL, "p.shah@example.com"]
     assert cf.ended == ["priya@example.com"]
 
-    # Someone else's email, a missing field, no name, no such person.
+    # Someone else's email, a missing field, a cleared email, no such person.
     assert c.patch(f"/agent/people/{priya['id']}", headers=OK, json={**CARD, "email": OWNER_EMAIL}).status_code == 409
     assert c.patch(f"/agent/people/{priya['id']}", headers=OK, json={"email": "p.shah@example.com"}).status_code == 400
-    blank = {**CARD, "first_name": "", "last_name": "", "email": "p.shah@example.com"}
-    assert c.patch(f"/agent/people/{priya['id']}", headers=OK, json=blank).status_code == 400
+    assert c.patch(f"/agent/people/{priya['id']}", headers=OK, json={**CARD, "email": ""}).status_code == 400
     assert c.patch("/agent/people/nobody", headers=OK, json={**CARD, "email": "z@example.com"}).status_code == 404
+    # No name is a card to finish later.
+    blank = {**CARD, "first_name": "", "last_name": "", "email": "p.shah@example.com"}
+    assert c.patch(f"/agent/people/{priya['id']}", headers=OK, json=blank).status_code == 200
 
     # Anyone may edit the owner's card (the owner's rule until roles).
     owner = c.get("/agent/people", headers=OK).json()["people"][0]
     assert c.patch(f"/agent/people/{owner['id']}", headers=OK, json={**CARD, "email": OWNER_EMAIL}).status_code == 200
+
+
+async def test_a_card_with_no_email_stays_out_of_the_group_until_it_has_one(tmp_path):
+    cf = FakeCloudflare([OWNER_EMAIL])
+    state, c = make(tmp_path, cf)
+    await sync_people(state)
+    assert c.post("/agent/people", headers=OK, json={"email": "", "name": ""}).status_code == 400
+
+    # Added with a name only: on the list, not in the group.
+    assert c.post("/agent/people", headers=OK, json={"email": "", "name": "Test Lee"}).status_code == 200
+    assert cf.emails() == [OWNER_EMAIL]
+    test = next(p for p in c.get("/agent/people", headers=OK).json()["people"] if not p["owner"])
+    assert test["email"] == ""
+
+    # The first email puts them in the group; no sessions to end.
+    card = {"first_name": "Test", "last_name": "Lee", "phone": "", "email": "test@example.com"}
+    assert c.patch(f"/agent/people/{test['id']}", headers=OK, json=card).status_code == 200
+    assert sorted(cf.emails()) == [OWNER_EMAIL, "test@example.com"]
+    assert cf.ended == []
+
+    # A second email-less card, removed: the group and the sessions are not touched.
+    c.post("/agent/people", headers=OK, json={"email": "", "name": "Sam"})
+    sam = next(p for p in c.get("/agent/people", headers=OK).json()["people"] if p["email"] == "")
+    assert c.delete(f"/agent/people/{sam['id']}", headers=OK).status_code == 200
+    assert cf.ended == []
 
 
 def test_a_picture_is_a_webp_and_is_never_cached(tmp_path):

@@ -17,4 +17,7 @@
   var theme = themes.indexOf(saved) >= 0 ? saved : dark ? "dark" : "light";
   document.documentElement.setAttribute("data-theme", theme);
   document.documentElement.setAttribute("data-skin", "glass");
+  // The first-load wave (docs/architecture/LOADING.md §6): the app stays hidden until its data
+  // is in, then comes in as one wave (src/reveal.ts). app.css lifts it at --reveal-safety.
+  document.documentElement.setAttribute("data-reveal", "hold");
 })();

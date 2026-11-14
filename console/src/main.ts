@@ -11,6 +11,12 @@ import { auditPage } from "./pages/audit";
 import { settingsPage } from "./pages/settings";
 import { initialTheme, initThemeMenu, syncThemeColor } from "./theme";
 import { startLiveReload } from "./reload";
+import { firstReveal } from "./reveal";
+import { health, on, recent } from "./agent/ledger";
+
+// The ledger in the browser's console, in dev only (LOADING.md §5): deetsLedger.health(),
+// .recent(), .on(fn). The built console and the demo leave it out.
+if (import.meta.env.DEV) Object.assign(window, { deetsLedger: { health, recent, on } });
 
 async function boot() {
   // prepaint.js set the theme; this only corrects an unknown saved value. Nothing is
@@ -32,6 +38,9 @@ async function boot() {
     auditPage(),
     settingsPage(),
   ]);
+
+  // The first-load wave (LOADING.md §6): wait for the page's first data, then one wave.
+  void firstReveal();
 
   // A hidden tab stops the backdrop's drift (app.css › backdrop).
   const idle = () => document.documentElement.toggleAttribute("data-idle", document.hidden);

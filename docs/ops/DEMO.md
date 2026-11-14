@@ -383,9 +383,18 @@ and the view as drafted, "will mess with it more when we implement RBAC"):
   mark, Role, Source, Added by, Added, Last seen, Remove. A result or a refusal shows between
   them, as Config's status does. **Add puts a blank row at the table's foot** (the owner,
   2026-11-14: "a blank row with all placeholders with a panel underneath"): every cell a
-  placeholder, its panel open. Nothing is stored until Save, because a person on the list needs
-  an email (the sign-in) and a name. The first Save puts them on the list; the row becomes theirs
-  with its panel still open, so the picture can be added (Choose picture waits for that save).
+  placeholder, its panel open. Nothing is stored until Save. The first Save puts them on the
+  list; the row becomes theirs with its panel still open, so the picture can be added (Choose
+  picture waits for that save). **A card may be saved incomplete** (the owner, 2026-11-14: "allow
+  profiles to be made … even if incomplete so we can fill them in later"; "color the text of the
+  title of the field that's missing red"). A Save with an empty box (first name, last name,
+  email or phone) does not save: each empty box's title turns red (`--error`), Save turns red
+  (`--error`, `--on-error`), and the status reads "Missing: …". The titles follow the boxes as
+  they are filled. A second Save saves the card as it is. A card needs at least an email or a
+  name. **A card with no email cannot sign in**: `ehr` keeps it on a random stand-in key
+  (users.rs), it is not in Cloudflare's group, and the status says so. Its first email moves it
+  to that email's key and into the group. A saved email can be changed but not cleared; Remove
+  takes away sign-in. In the table an empty email shows the "Email" placeholder.
   Discard on the blank row takes it away; so does opening another row. Clicking a row (or Enter on it) opens a panel under
   it: the picture (Choose picture, Remove picture), a text box for the first name, the last
   name, the email and the phone, the role as "Role · set by roles, later". Config's

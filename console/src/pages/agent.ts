@@ -12,14 +12,8 @@
 // words as text and Edit as boxes, with a fade between them; the name sits left of the words, as
 // on the Cartesia rows; "minimize jitter and inconsistency", so the words never move when the
 // box fades in, and every size, color and timing is an existing token.
-import {
-  estimatePrompt,
-  promptSettings,
-  recordPrompt,
-  savePrompt,
-  type PromptSettings,
-  type Recording,
-} from "../agent/api";
+import { estimatePrompt, recordPrompt, savePrompt, type PromptSettings, type Recording } from "../agent/api";
+import { promptSettings } from "../agent/stores";
 import { settingsView, type Kit } from "./config-kit";
 import { el } from "./page";
 import type { View } from "./subnav";
@@ -193,6 +187,9 @@ function differing(a: Values, b: Values): Set<string> {
 }
 
 /** Dollars to the cent; under a cent says so (a kept script often costs a tenth of a cent). */
+/** How long the Test status waits after each answer before it asks again. */
+const TEST_POLL_MS = 2000;
+
 const dollars = (x: number) => (x > 0 && x < 0.01 ? "under $0.01" : `$${x.toFixed(2)}`);
 
 export const agentView = (): View => {
@@ -204,7 +201,8 @@ export const agentView = (): View => {
   // The latest settings, for the Record and test line (it updates without drawing the cards),
   // and for the variables and tools the lists and checks use.
   let latest: Guided | undefined;
-  let poll: number | undefined;
+  let polling = false; // the Test status is being followed (follow)
+  let watching = false; // the Test button follows the active version's store
   // Another page's ask to show a section (SHOW_SECTION), until the next drawing shows it.
   let pending: string | undefined;
   let redraw: ((toTop?: boolean) => void) | undefined;
@@ -275,10 +273,10 @@ export const agentView = (): View => {
     try {
       if (!p.estimate) {
         // The first press: the quote.
-        p.estimate = await estimatePrompt();
+        p.estimate = await promptSettings(0).act(() => estimatePrompt());
       } else {
         // The second: record and test (also after a quote that failed: it records without one).
-        p.recording = await recordPrompt();
+        p.recording = await promptSettings(0).act(() => recordPrompt());
       }
       showTest(p);
       follow(showTest);
@@ -291,6 +289,19 @@ export const agentView = (): View => {
     latest = s as Guided;
     useGuide(latest.guide);
     showTest(latest);
+    // From the first load on, each answer of the active version's store (the Test poll's
+    // ticks above all) updates the Test button. Subscribed here, not when the view is made,
+    // so nothing is read before Config › Agent opens.
+    if (!watching) {
+      watching = true;
+      promptSettings(0).subscribe(test, (st) => {
+        if (st.status !== "ready" || !st.value || !latest) return;
+        latest.recording = st.value.recording;
+        latest.recordings = st.value.recordings;
+        latest.estimate = st.value.estimate;
+        showTest(latest);
+      });
+    }
     if (latest.recording?.state === "running" || latest.estimate?.state === "running") follow(showTest);
     return latest;
   };
@@ -298,8 +309,9 @@ export const agentView = (): View => {
   return settingsView<Values, Values, PromptSettings>({
     id: "agent",
     title: "Agent",
-    load: async (version) => take(await promptSettings(version)),
-    save: async (_s, d) => take(await savePrompt(d)),
+    store: promptSettings,
+    took: take,
+    save: (_s, d) => savePrompt(d),
     fromValues: (v) => ({ ...v }),
     differing,
     blocked: (d) => {
@@ -525,27 +537,17 @@ export const agentView = (): View => {
     };
   }
 
-  /** Read the dry run's or the recording's state every 2 seconds until both are done. */
-  function follow(show: (p: PromptSettings) => void) {
-    if (poll !== undefined) return;
-    poll = window.setInterval(async () => {
-      try {
-        const now = await promptSettings(0);
-        if (latest) {
-          latest.recording = now.recording;
-          latest.recordings = now.recordings;
-          latest.estimate = now.estimate;
-        }
-        show(latest ?? now);
-        if (now.recording?.state !== "running" && now.estimate?.state !== "running") {
-          window.clearInterval(poll);
-          poll = undefined;
-        }
-      } catch {
-        window.clearInterval(poll);
-        poll = undefined;
-      }
-    }, 2000);
+  /** Read the dry run's or the recording's state until both are done: the active version's
+   * store polls, 2 seconds after each answer (LOADING.md §2, rule 5), each tick in the ledger as
+   * a `poll` of `settings.agent`. The subscription in the view's build draws each answer. */
+  function follow(_show: (p: PromptSettings) => void) {
+    if (polling) return;
+    polling = true;
+    promptSettings(0).poll(TEST_POLL_MS, (now) => {
+      const on = !!now && (now.recording?.state === "running" || now.estimate?.state === "running");
+      if (!on) polling = false;
+      return on;
+    });
   }
 }
 

@@ -10,7 +10,8 @@
 // sections that use it, its fields, the lines it can speak, links to Config › Agent.
 // A save makes a new active version for the next call and writes agent/prompts/VARIABLES.md.
 // Every size, color and timing is an existing token.
-import { saveSystem, systemSettings, type SystemSettings, type SystemValues, type SystemVariable } from "../agent/api";
+import { saveSystem, type SystemSettings, type SystemValues, type SystemVariable } from "../agent/api";
+import { systemSettings } from "../agent/stores";
 import { SHOW_SECTION, SYSTEM_SAVED, hasSection, sectionName, useGuide, type GuideEntry } from "./agent";
 import { settingsView, type Kit } from "./config-kit";
 import { el } from "./page";
@@ -144,17 +145,17 @@ export const systemView = (): View => {
   return settingsView<SystemValues, Draft, SystemSettings>({
     id: "system",
     title: "System",
-    load: async (version) => {
-      latest = await systemSettings(version);
+    store: systemSettings,
+    took: (s) => {
+      latest = s;
       // The sections' titles and tabs, for the links to Config › Agent.
-      useGuide((latest as SystemSettings & { guide?: GuideEntry[] }).guide);
-      return latest;
+      useGuide((s as SystemSettings & { guide?: GuideEntry[] }).guide);
     },
     save: async (_s, d) => {
-      latest = await saveSystem({ variables: d.map(({ name, meaning, value }) => ({ name, meaning, value })) });
+      const s = await saveSystem({ variables: d.map(({ name, meaning, value }) => ({ name, meaning, value })) });
       // Config › Agent's `{` list and checks take the new variables at once.
-      window.dispatchEvent(new CustomEvent(SYSTEM_SAVED, { detail: latest.active.variables }));
-      return latest;
+      window.dispatchEvent(new CustomEvent(SYSTEM_SAVED, { detail: s.active.variables }));
+      return s;
     },
     fromValues: (v) => structuredClone(v.variables ?? []),
     differing,

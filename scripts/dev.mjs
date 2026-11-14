@@ -4,7 +4,8 @@
 //    gRPC code from the contract again.
 // 1. Pick a free port for Vite (from 1420 up) and one for the agent (from 8790 up).
 // 2. Make a fresh token for this launch. The agent refuses every request without it.
-// 3. Start the agent with the token and the console's origin; wait for its first line.
+// 3. Start the agent with the token and the console's origin; wait for its first line, then
+//    for its port to accept a connection (the line comes before the port opens).
 // 4. Start Vite on its port. Its proxy sends /agent/* to the agent and adds the token, so the
 //    page never holds it (console/vite.config.ts).
 // 5. Before all of this, start the dev database if it is not up (scripts/postgres.mjs;
@@ -26,8 +27,8 @@
 // tunnel's credentials file; without them it stays off and says which is missing.
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import { createServer } from "node:net";
+import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { connect, createServer } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -149,6 +150,25 @@ async function freePort(start) {
   throw new Error(`no free port from ${start}`);
 }
 
+/** Resolves once something accepts a connection on 127.0.0.1:`port`; rejects after `ms`. */
+async function listening(port, ms) {
+  const accepts = () =>
+    new Promise((ok) => {
+      const s = connect({ port, host: "127.0.0.1" });
+      s.once("connect", () => {
+        s.destroy();
+        ok(true);
+      });
+      s.once("error", () => ok(false));
+    });
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    if (await accepts()) return;
+    await new Promise((ok) => setTimeout(ok, 200));
+  }
+  throw new Error(`nothing listened on port ${port} in ${ms / 1000} s`);
+}
+
 // The dev database. Nothing reads it yet, so a machine without Postgres goes on without it.
 const db = await ensurePostgres();
 if (db.error) console.error(`[db] ${db.error}. Going on without the database.`);
@@ -262,10 +282,16 @@ await new Promise((ok, fail) => {
       ok();
     }
   });
-}).catch((e) => {
-  console.error(`[dev] ${e.message}`);
-  stop(1);
-});
+})
+  // The line comes before the agent listens: it then starts ehr and syncs the prompt file and
+  // Cloudflare's group, and only after that opens its port. Vite and the tunnel wait for the
+  // port, so the page's first requests never meet a closed one (ECONNREFUSED, 2026-11-14).
+  .then(() => listening(agentPort, 90_000))
+  .catch((e) => {
+    console.error(`[dev] the agent dev server: ${e.message}`);
+    stop(1);
+  });
+if (stopping) await new Promise(() => {}); // stop() exits the process
 
 // Run Vite's own script with this Node, not `npx`: on Windows `npx` is a .cmd file, which
 // spawn() cannot start without a shell (ENOENT).
@@ -281,9 +307,13 @@ vite.on("exit", (code) => stop(code ?? 0));
 if (tunnel) {
   // 6. The demo build, under /demo/, again on each save. The agent serves it as it lands, and
   // its live reload tells each open page (DEMO.md §3.2). No launch token in its environment.
+  // The folder is emptied once, here. With --emptyOutDir, Vite's watch empties it at the start
+  // of every rebuild (vite 6.4, BUNDLE_START): for the whole build a guest got a 404 and an
+  // open page could not load a chunk. Old hashed files now stay until the next start.
+  for (const f of existsSync(demoDir) ? readdirSync(demoDir) : []) rmSync(join(demoDir, f), { recursive: true, force: true });
   const build = spawn(
     process.execPath,
-    [viteBin, "build", "console", "--base", "/demo/", "--outDir", demoDir, "--emptyOutDir", "--watch", "--logLevel", "warn"],
+    [viteBin, "build", "console", "--base", "/demo/", "--outDir", demoDir, "--emptyOutDir=false", "--watch", "--logLevel", "warn"],
     { cwd: root, env: { ...process.env }, stdio: "inherit" },
   );
   children.push(build);

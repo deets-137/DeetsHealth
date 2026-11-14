@@ -49,8 +49,23 @@ export type Catalog = {
   rubric_version: string;
 };
 
-/** Thrown when the dev server is not running (npm run dev:web) or refused. */
-export class AgentDown extends Error {}
+/** A refusal's status for `AgentDown`; none when Vite answered for an agent it could not reach
+ * (its `x-deets-agent: unreachable` header: console/vite.config.ts), which is "down", not a
+ * refusal. */
+const statusOf = (r: Response): number | undefined =>
+  r.headers.get("x-deets-agent") === "unreachable" ? undefined : r.status;
+
+/** Thrown when the dev server is not running (npm run dev:web) or refused. `status`: the HTTP
+ * status of a refusal; none when the agent did not answer at all (store.ts tells the two apart:
+ * LOADING.md §2). The message is fixed words, never a value. */
+export class AgentDown extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+  ) {
+    super(message);
+  }
+}
 
 /** Thrown when the catalog's gate refuses an annotation. `reason` names a field, never a value
  * (catalog.py › AnnotationError), so the page may show it. */
@@ -75,7 +90,7 @@ async function get<T>(path: string): Promise<T> {
   } catch {
     throw new AgentDown("the agent's dev server is not running");
   }
-  if (!r.ok) throw new AgentDown(r.status === 404 ? "not found" : "the agent's dev server refused");
+  if (!r.ok) throw new AgentDown(r.status === 404 ? "not found" : "the agent's dev server refused", statusOf(r));
   return (await r.json()) as T;
 }
 
@@ -350,7 +365,7 @@ export async function recordPrompt(): Promise<Recording> {
     throw new AgentDown("the agent's dev server is not running");
   }
   const body = (await r.json().catch(() => null)) as { detail?: unknown; recording?: Recording } | null;
-  if (!r.ok || !body?.recording) throw new AgentDown(typeof body?.detail === "string" ? body.detail : "not started");
+  if (!r.ok || !body?.recording) throw new AgentDown(typeof body?.detail === "string" ? body.detail : "not started", statusOf(r));
   return body.recording;
 }
 
@@ -367,7 +382,7 @@ async function saveSettings<T>(path: string, values: unknown): Promise<T> {
   }
   if (!r.ok) {
     const body = (await r.json().catch(() => null)) as { detail?: unknown } | null;
-    throw new AgentDown(typeof body?.detail === "string" ? body.detail : "not saved");
+    throw new AgentDown(typeof body?.detail === "string" ? body.detail : "not saved", statusOf(r));
   }
   return (await r.json()) as T;
 }
@@ -403,6 +418,8 @@ export type People = {
   invite: string | null;
   you: string;
   warning?: string | null;
+  /** After an add: the new person's id (a card with no email yet has no other key). */
+  added?: string;
 };
 
 export const people = () => get<People>("/agent/people");
@@ -421,7 +438,7 @@ async function peopleChange(method: "POST" | "PATCH" | "PUT" | "DELETE", path: s
   }
   const reply = (await r.json().catch(() => null)) as (People & { detail?: unknown }) | null;
   // ehr's reasons are fixed words that name a field, never a value.
-  if (!r.ok || !reply) throw new AgentDown(typeof reply?.detail === "string" ? reply.detail : "not saved");
+  if (!r.ok || !reply) throw new AgentDown(typeof reply?.detail === "string" ? reply.detail : "not saved", statusOf(r));
   return reply;
 }
 
@@ -461,7 +478,7 @@ export async function iceServers(): Promise<RTCIceServer[]> {
   }
   if (!r.ok) {
     const body = (await r.json().catch(() => null)) as { detail?: unknown } | null;
-    throw new AgentDown(typeof body?.detail === "string" ? body.detail : "no relay for a voice call");
+    throw new AgentDown(typeof body?.detail === "string" ? body.detail : "no relay for a voice call", statusOf(r));
   }
   return ((await r.json()) as { iceServers: RTCIceServer[] }).iceServers;
 }
@@ -484,7 +501,7 @@ export async function voiceOffer(
   }
   if (!r.ok) {
     const body = (await r.json().catch(() => null)) as { detail?: unknown } | null;
-    throw new AgentDown(typeof body?.detail === "string" ? body.detail : "the agent refused the call");
+    throw new AgentDown(typeof body?.detail === "string" ? body.detail : "the agent refused the call", statusOf(r));
   }
   return (await r.json()) as RTCSessionDescriptionInit;
 }
@@ -549,7 +566,7 @@ export async function annotate(a: Annotation): Promise<void> {
     const body = (await r.json().catch(() => null)) as { detail?: unknown } | null;
     throw new AnnotationRefused(typeof body?.detail === "string" ? body.detail : "the annotation does not fit");
   }
-  if (!r.ok) throw new AgentDown("the agent's dev server refused");
+  if (!r.ok) throw new AgentDown("the agent's dev server refused", statusOf(r));
 }
 
 /** One live call, as the watch stream names it (dev_server.py › LiveCall.info; docs/ops/DEMO.md

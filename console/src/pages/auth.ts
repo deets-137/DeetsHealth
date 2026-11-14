@@ -14,27 +14,27 @@
 //   (the owner, 2026-11-14). Nothing is stored until Save; the first Save puts the person on
 //   the list and the row becomes theirs, its panel still open (the picture can be added then).
 //   Discard on a blank row takes it away. Opening another row takes it away too.
+// - A card may be saved incomplete (the owner, 2026-11-14). A Save with an empty box does not
+//   save: each empty box's title and Save turn red, and the status names the boxes. A second
+//   Save saves the card as it is. A card with no email cannot sign in until one is added; a
+//   saved email can be changed, not cleared.
 // - The role shows but cannot be edited until roles exist. A changed email asks "Confirm?"
 //   before it saves: it moves who can sign in. Remove asks "Confirm?" too, as End call does.
 // - Anyone signed in may edit any row, the owner's too (the owner's rule until roles).
 //
 // Emails, names, phone numbers and pictures here are staff identities, not patients'. They show
 // only in this view and on Teams › People: never in a toast, a hint or a log line.
-import {
-  addPerson,
-  people,
-  removePerson,
-  setPersonPhoto,
-  updatePerson,
-  type People,
-  type Person,
-} from "../agent/api";
+import { addPerson, removePerson, setPersonPhoto, updatePerson, type People, type Person } from "../agent/api";
+import { people } from "../agent/stores";
 import { tokenMs } from "../tokens";
 import { el } from "./page";
-import { changed, fillPhoto, forgetPhotos, phoneMark, showPhone, squareWebp } from "./person";
+import { fillPhoto, forgetPhotos, phoneMark, showPhone, squareWebp } from "./person";
 import type { View } from "./subnav";
 
 const COLUMNS = ["", "First", "Last", "Email", "Phone", "Role", "Source", "Added by", "Added", "Last seen", ""];
+
+/** Each box's name in the "Missing:" line. */
+const LABEL = { first_name: "first name", last_name: "last name", email: "email", phone: "phone" } as const;
 
 /** The blank row's id: never a person's (theirs are uuids). */
 const NEW = "new";
@@ -124,19 +124,14 @@ export function authView(): View {
         if (save) save.textContent = confirming === `email:${open}` ? "Confirm?" : "Save";
       };
 
+      /** Draws a list from the people store. The store drops a read that answers after a save
+       * (LOADING.md §2), so this never draws the list from before one. */
       const take = (next: People) => {
         view = next;
         forgetPhotos(next.people);
         if (open && open !== NEW && !next.people.some((p) => p.id === open)) open = null;
         draw();
         if (!next.linked) say("Cloudflare is not linked: the list is saved, but sign-in follows Cloudflare's own group");
-      };
-      const load = async () => {
-        try {
-          take(await people());
-        } catch {
-          body.replaceChildren(message("The agent's dev server is not running"));
-        }
       };
       const failed = (what: string, err: unknown, tell: (text: string) => void = say) =>
         tell(err instanceof Error && err.message ? `${what}: ${err.message}` : what);
@@ -184,9 +179,7 @@ export function authView(): View {
           confirming = null;
           say("Removing");
           try {
-            const next = await removePerson(id);
-            take(next);
-            changed();
+            const next = await people.write(() => removePerson(id));
             say(outcome(next, "Removed"));
           } catch (err) {
             draw();
@@ -264,6 +257,15 @@ export function authView(): View {
         const panelStatus = box.querySelector<HTMLElement>(".auth-edit-status")!;
         const tell = (text: string) => (panelStatus.textContent = text);
         let saving = false;
+        /** A Save found an empty box: their titles and Save are red, and the next Save saves. */
+        let warned = false;
+        const missing = () => names.filter((k) => !field(k).value.trim());
+        /** The red titles follow the boxes as they are typed in, once a Save has asked. */
+        const showMissing = () => {
+          const gone = warned ? missing() : [];
+          for (const k of names) field(k).closest(".auth-field")!.classList.toggle("is-missing", gone.includes(k));
+          save.classList.toggle("is-warn", gone.length > 0);
+        };
         /** Discard | Save grey when the boxes hold the stored values (Config's rule). On the
          * blank row Discard always works: it takes the row away. */
         const showChanges = () => {
@@ -272,10 +274,12 @@ export function authView(): View {
           discard.disabled = (n === 0 && !isNew) || saving;
           save.disabled = n === 0 || saving;
           if (n) tell("");
+          showMissing();
         };
         const fill = () => {
           const was = stored();
           for (const k of names) field(k).value = was[k];
+          warned = false;
           showChanges();
         };
         fill();
@@ -308,21 +312,18 @@ export function authView(): View {
           const first = field("first_name").value.trim();
           const last = field("last_name").value.trim();
           const email = field("email").value.trim().toLowerCase();
-          if (!email) return tell("Not added: an email");
-          if (!first && !last) return tell("Not added: a first or a last name");
-          let next = await addPerson(email, [first, last].filter(Boolean).join(" "));
-          const added = next.people.find((x) => x.email === email);
+          let next = await people.write(() => addPerson(email, [first, last].filter(Boolean).join(" ")));
+          const added = next.people.find((x) => x.id === next.added);
           // The list splits a new name at its last space; a last name with a space in it ("de la
           // Cruz") and a phone number are saved as typed with one more call.
           const phone = field("phone").value;
           if (added && (added.first_name !== first || added.last_name !== last || phone.trim())) {
-            next = await updatePerson(added.id, { first_name: first, last_name: last, phone, email });
+            next = await people.write(() => updatePerson(added.id, { first_name: first, last_name: last, phone, email }));
           }
           drafting = false;
           open = added?.id ?? null;
           tr.remove();
-          take(next);
-          changed();
+          draw(); // the store drew the list already; now the row is theirs, its panel open
           const fresh = body.querySelector<HTMLElement>(".auth-panel .auth-edit-status");
           if (fresh) fresh.textContent = outcome(next, "Added");
           else say(outcome(next, "Added"));
@@ -331,6 +332,16 @@ export function authView(): View {
         box.addEventListener("submit", async (e) => {
           e.preventDefault();
           if (save.disabled) return;
+          const gone = missing();
+          if (gone.length && !warned) {
+            warned = true;
+            showMissing();
+            const no = gone.map((k) => LABEL[k]).join(", ");
+            tell(gone.includes("email")
+              ? `Missing: ${no}. Save again to save it; no sign-in until an email is added`
+              : `Missing: ${no}. Save again to save it as it is`);
+            return;
+          }
           const person = view?.people.find((x) => x.id === p.id) ?? p;
           const email = field("email").value.trim().toLowerCase();
           if (!isNew && email !== person.email && confirming !== `email:${p.id}`) {
@@ -349,14 +360,14 @@ export function authView(): View {
               await create();
               return;
             }
-            const next = await updatePerson(p.id, {
-              first_name: field("first_name").value,
-              last_name: field("last_name").value,
-              phone: field("phone").value,
-              email: field("email").value,
-            });
-            take(next);
-            changed();
+            const next = await people.write(() =>
+              updatePerson(p.id, {
+                first_name: field("first_name").value,
+                last_name: field("last_name").value,
+                phone: field("phone").value,
+                email: field("email").value,
+              }),
+            );
             save.textContent = "Save";
             saving = false;
             fill(); // the boxes now hold the stored values (a phone number as the store keeps it)
@@ -376,14 +387,13 @@ export function authView(): View {
           if (!f || isNew) return;
           tell("Saving the picture");
           try {
-            const next = await setPersonPhoto(p.id, await squareWebp(f));
+            const webp = await squareWebp(f);
+            const next = await people.write(() => setPersonPhoto(p.id, webp));
             const fresh = next.people.find((x) => x.id === p.id);
             if (fresh) {
               fillPhoto(big, fresh);
               clear.disabled = !fresh.photo_at;
             }
-            take(next);
-            changed();
             tell("Picture saved");
           } catch (err) {
             failed("Picture not saved", err, tell);
@@ -393,12 +403,10 @@ export function authView(): View {
         clear.addEventListener("click", async () => {
           tell("Removing the picture");
           try {
-            const next = await setPersonPhoto(p.id, null);
+            await people.write(() => setPersonPhoto(p.id, null));
             big.replaceChildren();
             delete big.dataset.photoAt;
             clear.disabled = true;
-            take(next);
-            changed();
             tell("Picture removed");
           } catch (err) {
             failed("Picture not removed", err, tell);
@@ -410,11 +418,14 @@ export function authView(): View {
         return tr;
       };
 
-      // Read again each time the window comes back: someone else may have changed the list.
-      window.addEventListener("focus", () => {
-        if (root.isConnected) void load();
+      // The people store (LOADING.md §3), shared with Teams › People. It reads again when the
+      // window comes back (someone else may have changed the list), and on its own when the
+      // agent comes back. A list already drawn stays while a later read fails.
+      people.subscribe(body, (s) => {
+        if (s.value) return take(s.value);
+        if (s.status === "down") body.replaceChildren(message("The agent's dev server is not running"));
+        else if (s.status === "refused") body.replaceChildren(message("The agent's dev server refused"));
       });
-      void load();
       return root;
     },
   };
@@ -462,7 +473,7 @@ function row(p: Person, you: string, isOpen: boolean, confirming: boolean): HTML
         photo,
         p.first_name || dim("First"),
         p.last_name || dim("Last"),
-        mine ? `${p.email} (you)` : p.email,
+        !p.email ? dim("Email") : mine ? `${p.email} (you)` : p.email,
         phone,
         dim("Role"),
         p.source === "idp" ? "IdP" : "Access",
@@ -484,7 +495,8 @@ function row(p: Person, you: string, isOpen: boolean, confirming: boolean): HTML
     b.type = "button";
     b.className = "cfg-button auth-remove";
     b.textContent = confirming ? "Confirm?" : "Remove";
-    b.setAttribute("aria-label", confirming ? `Confirm: remove ${p.email}` : `Remove ${p.email}`);
+    const who = p.email || [p.first_name, p.last_name].filter(Boolean).join(" ") || "this person";
+    b.setAttribute("aria-label", confirming ? `Confirm: remove ${who}` : `Remove ${who}`);
     last.append(b);
   }
   tr.append(last);

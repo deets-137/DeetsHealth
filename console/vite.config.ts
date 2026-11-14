@@ -1,11 +1,30 @@
+import type { ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 
 const agentPort = process.env.DEETS_AGENT_PORT;
 const agentToken = process.env.DEETS_AGENT_TOKEN ?? "";
 
+// When the agent cannot be reached, the page is told so in a way the agent's own answers never
+// use: this header (the agent answers 502 and 503 itself). api.ts reads it as "the agent did
+// not answer", so the read layer shows "not running" and tries again (LOADING.md §2, rule 7).
+const UNREACHABLE = { "x-deets-agent": "unreachable", "content-type": "text/plain" };
+const unreachable = (res: ServerResponse) => {
+  if (!res.headersSent && !res.writableEnded) res.writeHead(503, UNREACHABLE).end();
+};
+
+/** `npm run dev:web` (no agent): every /agent request is answered "unreachable". */
+const noAgent: Plugin = {
+  name: "deets-no-agent",
+  configureServer(server) {
+    if (agentPort) return;
+    server.middlewares.use("/agent", (_req, res) => unreachable(res));
+  },
+};
+
 // https://vite.dev/config/
 export default defineConfig({
+  plugins: [noAgent],
   // This folder is the site's root, however Vite is started (npm run dev passes it too).
   root: fileURLToPath(new URL(".", import.meta.url)),
   // The default port, or the next free one: never a fixed port (CLAUDE.md › Conventions).
@@ -27,6 +46,11 @@ export default defineConfig({
             target: `http://127.0.0.1:${agentPort}`,
             ws: true,
             headers: { "x-deets-token": agentToken },
+            // Runs before Vite's own handler, which then sees the answer sent and writes none.
+            configure: (proxy) =>
+              proxy.on("error", (_err, _req, res) => {
+                if (res && "writeHead" in res) unreachable(res as ServerResponse);
+              }),
           },
         }
       : undefined,

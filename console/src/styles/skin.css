@@ -128,6 +128,14 @@
   --wave-rise: 6px; /* how far each control rises (whole pixels, so its text stays crisp) */
   --ease-wave: cubic-bezier(0.2, 0.7, 0.2, 1);
   --confirm-hold: 3000ms; /* "Confirm?" waits this long for the second press (chat.ts reads it) */
+  /* The first-load wave (LOADING.md §6; reveal.ts reads these; DeetsMusic's values). */
+  --reveal-cap: 1500ms; /* the longest the screen waits for its data before the wave */
+  --reveal-span: 500ms; /* the wave's whole run, top left to bottom right, for any count of pieces */
+  --reveal-safety: 4000ms; /* the app shows at this time whatever happens (app.css) */
+  /* The read layer (LOADING.md §2; store.ts reads these). */
+  --read-focus-gap: 5000ms; /* a store reads again on focus at most this often */
+  --read-retry-first: 500ms; /* the agent did not answer: the first try again, then double... */
+  --read-retry-max: 8000ms; /* ...up to this, then this often while a page shows the store */
   --drift-1: 46s; /* the backdrop shapes' slow drift */
   --drift-2: 58s;
   --drift-3: 64s;

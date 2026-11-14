@@ -785,9 +785,11 @@ def build_app(state: State) -> FastAPI:
 
     @app.post("/agent/people")
     async def add_person(request: Request):
-        """`{email, name}`: put a person on the list, then on Cloudflare's group. Anyone signed
-        in may (the owner's rule until roles, 2026-11-13). 400 names the field that does not
-        fit; 409 when the email is on the list or the store is missing."""
+        """`{email, name}`: put a person on the list, then on Cloudflare's group. Either may be
+        empty, not both (a card to finish later; with no email, no sign-in). Anyone signed in
+        may (the owner's rule until roles, 2026-11-13). The view, with `added` (the new id).
+        400 names the field that does not fit; 409 when the email is on the list or the store
+        is missing."""
         try:
             body = await request.json()
         except ValueError:
@@ -798,11 +800,12 @@ def build_app(state: State) -> FastAPI:
         by = "" if request.state.who == OWNER else request.state.who
         async with state.people_lock:
             try:
-                await state.ehr.add_user(body["email"], body["name"], by)
+                added = await state.ehr.add_user(body["email"], body["name"], by)
             except EhrError as e:
                 raise HTTPException(_people_status(e), e.detail or "not added") from None
-            warning = await _push_people(state)
-        return {**await _people_view(state, request.state.who), "warning": warning}
+            # No email: nothing new for the group.
+            warning = await _push_people(state) if body["email"].strip() else None
+        return {**await _people_view(state, request.state.who), "warning": warning, "added": added}
 
     @app.delete("/agent/people/{person_id}")
     async def remove_person(person_id: str, request: Request):
@@ -814,6 +817,9 @@ def build_app(state: State) -> FastAPI:
                 email = await state.ehr.remove_user(person_id)
             except EhrError as e:
                 raise HTTPException(_people_status(e), e.detail or "not removed") from None
+            # A card with no email never reached the group: nothing to forget or sign out.
+            if not email:
+                return {**await _people_view(state, request.state.who), "warning": None}
             if state.access is not None:
                 state.access.forget(email)
             warning = await _push_people(state)
@@ -845,10 +851,11 @@ def build_app(state: State) -> FastAPI:
                 raise HTTPException(_people_status(e), e.detail or "not saved") from None
             warning = None
             if old is not None:
-                if state.access is not None:
+                # "" when the card had no email yet: nothing to forget or sign out.
+                if state.access is not None and old:
                     state.access.forget(old)
                 warning = await _push_people(state)
-                if state.cloudflare is not None and warning is None:
+                if state.cloudflare is not None and warning is None and old:
                     try:
                         await state.cloudflare.end_sessions(old)
                     except CloudflareError as e:
@@ -928,7 +935,8 @@ async def _push_people(state: State) -> str | None:
     if state.cloudflare is None or state.ehr is None:
         return None
     try:
-        emails = [p["email"] for p in await state.ehr.list_users()]
+        # A card with no email yet cannot sign in: it is not in the group.
+        emails = [p["email"] for p in await state.ehr.list_users() if p["email"]]
         await state.cloudflare.set_emails(emails)
     except (EhrError, CloudflareError) as e:
         return str(e) if isinstance(e, CloudflareError) else "ehr could not read the list"

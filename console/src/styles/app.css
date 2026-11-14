@@ -408,6 +408,37 @@ p {
   display: flex;
 }
 
+/* The first-load wave (LOADING.md §6; reveal.ts). Under the hold the app is laid out but not
+   seen; the backdrop shows. A safety animation shows it at --reveal-safety whatever happens.
+   Each piece waits at opacity 0 until its turn, then rises a few whole pixels and fades in,
+   with the motion of Chat's mode-change wave. Not held ("backwards"): at rest nothing is
+   transformed, so every word is crisp. */
+html[data-reveal="hold"] .app {
+  opacity: 0;
+  animation: reveal-safety 1ms linear var(--reveal-safety) forwards;
+}
+
+@keyframes reveal-safety {
+  to {
+    opacity: 1;
+  }
+}
+
+.reveal-pre {
+  opacity: 0;
+}
+
+.reveal-in {
+  animation: reveal-in var(--dur-wave-in) var(--ease-wave) backwards;
+}
+
+@keyframes reveal-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--wave-rise));
+  }
+}
+
 /* The page swap: the old page fades out, then the new one fades in. */
 .page-host.leaving {
   opacity: 0;

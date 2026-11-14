@@ -8,6 +8,62 @@ updated: 2026-11-14
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-14 (Windows, evening) — Security › Auth: incomplete cards, missing fields in red
+- The owner's ask, from a screenshot of an add that would not save (a name, no email): turn the
+  missing box's title red; let a second Save save an incomplete card, with Save red.
+- Built (DEMO.md §3.5, DEV-API.md's people rows): the first Save with an empty box reds its
+  title and Save and names the boxes; the second saves. `ehr` (users.rs) now takes a card with
+  no email (a random stand-in key; not in Cloudflare's group, so no sign-in) or no name.
+  `UpdateUserReply.email_changed` is new, so a card's first email reaches the group. `POST
+  /agent/people` returns `added`. A new role, `--on-error`.
+- The screenshot is not saved: it showed his own email and phone number.
+- Checks: store tests run against the dev Postgres (not skipped), agent tests, clippy, docs and
+  the type check pass. Not desk-tested.
+- His `ECONNREFUSED 127.0.0.1:8790` at start, again. Cause: the agent prints "agent dev server
+  on" before its lifespan (ehr, the prompt sync, Cloudflare's group) and before uvicorn opens
+  the port; `dev.mjs` started Vite on that line. Now `dev.mjs` also waits for the port (90 s).
+- His ask, "evaluate for other race conditions": three answers drawn out of order, each fixed by
+  drawing only the last read asked. Security › Auth (a focus read answering after a Save drew
+  the old list), Teams › People (two reads overlapping), Chat's Resources tab (the timer and a
+  change of the shown call). Config › Agent's Test poll now reads once per answer, not on a
+  fixed timer: a late "running" could land after "done" and stay.
+- The demo build: Vite 6.4's watch empties `console/dist-demo/` at the start of every rebuild
+  (read in its code: `prepareOutDir` on `BUNDLE_START`), so for the whole build a guest got a
+  404 and an open page could not load a chunk. Now `dev.mjs` empties it once at start and the
+  build runs with `--emptyOutDir false`; old hashed files stay until the next start.
+- The read layer, designed and built (LOADING.md; the owner: design the fetch layer; fork A for
+  the wave; polling must serve debugging, telemetry and health later). DeetsMusic had the model
+  for the wave (`reveal.ts`, UX-COVERUPS.md §7) and no shared read layer. Built: `store.ts`,
+  `stores.ts`, `ledger.ts`; every page moved (Auth, People, the four Config sections and the
+  Test poll, Chat's health, catalog, sandbox, resources and its poll). The hand-written
+  counters of earlier tonight are gone. Type check passes; not desk-tested (LOADING.md §8).
+- The first-load wave, built at his word ("values are fine, build the wave too"): `reveal.ts`,
+  `reveal-wave.ts` (DeetsMusic's rule, ported), the hold marked in `prepaint.js`, the safety
+  lift in `app.css`. The stores read during the first load are the hold, found by themselves.
+  Vite now answers "unreachable" (a header) when it cannot reach the agent, or has none
+  (`dev:web`), so the pages say "not running", not "refused"; checked by starting Vite both
+  ways. Type check and the production build pass; not desk-tested (LOADING.md §9).
+- He desk-tested tonight's work and asked to mark it so and commit (LOADING.md now `built`,
+  desk test passed).
+- His question: was each kind of data in one store before? No: each page called `api.ts` and
+  kept its own copy, with no shared order, retry or record.
+- Looked at and left: Vite may write the new `index.html` before every new chunk is on disk;
+  a page that reloads in that moment could miss a chunk (not seen). Chat's call socket and the
+  live-reload stream open after the agent is up, now that Vite waits for it.
+
+## 2026-11-14 (Windows, afternoon) — Pulled the Mac's work; a key backup; an alignment check
+- Pulled `4f59985..4b114bb`. `npm run env:check` on the PC: all set but Twilio (set up nowhere).
+- The owner's ask: a backup of the PC's DeetsHealth secrets in his local secrets folder, for a
+  wiped repo. Copied `.env`, `epic-client.json` and the PC's Epic key there (hashes checked)
+  and named them in that folder's README. Same machine only, so the keys-per-machine rule holds.
+- The owner asked whether two pairs of controls line up. Measured from his screenshots: they do,
+  to the pixel. Test | cost and Discard | Save share the top and bottom edge. So do Security ›
+  Roles' name box and Discard | Save. Only their edges differ: the name box has a lighter border
+  and no inner highlight. Nothing changed. Saved:
+  `images/agent-test-save-alignment-2026-11-14.png` and `images/roles-name-save-alignment-2026-11-14.png`.
+  ![The owner's screenshot, 2026-11-14: Config › Agent's Test | Passed beside Discard | Save, asking whether they line up](architecture/images/agent-test-save-alignment-2026-11-14.png)
+  ![The owner's screenshot, 2026-11-14: Security › Roles' name box beside Discard | Save, asking whether they line up](architecture/images/roles-name-save-alignment-2026-11-14.png)
+
 ## 2026-11-14 (Mac) — Pulled the PC's work; keys per machine; `npm run env:check`
 - Pulled 14 commits (`c664ebd..4f59985`). On the Mac: `npm install`, `uv sync` (new: `pyjwt`),
   `npm install` in `ehr/jwks-worker` (`check:all` stops without it). `npm run check:all`: all

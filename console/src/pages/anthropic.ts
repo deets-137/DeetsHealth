@@ -7,7 +7,8 @@
 // The model decides what else is allowed (ANTHROPIC.md §3): thinking turns off only on Haiku
 // and Sonnet, at effort High or below; Opus 5.5 always thinks. ehr checks the same rules on
 // save (settings.rs › coherent), so the page greys what the model refuses.
-import { anthropicSettings, saveAnthropic, type AnthropicSettings, type LlmValues } from "../agent/api";
+import { saveAnthropic, type AnthropicSettings, type LlmValues } from "../agent/api";
+import { anthropicSettings } from "../agent/stores";
 import { settingsView, type Kit } from "./config-kit";
 import { el } from "./page";
 import type { View } from "./subnav";
@@ -55,7 +56,7 @@ export const anthropicView = (): View =>
   settingsView<LlmValues, LlmValues, AnthropicSettings>({
     id: "anthropic",
     title: "Anthropic",
-    load: (version) => anthropicSettings(version),
+    store: anthropicSettings,
     save: (_s, d) => saveAnthropic(d),
     fromValues: (v) => ({ ...v }),
     differing,

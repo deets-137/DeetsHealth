@@ -8,14 +8,8 @@
 // Each row (the owner, 2026-11-13): an "i" button at the left that opens the setting's help,
 // its name, then its control. No line under the name. The frame, the rows and the controls are
 // config-kit.ts, shared with Config › Anthropic.
-import {
-  cartesiaSettings,
-  resources,
-  saveCartesia,
-  type CartesiaCycle,
-  type CartesiaSettings,
-  type VoiceValues,
-} from "../agent/api";
+import { saveCartesia, type CartesiaCycle, type CartesiaSettings, type VoiceValues } from "../agent/api";
+import { cartesiaSettings, resources } from "../agent/stores";
 import { cap, settingsView, type Kit } from "./config-kit";
 import { el } from "./page";
 import type { View } from "./subnav";
@@ -154,14 +148,14 @@ export const cartesiaView = (): View => {
   return settingsView<VoiceValues, Draft, CartesiaSettings>({
     id: "cartesia",
     title: "Cartesia",
-    load: (version) => cartesiaSettings(version),
+    store: cartesiaSettings,
     save: (s, d) => saveCartesia(toValues(d, s.tts.voices, s.values)),
     fromValues,
     differing,
     extra: async () => {
-      cycle = await resources(null)
-        .then((r) => r.cartesia)
-        .catch(() => undefined);
+      const use = resources(null);
+      await use.refresh("open");
+      cycle = use.get().value?.cartesia;
     },
     render: (s, d, kit) => render(s, d, kit, cycle),
   });

@@ -164,6 +164,14 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   placeholder (`users.role` is not read) until roles exist. "Added by" is "First L."; the
   owner's own row says "Deets". Commits `819b7e3` and `a445276`; the full `npm run check` has
   not run on them (the dev server held the ehr exe). Org Chart is still empty.
+- **Built, desk-tested 2026-11-14 (the owner): the console's read layer** (LOADING.md §2–§5). Every page
+  reads through a store (`agent/store.ts`, `agent/stores.ts`): the newest answer wins, writes in
+  click order, polls one at a time, retries when the agent is back; every read in the ledger
+  (`agent/ledger.ts`, `deetsLedger` in dev). **And the first-load wave** (§6, the owner's fork
+  A): the app hidden until its first data, then one wave top left to bottom right
+  (`reveal.ts`). Desk tests LOADING.md §8 and §9: passed. Same day, also desk-tested: Security
+  › Auth saves an incomplete card on a second Save (red titles, red Save; no email = no
+  sign-in), and `npm run dev` waits for the agent's port before Vite starts.
 - **Built, desk test open: the booking keeps the caller's reason; Local half** (2026-11-14,
   after the Priya Raman call; the owner's 1A of 2026-11-13, 1A for odd reasons, A for
   pronouns). `FindSlots` takes `visit_mode` and keeps the reason (checked to be the caller's own

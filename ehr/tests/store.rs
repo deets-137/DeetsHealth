@@ -262,9 +262,8 @@ async fn a_card_saves_sealed_moves_its_email_and_keeps_a_picture() {
     let mary = find(users::list(&store).await.unwrap(), &id);
     assert_eq!((mary.email.as_str(), mary.first_name.as_str(), mary.phone.as_str()), ("mary.lee@example.com", "Mary", "+15552345678"));
 
-    // Bad fields name the field; no name at all is refused.
-    let blank = Profile { first_name: " ", last_name: "", ..card("mary.lee@example.com") };
-    assert_eq!(users::update(&store, &id, &blank).await.err(), Some(UsersError::Bad("first_name: a first or a last name")));
+    // A saved email cannot be cleared; bad fields name the field.
+    assert!(matches!(users::update(&store, &id, &card("")).await, Err(UsersError::Bad(_))));
     let bad_phone = Profile { phone: "555-1234", ..card("mary.lee@example.com") };
     assert!(matches!(users::update(&store, &id, &bad_phone).await, Err(UsersError::Bad(_))));
     assert_eq!(users::update(&store, &gone, &card("x@example.com")).await.err(), Some(UsersError::NotFound));
@@ -281,6 +280,29 @@ async fn a_card_saves_sealed_moves_its_email_and_keeps_a_picture() {
     assert!(users::list(&store).await.unwrap()[0].last_seen_at.is_none());
     users::seen_owner(&store).await.unwrap();
     assert!(users::list(&store).await.unwrap()[0].last_seen_at.is_some());
+
+    // A card to finish later (the owner, 2026-11-14): no email, or no name, but not neither.
+    assert!(matches!(users::add(&store, " ", " ", "").await, Err(UsersError::Bad(_))));
+    let later = users::add(&store, "", "Test Lee", "").await.unwrap();
+    let other = users::add(&store, "", "Sam", "").await.unwrap(); // two stand-in keys never collide
+    assert_ne!(later, other);
+    let test = find(users::list(&store).await.unwrap(), &later);
+    assert_eq!((test.email.as_str(), test.first_name.as_str(), test.last_name.as_str()), ("", "Test", "Lee"));
+    // Saved again with no email: the row keeps its stand-in key; nobody can sign in with it.
+    let no_email = Profile { first_name: "Test", last_name: "Lee", phone: "555-234-5678", email: "" };
+    let kept = users::update(&store, &later, &no_email).await.unwrap();
+    assert!(!kept.email_changed);
+    assert!(!users::admit(&store, "").await.unwrap());
+    // Its first email moves it to that email's hash: now on the list for sign-in.
+    let first = users::update(&store, &later, &Profile { email: "test@example.com", ..no_email }).await.unwrap();
+    assert!(first.email_changed && first.old_email.is_empty());
+    assert!(users::admit(&store, "test@example.com").await.unwrap());
+    assert_eq!(find(users::list(&store).await.unwrap(), &later).phone.as_str(), "+15552345678");
+    // No name, an email: saved.
+    let nameless = users::add(&store, "nameless@example.com", "", "").await.unwrap();
+    let blank = Profile { first_name: " ", last_name: "", phone: "", email: "nameless@example.com" };
+    users::update(&store, &nameless, &blank).await.unwrap();
+    assert_eq!(users::remove(&store, &other).await.unwrap().as_str(), "");
 
     // The picture: a WebP only, sealed, back as it went in, and cleared.
     let webp = b"RIFF\x10\0\0\0WEBPVP8 face-bytes".to_vec();

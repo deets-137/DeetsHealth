@@ -9,6 +9,13 @@
 //! phone number (E.164, "not verified" until a text code proves it), and a picture in
 //! `user_photos`. Anyone on the list may edit any card, the owner's too, until roles exist. An
 //! email change moves the row to the new email's hash, so every sealed column is sealed again.
+//!
+//! A card may be saved before it is complete (the owner, 2026-11-14): no name, or no email. A
+//! row with no email yet has a stand-in key, a keyed hash of a random value under `PENDING_HASH`,
+//! so no email's hash can ever equal it. Such a person cannot sign in: no email reaches
+//! Cloudflare's group and `admit` never finds the row. The first email saved moves the row to
+//! that email's hash, as any email change does. A saved email can be changed, never cleared:
+//! Remove is how sign-in is taken away.
 
 use sqlx::Row;
 use zeroize::Zeroizing;
@@ -18,6 +25,8 @@ use crate::store::Store;
 const TABLE: &str = "users";
 /// The lookup hash's column name, so a hash of an email here never equals another column's.
 const EMAIL_HASH: &str = "users.email";
+/// The stand-in key's name: a row with no email yet (see the module's note).
+const PENDING_HASH: &str = "users.pending";
 pub const MAX_EMAIL: usize = 254;
 pub const MAX_NAME: usize = 100;
 /// A first or a last name: two of them and the space between fit `MAX_NAME`.
@@ -179,6 +188,24 @@ pub fn normal_name(raw: &str) -> Result<String, UsersError> {
     Ok(name)
 }
 
+/// A new person's email and name as `add` keeps them. Either may be empty (a card to fill in
+/// later), not both.
+pub fn normal_new(email: &str, name: &str) -> Result<(String, String), UsersError> {
+    let email = if email.trim().is_empty() { String::new() } else { normal_email(email)? };
+    let name = if name.trim().is_empty() { String::new() } else { normal_name(name)? };
+    if email.is_empty() && name.is_empty() {
+        return Err(UsersError::Bad("email: an email or a name"));
+    }
+    Ok((email, name))
+}
+
+/// A stand-in key for a row with no email yet: never equal to an email's hash.
+fn pending_hash(store: &Store) -> Result<[u8; 32], UsersError> {
+    let mut seed = [0u8; 16];
+    getrandom::fill(&mut seed).map_err(|_| UsersError::Store("users: no random source".into()))?;
+    Ok(store.lookup(PENDING_HASH, &Store::hex(&seed)))
+}
+
 fn store_err(step: &str) -> impl Fn(sqlx::Error) -> UsersError + '_ {
     move |_| UsersError::Store(format!("users: {step}"))
 }
@@ -287,15 +314,15 @@ async fn adder(store: &Store, by: &str) -> Result<Option<String>, UsersError> {
 }
 
 /// Puts a person on the list. Someone removed before comes back on the same row, with the new
-/// name and adder. `by`: the adder's email, or empty for the owner's PC.
+/// name and adder. `by`: the adder's email, or empty for the owner's PC. No email: a new row on a
+/// stand-in key (see the module's note).
 pub async fn add(store: &Store, email: &str, name: &str, by: &str) -> Result<String, UsersError> {
-    let email = normal_email(email)?;
-    let name = normal_name(name)?;
-    if active_id(store, &email).await?.is_some() {
+    let (email, name) = normal_new(email, name)?;
+    if !email.is_empty() && active_id(store, &email).await?.is_some() {
         return Err(UsersError::Exists);
     }
     let added_by = adder(store, by).await?;
-    let hash = store.lookup(EMAIL_HASH, &email);
+    let hash = if email.is_empty() { pending_hash(store)? } else { store.lookup(EMAIL_HASH, &email) };
     let row = Store::hex(&hash);
     let id: String = sqlx::query(
         "INSERT INTO users (email_hash, email, name, added_by) VALUES ($1, $2, $3, $4::uuid)
@@ -349,11 +376,9 @@ pub async fn update(store: &Store, id: &str, p: &Profile<'_>) -> Result<Saved, U
     let first = normal_name_part(p.first_name, "first_name: at most 49 characters on one line")?;
     let last = normal_name_part(p.last_name, "last_name: at most 49 characters on one line")?;
     let name = full_name(&first, &last);
-    if name.is_empty() {
-        return Err(UsersError::Bad("first_name: a first or a last name"));
-    }
     let phone = normal_phone(p.phone)?;
-    let email = normal_email(p.email)?;
+    // Empty only on a row that has no email yet: checked below, against the stored one.
+    let email = if p.email.trim().is_empty() { String::new() } else { normal_email(p.email)? };
 
     let row = sqlx::query("SELECT email_hash, email, phone FROM users WHERE id = $1::uuid AND removed_at IS NULL")
         .bind(id)
@@ -369,7 +394,15 @@ pub async fn update(store: &Store, id: &str, p: &Profile<'_>) -> Result<Saved, U
         .transpose()?
         .unwrap_or_default();
 
-    let hash = store.lookup(EMAIL_HASH, &email);
+    if email.is_empty() && !old_email.is_empty() {
+        return Err(UsersError::Bad("email: a saved email can be changed, not cleared (Remove takes away sign-in)"));
+    }
+    // No email yet, and none now: the row keeps its stand-in key.
+    let hash: [u8; 32] = if email.is_empty() {
+        row.get::<Vec<u8>, _>("email_hash").try_into().map_err(|_| UsersError::Store("users: a key".into()))?
+    } else {
+        store.lookup(EMAIL_HASH, &email)
+    };
     let email_changed = email != old_email.as_str();
     if email_changed {
         let holder = sqlx::query("SELECT removed_at IS NULL AS active FROM users WHERE email_hash = $1")

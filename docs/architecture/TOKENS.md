@@ -15,8 +15,8 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 | Tier | File | Count |
 |---|---|---|
 | Palette (raw paints) | palette.css | 18 |
-| Theme (color roles) | themes.css | 34 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 108 tokens · overrides:  |
+| Theme (color roles) | themes.css | 35 roles · 3 themes (dark, light, moonlight) |
+| Skin (everything else) | skin.css base block | 114 tokens · overrides:  |
 
 ## Theme roles
 
@@ -32,6 +32,7 @@ The `:root` value is Dark's, and the fallback when a theme does not map the role
 | `--on-accent` | `var(--paint-black)` | light, moonlight | text on the accent |
 | `--title` | `var(--paint-white)` | light, moonlight | the app name in the top bar |
 | `--error` | `var(--paint-red)` | — | an error line |
+| `--on-error` | `var(--paint-white)` | — | text on the error color: Save that will save an incomplete card |
 | `--shape-1` | `rgba(255, 255, 255, 0.13)` | light, moonlight | the backdrop's three soft light shapes |
 | `--shape-2` | `rgba(196, 204, 222, 0.1)` | light, moonlight |  |
 | `--shape-3` | `rgba(255, 255, 255, 0.08)` | light, moonlight |  |
@@ -207,6 +208,12 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--wave-rise` | `6px` | — | how far each control rises (whole pixels, so its text stays crisp) |
 | `--ease-wave` | `cubic-bezier(0.2, 0.7, 0.2, 1)` | — |  |
 | `--confirm-hold` | `3000ms` | — | "Confirm?" waits this long for the second press (chat.ts reads it) |
+| `--reveal-cap` | `1500ms` | — | The first-load wave (LOADING.md §6; reveal.ts reads these; DeetsMusic's values). — the longest the screen waits for its data before the wave |
+| `--reveal-span` | `500ms` | — | the wave's whole run, top left to bottom right, for any count of pieces |
+| `--reveal-safety` | `4000ms` | — | the app shows at this time whatever happens (app.css) |
+| `--read-focus-gap` | `5000ms` | — | The read layer (LOADING.md §2; store.ts reads these). — a store reads again on focus at most this often |
+| `--read-retry-first` | `500ms` | — | the agent did not answer: the first try again, then double... |
+| `--read-retry-max` | `8000ms` | — | ...up to this, then this often while a page shows the store |
 | `--drift-1` | `46s` | — | the backdrop shapes' slow drift |
 | `--drift-2` | `58s` | — |  |
 | `--drift-3` | `64s` | — |  |

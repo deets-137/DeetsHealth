@@ -12,11 +12,7 @@ import {
   AgentDown,
   AnnotationRefused,
   annotate,
-  catalog,
   callEvents,
-  health,
-  resources,
-  sandbox,
   callQuery,
   voiceOffer,
   VERDICTS,
@@ -33,8 +29,11 @@ import {
   type Sandbox,
   type Verdict,
 } from "../agent/api";
+import { agentUp, once, type State, type Store } from "../agent/store";
+import { catalog, health, resources, sandbox } from "../agent/stores";
 import { TextSeat, VoiceSeat } from "../agent/transport";
 import { holdReload } from "../reload";
+import { revealing } from "../reveal";
 import { reducedMotion, tokenMs } from "../tokens";
 import { el, type Page } from "./page";
 import { placePill } from "./subnav";
@@ -295,7 +294,8 @@ export function chatPage(): Page {
       // top row first, left to right, as one wave.
       let waveTimer = 0;
       const waveIn = () => {
-        if (reducedMotion()) return;
+        // On a first load the screen's own wave brings these in (reveal.ts): never two waves.
+        if (reducedMotion() || revealing()) return;
         const parts = [...chat.querySelectorAll<HTMLElement>("[data-wave]")]
           .filter((p) => p.getClientRects().length > 0)
           .map((p) => ({ p, r: p.getBoundingClientRect() }))
@@ -407,20 +407,35 @@ export function chatPage(): Page {
         }
         renderCode(false);
       };
+      // Each EHR's list is a store (LOADING.md §3): read here, and when it fails because the
+      // agent is down, read again by the store when the agent is back; the subscription then
+      // fills the rail. Epic's list leaves this machine, so it is never read on focus.
+      const following = new Set<EhrSource>();
       const loadSandbox = async (source: EhrSource = railEhr()) => {
         if (loading.has(source)) return;
         loading.add(source);
         delete failed[source];
         if (source === railEhr()) showSandbox();
-        try {
-          boxes[source] = await sandbox(source);
-        } catch (e) {
+        const st = sandbox(source);
+        await st.refresh("open");
+        const got = st.get();
+        if (got.status === "ready" && got.value) boxes[source] = got.value;
+        else
           failed[source] =
-            source === "epic" && e instanceof AgentDown && e.message.includes("refused")
-              ? "Epic's sandbox did not answer"
+            got.status === "refused"
+              ? source === "epic"
+                ? "Epic's sandbox did not answer"
+                : "The agent's dev server refused"
               : "The agent's dev server is not running";
-        } finally {
-          loading.delete(source);
+        loading.delete(source);
+        if (!following.has(source)) {
+          following.add(source);
+          st.subscribe(sandboxList, (s) => {
+            if (loading.has(source) || s.status !== "ready" || !s.value) return;
+            boxes[source] = s.value;
+            delete failed[source];
+            if (source === railEhr()) showSandbox();
+          });
         }
         if (source === railEhr()) showSandbox();
       };
@@ -463,18 +478,20 @@ export function chatPage(): Page {
       });
       // Places the pill once the bar has a size (it has none outside Testing).
       new ResizeObserver(() => showEhr()).observe(ehrBar);
-      void health()
-        .then((h) => {
-          epicServed = h.epic;
-          if (!h.epic && ehr === "epic") {
-            ehr = "local";
-            showSandbox();
-          }
-          showEhr();
-          voiceServed = h.voice;
-          showSeat(false);
-        })
-        .catch(() => {});
+      // What the dev server offers (Epic, voice): the health store, read once the page builds
+      // and again by the store when the agent comes back.
+      health.subscribe(ehrBar, (s) => {
+        const h = s.value;
+        if (s.status !== "ready" || !h) return;
+        epicServed = h.epic;
+        if (!h.epic && ehr === "epic") {
+          ehr = "local";
+          showSandbox();
+        }
+        showEhr();
+        voiceServed = h.voice;
+        showSeat(false);
+      });
 
       // ---- the seat bar (CHAT.md §17): Text | Voice, at the canvas's top right beside the EHR
       // toggle, Testing only. Text each time the page opens and after each call; locked while a
@@ -790,6 +807,8 @@ export function chatPage(): Page {
           }
         },
         (up) => {
+          // The socket reached the agent: every store that found it down reads again now.
+          if (up) agentUp();
           if (!up) {
             lives.clear();
             drawLives();
@@ -805,24 +824,42 @@ export function chatPage(): Page {
       // till the next Start), the call PHI watches, the call Demo played. Read when the page
       // opens, when the shown call changes, after each call, and every few seconds while any
       // call runs (local reads only: no request to a vendor).
+      // One store per shown call (LOADING.md §3). The tab follows the store of the call shown
+      // now; a change of call moves the subscription, so a late answer for the call shown
+      // before never draws. While a call runs the store polls, 3 s after each answer, each
+      // tick in the ledger as a `poll` of `resources` (the call id never goes in).
       const resourcesBox = $("chat-resources");
-      let resourcesTimer = 0;
       let demoPlayed: string | null = null;
       const shownCall = () => (mode === "test" ? myCall : mode === "phi" ? phiCall : demoPlayed);
-      const loadResources = async () => {
-        try {
-          const r = await resources(shownCall());
-          resourcesBox.replaceChildren(...resourceRows(r.anthropic, r.cartesia, r.call, r.voice));
-        } catch {
-          resourcesBox.replaceChildren(note("The agent's dev server is not running"));
+      type Use = Awaited<ReturnType<typeof import("../agent/api").resources>>;
+      let useShown: Store<Use> | null = null;
+      let stopFollow = () => {};
+      let stopPoll = () => {};
+      const drawUse = (s: State<Use>) => {
+        const r = s.value;
+        if (r) resourcesBox.replaceChildren(...resourceRows(r.anthropic, r.cartesia, r.call, r.voice));
+        else if (s.status === "down") resourcesBox.replaceChildren(note("The agent's dev server is not running"));
+        else if (s.status === "refused") resourcesBox.replaceChildren(note("The agent's dev server refused"));
+      };
+      const loadResources = () => {
+        const st = resources(shownCall());
+        if (st !== useShown) {
+          stopFollow();
+          useShown = st;
+          // A first subscription reads; a store read before draws what it has, then reads.
+          stopFollow = st.subscribe(resourcesBox, (s) => st === useShown && drawUse(s));
+          if (st.get().status === "loading") return;
         }
+        void st.refresh("user");
       };
       function watchResources() {
-        window.clearInterval(resourcesTimer);
-        void loadResources();
-        if (live || lives.size > 0) resourcesTimer = window.setInterval(() => void loadResources(), RESOURCES_LIVE_MS);
+        stopPoll();
+        loadResources();
+        const st = useShown;
+        if (st && (live || lives.size > 0))
+          stopPoll = st.poll(RESOURCES_LIVE_MS, () => st === useShown && (live || lives.size > 0));
       }
-      void loadResources();
+      loadResources();
 
       // ---- Demo: a recorded call plays back as if live, from the catalog
       const play = $<HTMLButtonElement>("demo-play");
@@ -876,20 +913,26 @@ export function chatPage(): Page {
         stop.disabled = true;
         play.disabled = !canPlay();
       };
-      async function loadCatalog() {
-        let calls: CallRow[];
-        try {
-          calls = (await catalog()).calls;
-        } catch {
-          callsList.replaceChildren(note("The agent's dev server is not running"));
-          chosen = null;
-          play.disabled = true;
+      // The catalog store (LOADING.md §3): the list draws on each answer, from this page's reads,
+      // a review's annotation (which reads it again), and the store's own read when the agent
+      // is back. A list already drawn stays while a later read fails.
+      catalog.subscribe(callsList, (s) => {
+        if (!s.value) {
+          if (s.status === "down" || s.status === "refused") {
+            callsList.replaceChildren(note(s.status === "down" ? "The agent's dev server is not running" : "The agent's dev server refused"));
+            chosen = null;
+            play.disabled = true;
+          }
           return;
         }
+        const calls: CallRow[] = s.value.calls;
         if (!calls.some((c) => c.id === chosen)) chosen = calls[0]?.id ?? null;
         callsList.replaceChildren(...(calls.length ? calls.map(callRow) : [note("No recorded calls yet")]));
         markChosen();
         play.disabled = !canPlay();
+      });
+      function loadCatalog() {
+        return catalog.refresh("user");
       }
       play.addEventListener("click", () => void startDemo());
       async function startDemo() {
@@ -902,7 +945,8 @@ export function chatPage(): Page {
         stop.disabled = false;
         let events: CallEvent[];
         try {
-          events = await callEvents(id);
+          // A one-off read, never kept in a store: a call's events are its transcript.
+          events = await once("events", () => callEvents(id));
         } catch {
           demoLines.replaceChildren(note("That call could not be read"));
           return stopDemo();
@@ -929,7 +973,7 @@ export function chatPage(): Page {
         stopDemo();
         demoLines.append(note("Stopped"));
       });
-      void loadCatalog();
+      // (The catalog reads on its own: its store's subscription above.)
       void loadSandbox();
       showEhr();
 
@@ -1063,15 +1107,15 @@ class Review {
 
     let found: CallRow | undefined;
     let dimensions: Record<string, string> = {};
-    try {
-      const cat = await catalog();
-      found = cat.calls.find((c) => c.id === callId);
-      dimensions = cat.dimensions;
-    } catch {
-      if (mine === this.gen) this.rows.replaceChildren(emptyNote("The agent's dev server is not running"));
+    await catalog.refresh("user");
+    if (mine !== this.gen) return;
+    const cat = catalog.get().value;
+    if (!cat) {
+      this.rows.replaceChildren(emptyNote("The agent's dev server is not running"));
       return;
     }
-    if (mine !== this.gen) return;
+    found = cat.calls.find((c) => c.id === callId);
+    dimensions = cat.dimensions;
     if (!found) {
       this.rows.replaceChildren(emptyNote("This call is not in the catalog yet"));
       return;
@@ -1103,7 +1147,8 @@ class Review {
     if (!call) return;
     this.status.textContent = "Saving…";
     try {
-      await annotate({ ...a, call });
+      // A write: in click order, in the ledger, and the catalog reads again after it.
+      await catalog.act(() => annotate({ ...a, call }));
       if (call === this.call) this.status.textContent = "Saved";
     } catch (e) {
       // The gate's reason names a field, never a value (api.ts › AnnotationRefused).

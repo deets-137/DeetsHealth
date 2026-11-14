@@ -190,6 +190,17 @@
   flex: none;
 }
 
+/* A Save found this box empty (the owner, 2026-11-14): its title turns red until it is filled. */
+.auth-field.is-missing > span {
+  color: var(--error);
+}
+
+/* ...and Save turns red: the next Save saves the card as it is. */
+.auth-edit-bar .cfg-actions .cfg-save.is-warn:not(:disabled) {
+  background: var(--error);
+  color: var(--on-error);
+}
+
 .auth-role {
   height: var(--field-height);
   display: flex;

@@ -312,13 +312,14 @@ class EhrClient:
         ]
 
     async def update_user(self, user_id: str, first_name: str, last_name: str, phone: str, email: str) -> str | None:
-        """Saves a person's card; the old email when the email changed, else None. Raises
-        EhrError with ehr's fixed reason in `detail` (BAD_INPUT names the field)."""
+        """Saves a person's card; the old email when the email changed ("" when the card had
+        none yet), else None. Raises EhrError with ehr's fixed reason in `detail` (BAD_INPUT
+        names the field)."""
         reply = await self._users_call(
             "UpdateUser",
             pb.UpdateUserRequest(id=user_id, first_name=first_name, last_name=last_name, phone=phone, email=email),
         )
-        return reply.old_email or None
+        return reply.old_email if reply.email_changed else None
 
     async def user_photo(self, user_id: str) -> bytes | None:
         """A person's picture (WebP bytes), or None when they have none."""

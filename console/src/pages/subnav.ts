@@ -4,6 +4,7 @@
 // choice. Each choice fills the view beside the nav with its own panels.
 import { el, type Page } from "./page";
 import { reducedMotion, tokenMs } from "../tokens";
+import { shown } from "../agent/store";
 
 /** One choice in a page's own nav, and what it shows. */
 export interface View {
@@ -94,6 +95,7 @@ function initViews(page: HTMLElement, spec: SubnavPageSpec) {
   const show = (v: View) => {
     if (!built.has(v.id)) built.set(v.id, v.build());
     host.replaceChildren(built.get(v.id)!);
+    shown(); // a store paused while its view was off screen reads now (store.ts)
   };
 
   const go = (id: string) => {
