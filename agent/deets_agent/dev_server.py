@@ -31,20 +31,31 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
   span), and each tool call's row with `rows=true`. Filters: `source`, `model`, `since` (a day
   or a call id), `exact`, `with_replayed` (latency.py).
 - `POST /agent/annotations` — a label, a note, a star or a rating; kept in the committed file.
-- `WS   /agent/call` — the caller's seat (Test): RTVI as JSON (rtvi_json.py). One call at a time.
-- `WS   /agent/watch` — the watch stream: the live call's events as the record writes them, the
-  same lines Demo plays back.
+- `WS   /agent/call` — the caller's seat (Test): RTVI as JSON (rtvi_json.py). Several calls run
+  at once, up to `MAX_LIVE_CALLS` (docs/ops/DEMO.md §3.6). `?label=` the words typed beside
+  Start; `?tag=` the page's own mark, so it knows which started call is its own.
+- `WS   /agent/watch` — the watch stream: every live call's events as the records write them,
+  the same lines Demo plays back. `hello` lists the live calls; `started` names each new one.
 - `GET  /agent/sandbox?ehr=local|epic` — the sandbox patients and their visits: `local` from
   ehr/fixtures/sandbox.json; `epic` from Epic's public sandbox through `ehr epic-sandbox`, kept
   for 5 minutes (CHAT.md §13). `more`: per patient, the visits past the ones listed.
 - `WS   /agent/call?ehr=local|epic` — see below; `ehr` picks the EHR the test call reads.
 - `POST /2010-04-01/Accounts/{sid}/Messages.json` — the fake Twilio (fake_twilio.py), for ehr
   only: its own Basic auth instead of the token. A text it takes joins the live call's record.
+- `GET  /agent/ice` — the ICE servers a voice call's browser end uses: none on this PC; for a
+  guest, Cloudflare STUN and TURN (turn.py; docs/ops/DEMO.md §3.7).
+- `GET  /demo`, `GET /demo/{path}` — the demo (`--static`, docs/ops/DEMO.md): the built console.
+  `GET /agent/build` — its live reload: the page's entry script, again whenever it changes.
 
 **The wall.** A WebSocket is not covered by CORS: any web page can open one to 127.0.0.1. So
 every request must carry the launch token (only Vite's proxy has it) and come from the
 console's own origin. The events carry caller lines and tool arguments; that is safe only
 because every caller here is synthetic (call_record.py).
+
+**The second door** (docs/ops/DEMO.md §3.3), only when `.env` names an Access app: a guest
+comes through Cloudflare Access and the tunnel with no launch token. The request passes with a
+valid Access token and the demo's own origin (access.py). Paths under `/demo/agent/` are the
+same routes as `/agent/` (`DemoPrefix`), so the built console works under its base path.
 """
 
 from __future__ import annotations
@@ -52,18 +63,24 @@ from __future__ import annotations
 import argparse
 import asyncio
 import hmac
+import itertools
 import json
 import os
+import re
 import sys
 import tempfile
 import time
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import aiohttp
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from pipecat.services.cartesia.tts import _CARTESIA_API_VERSION as CARTESIA_API_VERSION
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from pipecat.transports.smallwebrtc.connection import SmallWebRTCConnection
@@ -71,6 +88,7 @@ from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams, FastAPIWebsocketTransport
 
 from deets_agent import config, prompts, redact
+from deets_agent.access import AccessGate, AccessSettings
 from deets_agent.call import CallFailed, TypedCall
 from deets_agent.call_record import CALLS, CallRecord, replay_cost
 from deets_agent.catalog import (
@@ -81,6 +99,7 @@ from deets_agent.catalog import (
     Catalog,
     read_events,
 )
+from deets_agent.cloudflare import AccessGroup, CloudflareError, CloudflareSettings
 from deets_agent.ehr_client import EhrClient, EhrError, ErrorKind, SettingVersion
 from deets_agent.ehr_process import running_ehr
 from deets_agent.fake_twilio import FakeTwilio
@@ -88,9 +107,22 @@ from deets_agent.flow import tool_scope, tool_steps
 from deets_agent.llm import Mode, build_llm
 from deets_agent.resources import anthropic_cycle, cartesia_cycle
 from deets_agent.rtvi_json import RtviJsonSerializer
+from deets_agent.turn import TurnError, TurnSettings, for_aiortc, ice_servers
 from deets_agent.voice import Voice
 
 TOKEN_HEADER = "x-deets-token"
+# Who a request is (State.admit): the owner, through the launch token; else a guest's email.
+OWNER = "owner"
+# The demo's base path (docs/ops/DEMO.md §3.1): the built console and its routes under it.
+DEMO_BASE = "/demo"
+# The most calls that run at once (docs/ops/DEMO.md §3.6): room for the owner and a few
+# analysts, and a stop for a page stuck in a loop of Starts.
+MAX_LIVE_CALLS = 8
+# The longest label typed beside Start (the catalog's own label limit is longer).
+MAX_LABEL = 200
+# How often the live reload looks at the demo build, and how often it sends a keep-alive.
+BUILD_POLL_S = 1.0
+BUILD_KEEPALIVE_S = 15.0
 # The longest SDP offer the voice route takes: a browser's audio offer is a few kilobytes.
 MAX_OFFER_BYTES = 64 * 1024
 # Cartesia's List Voices takes only this API version (docs.cartesia.ai › Voices › List, read
@@ -141,16 +173,65 @@ async def epic_list() -> dict[str, Any]:
     return json.loads(out)
 
 
+@dataclass
+class LiveCall:
+    """One call in progress (docs/ops/DEMO.md §3.6). `by` is who started it: `OWNER`, or a
+    guest's email from the Access token. The email lives here, in memory, for the Caller rail's
+    list; the record holds only `owner` or `guest`."""
+
+    record: CallRecord
+    seat: str
+    ehr: str
+    by: str
+    label: str | None
+    tag: str | None
+    started: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
+    voice: Voice | None = None
+    # When this call last called a tool. ehr sends a code by text during the tool's RPC, before
+    # the `ehr` event is written, so the fake Twilio's text joins the call whose tool call is
+    # the newest. Two calls verifying in the same instant could swap texts (dev only).
+    texted_at: int = 0
+
+    def info(self) -> dict[str, Any]:
+        return {
+            "call": self.record.call_id,
+            "started": self.started,
+            "seat": self.seat,
+            "ehr": self.ehr,
+            "by": self.by,
+            "label": self.label,
+            "tag": self.tag,
+        }
+
+
 class State:
-    def __init__(self, token: str, origins: set[str], port: int, calls: Path = CALLS) -> None:
+    def __init__(
+        self,
+        token: str,
+        origins: set[str],
+        port: int,
+        calls: Path = CALLS,
+        access: AccessGate | None = None,
+        static: Path | None = None,
+        turn: TurnSettings | None = None,
+        cloudflare: AccessGroup | None = None,
+    ) -> None:
         self.token = token
         self.origins = origins
+        # The demo (docs/ops/DEMO.md): the second door, the built console, the TURN key.
+        self.access = access
+        self.static = static.resolve() if static is not None else None
+        self.turn = turn
+        # The People list's link to Cloudflare's Access group (cloudflare.py; DEMO.md §3.5), and
+        # one change at a time to the list and the group.
+        self.cloudflare = cloudflare
+        self.people_lock = asyncio.Lock()
         self.twilio = FakeTwilio(port)
         self.calls = calls
         self.catalog = Catalog(calls).build()
-        # Voice (CHAT.md §17): the Cartesia key's presence, and the live voice call's parts.
+        # Voice (CHAT.md §17): the Cartesia key's presence. Each live voice call's parts are on
+        # its own `LiveCall`.
         self.has_voice = config.cartesia_key() is not None
-        self.voice: Voice | None = None
         # The settings services whose Default version is known to exist (ensure_default).
         self.seeded: set[str] = set()
         self.ehr: EhrClient | None = None
@@ -158,7 +239,8 @@ class State:
         # Demo view"): every line goes to Claude, no replay cache. Without a key, no test call.
         self.has_key = config.anthropic_key() is not None
         self.mode = Mode.LIVE
-        self.live: CallRecord | None = None
+        # The live calls by id, oldest first (docs/ops/DEMO.md §3.6: several at once).
+        self.lives: dict[str, LiveCall] = {}
         self.watchers: set[asyncio.Queue] = set()
         # Epic mode (CHAT.md §13): whether ehr was given Epic's sandbox, and the last Epic list
         # with the time it was read.
@@ -181,6 +263,15 @@ class State:
             return False
         return origin is None or origin in self.origins
 
+    async def admit(self, headers) -> str | None:
+        """Who the request is: `OWNER` through the launch token (the first door), a guest's
+        email through a valid Access token (the second door, only in the demo), else None."""
+        if self.allowed(headers):
+            return OWNER
+        if self.access is not None:
+            return await self.access.email(headers)
+        return None
+
     def broadcast(self, message: dict[str, Any]) -> None:
         text = json.dumps(message, ensure_ascii=False)
         for q in list(self.watchers):
@@ -198,6 +289,8 @@ def build_app(state: State) -> FastAPI:
             state.ehr = await EhrClient.connect(target, config.CERTS)
             # A hand edit to the prompt file becomes a new version (PROMPT-EDITOR.md §6.2).
             await sync_prompt_file(state)
+            # The People list and Cloudflare's group agree before the first guest arrives.
+            await sync_people(state)
             try:
                 yield
             finally:
@@ -208,13 +301,18 @@ def build_app(state: State) -> FastAPI:
     @app.middleware("http")
     async def wall(request: Request, call_next):
         if request.url.path == state.twilio.path():
-            # ehr, not the console: the fake Twilio's own check (fake_twilio.py).
+            # ehr, not the console: the fake Twilio's own check (fake_twilio.py). The tunnel's
+            # requests also come from 127.0.0.1, so one that carries Cloudflare's header is
+            # never ehr.
             host = request.client.host if request.client else None
-            if not state.twilio.authorized(request.headers, host):
+            through_tunnel = "cf-connecting-ip" in request.headers
+            if through_tunnel or not state.twilio.authorized(request.headers, host):
                 return JSONResponse({"code": 20003, "message": "Authenticate", "status": 401}, status_code=401)
             return await call_next(request)
-        if not state.allowed(request.headers):
+        who = await state.admit(request.headers)
+        if who is None:
             return JSONResponse({"error": "forbidden"}, status_code=403)
+        request.state.who = who
         return await call_next(request)
 
     @app.post("/2010-04-01/Accounts/{account}/Messages.json")
@@ -223,17 +321,21 @@ def build_app(state: State) -> FastAPI:
             return JSONResponse({"code": 20404, "message": "Not found", "status": 404}, status_code=404)
         status, reply = state.twilio.take(await request.body())
         text = reply.pop("_text", None)
-        live = state.live
-        if text is not None and live is not None:
+        # The call that asked ehr for a code most recently (several calls at once, DEMO.md
+        # §3.6); ehr's request does not name the call.
+        asked = max(state.lives.values(), key=lambda c: c.texted_at, default=None)
+        if text is not None and asked is not None:
             # The phone that got it, on the Chat page: the code button (CHAT.md §8).
-            live.event("text", to=text["to"], body=text["body"])
+            asked.record.event("text", to=text["to"], body=text["body"])
         return JSONResponse(reply, status_code=status)
 
     @app.get("/agent/health")
     async def health():
+        newest = next(reversed(state.lives), None)
         return {
             "key": state.has_key,
-            "live": state.live.call_id if state.live else None,
+            "live": newest,
+            "calls": len(state.lives),
             "epic": state.epic,
             "voice": state.has_voice,
         }
@@ -395,12 +497,14 @@ def build_app(state: State) -> FastAPI:
 
     @app.get("/agent/resources")
     async def resources():
-        """Cartesia's credits this cycle, from the records and the live voice call, less the
-        active settings' offset (CHAT.md §17)."""
-        voice = state.voice
-        live = None
-        if voice is not None:
-            live = {**voice.meter.totals(), "seconds": round(voice.meter.elapsed())}
+        """Cartesia's credits this cycle, from the records and the live voice calls (summed when
+        several run at once), less the active settings' offset (CHAT.md §17)."""
+        live: dict[str, Any] | None = None
+        for c in state.lives.values():
+            if c.voice is None:
+                continue
+            now = {**c.voice.meter.totals(), "seconds": round(c.voice.meter.elapsed())}
+            live = now if live is None else {k: live.get(k, 0) + v for k, v in now.items()}
         values = await active_voice_settings(state)
         cycle = cartesia_cycle(
             state.calls,
@@ -476,19 +580,26 @@ def build_app(state: State) -> FastAPI:
 
     @app.websocket("/agent/watch")
     async def watch(ws: WebSocket):
-        if not state.allowed(ws.headers):
+        if await state.admit(ws.headers) is None:
             await ws.close(code=1008)
             return
         await ws.accept()
         q: asyncio.Queue = asyncio.Queue()
         state.watchers.add(q)
         try:
-            live = state.live
-            await ws.send_text(json.dumps({"type": "hello", "live": live.call_id if live else None}))
-            if live is not None:
-                # The live call so far, then its events as they come.
-                for event in read_events(live.path):
-                    await ws.send_text(json.dumps({"type": "event", "call": live.call_id, "event": event}))
+            lives = list(state.lives.values())
+            hello = {
+                "type": "hello",
+                "live": lives[-1].record.call_id if lives else None,
+                "calls": [c.info() for c in lives],
+            }
+            await ws.send_text(json.dumps(hello))
+            # Each live call so far, oldest first, then every call's events as they come.
+            for c in lives:
+                for event in read_events(c.record.path):
+                    await ws.send_text(
+                        json.dumps({"type": "event", "call": c.record.call_id, "event": event})
+                    )
             sender = asyncio.create_task(_drain(ws, q))
             try:
                 while True:
@@ -502,20 +613,9 @@ def build_app(state: State) -> FastAPI:
 
     @app.websocket("/agent/call")
     async def call(ws: WebSocket):
-        if not state.allowed(ws.headers):
+        who = await state.admit(ws.headers)
+        if who is None:
             await ws.close(code=1008)
-            return
-        if state.live is not None:
-            await ws.accept()
-            await ws.close(code=1013, reason="a test call is already running")
-            return
-        if state.ehr is None:
-            await ws.accept()
-            await ws.close(code=1013, reason="ehr is not up yet")
-            return
-        if not state.has_key:
-            await ws.accept()
-            await ws.close(code=1013, reason="a test call needs an Anthropic key in .env")
             return
         # The EHR this call reads: the page's Epic / Local button (CHAT.md §13).
         ehr_source = ws.query_params.get("ehr", "local")
@@ -523,10 +623,12 @@ def build_app(state: State) -> FastAPI:
             await ws.accept()
             await ws.close(code=1008, reason="ehr: local or epic")
             return
-        if ehr_source == "epic" and not state.epic:
+        refused = _refuse_call(state, ehr_source)
+        if refused is not None:
             await ws.accept()
-            await ws.close(code=1013, reason="Epic mode needs epic-client.json and the non-production key")
+            await ws.close(code=1013, reason=refused)
             return
+        label, tag = _label(ws.query_params.get("label")), _tag(ws.query_params.get("tag"))
         await ws.accept()
         transport = FastAPIWebsocketTransport(
             ws,
@@ -537,14 +639,17 @@ def build_app(state: State) -> FastAPI:
                 session_timeout=30 * 60,
             ),
         )
-        await _run_call(state, transport, ehr_source, None)
+        llm = await active_settings(state, "llm")
+        words = await active_words(state)
+        live = _open_record(state, ehr_source, "text", llm, words, who, label, tag)
+        await _run_call(state, transport, live, llm, words)
 
     @app.post("/agent/voice")
-    async def voice(request: Request, ehr: str = "local"):
+    async def voice(request: Request, ehr: str = "local", label: str = "", tag: str = ""):
         """The voice seat (CHAT.md §17): the browser's WebRTC offer in, the answer out. The call
         then runs over that connection: the caller's microphone to Ink, Sonic to the speaker, and
         RTVI on its data channel (typed lines too). The browser sends its offer with every ICE
-        candidate in it, so there is no trickle route. One call at a time, as on `/agent/call`."""
+        candidate in it, so there is no trickle route. `label` and `tag` as on `/agent/call`."""
         refused = _refuse_call(state, ehr)
         if refused is None and not state.has_voice:
             refused = "a voice call needs a Cartesia key in .env"
@@ -564,8 +669,10 @@ def build_app(state: State) -> FastAPI:
             raise HTTPException(409, "a voice call needs a Cartesia key in .env")
         # The active voice settings (CONSOLE.md §7), read once: the whole call runs with them.
         values = await active_voice_settings(state)
-        # On this PC both ends are local: host candidates only, no STUN or TURN server.
-        connection = SmallWebRTCConnection()
+        # On this PC both ends are local: host candidates only, no STUN or TURN server. A guest
+        # is on another network: STUN and TURN, with this end's own credentials (DEMO.md §3.7).
+        servers = await _ice_for(state, request.state.who)
+        connection = SmallWebRTCConnection(ice_servers=for_aiortc(servers) if servers else None)
         await connection.initialize(sdp=offer["sdp"], type="offer")
         answer = connection.get_answer()
         if answer is None:
@@ -576,15 +683,240 @@ def build_app(state: State) -> FastAPI:
         )
         llm = await active_settings(state, "llm")
         words = await active_words(state)
-        # Claim the seat now, so a second offer is refused while this one connects.
-        record = _open_record(state, ehr, "voice", llm, words)
-        state.voice = Voice(key, values)
-        task = asyncio.create_task(_run_call(state, transport, ehr, state.voice, record, llm, words))
+        # Count the call now, so the limit holds while this one connects.
+        live = _open_record(
+            state, ehr, "voice", llm, words, request.state.who, _label(label), _tag(tag)
+        )
+        live.voice = Voice(key, values)
+        task = asyncio.create_task(_run_call(state, transport, live, llm, words))
         state.tasks.add(task)
         task.add_done_callback(state.tasks.discard)
         return {"sdp": answer["sdp"], "type": answer["type"]}
 
+    @app.get("/agent/ice")
+    async def ice(request: Request):
+        """The ICE servers for a voice call's browser end, fetched before its offer: none on
+        this PC; Cloudflare STUN and TURN for a guest (DEMO.md §3.7)."""
+        return {"iceServers": await _ice_for(state, request.state.who)}
+
+    @app.get("/agent/build")
+    async def build_stream(request: Request):
+        """The demo's live reload (DEMO.md §3.2), as server-sent events: the built page's entry
+        script now, then again each time a build changes it. The page reloads when it differs
+        from its own, once no call or unsaved edit holds it."""
+        if state.static is None:
+            raise HTTPException(404, "not the demo")
+
+        async def events():
+            index = state.static / "index.html"
+            sent, seen, quiet = None, None, 0.0
+            while not await request.is_disconnected():
+                try:
+                    stamp = index.stat().st_mtime_ns
+                except OSError:
+                    stamp = None
+                if stamp is not None and stamp != seen:
+                    seen = stamp
+                    entry = _entry_script(index)
+                    if entry is not None and entry != sent:
+                        sent, quiet = entry, 0.0
+                        yield f"data: {entry}\n\n"
+                if quiet >= BUILD_KEEPALIVE_S:
+                    quiet = 0.0
+                    yield ": keep-alive\n\n"
+                await asyncio.sleep(BUILD_POLL_S)
+                quiet += BUILD_POLL_S
+
+        return StreamingResponse(
+            events(), media_type="text/event-stream", headers={"cache-control": "no-store"}
+        )
+
+    @app.get("/demo")
+    async def demo_root():
+        return RedirectResponse(f"{DEMO_BASE}/", status_code=308)
+
+    @app.get("/demo/{path:path}")
+    async def demo_page(path: str):
+        """The built console (`--static`): a file under its folder, or index.html for the base
+        path itself. Never a file outside the folder, and never a dotfile."""
+        if state.static is None:
+            raise HTTPException(404, "not the demo")
+        file = _static_file(state.static, path)
+        if file is None:
+            raise HTTPException(404, "not found")
+        # The hashed assets never change under their name; the page and the rest are read anew.
+        cache = "public, max-age=31536000, immutable" if path.startswith("assets/") else "no-cache"
+        return FileResponse(file, headers={"cache-control": cache})
+
+    @app.get("/agent/people")
+    async def people(request: Request):
+        """Teams › People (DEMO.md §3.5): everyone who may sign in, the owner first; whether the
+        list reaches Cloudflare's group; the invite link; and who is asking (`you`)."""
+        return await _people_view(state, request.state.who)
+
+    @app.post("/agent/people")
+    async def add_person(request: Request):
+        """`{email, name}`: put a person on the list, then on Cloudflare's group. Anyone signed
+        in may (the owner's rule until roles, 2026-11-13). 400 names the field that does not
+        fit; 409 when the email is on the list or the store is missing."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "not JSON") from None
+        if not isinstance(body, dict) or not all(isinstance(body.get(k), str) for k in ("email", "name")):
+            raise HTTPException(400, "an object with email and name")
+        assert state.ehr is not None
+        by = "" if request.state.who == OWNER else request.state.who
+        async with state.people_lock:
+            try:
+                await state.ehr.add_user(body["email"], body["name"], by)
+            except EhrError as e:
+                raise HTTPException(_people_status(e), e.detail or "not added") from None
+            warning = await _push_people(state)
+        return {**await _people_view(state, request.state.who), "warning": warning}
+
+    @app.delete("/agent/people/{person_id}")
+    async def remove_person(person_id: str, request: Request):
+        """Take a person off the list (the row stays, for audits), then off Cloudflare's group,
+        and end their Access sessions. 403 for the owner; 404 for no such person."""
+        assert state.ehr is not None
+        async with state.people_lock:
+            try:
+                email = await state.ehr.remove_user(person_id)
+            except EhrError as e:
+                raise HTTPException(_people_status(e), e.detail or "not removed") from None
+            if state.access is not None:
+                state.access.forget(email)
+            warning = await _push_people(state)
+            if state.cloudflare is not None and warning is None:
+                try:
+                    await state.cloudflare.end_sessions(email)
+                except CloudflareError as e:
+                    warning = str(e)
+        return {**await _people_view(state, request.state.who), "warning": warning}
+
     return app
+
+
+def _people_status(e: EhrError) -> int:
+    return {
+        ErrorKind.BAD_INPUT: 400,
+        ErrorKind.NOT_VERIFIED: 403,
+        ErrorKind.NOT_ALLOWED_NOW: 409,
+    }.get(e.kind, 404 if "no such" in e.detail else 409 if "already" in e.detail else 502)
+
+
+async def _people_view(state: State, who: str) -> dict[str, Any]:
+    """The People view's data. `invite`: the demo's address, for the Copy invite button."""
+    assert state.ehr is not None
+    try:
+        people = await state.ehr.list_users()
+        store = True
+    except EhrError as e:
+        if e.kind is not ErrorKind.NOT_ALLOWED_NOW:
+            raise HTTPException(502, "ehr could not read the list") from None
+        people, store = [], False
+    origin = state.access.settings.origin if state.access is not None else os.environ.get("DEETS_DEMO_ORIGIN")
+    return {
+        "people": people,
+        "store": store,
+        "linked": state.cloudflare is not None,
+        "invite": f"{origin.rstrip('/')}{DEMO_BASE}/" if origin else None,
+        "you": who,
+    }
+
+
+async def _push_people(state: State) -> str | None:
+    """Make Cloudflare's group the list's emails. None when done or not linked; else the
+    reason, for the page to show (the list itself is saved either way)."""
+    if state.cloudflare is None or state.ehr is None:
+        return None
+    try:
+        emails = [p["email"] for p in await state.ehr.list_users()]
+        await state.cloudflare.set_emails(emails)
+    except (EhrError, CloudflareError) as e:
+        return str(e) if isinstance(e, CloudflareError) else "ehr could not read the list"
+    return None
+
+
+async def sync_people(state: State) -> None:
+    """At start (DEMO.md §3.5): bring the group's emails into the list (people added in
+    Cloudflare's dashboard), then make the group the list, and from then on let a guest in only
+    while they are on the list. Without a link to Cloudflare, Access's own policy is the list,
+    as before. Prints outcomes only, never an email."""
+    if state.cloudflare is None or state.ehr is None:
+        return
+    async with state.people_lock:
+        try:
+            added = await state.ehr.seed_users(await state.cloudflare.emails())
+        except CloudflareError as e:
+            print(f"people: {e}; guests are checked by Access alone", file=sys.stderr, flush=True)
+            return
+        except EhrError:
+            print("people: no store, so no list; guests are checked by Access alone", file=sys.stderr, flush=True)
+            return
+        warning = await _push_people(state)
+    if warning:
+        print(f"people: {warning}", file=sys.stderr, flush=True)
+    if added:
+        print(f"people: {added} brought in from Cloudflare's group", flush=True)
+    if state.access is not None:
+        ehr = state.ehr
+        state.access.set_guests(lambda email: ehr.admit_user(email))
+
+
+async def _ice_for(state: State, who: str) -> list[dict]:
+    """The ICE servers for a voice call: none for the owner on this PC; for a guest, Cloudflare
+    STUN and TURN (turn.py), or 409 with the reason when they cannot be had."""
+    if who == OWNER:
+        return []
+    if state.turn is None:
+        raise HTTPException(409, "a guest voice call needs the TURN key in .env")
+    try:
+        return await ice_servers(state.turn)
+    except (TurnError, aiohttp.ClientError, TimeoutError):
+        raise HTTPException(502, "Cloudflare's TURN service did not answer") from None
+
+
+def _static_file(root: Path, path: str) -> Path | None:
+    """The file `path` names under `root`, or None: outside the folder, a dotfile, a folder."""
+    if not path or path.endswith("/"):
+        path += "index.html"
+    if any(part.startswith(".") for part in path.split("/")) or "\\" in path:
+        return None
+    file = (root / path).resolve()
+    if not file.is_relative_to(root) or not file.is_file():
+        return None
+    return file
+
+
+def _entry_script(index: Path) -> str | None:
+    """The built page's entry script (`assets/index-<hash>.js`), which changes with each build
+    that changes the code."""
+    try:
+        html = index.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(r'<script[^>]+type="module"[^>]+src="([^"]+)"', html) or re.search(
+        r'<script[^>]+src="([^"]+)"[^>]+type="module"', html
+    )
+    return m.group(1) if m else None
+
+
+class DemoPrefix:
+    """`/demo/agent/…` is `/agent/…` (DEMO.md §3.1): the built console calls its routes under
+    its base path, for requests and WebSockets alike. Everything else passes as it is."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            path = scope.get("path", "")
+            if path.startswith(f"{DEMO_BASE}/agent/"):
+                path = path[len(DEMO_BASE) :]
+                scope = {**scope, "path": path, "raw_path": path.encode()}
+        await self.app(scope, receive, send)
 
 
 # Each settings service (ehr's settings.rs › service) and its code defaults: the Default version.
@@ -759,6 +1091,8 @@ async def system_view(state: State, version: int) -> dict[str, Any]:
             "count": prompts.VARIABLES_MAX,
         },
         built_in=list(prompts.BUILT_IN),
+        # The sections' names and tabs, for the links to Config › Agent.
+        guide=prompts.load_guide(),
     )
     return view
 
@@ -775,6 +1109,8 @@ async def prompt_view(state: State, version: int) -> dict[str, Any]:
         code_values=_code_values(),
         tools=[{"name": t["name"], "does": t["does"], "steps": t["steps"]} for t in _tools()],
         tool_scope={k: sorted(v) for k, v in tool_scope().items()},
+        # Where each section shows, its name, and when it plays (GUIDE.md; AGENT-PAGE.md).
+        guide=prompts.load_guide(),
         placeholders={k: sorted(v) for k, v in prompts.PLACEHOLDERS.items()},
         recordings={"match": recordings_match(), "scripts": len(scripts)},
         # The dry run's quote for these words, or None while none is known (the page asks for one).
@@ -969,8 +1305,6 @@ async def save_settings(state: State, service: str, values: dict[str, Any]) -> N
         if e.kind is ErrorKind.NOT_ALLOWED_NOW:
             raise HTTPException(409, "no settings store: start Postgres (npm run db:start)") from None
         raise HTTPException(502, "ehr could not save the settings") from None
-        # The sections' names and tabs, for the links to Config › Agent.
-        guide=prompts.load_guide(),
 
 
 async def anthropic_view(state: State, version: int) -> dict[str, Any]:
@@ -979,7 +1313,7 @@ async def anthropic_view(state: State, version: int) -> dict[str, Any]:
     set."""
     view = await settings_view(state, "llm", version)
     active = view["active"]
-    live = state.live.cost() if state.live is not None else None
+    live = sum(c.record.cost() for c in state.lives.values()) if state.lives else None
     view.update(
         key=state.has_key,
         models=[
@@ -987,8 +1321,6 @@ async def anthropic_view(state: State, version: int) -> dict[str, Any]:
                 "id": mid,
                 "name": m["name"],
                 "effort_default": m["effort_default"],
-        # Where each section shows, its name, and when it plays (GUIDE.md; AGENT-PAGE.md).
-        guide=prompts.load_guide(),
                 "thinking_off": m["thinking_off"] is not None,
                 "price": dict(zip(("input", "output", "cache_read"), m["price"])),
             }
@@ -1086,8 +1418,8 @@ async def _find_voice_id(key: str, name: str) -> str:
 
 def _refuse_call(state: State, ehr_source: str) -> str | None:
     """Why a new test call cannot start now, or None."""
-    if state.live is not None:
-        return "a test call is already running"
+    if len(state.lives) >= MAX_LIVE_CALLS:
+        return f"{MAX_LIVE_CALLS} calls are running; wait for one to end"
     if state.ehr is None:
         return "ehr is not up yet"
     if not state.has_key:
@@ -1099,57 +1431,92 @@ def _refuse_call(state: State, ehr_source: str) -> str | None:
     return None
 
 
+# Every tool call of every live call, counted in order (LiveCall.texted_at).
+_TOOL_CALLS = itertools.count(1)
+
+
+def _label(raw: str | None) -> str | None:
+    """The words typed beside Start (DEMO.md §3.6), trimmed to one line of `MAX_LABEL`; None
+    when empty."""
+    if not raw:
+        return None
+    text = " ".join("".join(ch if ch.isprintable() else " " for ch in raw).split())[:MAX_LABEL]
+    return text or None
+
+
+def _tag(raw: str | None) -> str | None:
+    """The page's own mark for its call: letters, digits and dashes, or None."""
+    return raw if raw and re.fullmatch(r"[A-Za-z0-9-]{1,40}", raw) else None
+
+
 def _open_record(
-    state: State, ehr_source: str, seat: str, llm: dict[str, Any], words: prompts.Words
-) -> CallRecord:
-    """Open the test call's record and make it the live call: the watch stream follows it.
+    state: State,
+    ehr_source: str,
+    seat: str,
+    llm: dict[str, Any],
+    words: prompts.Words,
+    who: str,
+    label: str | None = None,
+    tag: str | None = None,
+) -> LiveCall:
+    """Open the test call's record and add it to the live calls: the watch stream carries it.
     `llm` and `words`: the llm settings and the agent's words the call runs with (CONSOLE.md §8,
-    §9)."""
+    §9). `who`: `OWNER` or a guest's email; the record gets only `owner` or `guest`."""
     record = CallRecord(
         state.mode.value,
         llm["model"],
+        folder=state.calls,
         source="test",
         ehr=ehr_source,
         seat=seat,
         llm=llm,
         prompt_version=words.label,
         system_version=words.system_label,
+        label=label,
+        started_by="owner" if who == OWNER else "guest",
     )
-    state.live = record
-    redact.dev_tap = record.log
-    record.listeners.append(
-        lambda text: state.broadcast({"type": "event", "call": record.call_id, "event": json.loads(text)})
-    )
-    state.broadcast({"type": "started", "call": record.call_id})
-    return record
+    live = LiveCall(record=record, seat=seat, ehr=ehr_source, by=who, label=label, tag=tag)
+    state.lives[record.call_id] = live
+
+    def heard(text: str) -> None:
+        event = json.loads(text)
+        if event.get("kind") == "tool_call":
+            # A count, not a clock: Windows' clock can give two calls the same time.
+            live.texted_at = next(_TOOL_CALLS)
+        state.broadcast({"type": "event", "call": record.call_id, "event": event})
+
+    record.listeners.append(heard)
+    state.broadcast({"type": "started", "call": record.call_id, "info": live.info()})
+    return live
 
 
 async def _run_call(
     state: State,
     transport: BaseTransport,
-    ehr_source: str,
-    voice: Voice | None,
-    record: CallRecord | None = None,
-    llm: dict[str, Any] | None = None,
-    words: prompts.Words | None = None,
+    live: LiveCall,
+    llm: dict[str, Any],
+    words: prompts.Words,
 ) -> None:
     """Run one test call on its seat until it ends, then close and file its record. The whole
     call runs with the llm settings and the agent's words active when it starts (Config ›
     Anthropic and Agent, CONSOLE.md §8, §9): the words are this task's own (prompts.use), so a
-    save during the call changes nothing in it."""
-    if llm is None:
-        llm = await active_settings(state, "llm")
-    if words is None:
-        words = await active_words(state)
-    if record is None:
-        record = _open_record(state, ehr_source, "text", llm, words)
+    save during the call changes nothing in it. Several run at once, each with its own record,
+    voice meter and log tap (DEMO.md §3.6)."""
     assert state.ehr is not None
+    record, voice = live.record, live.voice
     token = prompts.use(words)
+    # This call's warnings go to this call's record: the tasks the call starts inherit it.
+    redact.set_dev_tap(record.log)
 
     reason = "the caller hung up"
     try:
         typed = TypedCall(
-            state.ehr, build_llm(state.mode, values=llm), record, transport=transport, ehr_source=ehr_source, voice=voice
+            state.ehr,
+            build_llm(state.mode, values=llm),
+            record,
+            transport=transport,
+            ehr_source=live.ehr,
+            voice=voice,
         )
 
         @transport.event_handler("on_client_disconnected")
@@ -1165,11 +1532,17 @@ async def _run_call(
     finally:
         prompts.reset(token)
         record.close(reason, cartesia=voice.meter.totals() if voice is not None else None)
-        redact.dev_tap = None
-        state.voice = None
+        redact.set_dev_tap(None)
         await _file(state.ehr, record)
-        state.live = None
+        state.lives.pop(record.call_id, None)
         state.catalog.refresh(record.call_id)
+        # The label typed beside Start becomes the call's label in the catalog (DEMO.md §3.6),
+        # so nobody types it twice. A later label from the Review panel replaces it.
+        if live.label:
+            try:
+                state.catalog.annotate({"call": record.call_id, "kind": "label", "text": live.label})
+            except AnnotationError:
+                pass
         state.broadcast({"type": "ended", "call": record.call_id})
 
 
@@ -1197,16 +1570,58 @@ def main() -> int:
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--origin", action="append", default=[], help="the console's origin (repeatable)")
     parser.add_argument("--log", default="WARNING", help="log level (the logs carry no PHI)")
+    parser.add_argument(
+        "--static",
+        type=Path,
+        default=None,
+        help="the demo: serve this built console under /demo/ and open the second door (docs/ops/DEMO.md)",
+    )
     args = parser.parse_args()
     token = os.environ.get("DEETS_DEV_TOKEN", "")
     if len(token) < 32:
         print("DEETS_DEV_TOKEN is missing or short. Start the dev server with `npm run dev`.", file=sys.stderr)
         return 2
     redact.install(args.log)
-    state = State(token, set(args.origin), args.port)
+    # The demo's and the People list's settings are in .env, which config otherwise loads only
+    # when a key is first asked for.
+    load_dotenv(config.REPO / ".env", override=False)
+    try:
+        linked = CloudflareSettings.from_env()
+    except ValueError as e:
+        print(f"the People list's settings in .env: {e}", file=sys.stderr)
+        return 2
+    cloudflare = AccessGroup(linked) if linked is not None else None
+    access, turn = None, None
+    if args.static is not None:
+        # The demo: no second door without Access's settings, and never a door left open.
+        try:
+            settings = AccessSettings.from_env()
+            turn = TurnSettings.from_env()
+        except ValueError as e:
+            print(f"the demo's settings in .env: {e}", file=sys.stderr)
+            return 2
+        if settings is None:
+            print(
+                "the demo needs DEETS_ACCESS_TEAM, DEETS_ACCESS_AUD and DEETS_DEMO_ORIGIN in .env",
+                file=sys.stderr,
+            )
+            return 2
+        access = AccessGate(settings)
+    state = State(
+        token,
+        set(args.origin),
+        args.port,
+        access=access,
+        static=args.static,
+        turn=turn,
+        cloudflare=cloudflare,
+    )
     keyed = "test calls live" if state.has_key else "no Anthropic key: Demo only"
     print(f"agent dev server on 127.0.0.1:{args.port} ({keyed})", flush=True)
-    uvicorn.run(build_app(state), host="127.0.0.1", port=args.port, log_level="warning", access_log=False)
+    if access is not None:
+        relay = "guest voice through TURN" if turn is not None else "no TURN key: guests type only"
+        print(f"demo at {access.settings.origin}{DEMO_BASE}/ ({relay})", flush=True)
+    uvicorn.run(DemoPrefix(build_app(state)), host="127.0.0.1", port=args.port, log_level="warning", access_log=False)
     return 0
 
 

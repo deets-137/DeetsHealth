@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/voice.py, agent/deets_agent/resources.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # DeetsHealth — The Chat page
 
@@ -166,9 +166,9 @@ still works. The replay cache stays for the typed harness and the tests (AGENT.m
   `chat.ts`), so a recorded call plays exactly as it was drawn live. Fixed lines (the 911
   line, the code lines) come this way: they are not model text, so RTVI's text events do not
   carry them.
-- **One test call at a time.** A second Start while a call runs is refused ("a test call is
-  already running"). Each test call writes a record (`source: test`) that joins the catalog
-  when it ends.
+- **Several test calls at once** (since 2026-11-13, the owner's fork A; ops/DEMO.md §3.6), up
+  to 8. Each page knows its own call by a tag it sends with Start. Each test call writes a
+  record (`source: test`) that joins the catalog when it ends.
 - **The line facts, for now:** an agent bubble shows "text 0.8 s" (the time to the first word
   of its first live request to Claude). A recorded call from the typed harness can show
   "replayed" in Demo; a test call never does. Speech and transcription times come with the
@@ -296,8 +296,10 @@ back at its time. The sandbox list is TEXTS.md §8.
 ### 8.2 The rail's second panel
 Since 2026-11-13 the patients are the top panel's first tab, not a panel (§15). The page sets
 `data-mode` on `.split-page` as well as on `.chat` (`showMode`), and CSS picks the tab's word
-and content: **Sandbox EPTs** (`.sandbox`) in Testing and Demo, **Caller** (`.caller-empty`,
-empty for now) in PHI.
+and content: **Sandbox EPTs** (`.sandbox`) in Testing and Demo, **Caller** (`.live-calls`) in
+PHI: since 2026-11-13 the list of live calls, newest first, and the one PHI watches. A press on
+a row watches that call from its start. The label box left of Start | End in Testing names a
+call in this list. Both are ops/DEMO.md §3.6 and §7.
 
 Each patient (`sandboxRows`), in the fixture's order, all of them (the near-twins too). Since
 2026-11-13 (the owner: "main line and their contact info, DOB as bullets with the visits as a

@@ -34,5 +34,6 @@ pub mod settings;
 pub mod store;
 pub mod texts;
 pub mod transport;
+pub mod users;
 pub mod verify;
 pub mod visit_about;

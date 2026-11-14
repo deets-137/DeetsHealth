@@ -100,6 +100,11 @@ Plain columns hold no protected data; sealed columns are bytes under `seal.rs`.
 - `annotations`: call, kind, grader, dimension, verdict, score, rubric version, time; the note
   sealed.
 - `audit`: who read what and when (each transcript view, each flag's notes). Plain ids only.
+- **`users`** (`0007_users.sql`, 2026-11-14; ops/DEMO.md §3.5): who may sign in to the console.
+  The email and the name sealed; `email_hash` a keyed hash of the email (unique) to find a row;
+  `source`, `owner` (at most one), `added_by`, `added_at`, `last_seen_at`, `removed_at` plain
+  (a removal keeps the row, for the audit log); `role` empty until roles. Written by `ehr`'s
+  `users.rs` only.
 - **The settings store** (`0002_settings.sql`, 2026-11-13; CONSOLE.md §7.3): `setting_versions`,
   one key–value table per service (`settings_voice`; `settings_llm` since `0004_settings_llm.sql`,
   CONSOLE.md §8.3; `settings_prompt`, the agent's words, since `0005_settings_prompt.sql`,

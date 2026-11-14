@@ -136,3 +136,65 @@ async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
     store.pool().close().await;
     sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
 }
+
+/// The People list (users.rs; docs/ops/DEMO.md §3.5): the owner from the first seed, an add by
+/// the owner, the sealed columns, last seen, the owner guard, a removal that keeps the row, and a
+/// return on the same row.
+#[tokio::test]
+async fn the_people_list_seals_guards_the_owner_and_keeps_removed_rows() {
+    use deetshealth_ehr::users::{self, UsersError};
+    let Ok(url) = std::env::var("DEETS_DATABASE_URL") else {
+        eprintln!("skipped: DEETS_DATABASE_URL is not set");
+        return;
+    };
+    let mut admin = PgConnection::connect(&url).await.unwrap();
+    let name = format!("deets_users_test_{}", std::process::id());
+    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    let base = url.rsplit_once('/').unwrap().0;
+    let store = Store::connect(&format!("{base}/{name}"), key()).await.unwrap();
+    let pool = store.pool();
+
+    // The first seed with one email: the owner. A second seed adds others, never a second owner.
+    assert_eq!(users::seed(&store, &["Owner@Example.com".into()]).await.unwrap(), 1);
+    assert_eq!(users::seed(&store, &["owner@example.com".into(), "dash@example.com".into()]).await.unwrap(), 1);
+    let people = users::list(&store).await.unwrap();
+    assert_eq!(people.len(), 2);
+    assert!(people[0].owner && people[0].email.as_str() == "owner@example.com");
+    assert!(!people[1].owner && people[1].name.as_str() == "dash@example.com");
+
+    // An add from the owner's PC (`by` empty) names the owner as the adder.
+    let id = users::add(&store, "Priya@Example.com", " Priya  Shah ", "").await.unwrap();
+    assert_eq!(users::add(&store, "priya@example.com", "Again", "").await, Err(UsersError::Exists));
+    let priya = users::list(&store).await.unwrap().into_iter().find(|u| u.id == id).unwrap();
+    assert_eq!((priya.name.as_str(), priya.added_by.as_str()), ("Priya Shah", "owner@example.com"));
+    assert!(priya.last_seen_at.is_none());
+
+    // Sealed: neither the email nor the name is in the row as plain text.
+    let row: (Vec<u8>, Vec<u8>) = sqlx::query_as("SELECT email, name FROM users WHERE id = $1::uuid").bind(&id).fetch_one(pool).await.unwrap();
+    for bytes in [&row.0, &row.1] {
+        let text = String::from_utf8_lossy(bytes);
+        assert!(!text.contains("priya") && !text.contains("Priya"));
+    }
+
+    // Seen; then removed (the row stays); then not let in; then back on the same row.
+    assert!(users::admit(&store, "PRIYA@example.com").await.unwrap());
+    assert!(users::list(&store).await.unwrap().iter().any(|u| u.id == id && u.last_seen_at.is_some()));
+    let owner_id = users::list(&store).await.unwrap()[0].id.clone();
+    assert_eq!(users::remove(&store, &owner_id).await.err(), Some(UsersError::Owner));
+    assert_eq!(users::remove(&store, &id).await.unwrap().as_str(), "priya@example.com");
+    assert_eq!(users::remove(&store, &id).await.err(), Some(UsersError::NotFound));
+    assert!(!users::admit(&store, "priya@example.com").await.unwrap());
+    let kept: i64 = sqlx::query_scalar("SELECT count(*) FROM users WHERE removed_at IS NOT NULL").fetch_one(pool).await.unwrap();
+    assert_eq!(kept, 1);
+    // A seed never brings a removed person back.
+    assert_eq!(users::seed(&store, &["priya@example.com".into()]).await.unwrap(), 0);
+    assert!(!users::admit(&store, "priya@example.com").await.unwrap());
+    let again = users::add(&store, "priya@example.com", "Priya S.", "dash@example.com").await.unwrap();
+    assert_eq!(again, id);
+    let back = users::list(&store).await.unwrap().into_iter().find(|u| u.id == id).unwrap();
+    assert_eq!((back.name.as_str(), back.added_by.as_str()), ("Priya S.", "dash@example.com"));
+
+    store.pool().close().await;
+    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+}

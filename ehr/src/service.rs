@@ -15,6 +15,7 @@ use crate::{
     session::{Pending, PatientKey, Refusal, Sessions, Source, Stage, Token},
     settings,
     store::Store,
+    users,
     verify::{one_match, Candidate, Codes, Down, Patients},
 };
 use zeroize::Zeroizing;
@@ -515,9 +516,70 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         })?;
         Ok(Response::new(pb::SaveSettingsReply { version: Some(setting_version(v)) }))
     }
+
+    async fn list_users(&self, _: Request<pb::ListUsersRequest>) -> Result<Response<pb::ListUsersReply>, Status> {
+        let store = self.settings_store()?;
+        let people = users::list(store).await.map_err(users_status)?;
+        let users = people
+            .into_iter()
+            .map(|u| pb::User {
+                id: u.id,
+                email: u.email.to_string(),
+                name: u.name.to_string(),
+                owner: u.owner,
+                added_by: u.added_by.to_string(),
+                added_at: u.added_at,
+                last_seen_at: u.last_seen_at.unwrap_or_default(),
+            })
+            .collect();
+        Ok(Response::new(pb::ListUsersReply { users }))
+    }
+
+    async fn add_user(&self, req: Request<pb::AddUserRequest>) -> Result<Response<pb::AddUserReply>, Status> {
+        let req = req.into_inner();
+        // Checked before the store, so a bad request is refused the same way with or without one.
+        users::normal_email(&req.email).map_err(users_status)?;
+        users::normal_name(&req.name).map_err(users_status)?;
+        let store = self.settings_store()?;
+        let id = users::add(store, &req.email, &req.name, &req.by).await.map_err(users_status)?;
+        Ok(Response::new(pb::AddUserReply { id }))
+    }
+
+    async fn remove_user(&self, req: Request<pb::RemoveUserRequest>) -> Result<Response<pb::RemoveUserReply>, Status> {
+        let store = self.settings_store()?;
+        let email = users::remove(store, &req.get_ref().id).await.map_err(users_status)?;
+        Ok(Response::new(pb::RemoveUserReply { email: email.to_string() }))
+    }
+
+    async fn admit_user(&self, req: Request<pb::AdmitUserRequest>) -> Result<Response<pb::AdmitUserReply>, Status> {
+        let store = self.settings_store()?;
+        let active = users::admit(store, &req.get_ref().email).await.map_err(users_status)?;
+        Ok(Response::new(pb::AdmitUserReply { active }))
+    }
+
+    async fn seed_users(&self, req: Request<pb::SeedUsersRequest>) -> Result<Response<pb::SeedUsersReply>, Status> {
+        if req.get_ref().emails.len() > 500 {
+            return Err(Status::invalid_argument("emails: at most 500"));
+        }
+        let store = self.settings_store()?;
+        let emails: Vec<String> = req.into_inner().emails.into_iter().map(|e| e.email).collect();
+        let added = users::seed(store, &emails).await.map_err(users_status)?;
+        Ok(Response::new(pb::SeedUsersReply { added: added as i32 }))
+    }
 }
 
 /// The service a settings request names, with its list and table (settings.rs).
+/// The People list's errors (users.rs) as statuses: fixed words, never an email or a name.
+fn users_status(e: users::UsersError) -> Status {
+    match e {
+        users::UsersError::Bad(why) => Status::invalid_argument(why),
+        users::UsersError::Exists => Status::already_exists("that email is already on the list"),
+        users::UsersError::NotFound => Status::not_found("no such person on the list"),
+        users::UsersError::Owner => Status::permission_denied("the owner cannot be removed"),
+        users::UsersError::Store(_) => Status::internal("the store could not read or write the list"),
+    }
+}
+
 fn setting_service(name: &str) -> Result<(&'static str, &'static [settings::Setting], &'static str), Status> {
     settings::service(name).ok_or_else(|| Status::invalid_argument("service: not a settings service"))
 }
@@ -908,6 +970,19 @@ mod tests {
             ("Visit", "visit_type"),
             ("Visit", "reason"),
         ];
+        // The People list's messages come first in the file (ehr.proto, after the settings).
+        let people = [
+            ("User", "email"),
+            ("User", "name"),
+            ("User", "added_by"),
+            ("AddUserRequest", "email"),
+            ("AddUserRequest", "name"),
+            ("AddUserRequest", "by"),
+            ("RemoveUserReply", "email"),
+            ("AdmitUserRequest", "email"),
+            ("SeedEmail", "email"),
+        ];
+        let want: Vec<_> = people.into_iter().chain(want).collect();
         assert_eq!(pb::MARKED_FIELDS, want);
     }
 }

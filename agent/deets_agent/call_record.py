@@ -15,7 +15,8 @@ Each line is one event: `t_ms` (from the call's start; to a tenth of a milliseco
   (`typed`, `test`), the scenario (a script's name, or none), the EHR it read (`ehr`: `local`
   for ehr's fakes, `epic` for Epic's public sandbox; schema 6), the seat (`text` or `voice`;
   schema 7), the mode, the model, its `llm` settings and `inference_geo` (schema 8), its
-  `prompt_version` (schema 9), its `system_version` (schema 10); at the end, the totals and the estimated cost, and for a
+  `prompt_version` (schema 9), its `system_version` (schema 10), the `label` typed beside
+  Start and `started_by` (`owner` or `guest`; schema 11); at the end, the totals and the estimated cost, and for a
   voice call `cartesia`: Ink's seconds, Sonic's characters and their credits (schema 7).
 - `caller`, `agent` — what each side said. `first_ms` on `agent` (schema 4): when the line's
   first frame passed, on the call's clock; the event's own `t_ms` comes after the harness's
@@ -69,8 +70,10 @@ CALLS = config.AGENT / "calls"
 # inference (1.1×). 9: since 2026-11-13, evening: `prompt_version` on `call_start`, the label of
 # the words the call ran with ("MM-DD | n", "Default", or "file"). 10: since 2026-11-13, night:
 # `system_version` on `call_start`, the label of the System variables the call ran with
-# (SYSTEM-PAGE.md §3.4). The catalog reads all ten.
-SCHEMA_VERSION = 10
+# (SYSTEM-PAGE.md §3.4). 11: since 2026-11-13, late night: `label` on `call_start` when the
+# person typed one beside Start, and `started_by` (`owner` or `guest`) on a dev server call
+# (docs/ops/DEMO.md §3.6). The catalog reads all eleven.
+SCHEMA_VERSION = 11
 
 
 def cost_usd(tokens: dict[str, int], model: str, cache_ttl: str = "5m", geo: bool = True) -> float:
@@ -180,9 +183,13 @@ class CallRecord:
         llm: dict[str, Any] | None = None,
         prompt_version: str = "file",
         system_version: str = "file",
+        label: str | None = None,
+        started_by: str | None = None,
     ) -> None:
         """`llm`: the call's llm settings (Config › Anthropic, CONSOLE.md §8); the code's when
-        none. Written on `call_start` (schema 8) and used for the cost."""
+        none. Written on `call_start` (schema 8) and used for the cost. `label`: what the person
+        typed beside Start; `started_by`: `owner` or `guest` (schema 11; docs/ops/DEMO.md
+        §3.6). Never a guest's email: these files are committed."""
         llm = {**config.llm_defaults(), **(llm or {}), "model": model}
         folder.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -224,6 +231,8 @@ class CallRecord:
             prompt_version=prompt_version,
             system_version=system_version,
             started=datetime.now().isoformat(timespec="seconds"),
+            **({"label": label} if label else {}),
+            **({"started_by": started_by} if started_by else {}),
         )
 
     def event(self, kind: str, **fields: Any) -> None:

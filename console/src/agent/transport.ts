@@ -15,6 +15,7 @@ import {
   type TransportConnectionParams,
   type TransportState,
 } from "@pipecat-ai/client-js";
+import { iceServers, socketAt } from "./api";
 
 const NONE = {} as Record<string, never>;
 
@@ -22,12 +23,12 @@ export class TextSeat extends Transport {
   private ws: WebSocket | undefined;
   private readonly url: string;
 
-  /** `path` is on this page's own origin; Vite's proxy takes it to the agent (vite.config.ts).
-   * Its query may name the EHR the call reads (`?ehr=epic`, CHAT.md §13). */
+  /** `path` is on this page's own origin, under its base; Vite's proxy (or, in the demo, the
+   * dev server itself) takes it to the agent. Its query may name the EHR the call reads
+   * (`?ehr=epic`, CHAT.md §13). */
   constructor(path = "/agent/call") {
     super();
-    const scheme = location.protocol === "https:" ? "wss:" : "ws:";
-    this.url = `${scheme}//${location.host}${path}`;
+    this.url = socketAt(path);
     this._state = "disconnected";
   }
 
@@ -142,8 +143,10 @@ export class TextSeat extends Transport {
  * counts a seat gone after 3 s with no message (connection.py › is_connected). */
 const PING_MS = 1000;
 /** The longest wait for the browser to gather its ICE candidates before it sends the offer. On
- * one machine the host candidates come at once. */
+ * one machine the host candidates come at once. With STUN and TURN (a guest in the demo) the
+ * relay candidates take a round trip to Cloudflare, so the wait is longer. */
 const GATHER_MS = 2000;
+const GATHER_RELAY_MS = 5000;
 
 /** The caller's seat for a voice test call (CHAT.md §17): the laptop microphone and speaker over
  * WebRTC to Pipecat's SmallWebRTC server, and RTVI as JSON on the data channel, so typed lines
@@ -196,8 +199,18 @@ export class VoiceSeat extends Transport {
   async _connect(_connectParams?: TransportConnectionParams): Promise<void> {
     if (!this.mic) await this.initDevices();
     this.state = "connecting";
-    // On this machine both ends are local: host candidates only, no STUN or TURN server.
-    const pc = new RTCPeerConnection();
+    // On this machine both ends are local: no ICE servers, host candidates only. A guest in the
+    // demo gets Cloudflare STUN and TURN (docs/ops/DEMO.md §3.7). The offer carries every
+    // candidate, so they are gathered before it is sent (gathered() below).
+    let servers: RTCIceServer[];
+    try {
+      servers = await iceServers();
+    } catch (e) {
+      this.close();
+      this.state = "disconnected";
+      throw e;
+    }
+    const pc = new RTCPeerConnection({ iceServers: servers });
     this.pc = pc;
     pc.addTransceiver(this.mic!, { direction: "sendrecv" });
     pc.addEventListener("track", (e) => {
@@ -225,7 +238,7 @@ export class VoiceSeat extends Transport {
     });
 
     await pc.setLocalDescription(await pc.createOffer());
-    await gathered(pc);
+    await gathered(pc, servers.length ? GATHER_RELAY_MS : GATHER_MS);
     try {
       const answer = await this.offer(pc.localDescription!);
       await pc.setRemoteDescription(answer);
@@ -334,10 +347,10 @@ export class VoiceSeat extends Transport {
 }
 
 /** Resolves when the browser has gathered its ICE candidates, or after GATHER_MS. */
-function gathered(pc: RTCPeerConnection): Promise<void> {
+function gathered(pc: RTCPeerConnection, limitMs: number): Promise<void> {
   if (pc.iceGatheringState === "complete") return Promise.resolve();
   return new Promise((ok) => {
-    const timer = window.setTimeout(ok, GATHER_MS);
+    const timer = window.setTimeout(ok, limitMs);
     pc.addEventListener("icegatheringstatechange", () => {
       if (pc.iceGatheringState === "complete") {
         window.clearTimeout(timer);

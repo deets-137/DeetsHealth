@@ -60,10 +60,18 @@ export class AnnotationRefused extends Error {
   }
 }
 
+/** A route's path under the page's base: `/agent/…` on this PC, `/demo/agent/…` in the demo
+ * build (docs/ops/DEMO.md §3.1), where the dev server takes it as the same route. */
+export const at = (path: string): string => import.meta.env.BASE_URL.replace(/\/$/, "") + path;
+
+/** The same, as a WebSocket address on the page's own host. */
+export const socketAt = (path: string): string =>
+  `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${at(path)}`;
+
 async function get<T>(path: string): Promise<T> {
   let r: Response;
   try {
-    r = await fetch(path, { headers: { accept: "application/json" } });
+    r = await fetch(at(path), { headers: { accept: "application/json" } });
   } catch {
     throw new AgentDown("the agent's dev server is not running");
   }
@@ -74,7 +82,12 @@ async function get<T>(path: string): Promise<T> {
 /** `epic`: whether the dev server gave ehr Epic's sandbox (CHAT.md §13). `voice`: whether
  * the Cartesia key is in .env (CHAT.md §17). */
 export const health = () =>
-  get<{ key: boolean; live: string | null; epic: boolean; voice: boolean }>("/agent/health");
+  get<{ key: boolean; live: string | null; calls: number; epic: boolean; voice: boolean }>("/agent/health");
+
+/** The query a new call sends: the EHR it reads, the label typed beside Start, and this page's
+ * mark for it (docs/ops/DEMO.md §3.6). */
+export const callQuery = (ehr: EhrSource, label: string, tag: string): string =>
+  new URLSearchParams({ ehr, ...(label ? { label } : {}), tag }).toString();
 
 /** A voice call's use of Cartesia so far (agent/deets_agent/voice.py › VoiceMeter). */
 export type CartesiaUse = { ink_s: number; sonic_chars: number; credits: number; seconds?: number };
@@ -313,7 +326,7 @@ export type Estimate = { state: "running" | "done"; missing: string[]; usd: numb
 /** Ask for the quote: a dry run with no Claude call, in the background. */
 export async function estimatePrompt(): Promise<Estimate | null> {
   try {
-    const r = await fetch("/agent/prompt/estimate", { method: "POST" });
+    const r = await fetch(at("/agent/prompt/estimate"), { method: "POST" });
     if (!r.ok) return null;
     return ((await r.json()) as { estimate: Estimate | null }).estimate;
   } catch {
@@ -324,7 +337,7 @@ export async function estimatePrompt(): Promise<Estimate | null> {
 export async function recordPrompt(): Promise<Recording> {
   let r: Response;
   try {
-    r = await fetch("/agent/prompt/record", { method: "POST" });
+    r = await fetch(at("/agent/prompt/record"), { method: "POST" });
   } catch {
     throw new AgentDown("the agent's dev server is not running");
   }
@@ -336,7 +349,7 @@ export async function recordPrompt(): Promise<Recording> {
 async function saveSettings<T>(path: string, values: unknown): Promise<T> {
   let r: Response;
   try {
-    r = await fetch(path, {
+    r = await fetch(at(path), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ values }),
@@ -351,15 +364,76 @@ async function saveSettings<T>(path: string, values: unknown): Promise<T> {
   return (await r.json()) as T;
 }
 
+/** One person who may sign in (Teams › People; docs/ops/DEMO.md §3.5; ehr's users.rs). */
+export type Person = {
+  id: string;
+  email: string;
+  name: string;
+  owner: boolean;
+  added_by: string | null;
+  added_at: string;
+  last_seen_at: string | null;
+};
+
+/** The People view: the list, whether the store and Cloudflare's group are there, the invite
+ * link, who is asking ("owner", or their email), and after a change, Cloudflare's trouble if
+ * it had any (the list is saved either way). */
+export type People = {
+  people: Person[];
+  store: boolean;
+  linked: boolean;
+  invite: string | null;
+  you: string;
+  warning?: string | null;
+};
+
+export const people = () => get<People>("/agent/people");
+
+async function peopleChange(method: "POST" | "DELETE", path: string, body?: unknown): Promise<People> {
+  let r: Response;
+  try {
+    r = await fetch(at(path), {
+      method,
+      headers: body === undefined ? {} : { "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new AgentDown("the agent's dev server is not running");
+  }
+  const reply = (await r.json().catch(() => null)) as (People & { detail?: unknown }) | null;
+  // ehr's reasons are fixed words that name a field, never a value.
+  if (!r.ok || !reply) throw new AgentDown(typeof reply?.detail === "string" ? reply.detail : "not saved");
+  return reply;
+}
+
+export const addPerson = (email: string, name: string) => peopleChange("POST", "/agent/people", { email, name });
+export const removePerson = (id: string) => peopleChange("DELETE", `/agent/people/${encodeURIComponent(id)}`);
+
+/** The ICE servers for a voice call, asked for before the offer (docs/ops/DEMO.md §3.7): none
+ * on this PC; Cloudflare STUN and TURN for a guest. A refusal's reason names no value. */
+export async function iceServers(): Promise<RTCIceServer[]> {
+  let r: Response;
+  try {
+    r = await fetch(at("/agent/ice"), { headers: { accept: "application/json" } });
+  } catch {
+    throw new AgentDown("the agent did not answer");
+  }
+  if (!r.ok) {
+    const body = (await r.json().catch(() => null)) as { detail?: unknown } | null;
+    throw new AgentDown(typeof body?.detail === "string" ? body.detail : "no relay for a voice call");
+  }
+  return ((await r.json()) as { iceServers: RTCIceServer[] }).iceServers;
+}
+
 /** The voice seat's offer (CHAT.md §17): the browser's WebRTC offer, with every ICE candidate in
  * it; the answer comes back. A refusal's reason names no value, so the page may show it. */
 export async function voiceOffer(
-  ehr: EhrSource,
+  query: string,
   offer: RTCSessionDescriptionInit,
 ): Promise<RTCSessionDescriptionInit> {
   let r: Response;
   try {
-    r = await fetch(`/agent/voice?ehr=${ehr}`, {
+    r = await fetch(at(`/agent/voice?${query}`), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ type: offer.type, sdp: offer.sdp }),
@@ -422,7 +496,7 @@ type WithoutCall<A> = A extends unknown ? Omit<A, "call"> : never; // one Omit p
 export async function annotate(a: Annotation): Promise<void> {
   let r: Response;
   try {
-    r = await fetch("/agent/annotations", {
+    r = await fetch(at("/agent/annotations"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(a),
@@ -437,9 +511,22 @@ export async function annotate(a: Annotation): Promise<void> {
   if (!r.ok) throw new AgentDown("the agent's dev server refused");
 }
 
+/** One live call, as the watch stream names it (dev_server.py › LiveCall.info; docs/ops/DEMO.md
+ * §3.6). `by`: "owner", or the guest's email from the Access token. `tag`: the mark the page
+ * that started it sent, so that page knows its own call. */
+export type LiveInfo = {
+  call: string;
+  started: string;
+  seat: "text" | "voice";
+  ehr: EhrSource;
+  by: string;
+  label: string | null;
+  tag: string | null;
+};
+
 export type WatchMessage =
-  | { type: "hello"; live: string | null }
-  | { type: "started"; call: string }
+  | { type: "hello"; live: string | null; calls: LiveInfo[] }
+  | { type: "started"; call: string; info: LiveInfo }
   | { type: "event"; call: string; event: CallEvent }
   | { type: "ended"; call: string };
 
@@ -450,8 +537,7 @@ export function watch(on: (m: WatchMessage) => void, onUp?: (up: boolean) => voi
   let stopped = false;
   let retry = 0;
   const open = () => {
-    const scheme = location.protocol === "https:" ? "wss:" : "ws:";
-    ws = new WebSocket(`${scheme}//${location.host}/agent/watch`);
+    ws = new WebSocket(socketAt("/agent/watch"));
     ws.addEventListener("open", () => onUp?.(true));
     ws.addEventListener("message", (e) => {
       try {

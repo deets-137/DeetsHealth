@@ -9,6 +9,7 @@ import { securityPage } from "./pages/security";
 import { auditPage } from "./pages/audit";
 import { settingsPage } from "./pages/settings";
 import { initialTheme, initThemeMenu, syncThemeColor } from "./theme";
+import { startLiveReload } from "./reload";
 
 async function boot() {
   // prepaint.js set the theme; this only corrects an unknown saved value. Nothing is
@@ -33,6 +34,8 @@ async function boot() {
   const idle = () => document.documentElement.toggleAttribute("data-idle", document.hidden);
   document.addEventListener("visibilitychange", idle);
   idle();
+  // The demo build only (docs/ops/DEMO.md §3.2); nothing on this PC's dev server.
+  startLiveReload();
 }
 
 boot().catch((e) => console.error("[boot]", e instanceof Error ? e.name : "error"));

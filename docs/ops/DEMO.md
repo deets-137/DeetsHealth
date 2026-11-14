@@ -1,14 +1,15 @@
 ---
-status: designed
+status: project
 desk_test: none
-sources: [scripts/dev.mjs, console/vite.config.ts, agent/deets_agent/dev_server.py, console/src/agent/transport.ts, console/public/manifest.webmanifest]
-updated: 2026-11-13
+sources: [scripts/dev.mjs, console/vite.config.ts, agent/deets_agent/cloudflare.py, ehr/src/users.rs, ehr/migrations/0007_users.sql, console/src/pages/people.ts, agent/deets_agent/dev_server.py, agent/deets_agent/access.py, agent/deets_agent/turn.py, console/src/agent/api.ts, console/src/agent/transport.ts, console/src/reload.ts, console/public/manifest.webmanifest]
+updated: 2026-11-14
 ---
 # DeetsHealth — The demo over a tunnel
 
-> Not built. Friends open the console from their own PCs at
-> `https://deetshealth.deets.solutions/demo/` and use it as an analyst would. Every fork is
-> closed; the owner said "Don't build just yet" (2026-11-13).
+> Part built (2026-11-13): steps 1 to 5 of §5 are done; read §7 first. Not yet: the guest
+> list page, the `calls` row at Start and the user profile table, the desk test. Friends open
+> the console from their own PCs at `https://deetshealth.deets.solutions/demo/` and use it as
+> an analyst would.
 
 **Words used here.**
 - **Tunnel:** `cloudflared` on the owner's PC opens an outbound link to Cloudflare. Cloudflare
@@ -84,15 +85,14 @@ server on `127.0.0.1:<agent port>`. Vite's dev server is not on this path (§2.2
 ### 3.2 Live reload (what "hot reload" can be here)
 True hot reload (Vite's HMR, which swaps a module in place) needs the Vite dev server on the
 tunnel, and §2.2 rules that out. The design gives **live reload** instead:
-1. `npm run demo` runs `vite build --watch` into its own folder. A saved change rebuilds in
+1. `npm run dev` (with the demo on, §7) runs `vite build --watch` into its own folder. A saved change rebuilds in
    about 2 s or less (§2.7).
 2. The agent serves that folder. When a build finishes, it tells each open page over the watch
    stream.
 3. A page reloads itself at once when it is idle: no call running in that tab and no unsaved
    edit on a Config page. Otherwise it reloads when the call ends or the edit is saved or
    dropped. A guest never loses a call or a draft to a reload.
-4. A change to the agent (Python) or to `ehr` (Rust) still needs a restart of `npm run demo`,
-   as with `npm run dev` today.
+4. A change to the agent (Python) or to `ehr` (Rust) still needs a restart of `npm run dev`.
 
 The owner's own Vite tab on this PC keeps true hot reload.
 
@@ -114,11 +114,11 @@ launch token never leaves this PC.
   friend's. The emails live only in that group, never in a doc, a commit or this repo. Session
   length: 24 hours.
 - **The tunnel:** a named tunnel `deetshealth-demo`, locally managed. Its credentials file sits
-  in `~/.cloudflared/`, outside the repo. `npm run demo` (`scripts/demo.mjs`) does what
-  `npm run dev` does, then starts the build watch (§3.2) and runs
-  `cloudflared tunnel run --url http://127.0.0.1:<agent port> deetshealth-demo`. The port is
-  free-picked at each launch. Ctrl+C stops the tunnel with everything else. When the demo is
-  not running, the address shows Cloudflare's error page and reaches nothing.
+  in `~/.cloudflared/<id>.json`, outside the repo. `npm run dev` (the owner, 2026-11-13:
+  "tie it to npm run dev with the guards"; §7) also starts the build watch (§3.2) and runs
+  `cloudflared tunnel run --credentials-file … --url http://127.0.0.1:<agent port> <id>`. The port is
+  free-picked at each launch. Ctrl+C stops the tunnel with everything else. When the dev server
+  is not running, the address shows Cloudflare's error page and reaches nothing.
 
 ### 3.5 The guest list from the console
 Yes, the console can manage it.
@@ -204,25 +204,164 @@ their row in [architecture/DEV-API.md](../architecture/DEV-API.md) in the same c
 
 ## 5. Build steps
 1. `cf`: create the tunnel, the DNS record, the Access group and app, and the TURN key, with
-   the owner's go for each (they face the internet).
-2. The wall's second door and the Access token check, with tests in `agent/tests/`.
+   the owner's go for each (they face the internet). Done (§7).
+2. The wall's second door and the Access token check, with tests in `agent/tests/`. Built (§7).
 3. The base path (`/demo/`), `--static` in the dev server, the build watch and live reload,
-   `scripts/demo.mjs`, `npm run demo` in `package.json`.
-4. Several calls at once (§3.6), then PHI mode's picker after its fork.
-5. STUN and TURN for guest voice calls (§3.7).
+   the demo inside `npm run dev` with its guards. Built (§7).
+4. Several calls at once (§3.6), PHI's Caller list (fork A) and the label beside Start (fork
+   2A). Built (§7).
+5. STUN and TURN for guest voice calls (§3.7). Built (§7).
 6. The guest list page (§3.5), after its forks.
 7. The desk test (§6). Then this doc's status becomes `built`.
 
 ## 6. Desk test (draft)
-1. `npm run demo`. The output names `https://deetshealth.deets.solutions/demo/`.
+1. `npm run dev`. The output says `[demo] on: https://deetshealth.deets.solutions/demo/`.
 2. On a phone on mobile data, open the address: Access asks for an email. A non-listed email
    gets no code.
 3. Sign in with a listed email. The console opens.
 4. Start a typed call on Local, then a voice call. Both run.
-5. On the PC, start a second call at the same time. In PHI mode on each side, watch the other
-   call.
+5. On the PC, type a label beside Start and start a second call at the same time. In PHI's
+   Caller tab on each side, both calls are listed, the label on the PC's; press the other
+   call's row and watch it from its start. When it ends, its label is in Demo's list.
+5a. Start `npm run dev` in a second terminal while the first runs: it says the tunnel already
+   has a connector and runs without the demo. In the Pipecat worktree it says it is a worktree.
 6. Change a console file and save it. The phone's page reloads within a few seconds when no
    call runs; during a call it waits for the call to end.
 7. `https://deetshealth.deets.solutions/` and `/demo/@fs/` give 404.
 8. Remove the phone's email from the guest list. Within 30 s its page stops getting answers.
 9. Ctrl+C. The address stops answering.
+
+## 7. As built
+> **Part:** built · 2026-11-13 — steps 1 to 5 of §5. Not desk tested.
+
+**Run it:** `npm run dev`. The demo is part of it (the owner, 2026-11-13: "tie it to npm run
+dev with the guards"; there is no `npm run demo`). `scripts/dev.mjs` checks first, and when
+every piece is there it also runs `vite build --watch` under `/demo/` into
+`console/dist-demo/` (git-ignored), passes that folder to the agent (`--static`), and runs
+`cloudflared tunnel run --url http://127.0.0.1:<agent port>`. It prints `[demo] on: …` or
+`[demo] off: <the reason>`. Your own tab on this PC works as before, with Vite's hot reload.
+
+**The guards** (each turns the demo off with its reason; the dev server always runs):
+- **One connector only.** `cf tunnels connections list` before the tunnel opens. A listed
+  connection gets 20 s to clear (a run stopped a moment ago); then the demo stays off. So two
+  dev servers never share the tunnel and split a guest's requests. If the list cannot be read
+  (`cf` signed out), the demo stays off too.
+- **The main checkout only.** A git worktree (`git rev-parse --absolute-git-dir` differs from
+  `--git-common-dir`) never opens the tunnel.
+- **A stopped tunnel or build ends the demo, not the dev server.**
+- **Off on purpose:** `npm run dev -- --no-demo`. Off without a word on a machine whose `.env`
+  has no `DEETS_TUNNEL_ID`.
+
+**Several calls at once** (§3.6; the owner's forks A, 1A and 2A, 2026-11-13):
+- `State.lives`, one `LiveCall` per call (`dev_server.py`): its record, seat, EHR, who started
+  it (`OWNER` or the guest's email, in memory only), the label, the page's tag, its own
+  `Voice`. At most `MAX_LIVE_CALLS` (8).
+- Each call's warnings go to its own record: `redact.set_dev_tap` is a context variable now, so
+  the tasks a call starts inherit its tap. A warning from a thread no call started (grpc's own)
+  reaches no record.
+- The fake Twilio's text joins the call whose tool call is newest (a count, since Windows'
+  clock can give two calls the same time). Two calls verifying in the same instant could swap
+  texts; dev only.
+- The record (schema 11): `label` and `started_by` (`owner` or `guest`, never the email) on
+  `call_start`. When the call ends, its label becomes its label in the catalog.
+- The watch stream: `hello` lists the live calls (`LiveInfo`), `started` carries one, events
+  carry their call id as before. The page sends a random tag with Start and knows its own call
+  by it.
+- The console: PHI's Caller tab lists the live calls, newest first (label or "<who>'s call";
+  time, starter, seat, EHR, step, turns). PHI follows the newest call until a row is pressed;
+  then it stays on that call, drawn from its start, until it ends. The label box sits left of
+  Start | End in Testing, greyed during a call, cleared after it.
+- Not yet: the `calls` row at Start with status `live`, and the user profile table that
+  `started_by` will point to (the owner, 2026-11-13: "a user profile record in our db"). Both
+  touch `ehr` and the schema; their draft comes first.
+
+**`.env` (repo root, git-ignored):**
+
+| Name | What it is | Read by |
+|---|---|---|
+| `DEETS_TUNNEL_ID` | the tunnel's id; its credentials file is `~/.cloudflared/<id>.json` | `scripts/dev.mjs` |
+| `DEETS_ACCESS_TEAM` | the Access team's domain, `deetssolutions.cloudflareaccess.com` | `access.py` |
+| `DEETS_ACCESS_AUD` | the Access app's audience tag | `access.py` |
+| `DEETS_DEMO_ORIGIN` | `https://deetshealth.deets.solutions` | `access.py` |
+| `DEETS_TURN_KEY_ID`, `DEETS_TURN_API_TOKEN` | the TURN key; without them guests can type but not speak | `turn.py` |
+
+With `--static` and no Access settings, the agent refuses to start: the second door never opens
+half set up.
+
+**On Cloudflare (created 2026-11-13 with `cf`, the owner's go):**
+- Tunnel `deetshealth-demo`, locally managed, id `fcabc7a2-b577-47e3-9e3c-05ad960bfdd0`. Its
+  secret is only in `~/.cloudflared/<id>.json`.
+- DNS: `deetshealth.deets.solutions`, a proxied CNAME to `<id>.cfargotunnel.com`.
+- Access group *DeetsHealth demo guests* (`d84f81f2-…`): the owner's email only.
+- Access app `DeetsHealthDemo` (`967dcd42-…`), self-hosted on the whole hostname, 24 h session,
+  email codes, policy *Demo guests* (that group). Its `aud` tag goes in `.env`.
+- TURN key `deetshealth-demo` (`38e4f591…`). A script made it and appended the six settings to
+  `.env` (append only, with the owner's leave), without printing the token. A first try made
+  two keys it could not read (Cloudflare wraps its answer in `result`); both were deleted.
+- **Checked 2026-11-13:** the agent reads the settings, and Cloudflare gives 2 ICE servers with
+  a relay (8 URLs after the port-53 filter). The tunnel connected (`healthy`). Without a
+  sign-in, `https://deetshealth.deets.solutions/demo/` answers 302 to the team's email-code
+  page, and a forged `Cf-Access-Jwt-Assertion` gets the same.
+
+**The parts:**
+- `agent/deets_agent/access.py` — `AccessGate`: the token check of §3.3. The guest-list hook
+  (`guests`, 30 s cache, `forget()`) is there; nothing fills it until the guest list page
+  (§3.5), so Access's policy is the list for now.
+- `agent/deets_agent/turn.py` — `ice_servers()`: one-hour credentials from Cloudflare, the
+  port-53 URLs dropped; `for_aiortc()` for the agent's end.
+- `dev_server.py` — `State.admit` (the two doors), `GET /agent/ice`, the ICE servers on
+  `POST /agent/voice` for a guest, `GET /agent/build`, `GET /demo/…`, `DemoPrefix`. The fake
+  Twilio refuses any request that came through the tunnel. Routes: DEV-API.md §2, §3.
+- `console/src/agent/api.ts` — `at()` and `socketAt()` put every route under the page's base.
+  `iceServers()` before each voice offer (`transport.ts`); a relay's candidates get 5 s to
+  gather instead of 2 s.
+- `console/src/reload.ts` — the live reload. A call in this tab (`chat.ts › setLive`) and an
+  edit not saved on any Config view (`config-kit.ts › showStatus`) hold it.
+- `console/public/manifest.webmanifest` — its paths are relative now, so the installed app
+  works under `/demo/` too. On this PC they resolve to the same `/` as before.
+
+**Teams › People** (§3.5; the owner, 2026-11-14: fork A, the adder types the name; the table
+and the view as drafted, "will mess with it more when we implement RBAC"):
+- **The store is the record:** `users` (migration 0007; DATABASE.md §4). `ehr`'s `users.rs`
+  and five RPCs (EHR-SERVICE.md §3). The email and name sealed; a row found by a keyed hash of
+  the email, with a key made from the data key by HKDF (`SealKey::lookup`), so no new secret.
+- **Cloudflare's group follows the list** (`agent/deets_agent/cloudflare.py`): after each add
+  or remove the agent writes the group's whole list of emails; a remove also ends the person's
+  Access sessions and drops the second door's cache for them. If Cloudflare fails, the list is
+  still saved and the page says Cloudflare was not updated.
+- **At start** (`sync_people`): the group's emails that the list lacks come in (named by their
+  email until renamed); on an empty list with one email, that person is the owner (the group was
+  made with the owner's email alone). Then the group is made the list, and from then on the
+  second door lets a guest in only while they are on the list (`AdmitUser`, which also stamps
+  when they were last seen; cached 30 s).
+- **Without the link** (no `DEETS_CF_API_TOKEN` in `.env`) the list still works in the store,
+  the page says Cloudflare is not linked, and Access's own group alone decides who signs in.
+- **Needs in `.env`:** `DEETS_CF_API_TOKEN` (a token with Access group edit and session revoke
+  on this account), `DEETS_CF_ACCOUNT_ID`, `DEETS_ACCESS_GROUP_ID`. In place since 2026-11-14:
+  a user token `deetshealth-demo-people` (`794de8b2…`) with only "Access: Groups Write" and
+  "Access: Organizations Revoke" on this account, made by a script that wrote its value into
+  `.env` unseen (append only, the owner's leave). Checked: it reads the group (1 email). No
+  write was tried before the owner's desk test.
+- **The view** (`console/src/pages/people.ts`, `styles/people.css`): Email, Name, Add; Copy
+  invite; one row per person, "You" on the asker's own; who added them and when; when last
+  seen; Remove asks "Confirm?" for the End call's hold. The owner has no Remove. It reads the
+  list again when the window comes back to the front.
+- **Tests:** `ehr/tests/store.rs` (the table against Postgres: the owner from the first seed,
+  sealed columns, last seen, the owner guard, a removal that keeps the row, a return on the same
+  row); `users.rs`'s own (emails, names, ids); `agent/tests/test_people.py` (8: the routes, the
+  group kept as the list, a Cloudflare failure as a warning, the start sync, the wall).
+
+**Tests:** `agent/tests/test_access.py` (21), `test_turn.py` (10), `test_demo_door.py` (21):
+the two doors, the sockets, the fake Twilio behind the tunnel, the static files and their
+limits, the ICE route. `test_live_calls.py` (15): two calls at once, the limit, owner or guest
+in the record and never the email, `hello` and `started`, the text to the right call, the
+label and tag rules.
+
+**Decided inside the owner's choices** (for his review): the build goes to
+`console/dist-demo/`; the tunnel is run by
+id with a credentials file, so no `cloudflared login` is needed; an ICE failure for a guest
+says "a guest voice call needs the TURN key in .env"; the live reload compares the page's
+entry script, so a change that does not change the code does not reload anyone; at most 8
+calls at once; the label box's words "What this call tests (optional)", its place left of
+Start | End and its 200-character limit; a list row's name is the label, else "Owner's call"
+or "<email>'s call"; the connector check waits 20 s for a stale connection.

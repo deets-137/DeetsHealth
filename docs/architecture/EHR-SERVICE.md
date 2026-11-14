@@ -82,9 +82,21 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `ListSettingVersions` | `list_setting_versions` | `list_setting_versions` |
 | `GetSettings` | `get_settings` | `get_settings` |
 | `SaveSettings` | `save_settings` | `save_settings` |
+| `ListUsers` | `list_users` | `list_users` |
+| `AddUser` | `add_user` | `add_user` |
+| `RemoveUser` | `remove_user` | `remove_user` |
+| `AdmitUser` | `admit_user` | `admit_user` |
+| `SeedUsers` | `seed_users` | `seed_users` |
 
 The three settings RPCs are the settings store (CONSOLE.md §7.3; `ehr/src/settings.rs`): no
 handle, no protected data, `FAILED_PRECONDITION` when `ehr` runs without a store.
+
+The five user RPCs are the People list (ops/DEMO.md §3.5; `ehr/src/users.rs`, migration 0007):
+who may sign in to the console. No handle. A staff member's email and name are not patient
+data, but the contract marks them (`phi`), so they never reach a log; the store seals both and
+finds a row by a keyed hash of the email (`SealKey::lookup`, a key made from the data key by
+HKDF). `FAILED_PRECONDITION` without a store; the other errors are fixed words that name a field,
+never a value. The owner is never removed (`PERMISSION_DENIED`); a removal keeps the row.
 
 ## 4. The PHI tag
 ```proto

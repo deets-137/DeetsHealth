@@ -13,7 +13,7 @@ use std::path::Path;
 
 use aws_lc_rs::{
     aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM, NONCE_LEN},
-    digest,
+    digest, hkdf, hmac,
     rand::{SecureRandom, SystemRandom},
 };
 use deetshealth_core::{platform::Cipher, CoreError};
@@ -22,14 +22,35 @@ use zeroize::Zeroizing;
 /// AES-256-GCM and friends from AWS-LC.
 pub struct AwsLc;
 
-/// One data key. It never leaves this type; it has no `Debug`.
-pub struct SealKey(LessSafeKey);
+/// One data key, and the lookup key made from it. Neither leaves this type; it has no `Debug`.
+pub struct SealKey(LessSafeKey, hmac::Key);
+
+/// The HKDF salt and info that make the lookup key from the data key: a key of its own for each
+/// use, so a lookup hash never reuses the sealing key (docs/ops/DEMO.md §3.5).
+const LOOKUP_SALT: &[u8] = b"deetshealth lookup v1";
+const LOOKUP_INFO: &[u8] = b"users.email_hash";
 
 impl SealKey {
     /// A key from its 32 bytes. The bytes are wiped by the caller (`Zeroizing`).
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, CoreError> {
         let unbound = UnboundKey::new(&AES_256_GCM, bytes).map_err(|_| CoreError::Crypto)?;
-        Ok(Self(LessSafeKey::new(unbound)))
+        let prk = hkdf::Salt::new(hkdf::HKDF_SHA256, LOOKUP_SALT).extract(bytes);
+        let okm = prk.expand(&[LOOKUP_INFO], hmac::HMAC_SHA256).map_err(|_| CoreError::Crypto)?;
+        Ok(Self(LessSafeKey::new(unbound), hmac::Key::from(okm)))
+    }
+
+    /// A keyed hash (HMAC-SHA256) of `value` under the lookup key: equal values give equal
+    /// hashes, so a sealed column can still be found by its value, and the hash reveals
+    /// nothing without the key. `what` names the column, so two columns never share a hash.
+    pub fn lookup(&self, what: &str, value: &str) -> [u8; 32] {
+        let mut ctx = hmac::Context::with_key(&self.1);
+        ctx.update(what.as_bytes());
+        ctx.update(&[0]);
+        ctx.update(value.as_bytes());
+        let tag = ctx.sign();
+        let mut out = [0u8; 32];
+        out.copy_from_slice(tag.as_ref());
+        out
     }
 
     /// The dev key from its file. Refused in a deploy, which takes its key from the KMS.

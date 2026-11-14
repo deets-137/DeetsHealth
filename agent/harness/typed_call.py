@@ -84,7 +84,7 @@ async def main() -> int:
         else CallRecord(args.mode, config.MODEL, scenario=args.script.stem if args.script else None)
     )
     if record is not None:
-        redact.dev_tap = record.log
+        redact.set_dev_tap(record.log)
     redact.install(args.log)
 
     reason = "hung up"
@@ -124,7 +124,7 @@ async def main() -> int:
                     record.event("error", type=type(e).__name__, message="hang-up did not finish cleanly")
             if record is not None:
                 record.close(reason)
-                redact.dev_tap = None
+                redact.set_dev_tap(None)
                 print(f"(record: {record.path})")
                 print(f"({record.summary()})")
                 # File the ended call into the call store (DATABASE.md §4a). Never fails the run.

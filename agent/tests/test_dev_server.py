@@ -216,7 +216,7 @@ def test_epic_mode_is_refused_without_the_epic_files(tmp_path: Path):
 
 def test_the_watch_stream_says_hello(client):
     with client.websocket_connect("/agent/watch", headers=OK) as ws:
-        assert json.loads(ws.receive_text()) == {"type": "hello", "live": None}
+        assert json.loads(ws.receive_text()) == {"type": "hello", "live": None, "calls": []}
 
 
 def test_a_missing_call_is_404(client):

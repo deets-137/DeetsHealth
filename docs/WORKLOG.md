@@ -56,6 +56,33 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   the tunnel becomes live reload from a watched build (about 1.7 s for a full build). TURN
   from Cloudflare: $0.05/GB past 1,000 free GB a month, about 45 MB per relayed hour.
   "Don't build just yet."
+- Then "build on the same worktree / branch", coordinating with the Config › System session
+  (it committed `dc9fc13` first; this session touched no file of its until then). Built, not
+  committed: `access.py`, `turn.py`, the second door and the demo routes in `dev_server.py`,
+  `at()` / `socketAt()` / `iceServers()` and `reload.ts` in the console, `npm run demo`
+  (`dev.mjs --demo`). Tests: 52 new; the agent's full suite passes (195) in a clean worktree
+  with the committed prompt words. In this tree the replay tests miss, because
+  `AGENT-PROMPT.md` and `VARIABLES.md` hold uncommitted edits from the System desk test.
+  `npm run check` could not rebuild `ehr`: a running dev server holds its exe.
+- Cloudflare, with the owner's go: the tunnel, the DNS record, the Access group and app, the
+  TURN key; the six settings appended to `.env` (append only). Checked: the tunnel connects,
+  Access sends a visitor with no sign-in to its email-code page. A fix: the agent loads `.env`
+  before it reads the demo's settings.
+- The owner's forks: 1A (the Access email names who started a call; a user profile table in
+  the store later, for audits), 2A (a label box beside Start), and the demo tied to
+  `npm run dev` with three guards (one connector, main checkout only, a stopped tunnel never
+  stops the dev server). Built: several calls at once (`State.lives`, a log tap per call,
+  record schema 11 with `label` and `started_by`), PHI's Caller list, the label box. A test
+  briefly wrote 17 records into `agent/calls/`; they were deleted, and the test now writes to
+  its own folder. The full agent suite passes in a clean worktree except two tests that need
+  the Config › Agent session's uncommitted `GUIDE.md`.
+- Teams › People (the owner's fork A: the adder types the name; the table and the view as
+  drafted). Built: migration 0007 `users` (email and name sealed, a keyed hash for lookups from
+  an HKDF key off the data key), `ehr`'s `users.rs` and five RPCs, `cloudflare.py` (the group
+  follows the list; a remove ends sessions), `sync_people` at start, the guest check on the list,
+  three routes, `people.ts`. Tests: the store test against Postgres passes (`npm run db:test`),
+  `ehr`'s 68 unit tests, 8 agent tests. Not linked yet: the Cloudflare token for the group needs
+  the owner's go.
 
 ## 2026-11-13 (Mac, config, later) — Config › Agent: the agent's words in the console
 - Committed Config › Anthropic (`a1aa5c6`); desk test passed on wide screens, narrow screens

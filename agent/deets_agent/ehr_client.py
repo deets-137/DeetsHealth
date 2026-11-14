@@ -260,6 +260,59 @@ class EhrClient:
             raise error from None
         return _version(reply.version)
 
+    # ---- the People list (users.rs; docs/ops/DEMO.md §3.5). Staff identities, not patients',
+    # but never logged: ehr.proto marks the fields.
+
+    async def list_users(self) -> list[dict]:
+        """Everyone on the list now, the owner first. Raises EhrError (NOT_ALLOWED_NOW without a
+        store)."""
+        reply = await self._users_call("ListUsers", pb.ListUsersRequest())
+        return [
+            {
+                "id": u.id,
+                "email": u.email,
+                "name": u.name,
+                "owner": u.owner,
+                "added_by": u.added_by or None,
+                "added_at": u.added_at,
+                "last_seen_at": u.last_seen_at or None,
+            }
+            for u in reply.users
+        ]
+
+    async def add_user(self, email: str, name: str, by: str) -> str:
+        """Puts a person on the list; their id. `by`: the adder's email, "" for the owner's PC.
+        Raises EhrError with ehr's fixed reason in `detail` (BAD_INPUT, OTHER for a duplicate)."""
+        reply = await self._users_call("AddUser", pb.AddUserRequest(email=email, name=name, by=by))
+        return reply.id
+
+    async def remove_user(self, user_id: str) -> str:
+        """Takes a person off the list; their email. Raises EhrError: NOT_VERIFIED for the owner,
+        OTHER for no such person, each with ehr's fixed reason in `detail`."""
+        reply = await self._users_call("RemoveUser", pb.RemoveUserRequest(id=user_id))
+        return reply.email
+
+    async def admit_user(self, email: str) -> bool:
+        """Whether this email is on the list now; ehr stamps when it was last seen."""
+        reply = await self._users_call("AdmitUser", pb.AdmitUserRequest(email=email))
+        return reply.active
+
+    async def seed_users(self, emails: list[str]) -> int:
+        """Brings in the emails already in Cloudflare's group that the list lacks."""
+        reply = await self._users_call(
+            "SeedUsers", pb.SeedUsersRequest(emails=[pb.SeedEmail(email=e) for e in emails])
+        )
+        return reply.added
+
+    async def _users_call(self, name: str, request):
+        try:
+            return await getattr(self._stub, name)(request, timeout=DEADLINE_S)
+        except grpc.aio.AioRpcError as e:
+            error = EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), name)
+            # users.rs's reasons are fixed words that name a field, never a value: safe to show.
+            error.detail = e.details() or ""
+            raise error from None
+
     async def _settings_call(self, name: str, request):
         try:
             return await getattr(self._stub, name)(request, timeout=DEADLINE_S)

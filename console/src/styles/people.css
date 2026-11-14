@@ -1,0 +1,77 @@
+/* Teams › People (people.ts; docs/ops/DEMO.md §3.5). The fields and buttons are the Config
+   page's (.cfg-field, .cfg-button, .cfg-save); this file lays out the view and its rows. */
+
+.people {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  container: people / inline-size;
+}
+
+.people-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.people-add {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: var(--space-3);
+}
+
+.people-invite {
+  margin-left: auto;
+}
+
+.people-status {
+  min-height: 1lh;
+  color: var(--text-2);
+  font-size: var(--text-small);
+}
+
+.people-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* One person: who, who added them and when, when last seen, Remove. Demo's call rows' edge. */
+.people-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--pad-row);
+  border: var(--edge) solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.people-who {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.people-meta {
+  flex: none;
+  color: var(--text-2);
+  font-size: var(--text-small);
+}
+
+/* A narrow panel (Config's own step, config.css): the fields and each row wrap. */
+@container people (max-width: 581px) {
+  .people-top,
+  .people-add,
+  .people-row {
+    flex-wrap: wrap;
+  }
+}

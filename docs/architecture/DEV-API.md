@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/resources.py, console/src/agent/api.ts, console/src/agent/transport.ts, console/vite.config.ts, scripts/docs-check.mjs, agent/tests/test_dev_server.py]
+sources: [agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/resources.py, agent/deets_agent/access.py, agent/deets_agent/turn.py, agent/deets_agent/cloudflare.py, console/src/reload.ts, console/src/agent/api.ts, console/src/agent/transport.ts, console/vite.config.ts, scripts/docs-check.mjs, agent/tests/test_dev_server.py]
 updated: 2026-11-14
 ---
 # DeetsHealth — The dev API (the console and the agent's dev server)
@@ -42,7 +42,7 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 
 | Route | Handler | Client | What it answers |
 |---|---|---|---|
-| `GET /agent/health` | `health` | `health()` | `key` (an Anthropic key is set), `live` (the live call's id, or null), `epic` (`ehr` was given Epic's sandbox) and `voice` (a Cartesia key is set) |
+| `GET /agent/health` | `health` | `health()` | `key` (an Anthropic key is set), `live` (the newest live call's id, or null), `calls` (how many are live), `epic` (`ehr` was given Epic's sandbox) and `voice` (a Cartesia key is set) |
 | `GET /agent/cartesia` | `cartesia_settings` | `cartesiaSettings()` | Config › Cartesia (CONSOLE.md §7): the saved versions (newest first, each with its "MM-DD \| n" label and whether it is active), one version's values (`?version=`; the active one by default; the code's defaults before any save), the active values, and each lever's range. `store`: false when `ehr` has no Postgres. 404 for a version that does not exist. Never the key, only `key` (set or not) |
 | `GET /agent/prompt` | `prompt_settings` | `promptSettings()` | Config › Agent (CONSOLE.md §9): the versions and values as for Cartesia (the `prompt` service: each section's words), the code values each section must hold, what the `{` and " ." lists offer (the active System variables, the code values, the tools, and the tools each section may name: SYSTEM-PAGE.md §3.6), whether the kept recordings match the prompt file (`recordings`), and the last Record and test (`recording`: its state, each kept script's name and result, the tests, the dollars spent). Never the key, only `key` |
 | `POST /agent/prompt` | `save_prompt` | `savePrompt()` | `{values}`, every section's words: the agent first checks each tool named in backticks against the section's steps (SYSTEM-PAGE.md §3.5); then saved through `ehr`'s `SaveSettings` as a new, active version (ehr checks each section's code values, and that every other `{name}` is a System variable of the active System version), then written into `agent/prompts/AGENT-PROMPT.md`. The next test call runs with it. 400 names the section that does not fit; 409 when `ehr` is not up or has no store |
@@ -54,7 +54,7 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 | `POST /agent/anthropic` | `save_anthropic` | `saveAnthropic()` | `{values}`, every llm setting: saved through `ehr`'s `SaveSettings` as a new, active version; the next test call runs with it. 400 names the setting that does not fit (`ehr` checks the model, effort and thinking together: `settings.rs › coherent`); 409 when `ehr` is not up or has no store |
 | `POST /agent/cartesia` | `save_cartesia` | `saveCartesia()` | `{values}`, every voice setting: saved through `ehr`'s `SaveSettings` as a new version, the active one; the reply is the view above. 400 names the setting that does not fit (or the voice Cartesia cannot find); 409 when `ehr` is not up or has no store |
 | `GET /agent/resources` | `resources` | `resources()` | Cartesia's credits this cycle, counted from the records' `cartesia` totals and the live voice call's meter (`resources.py`; CHAT.md §17). Counts and dates only |
-| `POST /agent/voice` | `voice` | `voiceOffer()` | the voice seat: a WebRTC offer `{type: "offer", sdp}` in, the answer `{type, sdp}` out; `?ehr=` as on `/agent/call`. The call then runs over that connection (§6, CHAT.md §17). 409 with the reason when a call cannot start, 413 for an offer over 64 KB |
+| `POST /agent/voice` | `voice` | `voiceOffer()` | the voice seat: a WebRTC offer `{type: "offer", sdp}` in, the answer `{type, sdp}` out; `?ehr=`, `?label=` and `?tag=` as on `/agent/call`. The call then runs over that connection (§6, CHAT.md §17). 409 with the reason when a call cannot start, 413 for an offer over 64 KB |
 | `GET /agent/sandbox` | `sandbox` | `sandbox()` | the sandbox patients and visits, by `?ehr=`: `local` from `ehr/fixtures/sandbox.json` (CHAT.md §8.1); `epic` from Epic's sandbox through `ehr epic-sandbox`, kept 5 minutes (CHAT.md §13). `more`: per patient, the visits past those listed. 400 for another word, 503 with no Epic files, 502 when Epic did not answer |
 | `GET /agent/catalog` | `catalog` | `catalog()` | every call row with its current ratings, and the rubric (CHAT.md §7) |
 | `GET /agent/calls/{call_id}` | `call_events` | `callEvents()` | one record's events, for Demo; 404 when there is no such call |
@@ -63,6 +63,13 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 | `WS /agent/watch` | `watch` | `watch()` | the watch stream (§5) |
 | `WS /agent/call` | `call` | `TextSeat` | the caller's seat (§6) |
 | `POST /2010-04-01/Accounts/{account}/Messages.json` | `twilio_messages` | none: `ehr` calls it | the fake Twilio (`fake_twilio.py`; TEXTS.md) |
+| `GET /agent/ice` | `ice` | `iceServers()` | `{iceServers}` for a voice call's browser end, asked for before its offer: `[]` for the owner on this PC; for a guest in the demo, Cloudflare STUN and TURN with one-hour credentials (`turn.py`; ops/DEMO.md §3.7). 409 when a guest asks and `.env` has no TURN key, 502 when Cloudflare does not answer |
+| `GET /agent/build` | `build_stream` | `startLiveReload()` (reload.ts) | the demo's live reload (ops/DEMO.md §3.2), as server-sent events: the built page's entry script now and again each time a build changes it, with a keep-alive every 15 s. 404 outside the demo |
+| `GET /agent/people` | `people` | `people()` | Teams › People (ops/DEMO.md §3.5): `people` (each `{id, email, name, owner, added_by, added_at, last_seen_at}`, the owner first), `store` (false without Postgres), `linked` (Cloudflare's group is kept in step), `invite` (the demo's address) and `you` (`owner`, or the asker's email) |
+| `POST /agent/people` | `add_person` | `addPerson()` | `{email, name}`: on the list through `ehr`'s `AddUser`, then the whole list written to Cloudflare's group. Anyone signed in may. The view again, with `warning` when Cloudflare failed (the list is saved). 400 names the field; 409 when the email is on the list or there is no store |
+| `DELETE /agent/people/{person_id}` | `remove_person` | `removePerson()` | off the list (`RemoveUser`; the row stays), off the group, the person's Access sessions ended, and the second door's cache for them dropped. The view again, with `warning`. 403 for the owner; 404 for no such person |
+| `GET /demo` | `demo_root` | none: the address a guest types | 308 to `/demo/` |
+| `GET /demo/{path:path}` | `demo_page` | none: the browser | the demo build (`--static`, ops/DEMO.md §3.1): a file under its folder, `index.html` for `/demo/`. Hashed assets cached a year, the rest `no-cache`. 404 for a dotfile, a path outside the folder, a missing file, or outside the demo |
 
 **The replies when a route refuses:**
 
@@ -70,7 +77,7 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 |---|---|
 | HTTP 403 `{"error": "forbidden"}` | no launch token, a wrong one, or another origin (§3) |
 | WebSocket close 1008 | the same, on `/agent/watch` or `/agent/call` |
-| WebSocket close 1013 | `/agent/call` only: a call is already running, there is no Anthropic key, or `ehr` is not up yet. The close reason says which. |
+| WebSocket close 1013 | `/agent/call` only: `MAX_LIVE_CALLS` (8) calls are running, there is no Anthropic key, Epic mode has no Epic files, or `ehr` is not up yet. The close reason says which. |
 | HTTP 400 `{"detail": …}` | `/agent/annotations`: the body is not a JSON object, or the gate refused it (§4) |
 | HTTP 404 | `/agent/calls/{call_id}`: no such call |
 | HTTP 409 `{"detail": …}` | `/agent/voice`: as close 1013 on `/agent/call`, or there is no Cartesia key. The detail says which |
@@ -87,7 +94,16 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
   safe only because every caller is synthetic (`call_record.py`). A real call has no path to
   this server.
 - The fake Twilio route has its own check instead (`FakeTwilio.authorized`): Basic auth with
-  the launch's fake account, and never a request with an `Origin`.
+  the launch's fake account, and never a request with an `Origin`. The tunnel's requests also
+  come from 127.0.0.1, so one with Cloudflare's `cf-connecting-ip` header is refused there too.
+- **The second door** (ops/DEMO.md §3.3), only with the demo on in `npm run dev` (`--static`) and Access's
+  settings in `.env`. `State.admit` tries the launch token first (`OWNER`); then
+  `AccessGate.email` (`access.py`): the `Cf-Access-Jwt-Assertion` token's RS256 signature
+  against the team's keys, its issuer, audience and expiry, an email in it, and an `Origin`,
+  when present, equal to the demo's address. The WebSocket routes ask `State.admit` too.
+  Without `--static` there is no second door, whatever `.env` holds.
+- **The base path.** `DemoPrefix` takes `/demo/agent/…` as `/agent/…`, for requests and
+  WebSockets, so the demo build calls the same routes under its base (`at()` in `api.ts`).
 
 ## 4. Annotations
 `POST /agent/annotations` takes one annotation. Each line goes to the committed file
@@ -121,18 +137,23 @@ The server sends; the page sends nothing. Each frame is one JSON message. The ty
 
 | `type` | Fields | When |
 |---|---|---|
-| `hello` | `live` | at once, on connect. Then, if a call is live, each of its events so far. |
-| `started` | `call` | a test call starts |
-| `event` | `call`, `event` | one line of the live call's record (`CallEvent`: `t_ms`, `kind`, and the kind's fields; the kinds are CHAT.md §11.2 and `call_record.py`) |
+| `hello` | `live`, `calls` | at once, on connect: the newest live call's id, and every live call's `LiveInfo` (`call`, `started`, `seat`, `ehr`, `by`, `label`, `tag`), oldest first. Then each live call's events so far. |
+| `started` | `call`, `info` | a test call starts; `info` is its `LiveInfo`. A page knows its own call by the `tag` it sent. |
+| `event` | `call`, `event` | one line of a live call's record (`CallEvent`: `t_ms`, `kind`, and the kind's fields; the kinds are CHAT.md §11.2 and `call_record.py`). Every live call's lines come on the one stream. |
 | `ended` | `call` | the call ended and joined the catalog |
 
 `watch()` opens it again after a close while the page is open. A watcher that falls behind
 loses lines; it never holds up the call (`State.broadcast`).
 
 ## 6. The caller's seat (`WS /agent/call`)
-- **One test call at a time.** It is always live: every line goes to Claude (CHAT.md §6).
+- **Several test calls at once,** up to `MAX_LIVE_CALLS` (8), across both seats (ops/DEMO.md
+  §3.6). Each is always live: every line goes to Claude (CHAT.md §6).
 - **`?ehr=local|epic`** picks the EHR the call reads (CHAT.md §13). Another word closes 1008;
   `epic` with no Epic files closes 1013, with the reason.
+- **`?label=`** the words typed beside Start: one line, at most 200 characters, on the record's
+  `call_start` and in `LiveInfo`; the call's catalog label when it ends. **`?tag=`** the page's
+  own mark (letters, digits, dashes, up to 40), sent back in `started`.
+- **Who started it:** `owner` or `guest` on the record; the guest's email only in `LiveInfo`.
 - **The wire:** RTVI messages as JSON text, one message per frame, no audio. The client is
   `TextSeat` in `console/src/agent/transport.ts`, driven by `PipecatClient.sendText` in
   `chat.ts`. The server's half is `RtviJsonSerializer` in `rtvi_json.py`: it drops a binary
@@ -144,12 +165,12 @@ loses lines; it never holds up the call (`State.broadcast`).
 
 **The voice seat (`POST /agent/voice`, CHAT.md §17).** The same call with voice ends:
 - **The handshake:** one request. The browser gathers its ICE candidates first, then sends the
-  offer; the dev server answers with Pipecat's `SmallWebRTCConnection`. No STUN or TURN: both
-  ends are on this PC. No trickle route.
+  offer; the dev server answers with Pipecat's `SmallWebRTCConnection`. No STUN or TURN on
+  this PC; a guest's call gets them from `GET /agent/ice` (ops/DEMO.md §3.7). No trickle route.
 - **The wire after it:** the microphone's audio to the agent, Sonic's audio back, and on the
   data channel RTVI as JSON (typed lines, as on `/agent/call`) plus a ping each second, which
   tells the server the page is still there. The client is `VoiceSeat` in `transport.ts`.
-- **The same rules:** one test call at a time across both seats; the wall (§3) on the request;
+- **The same rules:** the limit of live calls across both seats; the wall (§3) on the request;
   no tool data on RTVI.
 - **It ends** when the page hangs up or leaves, when the agent ends it, or at a limit: no
   speech from the caller for `config.VOICE_IDLE_S`, or the call's length reaches

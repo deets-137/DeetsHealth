@@ -16,10 +16,11 @@ use std::path::Path;
 
 use deetshealth_core::{
     platform::Cipher,
-    seal::{seal, Place},
+    seal::{open_text, seal, Place},
 };
 use serde_json::Value;
 use sqlx::{postgres::PgPoolOptions, PgPool};
+use zeroize::Zeroizing;
 
 use crate::seal_key::{AwsLc, SealKey};
 
@@ -172,8 +173,22 @@ impl Store {
         &self.pool
     }
 
-    fn seal(&self, table: &str, row: &str, column: &str, plain: &str) -> Result<Vec<u8>, String> {
+    pub(crate) fn seal(&self, table: &str, row: &str, column: &str, plain: &str) -> Result<Vec<u8>, String> {
         seal(&AwsLc, &self.key, &Place { table, row, column }, plain.as_bytes()).map_err(|_| "sealing failed".to_string())
+    }
+
+    /// A sealed value back as text, wiped when it drops.
+    pub(crate) fn open(&self, table: &str, row: &str, column: &str, sealed: &[u8]) -> Result<Zeroizing<String>, String> {
+        open_text(&AwsLc, &self.key, &Place { table, row, column }, sealed).map_err(|_| "opening failed".to_string())
+    }
+
+    /// The keyed hash a sealed column is found by (SealKey::lookup), as hex for a seal's row.
+    pub(crate) fn lookup(&self, what: &str, value: &str) -> [u8; 32] {
+        self.key.lookup(what, value)
+    }
+
+    pub(crate) fn hex(bytes: &[u8]) -> String {
+        hex(bytes)
     }
 
     /// File every call record in `dir`, then its annotations.

@@ -95,7 +95,8 @@ web app cannot do.
   (`pages/subnav.ts`; [ANALYTICS.md](ANALYTICS.md) §2). The head is the title alone. Each view
   says "Empty for now". The last view is reopened on the next visit (`localStorage`,
   `deets.console.<page>`). The nav items, in order (the owner, 2026-11-13):
-  - Teams: **Org Chart**, **People**.
+  - Teams: **Org Chart**, **People**. People is built (2026-11-14, `pages/people.ts`): who may
+    sign in, ops/DEMO.md §3.5 and §7. Org Chart is still empty.
   - Config: **Agent**, **System**, **Cartesia** (§7).
   - Security: **Auth**, **Roles**.
   - Audit Logs: **Config**, **Calls**, **Security**.

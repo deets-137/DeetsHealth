@@ -17,6 +17,10 @@ dependencies = [
     # The dev server for the console's Chat page (dev_server.py; CHAT.md §5): 127.0.0.1 only.
     "fastapi>=0.115,<1",
     "uvicorn>=0.32,<1",
+    # The demo over a tunnel (docs/ops/DEMO.md): the Access token's check (access.py) and the
+    # calls to Cloudflare's APIs (access.py's keys, turn.py's credentials).
+    "pyjwt[crypto]>=2.10,<3",
+    "aiohttp>=3.9,<4",
 ]
 
 [dependency-groups]

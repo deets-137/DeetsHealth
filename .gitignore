@@ -42,3 +42,6 @@ agent/deets_agent/proto/deets/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+
+# The demo build (npm run demo; docs/ops/DEMO.md)
+console/dist-demo/

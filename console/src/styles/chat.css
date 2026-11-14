@@ -418,6 +418,7 @@
 .chat[data-mode="phi"] .chat-top,
 .chat:not([data-mode="test"]) .chat-bar,
 .chat:not([data-mode="test"]) .split-call,
+.chat:not([data-mode="test"]) .call-label,
 .chat:not([data-mode="test"]) .ehr,
 .chat:not([data-mode="test"]) .seat,
 .chat:not([data-mode="demo"]) .split-play,
@@ -462,6 +463,37 @@
 /* With no code button, the split still sits at the right. */
 .chat-controls > .split {
   margin-left: auto;
+}
+
+/* The label beside Start (docs/ops/DEMO.md §3.6): the Review panel's text box, as wide as the
+   room left of Start | End allows, up to the help card's width. Greyed while a call runs. */
+.call-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: var(--help-width);
+  align-self: stretch;
+  margin-left: auto;
+  -webkit-appearance: none;
+  appearance: none;
+  padding: 0 var(--space-4);
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius-item);
+  background: var(--canvas);
+  color: var(--text);
+  font: inherit;
+}
+
+.call-label::placeholder {
+  color: var(--text-3);
+}
+
+.call-label:disabled {
+  opacity: 0.6;
+}
+
+/* The split right after the label sits beside it, not pushed apart. */
+.call-label + .split {
+  margin-left: 0;
 }
 
 /* ------------------------------------------------------------ the narrow canvas */
@@ -1244,8 +1276,20 @@
 .split-page:not([data-mode="demo"]) .tab-word-calls,
 .split-page:not([data-mode="demo"]) .calls,
 .split-page:not([data-mode="phi"]) .tab-word-caller,
-.split-page:not([data-mode="phi"]) .caller-empty {
+.split-page:not([data-mode="phi"]) .live-calls {
   display: none;
+}
+
+/* PHI's Caller tab (docs/ops/DEMO.md §3.6): the live calls, newest first, in Demo's row look
+   (.call-row below). A press watches that call; the watched row is the chosen one. */
+.live-calls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.live-calls .call-row {
+  padding-right: 0;
 }
 
 /* Demo's recorded calls (CHAT.md §16): one row per call. The wide part chooses the call; the

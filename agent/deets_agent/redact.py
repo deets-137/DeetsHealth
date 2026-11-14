@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import logging
 import sys
+from collections.abc import Callable
+from contextvars import ContextVar
 
 from google.protobuf.message import Message
 from loguru import logger
@@ -52,14 +54,23 @@ def redacted_text(message: Message) -> str:
     return f"{message.DESCRIPTOR.name}({', '.join(parts)})"
 
 
-# The dev call record's tap (call_record.py), set by the typed harness only: it gets each
-# warning and error as written, before the wall withholds it, for a synthetic call's record.
-# None in every other process.
-dev_tap = None
+# The dev call record's tap (call_record.py), set by the typed harness and the dev server only:
+# it gets each warning and error as written, before the wall withholds it, for a synthetic
+# call's record. None in every other process. Per call, not per process (docs/ops/DEMO.md
+# §3.6: several calls at once): a context variable, so the tasks a call starts inherit its own
+# tap, and a warning lands in the record of the call that caused it. A warning from a thread
+# that no call started (grpc's own) reaches no record.
+_dev_tap: ContextVar[Callable[..., None] | None] = ContextVar("dev_tap", default=None)
+
+
+def set_dev_tap(tap: Callable[..., None] | None) -> None:
+    """Point this context's warnings at a call record (None: at none)."""
+    _dev_tap.set(tap)
 
 
 def _patch(record) -> None:
     exc = record["exception"]
+    dev_tap = _dev_tap.get()
     if dev_tap is not None and record["level"].no >= 30:
         detail = f"{exc.type.__name__}: {exc.value}" if exc is not None and exc.type is not None else None
         name = record["extra"].get("lib_name") or record["name"] or ""
@@ -89,7 +100,7 @@ class _StdlibToLoguru(logging.Handler):
         kind = record.exc_info[0].__name__ if record.exc_info and record.exc_info[0] else ""
         level = record.levelname if record.levelname in _LEVELS else "INFO"
         extra = {"lib_name": record.name, "exc_kind": kind}
-        if dev_tap is not None:
+        if _dev_tap.get() is not None:
             extra["lib_text"] = record.getMessage()
         logger.bind(**extra).log(level, "")
 

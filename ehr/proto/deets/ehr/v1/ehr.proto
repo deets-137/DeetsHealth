@@ -54,6 +54,81 @@ service Ehr {
   // Saves a whole set as a new version and makes it the active one. INVALID_ARGUMENT names the
   // setting that does not fit (settings.rs): its name, never its value.
   rpc SaveSettings(SaveSettingsRequest) returns (SaveSettingsReply);
+  // The people who may sign in to the console (docs/ops/DEMO.md §3.5; users.rs): the store is the
+  // record, and the agent keeps Cloudflare's Access group in step. FAILED_PRECONDITION without a
+  // store. Everyone on the list now, the owner first.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersReply);
+  // Puts a person on the list. ALREADY_EXISTS when the email is on it; INVALID_ARGUMENT names
+  // the field that does not fit.
+  rpc AddUser(AddUserRequest) returns (AddUserReply);
+  // Takes a person off the list (the row stays, for audits) and returns their email.
+  // NOT_FOUND for no such person; PERMISSION_DENIED for the owner.
+  rpc RemoveUser(RemoveUserRequest) returns (RemoveUserReply);
+  // Whether an email is on the list now; stamps when it was last seen.
+  rpc AdmitUser(AdmitUserRequest) returns (AdmitUserReply);
+  // Brings in the emails already in Cloudflare's group that the list lacks (users.rs › seed).
+  rpc SeedUsers(SeedUsersRequest) returns (SeedUsersReply);
+}
+
+// One person on the list. A staff member's identity, not a patient's, but marked: it never goes
+// in a log.
+message User {
+  string id = 1;
+  string email = 2 [(phi) = true];
+  string name = 3 [(phi) = true];
+  bool owner = 4;
+  // The adder's name; empty for the owner and for people brought in from Cloudflare's group.
+  string added_by = 5 [(phi) = true];
+  // RFC 3339, UTC.
+  string added_at = 6;
+  // RFC 3339, UTC; empty when never seen.
+  string last_seen_at = 7;
+}
+
+message ListUsersRequest {}
+
+message ListUsersReply {
+  repeated User users = 1;
+}
+
+message AddUserRequest {
+  string email = 1 [(phi) = true];
+  string name = 2 [(phi) = true];
+  // The adder's email; empty for the console on the owner's PC.
+  string by = 3 [(phi) = true];
+}
+
+message AddUserReply {
+  string id = 1;
+}
+
+message RemoveUserRequest {
+  string id = 1;
+}
+
+message RemoveUserReply {
+  string email = 1 [(phi) = true];
+}
+
+message AdmitUserRequest {
+  string email = 1 [(phi) = true];
+}
+
+message AdmitUserReply {
+  bool active = 1;
+}
+
+message SeedUsersRequest {
+  // Each in a message of its own: build.rs marks a single field, not a list of strings.
+  repeated SeedEmail emails = 1;
+}
+
+message SeedEmail {
+  string email = 1 [(phi) = true];
+}
+
+message SeedUsersReply {
+  int32 added = 1;
 }
 
 // One saved version of a service's settings. Its label is "MM-DD | seq" (the owner's words), or

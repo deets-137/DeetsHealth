@@ -17,11 +17,13 @@ import {
   health,
   resources,
   sandbox,
+  callQuery,
   voiceOffer,
   VERDICTS,
   watch,
   type AnnotationDraft,
   type CallEvent,
+  type LiveInfo,
   type CallRow,
   type CartesiaCycle,
   type EhrSource,
@@ -30,6 +32,7 @@ import {
   type Verdict,
 } from "../agent/api";
 import { TextSeat, VoiceSeat } from "../agent/transport";
+import { holdReload } from "../reload";
 import { reducedMotion, tokenMs } from "../tokens";
 import { el, type Page } from "./page";
 import { placePill } from "./subnav";
@@ -160,6 +163,8 @@ export function chatPage(): Page {
                     </div>
                   </div>
 
+                  <input class="call-label" data-wave id="call-label" type="text" maxlength="200" autocomplete="off"
+                    placeholder="What this call tests (optional)" aria-label="A label for the next call" />
                   <div class="split split-call" data-wave role="group" aria-label="The call">
                     <button class="split-go" id="call-start" type="button"><span>Start</span></button>
                     <button class="split-stop" id="call-end" type="button" disabled>
@@ -196,7 +201,7 @@ export function chatPage(): Page {
                 <div class="tab-body" role="tabpanel" data-tab="patients">
                   <div class="sandbox" id="sandbox-list"><p class="empty">Loading</p></div>
                   <div class="calls" id="demo-calls" role="group" aria-label="Recorded calls"><p class="empty">Loading</p></div>
-                  <p class="empty caller-empty">Empty for now</p>
+                  <div class="live-calls" id="live-calls" role="group" aria-label="Live calls"><p class="empty">No live calls</p></div>
                 </div>
                 <div class="tab-body" role="tabpanel" data-tab="steps" hidden>
                   ${MODES.map(
@@ -566,6 +571,9 @@ export function chatPage(): Page {
       const confirmWord = end.querySelector<HTMLElement>('[data-word="confirm"]')!;
       const input = $<HTMLInputElement>("chat-input");
       const send = $<HTMLButtonElement>("chat-send");
+      // The label typed beside Start (docs/ops/DEMO.md §3.6): sent with the call, shown in the
+      // Caller rail's list at once, and the call's label in the catalog when it ends.
+      const labelBox = $<HTMLInputElement>("call-label");
       const testLines = lines("test");
       let live = false;
       let confirmTimer = 0;
@@ -579,8 +587,13 @@ export function chatPage(): Page {
       };
       const setLive = (on: boolean) => {
         live = on;
+        // The demo's live reload waits for this tab's call to end (reload.ts).
+        holdReload("chat:call", on);
         setConfirm(false);
         start.disabled = on;
+        labelBox.disabled = on;
+        // A finished call's label is done with: the next call starts blank.
+        if (!on) labelBox.value = "";
         end.disabled = !on;
         input.disabled = !on;
         send.disabled = !on;
@@ -608,6 +621,9 @@ export function chatPage(): Page {
       let client: PipecatClient | undefined;
       let callSeat: Seat = "text"; // the seat of the call in progress
       let myCall: string | null = null;
+      // This page's mark for the call it starts: the dev server sends it back on "started", so
+      // the page knows its own call among several (docs/ops/DEMO.md §3.6).
+      let myTag = "";
       let seeking = false; // between Start and the dev server's "started"
       let testView: CallView | undefined;
       const hangUp = async () => {
@@ -623,17 +639,19 @@ export function chatPage(): Page {
         unreview("test");
         testView = new CallView(testLines, { onText: (e) => addText("test", e), ...panels("test") });
         myCall = null;
+        myTag = crypto.randomUUID();
         seeking = true;
+        labelBox.disabled = true;
         callSeat = seat;
         showEhr();
         showSeat(false);
-        const callEhr = ehr;
+        const query = callQuery(ehr, labelBox.value.trim(), myTag);
         client = new PipecatClient({
           // The EHR the toggle picks and the seat are fixed for the whole call (CHAT.md §13, §17).
           transport:
             callSeat === "voice"
-              ? new VoiceSeat((offer) => voiceOffer(callEhr, offer))
-              : new TextSeat(`/agent/call?ehr=${callEhr}`),
+              ? new VoiceSeat((offer) => voiceOffer(query, offer))
+              : new TextSeat(`/agent/call?${query}`),
           enableMic: callSeat === "voice",
           enableCam: false,
           callbacks: {
@@ -657,6 +675,7 @@ export function chatPage(): Page {
           showEhr();
           showSeat(false);
           start.disabled = false;
+          labelBox.disabled = false; // the label stays, for another try
           testLines.replaceChildren(
             note(e instanceof Error && e.message ? `No call: ${e.message}` : "No call: the agent did not answer"),
           );
@@ -681,40 +700,79 @@ export function chatPage(): Page {
         input.value = "";
       });
 
-      // ---- the watch stream: a live call's events. Test draws its own call; PHI draws any.
+      // ---- the watch stream: every live call's events (docs/ops/DEMO.md §3.6: several at once).
+      // Test draws its own call; PHI draws the call picked in the Caller tab's list, or the
+      // newest until one is picked.
       const phiLines = lines("phi");
       let phiView: CallView | undefined;
       let phiCall: string | null = null;
+      let phiPicked = false; // the person chose phiCall in the list; a new call does not move it
+      // Each live call: what the dev server says of it, and its events so far, so a pick can
+      // draw the call from its start.
+      const lives = new Map<string, { info: LiveInfo; events: CallEvent[] }>();
+      const liveList = $("live-calls");
       const phiIdle = () => phiLines.replaceChildren(note("No live call to watch"));
+      const watchCall = (id: string | null) => {
+        phiCall = id;
+        if (!id) return phiIdle();
+        // PHI shows every field in dev (synthetic), as CHAT.md §2.4 decided; roles gate it later.
+        phiView = new CallView(phiLines, panels("phi"));
+        phiLines.replaceChildren();
+        for (const e of lives.get(id)?.events ?? []) phiView.add(e);
+        drawLives();
+      };
+      function drawLives() {
+        liveList.replaceChildren(
+          ...(lives.size
+            ? [...lives.values()].reverse().map((c) => liveRow(c.info, c.events, c.info.call === phiCall))
+            : [note("No live calls")]),
+        );
+      }
+      liveList.addEventListener("click", (e) => {
+        const r = (e.target as HTMLElement).closest<HTMLElement>(".call-row");
+        if (!r?.dataset.id || !lives.has(r.dataset.id)) return;
+        phiPicked = true;
+        watchCall(r.dataset.id);
+      });
       watch(
         (m) => {
-          if (m.type === "hello" || m.type === "started") {
-            const id = m.type === "hello" ? m.live : m.call;
-            if (id) {
-              phiCall = id;
-              // PHI shows every field in dev (synthetic), as CHAT.md §2.4 decided; roles gate it later.
-              phiView = new CallView(phiLines, panels("phi"));
-              phiLines.replaceChildren();
-              // The dev server runs one test call at a time, so the call that starts while this
-              // page is calling is this page's call.
-              if (m.type === "started" && seeking) {
-                myCall = id;
-                seeking = false;
-                showEhr();
-              }
-            } else phiIdle();
+          if (m.type === "hello") {
+            lives.clear();
+            for (const info of m.calls) lives.set(info.call, { info, events: [] });
+            if (!phiCall || !lives.has(phiCall)) {
+              phiPicked = false;
+              watchCall(m.live);
+            } else drawLives();
+            return;
+          }
+          if (m.type === "started") {
+            lives.set(m.call, { info: m.info, events: [] });
+            if (seeking && m.info.tag === myTag) {
+              myCall = m.call;
+              seeking = false;
+              showEhr();
+            }
+            if (!phiPicked) watchCall(m.call);
+            else drawLives();
             return;
           }
           if (m.type === "event") {
+            const c = lives.get(m.call);
+            c?.events.push(m.event);
             if (m.call === phiCall) phiView?.add(m.event);
             if (m.call === myCall) testView?.add(m.event);
+            // The list's step and turn counts change with these only.
+            if (c && (m.event.kind === "step" || m.event.kind === "caller")) drawLives();
             return;
           }
           if (m.type === "ended") {
+            lives.delete(m.call);
             if (m.call === phiCall) {
               phiCall = null;
+              phiPicked = false;
               phiLines.append(note("The call ended"));
             }
+            drawLives();
             if (m.call === myCall && live) {
               setLive(false);
               void hangUp();
@@ -725,6 +783,10 @@ export function chatPage(): Page {
           }
         },
         (up) => {
+          if (!up) {
+            lives.clear();
+            drawLives();
+          }
           if (!up && !phiCall) phiLines.replaceChildren(note("The agent's dev server is not running"));
           else if (up && !phiCall) phiIdle();
           if (up && !box) void loadSandbox();
@@ -1641,6 +1703,43 @@ function callRow(c: CallRow): HTMLElement {
   playOne.setAttribute("aria-label", `Play ${words}`);
   playOne.title = "Play this call";
   row.append(pick, playOne);
+  return row;
+}
+
+/** One live call in PHI's Caller tab (docs/ops/DEMO.md §3.6), newest first: its label, or who
+ * started it; then when, the seat, the EHR, the step it is on and the caller's turns so far. The
+ * row being watched carries the chosen row's look (Demo's list). Analysts here have full
+ * clearance, so the starter's email shows as the dev server sends it. */
+function liveRow(info: LiveInfo, events: CallEvent[], watched: boolean): HTMLElement {
+  const row = document.createElement("div");
+  row.className = "call-row";
+  row.dataset.id = info.call;
+  row.classList.toggle("is-chosen", watched);
+  const pick = document.createElement("button");
+  pick.type = "button";
+  pick.className = "call-pick";
+  pick.setAttribute("aria-pressed", String(watched));
+  const who = info.by === "owner" ? "Owner" : info.by;
+  const name = document.createElement("span");
+  name.className = "call-name";
+  name.textContent = info.label ?? `${who}'s call`;
+  const step = [...events].reverse().find((e) => e.kind === "step");
+  const turns = events.filter((e) => e.kind === "caller").length;
+  const meta = document.createElement("span");
+  meta.className = "call-meta";
+  meta.textContent = [
+    info.started.slice(11, 16),
+    info.label ? who : null,
+    SEAT_WORD[info.seat],
+    EHR_WORD[info.ehr],
+    step ? stepWord(String(step.name)) : null,
+    `${turns} ${turns === 1 ? "turn" : "turns"}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  pick.append(name, meta);
+  pick.title = watched ? "Watching this call" : "Watch this call";
+  row.append(pick);
   return row;
 }
 

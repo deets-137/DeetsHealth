@@ -7,8 +7,12 @@
 // Moved from cartesia.ts on 2026-11-13 without a change of behavior, so Config › Cartesia and
 // Config › Anthropic work the same way.
 import type { Range, SettingVersion } from "../agent/api";
+import { holdReload } from "../reload";
 import { el } from "./page";
 import { placePill, type View } from "./subnav";
+
+/** Each settings view's own hold on the demo's live reload (reload.ts). */
+let views = 0;
 
 export type Mode = "read" | "edit";
 
@@ -104,6 +108,7 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
       // Read each time the view opens: a person changes a value on purpose (the Chat page's
       // Text bar follows the same rule).
       let mode: Mode = "read";
+      const holdKey = `config:${++views}`;
       let settings: S | undefined;
       let saved: D | undefined; // the version shown, as stored
       let draft: D | undefined; // the version shown, with this page's edits
@@ -120,6 +125,8 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
       const say = (text: string) => (status.textContent = text);
       const showStatus = () => {
         const n = saved && draft ? spec.differing(saved, draft).size : 0;
+        // The demo's live reload waits while this view holds an edit not saved (reload.ts).
+        holdReload(holdKey, n > 0);
         // Discard | Save always show (the owner, 2026-11-13); each greys when it has nothing to do.
         discard.disabled = n === 0 || saving;
         const blocked = draft && spec.blocked ? spec.blocked(draft) : null;
