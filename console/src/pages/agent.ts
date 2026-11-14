@@ -225,6 +225,9 @@ const dollars = (x: number) => (x > 0 && x < 0.01 ? "under $0.01" : `$${x.toFixe
 export const agentView = (): View => {
   let order: Order = remembered(ORDER_KEY, ["semantic", "flow"] as const, "semantic");
   let tab: Tab = remembered(TAB_KEY, TABS, "General");
+  // Set by a click on a tab bar, read by the next drawing: the pill slides from that tab.
+  let slideTab: string | undefined;
+  let slideOrder: string | undefined;
   // The latest settings, for the Record and test line (it updates without drawing the cards).
   let latest: PromptSettings | undefined;
   let poll: number | undefined;
@@ -253,11 +256,22 @@ export const agentView = (): View => {
 
     // ---- the tab bar and Semantic | Flow, on one row
     const bars = el(`<div class="prompt-bars"></div>`);
-    const tabBar = bar("Section group", TABS.map((t) => [t, t]), tab, (v) => {
-      tab = v as Tab;
-      remember(TAB_KEY, tab);
-      kit.rerender(true);
-    });
+    // The tab chosen before a click, for this one drawing only (a pill slides from it).
+    const tabFrom = slideTab;
+    const orderFrom = slideOrder;
+    slideTab = slideOrder = undefined;
+    const tabBar = bar(
+      "Section group",
+      TABS.map((t) => [t, t]),
+      tab,
+      (v) => {
+        slideTab = tab;
+        tab = v as Tab;
+        remember(TAB_KEY, tab);
+        kit.rerender(true);
+      },
+      tabFrom,
+    );
     const orderBar = bar(
       "Order",
       [
@@ -266,10 +280,12 @@ export const agentView = (): View => {
       ],
       order,
       (v) => {
+        slideOrder = order;
         order = v as Order;
         remember(ORDER_KEY, order);
         kit.rerender(true);
       },
+      orderFrom,
     );
     bars.append(tabBar.el, orderBar.el);
     const markBad = () => {
@@ -465,7 +481,10 @@ function grow(box: HTMLTextAreaElement) {
 }
 
 /** A tab bar like Read | Edit: a pill slides to the chosen part. */
-function bar(label: string, parts: [string, string][], value: string, on: (v: string) => void) {
+/** A tab bar for this page. A click draws the card again, so the bar is new each time; `from`
+ * is the tab chosen before the click. The new pill starts on that tab and slides to the chosen
+ * one, as the pill on every other tab bar does (subnav.ts › placePill). */
+function bar(label: string, parts: [string, string][], value: string, on: (v: string) => void, from?: string) {
   const b = el(`<div class="tabs prompt-bar" role="tablist"><span class="nav-highlight tab-pill" aria-hidden="true"></span></div>`);
   b.setAttribute("aria-label", label);
   const pill = b.querySelector<HTMLElement>(".tab-pill")!;
@@ -478,9 +497,24 @@ function bar(label: string, parts: [string, string][], value: string, on: (v: st
     b.append(t);
     return t;
   });
+  const find = (v: string | undefined) => buttons.find((t) => t.dataset.value === v);
+  let placed = false;
   return {
     el: b,
-    button: (v: string) => buttons.find((t) => t.dataset.value === v),
-    place: () => placePill(pill, buttons.find((t) => t.dataset.value === value), false),
+    button: find,
+    // The first placement: on the old tab at once, then a slide to the new one (or at once
+    // when there is no old tab). Each later one (the card's width changed) slides, so it never
+    // cuts a slide short.
+    place: () => {
+      const to = find(value);
+      if (!to?.offsetWidth) return; // not on screen yet
+      if (placed) return placePill(pill, to, true);
+      placed = true;
+      const old = from !== undefined && from !== value ? find(from) : undefined;
+      if (!old) return placePill(pill, to, false);
+      placePill(pill, old, false);
+      void pill.offsetWidth; // start the slide from the old tab
+      placePill(pill, to, true);
+    },
   };
 }
