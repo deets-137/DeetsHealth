@@ -490,7 +490,7 @@ def load_tools(path: Path | None = None) -> dict[str, dict[str, Any]]:
 
 GUIDE_FILE = PROMPT_FILE.with_name("GUIDE.md")
 # Config › Agent's tabs (AGENT-PAGE.md §2), in the call's order; one word each (the owner).
-GUIDE_TABS = ("Greet", "Verify", "Menu", "Schedule", "Anytime", "Failure")
+GUIDE_TABS = ("Core", "Greet", "Verify", "Menu", "Schedule", "Anytime", "Failure")
 
 
 def load_guide(path: Path | None = None) -> list[dict[str, str]]:

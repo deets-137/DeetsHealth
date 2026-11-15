@@ -589,7 +589,7 @@ select.cfg-field {
   border: 0;
 }
 
-/* The section groups at the left, Semantic | Flow at the right; they wrap when narrow. */
+/* The call's steps at the left, Plain | Code at the right; they wrap when narrow. */
 .prompt-bars {
   display: flex;
   flex-wrap: wrap;
@@ -794,14 +794,78 @@ select.cfg-field {
   min-width: 0;
 }
 
-.prompt-section[data-kind="field"] .prompt-label {
+/* A field's title is inset under its tool's; its key stays at the column's edge, with room. */
+.prompt-section[data-kind="field"] .prompt-title {
   padding-left: var(--prompt-indent);
 }
 
 .prompt-tag,
-.prompt-keeps {
+.prompt-keeps,
+.prompt-key {
   font-size: var(--text-small);
   color: var(--text-3);
+}
+
+/* Code: a section's key under its title (AGENT-PAGE.md §8, §10). It is always in the page and
+   rolls down in Code, as a row's help does (.cfg-help), so the row grows gently and nothing is
+   drawn again (the owner, 2026-11-14: "reduce the jitter"). It wraps after a dot. */
+.prompt-key-roll {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition: grid-template-rows var(--dur-collapse) var(--ease), opacity var(--dur-collapse) var(--ease),
+    visibility 0s linear var(--dur-collapse);
+}
+
+.prompt-card[data-order="flow"] .prompt-key-roll {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition: grid-template-rows var(--dur-collapse) var(--ease), opacity var(--dur-collapse) var(--ease);
+}
+
+.prompt-key {
+  min-height: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* Code: the tool's name as a chip before the block's title. The same roll, sideways. The space
+   after the chip is inside the clip, so in Plain the title sits at the block's edge. */
+.prompt-chip-roll {
+  display: inline-grid;
+  grid-template-columns: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition: grid-template-columns var(--dur-collapse) var(--ease), opacity var(--dur-collapse) var(--ease),
+    visibility 0s linear var(--dur-collapse);
+}
+
+.prompt-card[data-order="flow"] .prompt-chip-roll {
+  grid-template-columns: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition: grid-template-columns var(--dur-collapse) var(--ease), opacity var(--dur-collapse) var(--ease);
+}
+
+.prompt-chip-clip {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.prompt-chip-clip .prompt-tool {
+  margin-right: var(--space-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prompt-key-roll,
+  .prompt-chip-roll,
+  .prompt-card[data-order="flow"] .prompt-key-roll,
+  .prompt-card[data-order="flow"] .prompt-chip-roll {
+    transition: none;
+  }
 }
 
 .prompt-tag[hidden],
@@ -812,6 +876,35 @@ select.cfg-field {
 
 .prompt-name {
   color: var(--text);
+  min-width: 0;
+}
+
+/* The title's row: AI or HC, then the title (AGENT-PAGE.md §9, the owner, 2026-11-14). */
+.prompt-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* AI (a prompt the model reads) in the theme color; HC (hardcoded words) in the green of Start.
+   A box as wide as the "i", so every title starts on one line down the column. The shape of
+   the letters says which it is, not the color alone. */
+.prompt-mark-kind {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: var(--info-size);
+  border-radius: var(--radius-control);
+  font-size: var(--text-small);
+  font-weight: var(--weight-bold);
+  background: var(--theme-color);
+  color: var(--on-theme-color);
+}
+
+.prompt-mark-kind[data-by="code"] {
+  background: var(--go);
+  color: var(--on-call-button);
 }
 
 /* The words: two layers in one place, the text (Read) and the box (Edit). Same padding, edge
@@ -901,8 +994,8 @@ select.cfg-field {
   border-color: var(--error);
 }
 
-/* Flow: a tool and everything it can produce, as one block set in from the left, with the
-   tool's chip and name at its head. */
+/* A tool and everything it can produce, as one block set in from the left, with the tool's title
+   at its head (in Code, its name as a chip before the title). */
 .prompt-block {
   display: flex;
   flex-direction: column;
@@ -913,8 +1006,7 @@ select.cfg-field {
 
 .prompt-block-head {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
+  align-items: center; /* the chip's clip has no baseline of its own */
   padding-top: var(--space-3);
   font-weight: var(--weight-bold);
   color: var(--title);

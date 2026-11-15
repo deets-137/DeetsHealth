@@ -8,6 +8,53 @@ updated: 2026-11-14
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-14 (Windows, late night) — Config › Agent: one layout, Plain | Code, new titles
+- The owner: the Agent page is "still a little confusing"; "Flow is more intuitive, but looks
+  'scarier'". The cause in the code: Semantic split each tool from the lines it speaks; Flow
+  kept them together but showed a code name at each block's head and repeated the title.
+- His picks: 1A (the bar stays and changes only the detail), 2B (titles only; "plays when" stays
+  under the "i"), and "we can rewrite titles if needed to use more active, direct, standard
+  voice".
+- Built (AGENT-PAGE.md §8): one layout, a block per tool, in `agent.ts`; a tool's own words show
+  as "When to use it"; the bar reads Plain | Code; Code adds the chip and each key
+  (`.prompt-key` in `config.css`). No new token.
+- The 40 titles changed in `agent/prompts/GUIDE.md`, old → new:
+  - Greet: Greeting → Greet the caller · Impossible date of birth → Ask for the date of birth
+    again · Name not said → Ask for the full name again · Details read back → Ask if the details
+    are right · No details yet → Ask for the details first · Code sent → Say a code is on its
+    way · Code text message → Text the code.
+  - Verify: Code not 6 digits → Ask for all 6 digits · Wrong code → Say the code did not match ·
+    Too many wrong codes → Say the caller cannot be verified · Verified → Say the caller is
+    verified · New code sent → Say a new code is on its way · No codes left → Say no more codes
+    can be sent.
+  - Menu: No upcoming visit → Say no visit is coming · Next visit → Say the next visit · Next
+    visit, just booked → Say it is the visit just booked · Online visit (added) → Add that the
+    visit is online · Visit type (added) → Add the visit type · Visit reason (added) → Add the
+    visit reason · Open times offered → Offer the open times · No open times → Say no times are
+    open · Booked visit stays → Say the booked visit stays · Change goes to staff → Say staff
+    will make the change.
+  - Schedule: Unknown option → Ask which option · Chosen time read back → Ask to book the chosen
+    time · Time already taken → Say the time was taken · Booked → Say the visit is booked.
+  - Anytime: Goodbye → Say goodbye · Connecting to a person → Say a person is coming ·
+    Connecting after a failed code → Say a person will help with the code · Offer: cannot help →
+    Offer a person when it cannot help · Offer: private → Offer a person when the answer is
+    private · 911 line → Say to call 911 · 911 reminder → Say the short 911 reminder · Medical
+    advice declined → Say it cannot give medical advice.
+  - Failure: Reply cut off → Say one moment · Could not use a value → Ask the caller to say it
+    again · Not allowed on this call → Say it cannot do that on this call · Refused for now →
+    Say it cannot do that now · Scheduling system down → Say the scheduling system is down.
+- Checks: `npm run check` passes (docs, the front-end type check, the agent's lint and tests).
+  Not desk-tested.
+- Then, after his first look ("better"): an AI or HC mark before every title (AGENT-PAGE.md §9).
+  AI in the theme color for a prompt the model reads; HC in green for hardcoded words.
+- Then his screenshot of Code (saved as
+  `docs/architecture/images/agent-code-keys-jitter-2026-11-14.png`; no protected data, the
+  prompt's words only) with two asks (AGENT-PAGE.md §10): Plain | Code now animates in place
+  (the keys and chips roll, nothing is drawn again), and a Core tab before Greet holds Role and
+  rules alone (`GUIDE.md`, `prompts.py › GUIDE_TABS`, a test).
+- Then: the two 911 tools and their lines (five sections) moved from Anytime to Core; Anytime
+  links to them.
+
 ## 2026-11-14 (Windows, night) — the compact nav for narrow screens
 - The owner's ask: start the phone layout with the nav. We went over what browsers can tell a
   page (width, `pointer`, `hover`, `visualViewport`, safe areas; user-agent checks avoided).

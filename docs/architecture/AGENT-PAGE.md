@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [console/src/pages/agent.ts, console/src/pages/system.ts, console/src/styles/config.css, agent/prompts/GUIDE.md, agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/prompts.py, agent/deets_agent/dev_server.py, agent/tests/test_prompts.py, agent/prompts/AGENT-PROMPT.md, agent/prompts/TOOLS.md, docs/architecture/images/system-test-variable-2026-11-13.png]
+sources: [console/src/pages/agent.ts, console/src/pages/system.ts, console/src/styles/config.css, agent/prompts/GUIDE.md, agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/prompts.py, agent/deets_agent/dev_server.py, agent/tests/test_prompts.py, agent/prompts/AGENT-PROMPT.md, agent/prompts/TOOLS.md, docs/architecture/images/system-test-variable-2026-11-13.png, docs/architecture/images/agent-code-keys-jitter-2026-11-14.png]
 updated: 2026-11-14
 ---
 # DeetsHealth — Config › Agent, arranged by the call
@@ -11,6 +11,11 @@ played: "I evidently got confused and I imagine an analyst most definitely would
 said what each section says, never when it plays. This design arranges the sections by the
 call's steps, puts each line under the tool that speaks it, and gives every section a "Plays
 when" line. It replaces CONSOLE.md §9's five tabs.
+
+**Read §8 to §10 first** (2026-11-14): one layout by tool for both readers, Plain | Code in
+place of Semantic | Flow, new titles (§8); the AI and HC marks (§9); the Core tab before Greet
+and the gentle Plain | Code change (§10). §2's tab list, §3, §5's names and §5a's desk test are
+the record before them.
 
 **Terms.** A **section** is one block of AGENT-PROMPT.md (78). A **step** is a node of the call
 (`flow.py` › `TOOL_STEPS`). A **line** is a fixed line the caller hears. A **field** is one
@@ -242,6 +247,123 @@ two list entries (`prompts.py`, `ehr/src/settings.rs`) and its GUIDE.md entry
 pronoun** (`note.summary_pronoun`). Two existing sections gained a rule: Anytime › Role and
 rules (no guessed pronoun in a staff summary) and Menu › Menu instructions (an odd reason is
 booked and flagged). Desk test: open each and check its "i".
+
+## 8. One layout, Plain | Code (2026-11-14)
+> **Part:** built · 2026-11-14 · desk test open. Where this part disagrees with §3, §5 and §5a,
+> this part is the code.
+
+The owner, 2026-11-14: "I still feel the Agent config tab is a little confusing and not quite
+intuitive … I think Flow is more intuitive, but looks 'scarier'."
+
+**The cause.** Semantic put every tool under one heading and every line under another, so
+nothing said which tool speaks which line. Flow kept them together, but its block head showed a
+code name in a chip, and its first row repeated the head's title.
+
+**What the owner decided.**
+- **1A: the bar stays and changes only the detail.** Both choices show the same layout: the
+  sections with no tool first, then a block per tool.
+- **2B: titles only.** A block shows its title and its rows. Every "plays when" stays under an
+  "i". No labels inside a block.
+- **The titles may be rewritten** "to use more active, direct, standard voice".
+
+**As built** (`agent.ts`, `config.css`, `GUIDE.md`).
+- **One layout.** Semantic's three headings are gone. A tab shows its step's instructions, then
+  each tool as a block (the bar at its left, its title at its head), then "Also here".
+- **A tool's own words show as "When to use it"** inside its block (`agent.ts › TOOL_ROW`). The
+  title is at the head once. Links, the Save hint and Config › System still use the tool's title.
+- **Plain | Code** replace Semantic | Flow on the bar (the browser's remembered choice carries
+  over: Semantic → Plain, Flow → Code). Plain shows titles only. Code adds the tool's name as a
+  chip at the block's head and each section's key under its title (`.prompt-key`). The key left
+  the "i".
+- **The titles** (GUIDE.md): 40 lines' titles now start with a verb and say what the agent says
+  (Say, Ask, Offer, Add, Greet, Text). A tool's title already said what the agent does. Fields,
+  notes and instructions keep their titles. Four "plays when" lines that quote a title follow.
+
+**Decided inside his choices (for his review).**
+- The bar's words "Plain" and "Code", and the row title "When to use it".
+- Each of the 40 new titles (the WORKLOG entry of 2026-11-14 lists old → new). Edit GUIDE.md and
+  restart `npm run dev` to change one.
+- Code shows the key under the title, always in view, not under the "i".
+
+**Desk test.** Restart `npm run dev` first (the dev server reads GUIDE.md).
+1. Config, Agent: the bar at the right reads Plain | Code. It opens on the choice it had
+   (Semantic → Plain, Flow → Code).
+2. Verify, Plain: Verify instructions first. Then a block "Check the code": When to use it, Code
+   the caller read, Ask for all 6 digits, Say the code did not match, Say the caller cannot be
+   verified, Say the caller is verified. Then a block "Send a new code". No headings with
+   counts, no chips, no keys.
+3. Press Code: the same rows in the same places. Each block's head gains a chip
+   (`check_code`); each row shows its key under its title (`line.code_wrong`). Press Plain: they
+   go.
+4. Press an "i": "Plays when" (and "Keeps" where a section keeps a code value). No "Key" line in
+   either choice.
+5. Verify, "Also here: Read back the details · in Greet": Greet opens, the row "When to use it"
+   of that block glows once.
+6. Edit, Menu: delete `{visit}` from Say the next visit. Menu's tab shows the red dot; Save's
+   hint reads "Menu › Say the next visit: Needs {visit}".
+7. Config, System, a tool's "Its words" link: Agent opens on the tool's block.
+8. Narrow the window below one Cartesia card: in Code, the key sits under the title, over the
+   words.
+
+## 9. AI and HC (2026-11-14)
+> **Part:** built · 2026-11-14 · desk test open
+
+The owner, 2026-11-14, after seeing §8: "can we indicate with 'HC' or 'AI' to indicate something
+that's hardcoded vs something that is a prompt for the Agent? Thinking in the serif font placed
+in a theme color box for AI and green box for HC".
+
+- **Every row has a mark before its title**, in Plain and in Code (`agent.ts`,
+  `.prompt-mark-kind`).
+  - **AI**: a prompt the model reads (instructions, a tool's "When to use it", a field, a note).
+    The theme color (`--theme-color`, `--on-theme-color`).
+  - **HC**: hardcoded words the caller hears or reads exactly as written (a line, the text
+    message). The green of Start (`--go`, `--on-call-button`).
+- **Decided inside his choice (for his review):** the box is as wide as the "i"
+  (`--info-size`), with the small type in bold, so the titles start on one line; the mark sits
+  between the "i" and the title; its hover hint reads "AI: a prompt the agent reads" or
+  "Hardcoded: the caller gets these exact words". No new token.
+- **Desk test.** Verify, Plain: Verify instructions, When to use it and Code the caller read
+  show AI; the four lines under Check the code show HC. Change the theme: the AI box takes the
+  new theme color; HC stays green. Narrow the window: the mark stays before the title.
+
+## 10. Core, and a gentle Plain | Code (2026-11-14)
+> **Part:** built · 2026-11-14 · desk test open
+
+The owner, 2026-11-14, with a screenshot of Code: "when i switch to code, adding the subtitles
+increases the height of the box. Can we either remove the jitter or animate the change gently?"
+and "remove the Role and Rules piece (ie the core prompt) and put it into its own section before
+Greet called 'Core'".
+
+![The owner's screenshot, 2026-11-14: Greet in Code, each row with its AI or HC mark and its key under the title; he asks for no jitter when the keys appear](images/agent-code-keys-jitter-2026-11-14.png)
+
+- **The tabs** are now `Core · Greet · Verify · Menu · Schedule · Anytime · Failure`. Core holds
+  Role and rules, and the two 911 tools with their lines (the owner, the same day: "move the 911
+  pieces to core since its a very very important piece as well"): Send to 911 and Remind about
+  911, five sections. GUIDE.md; `prompts.py › GUIDE_TABS`; `agent.ts › TABS`; a test holds Core
+  to those six sections. Anytime keeps the other five tools of every step, and shows "Also
+  here: Send to 911 · in Core · Remind about 911 · in Core" (a tool's home is its tab in
+  GUIDE.md).
+- **Plain | Code animates in place.** One option was left: the keys add a line, so the rows
+  must grow, and a row that kept the line's room in Plain would waste it. Every key and chip is
+  always in the page. A click sets `data-order` on the card and nothing is drawn again: each
+  key rolls down under its title and each chip rolls in from the left, with the help's roll
+  (`.cfg-help`: `--dur-collapse`, `--ease`). The page keeps its scroll place. Reduced motion: a
+  snap. Only the bar itself is made again, so its pill slides.
+- **Decided inside his choices (for his review):**
+  - A browser with no remembered tab opens on Core (the first tab). The old "General" maps to
+    Core.
+  - A key wraps after a dot, never inside a word (the screenshot shows `…family_nam` / `e`).
+  - A field's title stays inset; its key now starts at the column's edge, so it has room.
+- **Desk test.** Restart `npm run dev` first (GUIDE.md and `prompts.py` changed).
+  1. The tabs start with Core. Core shows Role and rules (AI), then the blocks "Send to 911"
+     and "Remind about 911". Anytime starts with the block "End the call" and ends with "Also
+     here: Send to 911 · in Core · Remind about 911 · in Core"; press one: Core opens and the
+     row glows once.
+  2. Greet, scroll to the middle, press Code: the page does not jump to the top; each key rolls
+     down and each chip rolls in, about a fifth of a second. Press Plain: they roll away.
+  3. `arg.identify.family_name` breaks after a dot or not at all.
+  4. With the system's reduced motion on: the change is a snap.
+  5. Edit a section, then press Code: the typed words stay (nothing was drawn again).
 
 ## 6. Every place it runs
 The console only (a browser). No change to the call, the store, `ehr` or any EHR: the

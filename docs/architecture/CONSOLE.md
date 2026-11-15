@@ -832,6 +832,10 @@ The five tabs and the hard-coded section list gave way to the call's steps, each
 tool, and a "plays when" for every section: AGENT-PAGE.md is the design, the as-built record
 and the desk test. §9.1 to §9.6 hold for everything else on the page.
 
+**One layout, Plain | Code (2026-11-14).** Semantic | Flow gave way to Plain | Code: both show a
+block per tool; Code adds the tool's name and each section's key. The lines' titles now start
+with a verb. AGENT-PAGE.md §8 has the decision, the as-built record and the desk test.
+
 ## 10. Config › System
 > **Part:** built · 2026-11-14
 

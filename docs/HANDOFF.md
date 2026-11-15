@@ -148,9 +148,13 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   lists are tables, each row with an "i" (SYSTEM-PAGE.md §5 steps 2, 11, 11a).
 - **Built, desk test open: Config › Agent arranged by the call** (2026-11-13; the owner's 2A).
   Tabs Greet · Verify · Menu · Schedule · Anytime · Failure; each line under the tool that
-  speaks it; Semantic (new analyst) | Flow (power user); each title says what the row is, and
-  its "i" says when it plays. Names and "plays when" live in `agent/prompts/GUIDE.md`; the owner
-  edits them there after the desk test. AGENT-PAGE.md §5a.
+  speaks it; each title says what the row is, and its "i" says when it plays. Since 2026-11-14
+  (his 1A and 2B): one layout, a block per tool; Plain (new analyst) | Code (power user: the
+  tool's name and each key) in place of Semantic | Flow; the lines' titles start with a verb.
+  Then an AI or HC mark before every title, a Core tab before Greet (Role and rules, and the 911 tools), and
+  Plain | Code animated in place.
+  Names and "plays when" live in `agent/prompts/GUIDE.md`; the owner edits them there after the
+  desk test. AGENT-PAGE.md §8 to §10 (the desk tests to run).
 - **Built, desk test open: the demo over the tunnel** (2026-11-13/14; ops/DEMO.md). `npm run
   dev` opens `deetshealth.deets.solutions/demo/` behind Access when every guard passes (one
   connector, the main checkout, `cf` and `cloudflared` ready); it prints `[demo] on` or

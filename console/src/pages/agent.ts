@@ -2,8 +2,9 @@
 // agent's words (agent/prompts/AGENT-PROMPT.md) in the Config frame (config-kit.ts: Read | Edit,
 // the versions, Discard | Save). The tabs are the call's steps, Greet … Failure; each line sits
 // under the tool that speaks it, and every section says when it plays (agent/prompts/GUIDE.md).
-// Semantic (the default, for the analyst new to this) groups a tab by what each section is;
-// Flow (for the power user) shows the step as the code runs it, a block per tool, with keys. A
+// One layout for both readers (AGENT-PAGE.md §8, the owner, 2026-11-14): a block per tool. Plain
+// (the default, for the analyst new to this) shows titles only; Code (for the power user) adds
+// each tool's name and each section's key. A
 // save makes a new version that the next test call runs with, and writes the prompt file;
 // Record and test records the kept scripts with the new words and runs the tests, after a free
 // dry run has quoted what it will cost.
@@ -24,13 +25,14 @@ type Values = Record<string, string>;
 type Kind = "instructions" | "act" | "field" | "hears" | "text";
 type Order = "semantic" | "flow";
 
-// The call's steps, in its order; one word each (the owner, 2026-11-13). prompts.py › GUIDE_TABS.
-const TABS = ["Greet", "Verify", "Menu", "Schedule", "Anytime", "Failure"] as const;
+// Core (the core prompt and the 911 tools; the owner, 2026-11-14), then the call's steps, in its order; one
+// word each (the owner, 2026-11-13). prompts.py › GUIDE_TABS.
+const TABS = ["Core", "Greet", "Verify", "Menu", "Schedule", "Anytime", "Failure"] as const;
 type Tab = (typeof TABS)[number];
 // A step's tab, for the tools offered there (flow.py › tool_steps; "every" is Anytime).
 const STEP_TAB: Record<string, Tab> = { greet: "Greet", verify: "Verify", menu: "Menu", schedule: "Schedule", every: "Anytime" };
 // The tab a browser remembered from the five groups before (AGENT-PAGE.md §4).
-const OLD_TAB: Record<string, Tab> = { General: "Anytime", "Open and close": "Anytime", Visits: "Menu", Safety: "Anytime" };
+const OLD_TAB: Record<string, Tab> = { General: "Core", "Open and close": "Anytime", Visits: "Menu", Safety: "Anytime" };
 
 /** One section's place on the page (GUIDE.md): its tab, its name, the tool it sits under ("" for
  * none) and when it plays. */
@@ -55,13 +57,9 @@ export const SHOW_SECTION = "deets:show-section";
 /** Config › System saved new variables: the `{` list and the checks use them at once. */
 export const SYSTEM_SAVED = "deets:system-saved";
 
-// Semantic's headings, in their order (AGENT-PAGE.md §3): what each section is, in plain words.
-// A tool's fields sit under it in "What the agent can do".
-const HEADINGS: [string, Kind[]][] = [
-  ["What the agent is told", ["instructions"]],
-  ["What the agent can do", ["act", "field"]],
-  ["What the caller hears", ["hears", "text"]],
-];
+// A tool's own words, as a row inside its block: the block's head already holds the tool's title
+// (AGENT-PAGE.md §8).
+const TOOL_ROW = "When to use it";
 
 const kindOf = (key: string): Kind => {
   const head = key.split(".")[0];
@@ -82,9 +80,9 @@ function rememberedTab(): Tab {
   try {
     const v = localStorage.getItem(TAB_KEY) ?? "";
     if ((TABS as readonly string[]).includes(v)) return v as Tab;
-    return OLD_TAB[v] ?? "Greet";
+    return OLD_TAB[v] ?? TABS[0];
   } catch {
-    return "Greet";
+    return TABS[0];
   }
 }
 
@@ -197,7 +195,6 @@ export const agentView = (): View => {
   let tab: Tab = rememberedTab();
   // Set by a click on a tab bar, read by the next drawing: the pill slides from that tab.
   let slideTab: string | undefined;
-  let slideOrder: string | undefined;
   // The latest settings, for the Record and test line (it updates without drawing the cards),
   // and for the variables and tools the lists and checks use.
   let latest: Guided | undefined;
@@ -339,8 +336,7 @@ export const agentView = (): View => {
     const bars = el(`<div class="prompt-bars"></div>`);
     // The tab chosen before a click, for this one drawing only (a pill slides from it).
     const tabFrom = slideTab;
-    const orderFrom = slideOrder;
-    slideTab = slideOrder = undefined;
+    slideTab = undefined;
     const tabBar = bar(
       "Step of the call",
       TABS.map((t) => [t, t]),
@@ -353,21 +349,31 @@ export const agentView = (): View => {
       },
       tabFrom,
     );
-    const orderBar = bar(
-      "Order",
-      [
-        ["semantic", "Semantic"],
-        ["flow", "Flow"],
-      ],
-      order,
-      (v) => {
-        slideOrder = order;
-        order = v as Order;
-        remember(ORDER_KEY, order);
-        kit.rerender(true);
-      },
-      orderFrom,
-    );
+    // Plain | Code changes nothing but the detail, so a click draws nothing again: the card's
+    // `data-order` rolls every key and chip in or out in place (config.css › .prompt-key-roll),
+    // and only this bar is made again, so its pill slides. The page keeps its scroll place.
+    card.dataset.order = order;
+    const makeOrderBar = (from?: string) =>
+      bar(
+        "Detail",
+        [
+          ["semantic", "Plain"],
+          ["flow", "Code"],
+        ],
+        order,
+        (v) => {
+          const before = order;
+          order = v as Order;
+          remember(ORDER_KEY, order);
+          card.dataset.order = order;
+          const old = orderBar;
+          orderBar = makeOrderBar(before);
+          old.el.replaceWith(orderBar.el);
+          orderBar.place();
+        },
+        from,
+      );
+    let orderBar = makeOrderBar();
     bars.append(tabBar.el, orderBar.el);
     const markBad = () => {
       for (const t of TABS) {
@@ -378,8 +384,8 @@ export const agentView = (): View => {
     markBad();
 
     // ---- one section: the "i", its name (the name alone says what the row is), its words.
-    // The "i" rolls down the rest, as on every Config row (config-kit.ts › row): when it plays,
-    // the code values it keeps, and in Flow its key. The words are two layers in one place: the
+    // The "i" rolls down the rest, as on every Config row (config-kit.ts › row): when it plays
+    // and the code values it keeps. The words are two layers in one place: the
     // text (Read) and the box (Edit), with the same padding, edge width, type and wrapping, so
     // the box fades in over the text without a shift.
     const section = (g: GuideEntry) => {
@@ -389,7 +395,7 @@ export const agentView = (): View => {
       const r = el(`
         <div class="prompt-section prompt-has-info">
           <button class="cfg-info" type="button" aria-expanded="false"><span class="i-glyph" aria-hidden="true">i</span></button>
-          <div class="prompt-label"><span class="prompt-name"></span></div>
+          <div class="prompt-label"><span class="prompt-title"><span class="prompt-mark-kind"></span><span class="prompt-name"></span></span></div>
           <div class="cfg-control prompt-control">
             <div class="prompt-words"></div>
             <textarea class="cfg-field prompt-text" rows="1" spellcheck="true"></textarea>
@@ -400,7 +406,25 @@ export const agentView = (): View => {
       r.dataset.key = key;
       r.dataset.kind = kind;
       const name = g.name;
-      r.querySelector<HTMLElement>(".prompt-name")!.textContent = name;
+      // Inside its block a tool's own words read "When to use it": the head holds its title.
+      r.querySelector<HTMLElement>(".prompt-name")!.textContent = kind === "act" ? TOOL_ROW : name;
+      // AI or HC before the title (the owner, 2026-11-14): a prompt the model reads, or fixed
+      // words the caller hears or reads exactly as written.
+      const fixed = kind === "hears" || kind === "text";
+      const mark = r.querySelector<HTMLElement>(".prompt-mark-kind")!;
+      mark.textContent = fixed ? "HC" : "AI";
+      mark.dataset.by = fixed ? "code" : "model";
+      mark.title = fixed ? "Hardcoded: the caller gets these exact words" : "AI: a prompt the agent reads";
+      mark.setAttribute("aria-label", mark.title);
+      mark.setAttribute("role", "img");
+      // The key, always there; it shows in Code only (it rolls down under the title). It may
+      // wrap after a dot, never inside a word.
+      const roll = el(`<span class="prompt-key-roll"><span class="prompt-key"></span></span>`);
+      key.split(".").forEach((part, i) => {
+        if (i) roll.firstElementChild!.append(".", document.createElement("wbr"));
+        roll.firstElementChild!.append(part);
+      });
+      r.querySelector(".prompt-label")!.append(roll);
       const help = r.querySelector<HTMLElement>(".prompt-help")!;
       const fact = (label: string, text: string) => {
         const p = el(`<p><span class="prompt-help-key"></span> </p>`);
@@ -410,7 +434,6 @@ export const agentView = (): View => {
       };
       fact("Plays when:", g.plays);
       if (need.length) fact("Keeps:", need.map((p) => `{${p}}`).join(" "));
-      if (order === "flow") fact("Key:", key);
       const info = r.querySelector<HTMLButtonElement>(".cfg-info")!;
       const helpBox = r.querySelector<HTMLElement>(".cfg-help")!;
       info.setAttribute("aria-label", `About ${name}`);
@@ -448,14 +471,16 @@ export const agentView = (): View => {
 
     // A tool offered in more than one step sits once, in its first step; each other step shows a
     // link to it (AGENT-PAGE.md §2).
-    const home = (steps: string[]) => STEP_TAB[steps[0]];
-    const links = w.tools.filter((t) => t.steps.some((x) => STEP_TAB[x] === tab) && home(t.steps) !== tab);
+    // A tool's home is where the guide puts it: its first step's tab, or Core for the 911 tools
+    // (tools of every step, so Anytime links to them).
+    const home = (t: { name: string; steps: string[] }) => guide.find((g) => g.key === `tool.${t.name}`)?.tab ?? STEP_TAB[t.steps[0]];
+    const links = w.tools.filter((t) => t.steps.some((x) => STEP_TAB[x] === tab) && home(t) !== tab);
     const linkRow = () => {
       const p = el(`<p class="prompt-links"><span>Also here:</span></p>`);
       links.forEach((t, i) => {
         if (i) p.append(" · ");
         const a = el(`<button class="cfg-link" type="button"></button>`) as HTMLButtonElement;
-        a.textContent = `${sectionName(`tool.${t.name}`)} · in ${home(t.steps)}`;
+        a.textContent = `${sectionName(`tool.${t.name}`)} · in ${home(t)}`;
         a.addEventListener("click", () => {
           slideTab = tab;
           showSection(`tool.${t.name}`);
@@ -464,45 +489,34 @@ export const agentView = (): View => {
       });
       return p;
     };
-    const heading = (text: string, count: number) => {
-      const h = el(`<h3 class="prompt-heading"><span></span><span class="prompt-count"></span></h3>`);
-      h.firstElementChild!.textContent = text;
-      h.lastElementChild!.textContent = String(count);
-      return h;
-    };
 
+    // One layout for both readers (AGENT-PAGE.md §8, the owner, 2026-11-14): the sections with
+    // no tool first, then a block per tool: its title at the head, then its own words, its
+    // fields, and every line and note it can produce. Code adds the tool's name as a chip (and
+    // each section's key under its name).
     const rows = guide.filter((g) => g.tab === tab);
     const body = el(`<div class="prompt-sections"></div>`);
-    if (order === "semantic") {
-      // For the analyst new to this: by what each section is, in plain words.
-      for (const [text, kinds] of HEADINGS) {
-        const these = rows.filter((g) => kinds.includes(kindOf(g.key)));
-        const linked = kinds.includes("act") && links.length;
-        if (!these.length && !linked) continue;
-        body.append(heading(text, these.length), ...these.map(section));
-        if (linked) body.append(linkRow());
+    const blocks = new Map<string, HTMLElement>();
+    for (const g of rows) {
+      if (!g.under) {
+        body.append(section(g));
+        continue;
       }
-    } else {
-      // For the power user: the step as the code runs it. Each tool is a block: its words, its
-      // fields, then every line and note it can produce.
-      const blocks = new Map<string, HTMLElement>();
-      for (const g of rows) {
-        if (!g.under) {
-          body.append(section(g));
-          continue;
-        }
-        let block = blocks.get(g.under);
-        if (!block) {
-          block = el(`<div class="prompt-block"><p class="prompt-block-head"><span class="prompt-tool"></span><span class="prompt-block-name"></span></p></div>`);
-          block.querySelector(".prompt-tool")!.textContent = g.under;
-          block.querySelector(".prompt-block-name")!.textContent = sectionName(`tool.${g.under}`);
-          blocks.set(g.under, block);
-          body.append(block);
-        }
-        block.append(section(g));
+      let block = blocks.get(g.under);
+      if (!block) {
+        // The chip is always there; it shows in Code only (it rolls in from the left).
+        block = el(
+          `<div class="prompt-block"><p class="prompt-block-head"><span class="prompt-chip-roll"><span class="prompt-chip-clip"><span class="prompt-tool"></span></span></span><span class="prompt-block-name"></span></p></div>`,
+        );
+        const head = block.firstElementChild!;
+        head.querySelector(".prompt-tool")!.textContent = g.under;
+        head.querySelector(".prompt-block-name")!.textContent = sectionName(`tool.${g.under}`);
+        blocks.set(g.under, block);
+        body.append(block);
       }
-      if (links.length) body.append(linkRow());
+      block.append(section(g));
     }
+    if (links.length) body.append(linkRow());
 
     card.append(bars, body);
     // The boxes take the height of their words once on screen, and again when the card's width

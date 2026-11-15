@@ -70,7 +70,11 @@ def test_the_guide_places_every_section_once_where_the_code_runs_it():
     names = [g["name"] for g in guide]
     assert len(names) == len(set(names)), sorted(n for n in names if names.count(n) > 1)
     steps = flow.tool_steps()
-    home = {t: ("Anytime" if s == ("every",) else s[0].capitalize()) for t, s in steps.items()}
+    # Core holds the core prompt and the 911 tools (the owner, 2026-11-14); they are tools of
+    # every step.
+    core = {"emergency", "safety_reminder"}
+    assert all(steps[t] == ("every",) for t in core)
+    home = {t: ("Core" if t in core else "Anytime" if s == ("every",) else s[0].capitalize()) for t, s in steps.items()}
     for g in guide:
         assert g["tab"] in prompts.GUIDE_TABS and g["name"] and g["plays"], g["key"]
         kind, _, rest = g["key"].partition(".")
@@ -80,6 +84,7 @@ def test_the_guide_places_every_section_once_where_the_code_runs_it():
             assert g["under"] in steps and g["tab"] == home[g["under"]], g["key"]
         if kind == "task":
             assert g["tab"] == rest.capitalize(), g["key"]
+        assert (g["tab"] == "Core") == (g["key"] == "role" or g["under"] in core), g["key"]
         if kind == "note":
             assert g["under"] == flow.NOTE_TOOL[g["key"]], g["key"]
     assert {g["key"] for g in guide if g["tab"] == "Failure"} == {
