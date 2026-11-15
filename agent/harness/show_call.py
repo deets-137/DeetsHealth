@@ -51,6 +51,13 @@ def line(e: dict, show_all: bool) -> str | None:
         return f"{t}    !!    {flag} {e['name']}: {_short(e['text'])}"
     if kind == "ehr":
         return f"{t}    ehr   {e['call']} {e['ms']} ms {e['outcome']}" if show_all else None
+    if kind == "epic":
+        # ehr's own request to the EHR (the ledger, from CloseCall); `at` is from the call's start.
+        at = f"{e['at_ms'] / 1000:7.2f}s"
+        return (
+            f"{at}    epic  [{e['rpc']}] {e['what']} · {e['status']} · {e['results']} results · "
+            f"{e['bytes']} B · {e['ms']} ms"
+        )
     if kind == "llm":
         if "error" in e:
             err = e["error"]
@@ -84,10 +91,41 @@ def line(e: dict, show_all: bool) -> str | None:
     return f"{t}  {kind} {_short(e)}"
 
 
+def _sent(e: dict) -> list[str]:
+    """What one request sent to Claude: the system prompt when it changed, then each message
+    added since the last request (or all of them, when the context was rewritten)."""
+    out: list[str] = []
+    if "system" in e:
+        out.append(f"system (changed): {_short(json.dumps(e['system'], ensure_ascii=False), 300)}")
+    messages = e.get("new_messages", e.get("all_messages", []))
+    if "all_messages" in e:
+        out.append(f"(all {len(messages)} messages, the context was rewritten)")
+    for m in messages:
+        content = m.get("content")
+        if isinstance(content, list):
+            parts = []
+            for b in content:
+                kind = b.get("type")
+                if kind == "text":
+                    parts.append(b.get("text", ""))
+                elif kind == "tool_use":
+                    parts.append(f"<tool_use {b.get('name')} {json.dumps(b.get('input'), ensure_ascii=False)}>")
+                elif kind == "tool_result":
+                    parts.append(f"<tool_result {b.get('content')}>")
+                else:
+                    parts.append(f"<{kind}>")
+            content = " ".join(parts)
+        out.append(f"{m.get('role')}: {_short(str(content), 300)}")
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("file", nargs="?", type=Path)
     parser.add_argument("--all", action="store_true", help="show ehr calls and replayed requests too")
+    parser.add_argument(
+        "--requests", action="store_true", help="show what was sent to Claude on each request (schema 12)"
+    )
     args = parser.parse_args()
     # The Windows console is not UTF-8 by default; a caller's words may not fit its code page.
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -100,9 +138,13 @@ def main() -> int:
         path = records[-1]
     print(path)
     for raw in path.read_text(encoding="utf-8").splitlines():
-        text = line(json.loads(raw), args.all)
+        e = json.loads(raw)
+        text = line(e, args.all or args.requests)
         if text is not None:
             print(text)
+        if args.requests and e.get("kind") == "llm":
+            for sent in _sent(e):
+                print(f"            {sent}")
     return 0
 
 

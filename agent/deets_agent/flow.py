@@ -81,6 +81,8 @@ DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
 # (ehr/fixtures/hospital.json, which ehr reads too; FUTURE-SETTINGS.md §13.1).
 TIMES_OF_DAY = tuple(t["name"] for t in json.loads(config.HOSPITAL.read_text(encoding="utf-8"))["times_of_day"])
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+# What a caller may say they want before they are verified (identify's `caller_wants`).
+CALLER_WANTS = ("book", "visit", "both")
 
 # The clinic's name is the System variable `{clinic}` (agent/prompts/VARIABLES.md; SYSTEM-PAGE.md
 # §3.1): `prompts.text` fills it in any section that holds it.
@@ -282,12 +284,15 @@ CLOSING_STEPS = ("goodbye", "hand_off")
 # The steps where the model runs, each with tools of its own.
 TOOL_STEPS = ("greet", "verify", "menu", "schedule")
 
+# The notes that belong to no tool: the call-start note (1A) and the repeat guard's (call.py).
+NOTES_WITHOUT_TOOL = frozenset({"note.call_start", "note.repeat_dropped"})
 # A note goes to the model in the result of one tool, so it is read in that tool's steps.
 NOTE_TOOL = {
     "note.after_find_visit": "find_visit",
     "note.after_offer_instructions": "find_visit",
     "note.after_which_visit": "find_visit",
     "note.after_reminder": "safety_reminder",
+    "note.after_verified": "check_code",
     "note.after_flag": "flag_for_staff",
     # Also sent back by hand_off; both are global tools, so the scope is the same.
     "note.summary_pronoun": "flag_for_staff",
@@ -364,6 +369,9 @@ class CallFlow:
     # Every visit the caller has heard on this call, by its number, and the last one (for
     # read_instructions and change_visit). The model names a visit by its number only.
     visits_heard: dict[int, Visit] = field(default_factory=dict)
+    # What the caller said they want, before verification (identify's `caller_wants`): after the
+    # code passes, the agent goes on to it and does not ask again (the owner, 2026-11-15).
+    wants: str = ""
     last_visit: Visit | None = None
     # Set when the Flow moves to a node that ends the call (goodbye, hand off).
     closing: bool = False
@@ -751,6 +759,9 @@ class CallFlow:
                 return await self._say(flow_manager, text("line.name_not_said"))
             # The read-back (option A): nothing goes to ehr until the caller says yes.
             self.pending = (Shielded(given_text), Shielded(family_text), Shielded(birth_text))
+            wants = str(args.get("caller_wants", "") or "").strip()
+            if wants in CALLER_WANTS and not self.wants:
+                self.wants = wants
             logger.info("identify: details read back")
             line = text(
                 "line.read_back",
@@ -760,7 +771,13 @@ class CallFlow:
             )
             return await self._say(flow_manager, line)
 
-        return _tool("identify", handler, {"given_name": "", "family_name": "", "birth_date": ""})
+        return _tool(
+            "identify",
+            handler,
+            {"given_name": "", "family_name": "", "birth_date": "", "caller_wants": ""},
+            required=["given_name", "family_name", "birth_date"],
+            schemas={"caller_wants": {"type": "string", "enum": ["", *CALLER_WANTS]}},
+        )
 
     def _confirm_details_fn(self) -> FlowsFunctionSchema:
         async def handler(args, flow_manager: FlowManager):
@@ -790,6 +807,15 @@ class CallFlow:
                 return await self._ehr_trouble(flow_manager, e, "check_code")
             logger.info("code check: {}", outcome.value)
             if outcome is CheckOutcome.PASS:
+                if self.wants:
+                    # The caller already said what they need: no question; the model goes on to it.
+                    return await self._say(
+                        flow_manager,
+                        text("line.verified_go"),
+                        self.menu(),
+                        caller_wants=self.wants,
+                        next_step=text("note.after_verified"),
+                    )
                 return await self._say(flow_manager, text("line.verified"), self.menu())
             if outcome is CheckOutcome.LOCKED:
                 self.raise_flag("verification_failed", "code")
@@ -842,16 +868,19 @@ class CallFlow:
             days = tuple(d for d in (args.get("days") or []) if isinstance(d, str) and d in WEEKDAYS)
             who = str(args.get("clinician", "") or "").strip()
             try:
-                slots, waiting = await self.ehr.find_slots(
-                    self.handle,
-                    reason,
-                    Shielded(day) if DAY.fullmatch(day) else None,
-                    mode,
-                    latest_day=Shielded(last) if DAY.fullmatch(last) else None,
-                    time_of_day=when,
-                    days=days,
-                    clinician=Shielded(who) if who else None,
-                    more=more,
+                slots, waiting = await self._once_more(
+                    lambda: self.ehr.find_slots(
+                        self.handle,
+                        reason,
+                        Shielded(day) if DAY.fullmatch(day) else None,
+                        mode,
+                        latest_day=Shielded(last) if DAY.fullmatch(last) else None,
+                        time_of_day=when,
+                        days=days,
+                        clinician=Shielded(who) if who else None,
+                        more=more,
+                    ),
+                    "find_slots",
                 )
             except EhrError as e:
                 return await self._ehr_trouble(flow_manager, e, "find_slots")
@@ -1006,12 +1035,15 @@ class CallFlow:
             group = str(args.get("group", "") or "").strip()
             past = args.get("past") is True or str(args.get("past", "")).lower() == "true"
             try:
-                found = await self.ehr.find_visit(
-                    self.handle,
-                    Shielded(when) if when else None,
-                    Shielded(who) if who else None,
-                    past,
-                    Shielded(group) if group else None,
+                found = await self._once_more(
+                    lambda: self.ehr.find_visit(
+                        self.handle,
+                        Shielded(when) if when else None,
+                        Shielded(who) if who else None,
+                        past,
+                        Shielded(group) if group else None,
+                    ),
+                    "find_visit",
                 )
             except EhrError as e:
                 return await self._ehr_trouble(flow_manager, e, "find_visit")
@@ -1029,9 +1061,19 @@ class CallFlow:
             self.last_visit = visit
             words = self._visit_lines(visit, asked)
             if found.more and not asked and not past:
-                words.append(
-                    text("line.one_more_visit") if found.more == 1 else text("line.more_visits", count=str(found.more))
-                )
+                days = str(found.more_within_days)
+                if found.more_within_days:
+                    words.append(
+                        text("line.one_more_visit_within", days=days)
+                        if found.more == 1
+                        else text("line.more_visits_within", count=str(found.more), days=days)
+                    )
+                else:
+                    words.append(
+                        text("line.one_more_visit")
+                        if found.more == 1
+                        else text("line.more_visits", count=str(found.more))
+                    )
             # The owner's 2A (2026-11-14): instructions are offered first; read at once when the
             # caller asked about this visit by its day, clinician or group. Never for a visit
             # that is over.
@@ -1129,6 +1171,18 @@ class CallFlow:
         )
 
     # ---- trouble ----
+
+    async def _once_more(self, call: Callable[[], Any], name: str) -> Any:
+        """A read that timed out or found ehr down is sent once more, quietly, before the caller
+        hears the system is down (the Camila call of 2026-11-15: one slow Epic search ended the
+        call). Reads only: a booking is never sent twice (V2A)."""
+        try:
+            return await call()
+        except EhrError as e:
+            if e.kind is not ErrorKind.UNAVAILABLE:
+                raise
+            logger.info("ehr {}: no answer in time; sent once more", name)
+            return await call()
 
     async def _ehr_trouble(self, flow_manager: FlowManager, e: EhrError, call: str):
         logger.warning("ehr {} failed: {}", call, e.kind.value)

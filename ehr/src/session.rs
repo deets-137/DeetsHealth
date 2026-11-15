@@ -119,6 +119,9 @@ pub struct Session {
     pub text_template: Option<String>,
     /// Each booking's answer, by its idempotency key, with the slot token it was for.
     pub booked: HashMap<String, (Token, BookResult)>,
+    /// The EHR ledger (ledger.rs): each request ehr sent the EHR on this call, by the gRPC call
+    /// that sent it. Names and counts only. CloseCall hands it to the agent.
+    pub ledger: Vec<(&'static str, crate::ledger::Entry)>,
     opened: Instant,
 }
 
@@ -159,6 +162,7 @@ impl Sessions {
             note: None,
             text_template: None,
             booked: HashMap::new(),
+            ledger: Vec::new(),
             opened: Instant::now(),
         };
         map.insert(handle.clone(), Arc::new(Mutex::new(session)));
@@ -166,8 +170,9 @@ impl Sessions {
     }
 
     /// Ends the session. Closing twice is not an error.
-    pub async fn close(&self, handle: &Token) {
-        self.map.lock().await.remove(handle);
+    /// Closes the session and gives it back, for its ledger.
+    pub async fn close(&self, handle: &Token) -> Option<Arc<Mutex<Session>>> {
+        self.map.lock().await.remove(handle)
     }
 
     pub async fn get(&self, handle: &Token) -> Result<Arc<Mutex<Session>>, Refusal> {
@@ -176,6 +181,11 @@ impl Sessions {
 }
 
 impl Session {
+    /// Milliseconds from the session's start to `at`.
+    pub fn ms_since_open(&self, at: Instant) -> u32 {
+        u32::try_from(at.saturating_duration_since(self.opened).as_millis()).unwrap_or(u32::MAX)
+    }
+
     pub fn patient(&self) -> Result<PatientKey, Refusal> {
         match &self.stage {
             Stage::Verified(p) => Ok(p.clone()),

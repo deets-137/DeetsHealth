@@ -23,11 +23,11 @@ use serde_json::{json, Value};
 
 use crate::{
     epic::Epic,
-    scheduler::{BookResult, FoundSlots, Scheduler, SchedulerDown, Slot, SlotId, SlotWish, VisitAsk, VisitStatus},
+    scheduler::{BookResult, FoundSlots, FoundVisits, Scheduler, SchedulerDown, Slot, SlotId, SlotWish, VisitAsk, VisitStatus},
     session::PatientKey,
     verify::{Candidate, Claimed, Down, Patients},
     visit_about::{BookNote, VisitAbout},
-    visits::{VisitGroup, VisitGroups, AHEAD_DAYS, AHEAD_MAX_DAYS, PAST_DAYS},
+    visits::{VisitGroup, VisitGroups, AHEAD_WINDOWS, PAST_DAYS},
 };
 
 /// The list of Epic's public test patients, built into the binary.
@@ -171,7 +171,7 @@ impl EpicEhr {
         let found = self.scheduler.find(&key, &wish).await.map_err(|_| "$find: no answer")?;
         out.push(format!("$find: {} slot(s)", found.slots.len()));
         let Some(slot) = found.slots.first() else { return Ok(out) };
-        let before = self.scheduler.visits(&key, &VisitAsk { range: None, past: false }).await.map_err(|_| "search: no answer")?.len();
+        let before = self.scheduler.visits(&key, &VisitAsk { range: None, past: false }).await.map_err(|_| "search: no answer")?.visits.len();
         let result = self.scheduler.book(&key, &slot.id, &wish.note).await.map_err(|_| "$book: no answer")?;
         match result {
             BookResult::Booked(v) => {
@@ -189,7 +189,7 @@ impl EpicEhr {
             BookResult::Taken => out.push("$book: refused (taken)".into()),
             BookResult::NotThrough => out.push("$book: no answer, and no booking found".into()),
         }
-        let after = self.scheduler.visits(&key, &VisitAsk { range: None, past: false }).await.map_err(|_| "search: no answer")?.len();
+        let after = self.scheduler.visits(&key, &VisitAsk { range: None, past: false }).await.map_err(|_| "search: no answer")?.visits.len();
         out.push(format!("visits to come in the first window: {before} before, {after} after"));
         Ok(out)
     }
@@ -200,6 +200,40 @@ impl EpicEhr {
         let key = PatientKey(Shielded::new(patient.to_string()));
         let who = Shielded::new(demographics(record));
         let mut out = Vec::new();
+        // The visit search by window, and with no end at all (date=ge only): how many come back,
+        // how fast, and whether Epic pages them. FindVisit has 3 s (ehr_client.py).
+        for days in [Some(7), Some(30), Some(90), None] {
+            let now = Timestamp::now();
+            let mut url = match self.epic.base().join("Appointment") {
+                Ok(u) => u,
+                Err(_) => continue,
+            };
+            url.query_pairs_mut()
+                .append_pair("patient", patient)
+                .append_pair("service-category", "appointment")
+                .append_pair("status", UPCOMING)
+                .append_pair("date", &format!("ge{}", now.round(jiff::Unit::Second).unwrap_or(now)));
+            if let Some(d) = days {
+                let to = now + SignedDuration::from_hours(24 * d);
+                url.query_pairs_mut().append_pair("date", &format!("lt{}", to.round(jiff::Unit::Second).unwrap_or(to)));
+            }
+            let started = std::time::Instant::now();
+            let label = days.map_or("no end".to_string(), |d| format!("{d} days"));
+            out.push(match self.epic.read(url).await {
+                Ok(b) => {
+                    let links: Vec<&str> = b["link"].as_array().into_iter().flatten().filter_map(|l| l["relation"].as_str()).collect();
+                    let last = entries(&b, "Appointment").filter_map(|a| a["start"].as_str()).max().map(|s| s.chars().take(10).collect::<String>());
+                    format!(
+                        "visit search, {label}: {} visit(s), total {}, links {links:?}, the latest on {}, in {} ms",
+                        entries(&b, "Appointment").count(),
+                        b["total"],
+                        last.unwrap_or_default(),
+                        started.elapsed().as_millis()
+                    )
+                }
+                Err(e) => format!("visit search, {label}: {e} in {} ms", started.elapsed().as_millis()),
+            });
+        }
         for (label, mode) in [("online", crate::scheduler::VisitMode::Online), ("either", crate::scheduler::VisitMode::Either)] {
             let wish = SlotWish {
                 note: BookNote::screen("a probe".into()),
@@ -412,7 +446,7 @@ impl Scheduler for EpicScheduler {
         Ok(BookResult::Booked(slot))
     }
 
-    async fn visits(&self, patient: &PatientKey, ask: &VisitAsk) -> Result<Vec<Slot>, SchedulerDown> {
+    async fn visits(&self, patient: &PatientKey, ask: &VisitAsk) -> Result<FoundVisits, SchedulerDown> {
         let now = Timestamp::now();
         let pass = EhrPass::issue();
         let id = patient.0.reveal(&pass).clone();
@@ -420,6 +454,7 @@ impl Scheduler for EpicScheduler {
             appointments(&self.epic, &self.tz, &self.place, &id, from, to, statuses)
         };
         let days = |n: i64| SignedDuration::from_hours(24 * n);
+        let mut within_days = None;
         let mut found = match &ask.range {
             // A day or a month the caller named, in the place's time zone: one read.
             Some(r) => {
@@ -434,11 +469,21 @@ impl Scheduler for EpicScheduler {
                 v.retain(|a| a.1.status != VisitStatus::Upcoming);
                 v
             }
-            // The visits to come: 90 days, then 400 when none (1 or 2 reads).
+            // The visits to come: 7 days, then 30, then 90, then no end (1 to 4 reads; most
+            // patients with a visit soon cost one small read).
             None => {
-                let mut v = search(now, now + days(AHEAD_DAYS), UPCOMING).await.map_err(|_| SchedulerDown)?;
+                let mut v = Vec::new();
+                for d in AHEAD_WINDOWS {
+                    v = search(now, now + days(d), UPCOMING).await.map_err(|_| SchedulerDown)?;
+                    if !v.is_empty() {
+                        within_days = Some(d as u32);
+                        break;
+                    }
+                }
                 if v.is_empty() {
-                    v = search(now, now + days(AHEAD_MAX_DAYS), UPCOMING).await.map_err(|_| SchedulerDown)?;
+                    // No end: a search with no upper date returns them all (the probe,
+                    // 2026-11-15: 269 visits, not paged, as fast as 90 days).
+                    v = search(now, Timestamp::MAX, UPCOMING).await.map_err(|_| SchedulerDown)?;
                 }
                 v
             }
@@ -448,7 +493,7 @@ impl Scheduler for EpicScheduler {
         if ask.past && ask.range.is_none() {
             visits.reverse();
         }
-        Ok(visits)
+        Ok(FoundVisits { visits, within_days })
     }
 
     fn groups(&self) -> &VisitGroups {
@@ -510,8 +555,11 @@ async fn appointments(
         .append_pair("patient", patient)
         .append_pair("service-category", "appointment")
         .append_pair("status", statuses)
-        .append_pair("date", &format!("ge{}", from.round(jiff::Unit::Second).map_err(|_| ())?))
-        .append_pair("date", &format!("lt{}", to.round(jiff::Unit::Second).map_err(|_| ())?));
+        .append_pair("date", &format!("ge{}", from.round(jiff::Unit::Second).map_err(|_| ())?));
+    // `Timestamp::MAX`: no end, so no upper date at all.
+    if to != Timestamp::MAX {
+        url.query_pairs_mut().append_pair("date", &format!("lt{}", to.round(jiff::Unit::Second).map_err(|_| ())?));
+    }
     let bundle = epic.read(url).await.map_err(|_| ())?;
     Ok(entries(&bundle, "Appointment")
         .filter_map(|a| appointment(a, tz, default_place, now))

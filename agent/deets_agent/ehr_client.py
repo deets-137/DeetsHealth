@@ -153,6 +153,8 @@ class FoundVisit:
     # The hospital's group names; tied to this caller they say what their visits are.
     groups: tuple[Shielded[str], ...] = ()
     other_visits: bool = False
+    # `more` counts the visits in the next this many days; 0: with no limit.
+    more_within_days: int = 0
 
 
 STATUSES = {
@@ -269,7 +271,22 @@ class EhrClient:
         return self._clocks.pop(handle.reveal(), None)
 
     async def close_call(self, handle: Shielded[str]) -> None:
-        await self._call("CloseCall", pb.CloseCallRequest(handle=handle.reveal()))
+        """Closes the call in ehr. Its EHR ledger (each request ehr sent the EHR: names, statuses,
+        times and counts, never a value; DEBUGGING.md §3) goes into the dev call record."""
+        reply = await self._call("CloseCall", pb.CloseCallRequest(handle=handle.reveal()))
+        if self.record is not None:
+            for e in reply.ledger:
+                self.record.epic(
+                    {
+                        "rpc": e.rpc,
+                        "what": e.what,
+                        "status": e.status,
+                        "ms": e.ms,
+                        "results": e.results,
+                        "bytes": e.bytes,
+                        "at_ms": e.at_ms,
+                    }
+                )
 
     async def file_call(self, call_id: str, record: Path) -> bool | None:
         """File one ended call's record into the call store (DATABASE.md §4a), one line per
@@ -550,4 +567,5 @@ class EhrClient:
             more=reply.more,
             groups=tuple(Shielded(g) for g in reply.groups),
             other_visits=reply.other_visits,
+            more_within_days=reply.more_within_days,
         )

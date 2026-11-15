@@ -16,10 +16,11 @@ pub const NARROW_OVER: usize = 2;
 pub const GROUPS_NAMED: usize = 3;
 /// How far back "when was I last seen?" looks.
 pub const PAST_DAYS: i64 = 400;
-/// The first window for the soonest visit, and the count of the others in it.
-pub const AHEAD_DAYS: i64 = 90;
-/// The wider window when nothing is in the first.
-pub const AHEAD_MAX_DAYS: i64 = 400;
+/// The windows the search for the visits to come widens through, in days (the owner,
+/// 2026-11-15: 7, then 30, then 90), then no end at all. A small first window keeps the reply
+/// small for a patient with many visits: the sandbox's 7 days take 0.5 s, 90 days 1.3 s
+/// (EPIC.md §7.10). The others are counted in the window that found the soonest.
+pub const AHEAD_WINDOWS: [i64; 3] = [7, 30, 90];
 
 /// One visit group: a name the caller hears ("primary care"), the words a caller may say for it
 /// ("my checkup"), and its members by visit type, as the record names them. The hospital's own

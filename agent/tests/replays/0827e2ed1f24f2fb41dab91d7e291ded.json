@@ -1,0 +1,171 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch4TN1nZsHFFV71uBpEWb",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 219
+     },
+     "cache_creation_input_tokens": 219,
+     "cache_read_input_tokens": 4592,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 6,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSsgoKEAgTGAI4AUIIdGhpbmtpbmcSDFaTQ4lx/McCQl+tWBoMqJuhSyKB6xOUZ9s/IjCrPy/T0CGhifkpNQJX8xOu0uCAgPr07hP/WC8h+0KdIHD178/gI2b2XLsCkdi/ENcqzwlkF9iGOh7Z5jyvXnPNUeZ2Mh8o8V3+A2ARt4JGHsRFETxc7LJu1SggtmAPwrvkpyOElnL4BxdtuHL9DT+00KEpmQ+99S90ob/ljzeuMkNOh5FXWO8vds+CP+P3ThtT705iPbqO1wW2tX4IsZkFnSMCKeu0D5u23zo6vzQ+iKuminRVBPqXlnfd26cdenulXZsMHpxSCZC6TR5M/toly3BPYkB2KVaFpM3CzvZIa+SPpeQq/tCWe2DiL2z98DZyI/TRfcThoujmUAqAI4FsjaR7Jqs+t04v5mYWLvTvte5QfvUr98H/BuiKQvVuilz+9rf0zqxGZU6Jw8U/2Sxw4mpElsdSkF3YyJ+hS4RrV9MWiMyKFFOIAa8ccOLJPTBWQz/Cmwcj0JrUN3iNdpPb01E7Qy+TtnFM5gqYAEPmW3iuz1XT26Gqx9P8TB2cEbN26vDRJFWsprqRJdGHktPtri83RNk4y6T2nB1hd30PxPCpPe+bI8DWlyB8gtmhRt+FH9yx2LD+rNcPORKJtGzQx1s1lc+b32Agv+EvMt2WpB20Wun7sY6QNcQnbOM6XBUlKujmTRJ89zjZnL4KmdrQy3zqyV0kXYPi5Ob5cjJfDX+uZ5J0L4CasYWc/9Z/+UwK1qdxr/Zbo5Qy2b4qU/jgpa2PmgfNlqJTstSwtJAj7AjAxAJQVKsNmW8C9lPk0WH7vMYkwXiFd/L37BiWr0jXEcBGErMWCoTTxa2V8k8HbMOWR//AS9+L29TVuLl3RrH3/ife1Oa8Iv3QKhnKa/YYfEJIibUNHi9QzFimNgo6nX+9QNtgudScVFbcXcvQaSMcqfFn5xxEXX7TBrMCdz14kMK8BpOMcXTrf2wSkSbl6dAhkhYiC2JYASGiVb/7MyA8k96ZQ6b1fgI/DkylYGM/t+IF/2e6ePYOXsuPnG5hMfk9NtXcZXc5X1ThzFRwhJAQ3ZejWc2G8BcQ1//i5fRfIbV/Hs0Cm/xIFQ1/+1LBS6sjs0WgRsyvI1MG/plLNq4yfC7THCWGHtqVAV1BaDyP2t/vSaFHwSCGIUbKLVPVz4JfUBpa330aguu+r6t3ea+DeCsSDLPpffzCX/wlATwGScIr8Ud5zDqnvnygKWrTeLJshuJ9NB7Ygq8cz/+/Lkk8XGHf6HMUgNXA7ZLM3C0Vvbu7vtiUFApmpOiJwrqns+z1CUuAZPkB1K9fIUGRX7hj+QOhS/Rd3UfQgYIYIQ5zylQCyQ/zTJvtv6ob0q4RAAp4kSoXE3bObjnAPc4IEJtWdEIwxWZe7JTOI3qEh4gry1h+9Ja0aZYBz4LF13q0Qt2AlN9jYtCex5YTyS5RSd0OHR+CovWjdFFHFWojV1Qv48ogSlXrk216E6cDVt5GUqmx/kxt+fuP80bMg7Gv+O72m3KwhnhNg4XmiNdw3a/7xlHrAGUpYfjuS6a9fP2bhBZvE8DE37VWo/7NgMk1poags1C8Pmioz5sI89qjL+hJjBmjtnOeBlkp5ebkafG6bZYUS7h8tgPf1BHJaGjpZ98L647sovsuXsvpJfQ2MPCfTbObyXOBU51wpPvKAj3UvHia9HO+d9R7kBeQsGY8CN8MizsC5fxpX/L6x07yv2djeNRPmwI7kYQTz3GAqkRuwOZPGAE=",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "Th",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "an",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "ks. Before",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " I",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " can book,",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " I need the 6-digit",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " code from your text message. Could",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " you read it to",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " me?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 219,
+    "cache_read_input_tokens": 4592,
+    "input_tokens": 4,
+    "output_tokens": 232,
+    "output_tokens_details": {
+     "thinking_tokens": 197
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

@@ -744,8 +744,16 @@ Where this differs from the design above, this is the code.
   question would otherwise come before every next visit of a patient with three visits.
 - **A day or a month** searches every status a caller may hear of; a cancelled visit counts
   only when no other visit matches.
-- **The window for the visits to come** is 90 days, then 400 (it was 7, 90, 400): the count of
-  the others needs the 90-day window. One read for most patients.
+- **The window for the visits to come** (the owner, 2026-11-15, after the Camila call): 7 days,
+  then 30, then 90, then no end; the others are counted in the window that found the soonest,
+  and the caller hears "in the next 7 days" (`FindVisitReply.more_within_days`). The search
+  with no upper date returns every visit, not paged, as fast as 90 days (the probe: 269 visits,
+  1.3 s). The first build's 90-day first window took 1.3 s for Camila on a good day and passed
+  the agent's 3 s deadline in her call (`20261115-002907-test`); 7 days take 0.5 s. A named
+  day or month searches only that range.
+- **One quiet retry** (`flow.py` › `_once_more`): `find_visit` and `find_slots` are sent once
+  more when ehr does not answer in time, before the caller hears the system is down. A booking
+  is never retried this way (V2A).
 - **Epic statuses:** a past `arrived` or `checked-in` visit reads as seen; a visit still
   `booked` after its time has no known outcome and is never said.
 - **The CSN** is the `identifier` whose system or type names a CSN, else the first.

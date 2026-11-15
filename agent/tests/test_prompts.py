@@ -86,7 +86,7 @@ def test_the_guide_places_every_section_once_where_the_code_runs_it():
             assert g["tab"] == rest.capitalize(), g["key"]
         # The call-start note sits with the role: both are the model's ground before the call (1A).
         assert (g["tab"] == "Core") == (g["key"] in ("role", "note.call_start") or g["under"] in core), g["key"]
-        if kind == "note" and g["key"] != "note.call_start":
+        if kind == "note" and g["key"] not in flow.NOTES_WITHOUT_TOOL:
             assert g["under"] == flow.NOTE_TOOL[g["key"]], g["key"]
     assert {g["key"] for g in guide if g["tab"] == "Failure"} == {
         k for k in PLACEHOLDERS if k.startswith("line.") and not any(g["key"] == k and g["under"] for g in guide)
@@ -215,7 +215,7 @@ def test_a_tool_is_named_in_backticks_and_only_where_its_step_offers_it():
     ]
     # A tool's words are read in every step that offers it: find_slots is in menu and schedule.
     assert "book" not in scope["tool.find_slots"] and "find_visit" in scope["tool.find_visit"]
-    assert set(flow.NOTE_TOOL) == {k for k in SECTIONS if k.startswith("note.")} - {"note.call_start"}
+    assert set(flow.NOTE_TOOL) == {k for k in SECTIONS if k.startswith("note.")} - flow.NOTES_WITHOUT_TOOL
 
 
 def test_every_tool_has_its_reference_and_each_line_exists():

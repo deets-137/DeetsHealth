@@ -27,12 +27,17 @@ updated: 2026-11-11
 |---|---|---|
 | The call log | Which calls ended how; which Flow node each one left from | ⬜ |
 | The call timeline | Where the time went in one call; the 800 ms target per turn | ⬜ (Jaeger in Docker, locally) |
-| The EHR ledger | Each EHR call: what, status, size, time, outcome | ⬜ (the patient app's ledger carries, §3) |
+| The EHR ledger | Each EHR call: what, status, size, time, outcome | 🟡 built 2026-11-15 for Epic (`ledger.rs`); in the dev call record as `epic` events, by CloseCall |
+| The request log | What each Claude request held, as a delta | 🟡 test calls, schema 12 (AGENT.md §1) |
 | The transcript | What was said. Synthetic calls only in dev; a real one only through the console, audited | 🟡 typed calls: the dev call record (AGENT.md §1) |
 | Recordings | The audio, when a rule kept it (VOICE-AGENT.md §8.7) | ⬜ |
 | Record and replay | Re-run a call's EHR replies, STT results and Claude replies with no network | ⬜ (VOICE-AGENT.md §9) |
 
 ## 3. The EHR ledger
+> **Part:** built · 2026-11-15 — `ehr/src/ledger.rs`; the session keeps the entries
+> (`Session::ledger`), `CloseCall` returns them, the agent writes `epic` events. Not yet: one
+> INFO line per request in ehr's own log, and the call id on each (the record's events are in
+> one call's file already).
 The patient app's fetch ledger (archive/PATIENT-APP-DEBUGGING.md §3) carries to the per-call reads.
 One `INFO` line per HTTP call, as it ends:
 ```

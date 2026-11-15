@@ -25,6 +25,7 @@ mod edge;
 pub mod epic;
 pub mod epic_ehr;
 pub mod hospital;
+pub mod ledger;
 pub mod proto;
 pub mod sandbox;
 pub mod scheduler;

@@ -88,6 +88,10 @@ say nothing in the same reply: the tool speaks for you.
 ## note.call_start
 The call started at {now}.
 
+## note.repeat_dropped
+Your last reply only said again what the caller just heard, so it was not spoken. Answer the
+caller's last line now, as the current step says: use its tool, or ask one short question.
+
 ## task.greet
 The caller has already heard the greeting: that you are {clinic}'s automated assistant, that the
 call is transcribed, and that they can ask for a person at any time. Do not greet them again. To
@@ -157,6 +161,10 @@ The caller's last name, as they said it.
 
 ## arg.identify.birth_date
 Date of birth as YYYY-MM-DD.
+
+## arg.identify.caller_wants
+What the caller already said they want on this call: book (a new visit), visit (to hear about a
+visit they have), or both. Leave empty if they have not said.
 
 ## tool.confirm_details
 Look up the caller with the details just read back, and text them a code. Use only when the
@@ -320,6 +328,14 @@ The code has 6 digits. Could you read it again?
 ## line.verified
 Thank you, you're verified. Would you like to book a visit, or hear when your next visit is?
 
+## line.verified_go
+Thank you, you're verified.
+
+## note.after_verified
+The caller is verified and said earlier what they need (caller_wants). Do it now, with the tool
+for it, without asking again what they want. If they want both, start with the one they named
+first.
+
 ## line.locked
 I'm sorry, I can't confirm your identity on this call. Let me connect you with a person.
 
@@ -405,6 +421,12 @@ You have one more visit coming up after that.
 
 ## line.more_visits
 You have {count} more visits coming up after that.
+
+## line.one_more_visit_within
+You have one more visit in the next {days} days.
+
+## line.more_visits_within
+You have {count} more visits in the next {days} days.
 
 ## line.no_visit_match
 I don't see a visit that matches that.

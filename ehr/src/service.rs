@@ -12,7 +12,7 @@ use crate::{
     edge,
     epic_ehr::{EpicEhr, EpicSandbox},
     proto::v1::{self as pb, ehr_server::Ehr},
-    scheduler::{BookResult, FoundSlots, Scheduler, SchedulerDown, Slot, SlotId, SlotWish, VisitAsk},
+    scheduler::{BookResult, FoundSlots, FoundVisits, Scheduler, SchedulerDown, SlotId, SlotWish, VisitAsk},
     visit_about::BookNote,
     visits::{narrow, Found, Narrow, VisitGroups},
     session::{Pending, PatientKey, Refusal, Sessions, Source, Stage, Token},
@@ -52,7 +52,7 @@ impl<S: Scheduler> Sched<S> {
         }
     }
 
-    async fn visits(&self, patient: &PatientKey, ask: &VisitAsk) -> Result<Vec<Slot>, SchedulerDown> {
+    async fn visits(&self, patient: &PatientKey, ask: &VisitAsk) -> Result<FoundVisits, SchedulerDown> {
         match self {
             Sched::Local(s) => s.visits(patient, ask).await,
             Sched::Epic(e) => e.scheduler.visits(patient, ask).await,
@@ -65,6 +65,24 @@ impl<S: Scheduler> Sched<S> {
             Sched::Epic(e) => e.scheduler.groups(),
         }
     }
+}
+
+/// Runs `work`, the EHR's part of one gRPC call, in its own task with its own EHR ledger
+/// (ledger.rs). The ledger goes into the session when the work ends, even if the agent stopped
+/// waiting: the Camila call of 2026-11-15 timed out, and what Epic did was lost.
+async fn ledgered<T: Send + 'static>(
+    session: &Arc<tokio::sync::Mutex<crate::session::Session>>,
+    rpc: &'static str,
+    work: impl std::future::Future<Output = T> + Send + 'static,
+) -> Result<T, Status> {
+    let session = Arc::clone(session);
+    tokio::spawn(async move {
+        let (out, entries) = crate::ledger::kept(work).await;
+        session.lock().await.ledger.extend(entries.into_iter().map(|e| (rpc, e)));
+        out
+    })
+    .await
+    .map_err(|_| Status::internal("the EHR request stopped"))
 }
 
 /// How many times a caller may give a name and date of birth on one call.
@@ -248,8 +266,28 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         req: Request<pb::CloseCallRequest>,
     ) -> Result<Response<pb::CloseCallReply>, Status> {
         let handle = edge::handle(&req.get_ref().handle)?;
-        self.sessions.close(&handle).await;
-        Ok(Response::new(pb::CloseCallReply {}))
+        // The call's EHR ledger goes back with the close, for the dev call record
+        // (DEBUGGING.md §3): names and counts only.
+        let ledger = match self.sessions.close(&handle).await {
+            Some(session) => {
+                let session = session.lock().await;
+                session
+                    .ledger
+                    .iter()
+                    .map(|(rpc, e)| pb::EhrRequest {
+                        rpc: (*rpc).to_string(),
+                        what: e.what.clone(),
+                        status: u32::from(e.status),
+                        ms: e.ms,
+                        results: e.results,
+                        bytes: e.bytes,
+                        at_ms: session.ms_since_open(e.at),
+                    })
+                    .collect()
+            }
+            None => Vec::new(),
+        };
+        Ok(Response::new(pb::CloseCallReply { ledger }))
     }
 
     async fn identify(
@@ -271,11 +309,16 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
 
         // A new claim replaces the old one and its code.
         session.stage = Stage::Unverified(None);
-        let found = match session.source {
-            Source::Local => self.patients.candidates(&claimed).await,
-            Source::EpicSandbox => self.epic()?.patients.candidates(&claimed).await,
-        }
-        .map_err(down)?;
+        let (found, entries) = match session.source {
+            Source::Local => crate::ledger::kept(self.patients.candidates(&claimed)).await,
+            Source::EpicSandbox => {
+                let epic = self.epic()?;
+                let claimed = &claimed;
+                crate::ledger::kept(async move { epic.patients.candidates(claimed).await }).await
+            }
+        };
+        session.ledger.extend(entries.into_iter().map(|e| ("Identify", e)));
+        let found = found.map_err(down)?;
         // One match with a number that takes a text: a code goes out. With no such number on
         // file, nothing is sent, the same as no match.
         if let Some(Candidate { patient, phone: Some(phone), facts, .. }) = one_match(&claimed, found) {
@@ -356,18 +399,28 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         req: Request<pb::FindSlotsRequest>,
     ) -> Result<Response<pb::FindSlotsReply>, Status> {
         let (handle, ask) = edge::find_slots(req.into_inner())?;
-        let session = self.sessions.get(&handle).await.map_err(refused)?;
-        let mut session = session.lock().await;
-        let patient = session.patient().map_err(refused)?;
-        let sched = self.sched(session.source)?;
+        let call = self.sessions.get(&handle).await.map_err(refused)?;
+        let (patient, source, facts) = {
+            let session = call.lock().await;
+            (session.patient().map_err(refused)?, session.source, session.facts.clone())
+        };
+        let sched = self.sched(source)?;
         let offered_at_once = crate::hospital::hospital().slots_offered;
 
-        let mut found = match ask {
+        // The EHR's work runs in its own task (`ledgered`), with the session unlocked, so its
+        // ledger is kept even when the agent stops waiting.
+        let (mut session, mut found) = match ask {
             // A new search. New tokens: a token from an older search no longer books. The
             // reason asked with these slots is the one Book sends.
             edge::SlotAsk::New(mut wish) => {
-                wish.who = session.facts.clone();
-                let found = sched.find(&patient, &wish).await.map_err(scheduler_down)?;
+                wish.who = facts;
+                let (found, wish) = ledgered(&call, "FindSlots", async move {
+                    let found = sched.find(&patient, &wish).await;
+                    (found, wish)
+                })
+                .await?;
+                let found = found.map_err(scheduler_down)?;
+                let mut session = call.lock().await;
                 session.note = Some(wish.note.clone());
                 session.offered.clear();
                 session.next_pages = found.next;
@@ -377,18 +430,24 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                 if let Some(who) = &wish.clinician {
                     slots.retain(|s| who.names_clinician(&s.clinician));
                 }
-                slots
+                (session, slots)
             }
             // The next ones of the same search (the owner, 2026-11-14: keep Epic's page of 10):
             // the rest of this page, then the EHR's next page. The tokens already offered stay.
             edge::SlotAsk::More => {
+                let mut session = call.lock().await;
                 let rest = std::mem::take(&mut session.rest);
                 if rest.is_empty() && !session.next_pages.is_empty() {
-                    let page = sched.find_more(&patient, &session.next_pages).await.map_err(scheduler_down)?;
+                    let next = session.next_pages.clone();
+                    drop(session);
+                    let page = ledgered(&call, "FindSlots", async move { sched.find_more(&patient, &next).await })
+                        .await?
+                        .map_err(scheduler_down)?;
+                    let mut session = call.lock().await;
                     session.next_pages = page.next;
-                    page.slots
+                    (session, page.slots)
                 } else {
-                    rest
+                    (session, rest)
                 }
             }
         };
@@ -435,7 +494,10 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                         .note
                         .clone()
                         .ok_or_else(|| Status::failed_precondition("slot_token: not offered on this call"))?;
-                    let result = scheduler.book(&patient, &slot_id, &note).await.map_err(scheduler_down)?;
+                    // In this task already, so the ledger is kept even if the agent stops waiting.
+                    let (result, entries) = crate::ledger::kept(scheduler.book(&patient, &slot_id, &note)).await;
+                    session.ledger.extend(entries.into_iter().map(|e| ("Book", e)));
+                    let result = result.map_err(scheduler_down)?;
                     // A lost reply is never the key's answer: the caller's yes retries it (V2A).
                     if !matches!(result, BookResult::NotThrough) {
                         session.booked.insert(key, (slot_token.clone(), result.clone()));
@@ -476,18 +538,30 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             (session.patient().map_err(refused)?, session.source)
         };
         let sched = self.sched(source)?;
-        let found = sched.visits(&patient, &question.ask).await.map_err(scheduler_down)?;
+        let by_day = question.ask.range.is_some();
+        let ask = question.ask;
+        let (found, sched) = ledgered(&session, "FindVisit", async move {
+            let found = sched.visits(&patient, &ask).await;
+            (found, sched)
+        })
+        .await?;
+        let FoundVisits { visits: found, within_days } = found.map_err(scheduler_down)?;
         let groups = sched.groups();
         let group = question.group.as_ref().and_then(|g| groups.named_by(g));
         let ask = Narrow {
             clinician: question.clinician.as_ref(),
             unknown_group: question.group.is_some() && group.is_none(),
             group,
-            by_day: question.ask.range.is_some(),
+            by_day,
         };
         let reply = match narrow(found, &ask, groups) {
             Found::None => pb::FindVisitReply::default(),
-            Found::Visit { visit, more } => pb::FindVisitReply { visit: Some(edge::visit(&visit)), more, ..Default::default() },
+            Found::Visit { visit, more } => pb::FindVisitReply {
+                visit: Some(edge::visit(&visit)),
+                more,
+                more_within_days: within_days.unwrap_or(0),
+                ..Default::default()
+            },
             Found::Which { groups, other } => {
                 pb::FindVisitReply { groups: edge::groups(&groups), other_visits: other, ..Default::default() }
             }

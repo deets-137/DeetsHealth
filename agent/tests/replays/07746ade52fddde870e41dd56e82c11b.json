@@ -1,0 +1,147 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch4S1JaQkmE5fHkk79pUP",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 269
+     },
+     "cache_creation_input_tokens": 269,
+     "cache_read_input_tokens": 4156,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 10,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSwAgKEAgTGAI4AUIIdGhpbmtpbmcSDGLYqlsQvj5dFoxmbhoMVtxTvTdbFL4Zb/6wIjCcjohvbopVmsbtlFgVq6teMz4eKRk8+WtII9AG4RTSafv6/btzwUPj4MoCDm/DMzgq3QeGC5t+rjVYBRYL6V0wOH+J38sozxfZJqCyM/f2uh3Eg/5u4A/ziVfs2bmGLx2tpYgPDQ4Pqqt0gvxU+vxArTnAx3vA/t3BjD7WDG/RAdoXKWLMAe1bMiCkoxHkIQ64f+J33dKCkRfXBhdgDFBSDSyLa5moxcjnXk30r8or+OpcuvR0/ZFk1IGo1KjLYgfiTA+n61LdY7qynqb2dhvMBxFCPC/VSqvHAaHLQ9zAfVjGSO3Z+Dd2s4lAarCZZxSeWRHxUlX62zRMIKq1qs9p35Xqk61mtl4uyGEcSTV499dye1eWFM/xehE5w8tjr5oZR14CYyjyihKzXy/L7KPey/CDoVjwmuRmxfoBczTxLVw/Edy+UHh6We+/l8kKCd0CWpzLdV3dLn8o76F2W1wEmCJWaHR184sY0j/cHCl8OkMSR8cW7za/7MVr1clTVB6KXJ3bRaQwqQbb/c//UrGw23oRinl4w/FhfuYf+6FatKKxWQfnqFttBB6t47eggPjCu1Ki+CMYP4P1H6nJ8CnkNxhnQCBhrza/A/n7LPeQ0i35oAHEySc+fNW22aTQs9PcxhQ4Qmpl7pUDtGKohb2JWEDCVyjjCiyhC55Bv9B4XGgcxcHZCZClrt7+/mQBQlXrXr6mEZi1CF0W/b+IVAskmbwROq/UO1JIY1D/oeJYwFTH52uWDfy4uCiDESyNNGYHZ6Mo3GdhJwE7/wLkPVa/Tu6LhiIeOb/dXA3hw/b7aGg+euS/th6xDpgCd4RCXf03kBXr/mLHd3BiSlthpCf5juyxMUCwNSFLF/wgwL/HY2RuHHKAnqeW/Xxiqi6D6WCfBtu4lCICjenZiee4Gl4UDeAlAzpt+L5ZFXkXSYYh2IWjxhSZui8Yt266MQnQRSD3ELR8cN2s6qDBSHyeNIf/NPTm48v9wJj/VCIdMFgHkHIlfG1EfCLSLlUcJQQAKk355zmEtLe/Kpk/oXHq4CZ9A/axmXlKHN+GG7bYKE7G+bTV+uC88IuNh28tm9F6plWD+iGh2Ps4UXEEMK5delH8C+iyx0WfEVrmzdyPpQtN+LVvMhpx9x206thBG5i1n0+rzH759Qfl/WKcbwGg6zTA0xsH0K0I3E+pIzzy1V6uTzdwT5U9YgusjFMLrbnfUPNVikirZXGATftMc/OHCMyITn+Yt8t8sEkDZcCcW8tHMCNN6eOWVBW+Y4e7FN0TNqGsSpi4hHVULbhxOEnOuZhWodIo7wEe2OtONJ8uyLiPGbEdx9ro0WNcqv7yMg4eY5GNr89N2z34qEqKfOxfKTDjo82EYe8i6dkQpoE1CLGswBgB",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "Sorry, I did",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "n't catch that. Is",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " Jordan Ellis,",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " born March 12, 1984",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": ", corre",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "ct?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 269,
+    "cache_read_input_tokens": 4156,
+    "input_tokens": 4,
+    "output_tokens": 164,
+    "output_tokens_details": {
+     "thinking_tokens": 126
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

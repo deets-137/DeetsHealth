@@ -169,6 +169,27 @@ async def test_a_whole_call_through_the_handlers(ehr):
     await flow.close()
 
 
+async def test_a_caller_who_said_what_they_want_is_not_asked_again(ehr):
+    """The Camila call of 2026-11-15: the caller said at the start that they wanted to check a
+    visit and book one, and after the code heard the menu question again. Now identify keeps
+    what they said, and the code's pass goes straight on, with no question."""
+    flow = new_flow(ehr)
+    fm = manager()
+    await flow.start()
+    _, node = await identify(flow, {**JORDAN, "caller_wants": "both"}, fm)
+    result, nxt = await handler(node, "check_code")(CODE, fm)
+    assert result["spoken_to_caller"] == text("line.verified_go")
+    assert result["caller_wants"] == "both" and nxt["name"] == "menu" and nxt["respond_immediately"] is True
+    await flow.close()
+    # Nothing said, or a value off the list: the question, as before.
+    flow = new_flow(ehr)
+    await flow.start()
+    _, node = await identify(flow, {**JORDAN, "caller_wants": "chat"}, fm)
+    result, _ = await handler(node, "check_code")(CODE, fm)
+    assert result["spoken_to_caller"] == text("line.verified")
+    await flow.close()
+
+
 async def test_more_times_go_on_numbering_and_only_listed_wishes_are_sent(ehr):
     """EPIC.md §7.10, build 2: the next times of the same search keep counting from the last
     option number; a time of day or a day the hospital's lists do not hold is dropped, never

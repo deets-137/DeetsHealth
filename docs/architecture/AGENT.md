@@ -32,6 +32,23 @@ uv run ruff check .
 (`cargo run -p deetshealth-ehr --example dev_certs`). The harness starts `ehr` itself on a
 free port.
 
+**The request log and the EHR ledger** (schema 12, the owner, 2026-11-15: "log it and tag it"):
+each `llm` event also holds what was sent to Claude, as a delta: `system` when the role prompt
+changed, `new_messages` added since the last request, or `all_messages` when a step change
+rewrote the context (compared without cache markers and thinking blocks). `epic` events hold
+ehr's own requests to the EHR from `CloseCall` (`ehr/src/ledger.rs`): the gRPC call that sent
+it, the request by resource and parameter names, the HTTP status, the time, the results and
+the bytes, never a value. ehr keeps them in the session even when the agent stopped waiting
+(`service.rs` › `ledgered`), so a timeout still shows what Epic did. `harness/show_call.py
+--requests` prints both. Synthetic test calls only, like the rest of the record.
+
+**The repeat guard** (`call.py` › `TurnCollector`, the owner, 2026-11-15): the first model reply
+after a fixed line is held while it reads as that line; the line again is dropped before the
+voice gets it, and when the model then said nothing new and called no tool, it is asked once to
+act (`note.repeat_dropped`). A normal reply goes on at the first word that differs. Each drop is
+a `repeat_dropped` event. Test: `test_repeat_guard.py`. Without a note the model repeats the
+line again (tried 2026-11-15, 2 of 2).
+
 **The dev call record** (2026-11-11, the owner's ask): each typed call writes one JSON Lines
 file to `agent/calls/` (committed to the private repo since 2026-11-11, the owner's call;
 synthetic only, so never type a real person's details), and the harness prints its path and a cost line at the
@@ -288,5 +305,11 @@ for something the agent cannot do: the offer of a person, a "no", and the call g
     the pass rate shown, and safety scripts (emergency, verification) required to pass every
     time; about 3× a recording, some 15¢ in place of 5¢; (3) assert on events, not words;
     (4) scripts for the gaps above, and Epic's recorded replies with E-4.
+  - **Sampling, for later (the owner, 2026-11-15: "note the sampling approach for later").**
+    One failed draw cannot tell chance from a cause; on 2026-11-15 a failure first read as
+    chance failed 4 of 4 fresh draws. The way: run each script k times with fresh model replies
+    (delete the script's new replies between draws, or a run with no cache), report pass^k,
+    and keep the failing draws' records for the request log. About $0.003 per draw; 5 draws of
+    all 15 scripts is about 25¢.
 - `grpcio` is the wheel on dev; the FIPS build against OpenSSL is a deploy-image step
   (EHR-SERVICE.md §6).

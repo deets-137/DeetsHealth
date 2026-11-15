@@ -176,7 +176,9 @@ async def test_booked_reason_asked(ehr):
     assert any(r and r.startswith("You're booked for") for r in replies), "the visit should be booked"
     asked = next((r for r in replies if r and "That's the visit we just booked." in r), None)
     assert asked is not None, "the visit just booked should not be read out again"
-    assert "The reason on record is strawberry water distillation." in asked
+    # The caller's own words, as the model passed them on ("my strawberry water distillation" is
+    # theirs too): the code keeps only words the caller said (flow.py `_reason_words`).
+    assert "The reason on record is" in asked and "strawberry water distillation." in asked
     assert "It is listed as Office Visit." in asked
     # The greeting and the code line also name "a member of our staff": look for the offer and
     # the hand-off's own lines.

@@ -73,6 +73,14 @@ pub struct DayRange {
     pub to: Shielded<String>,
 }
 
+/// The visits a search found, and the window they were found in (days ahead; None: no
+/// limit), so the agent says "in the next 7 days" truthfully.
+#[derive(Default)]
+pub struct FoundVisits {
+    pub visits: Vec<Slot>,
+    pub within_days: Option<u32>,
+}
+
 /// Which of the caller's visits to search (EPIC.md §7.10). None and not past: the visits to
 /// come. The clinician and the group are narrowed after, in visits.rs, the same for every EHR.
 pub struct VisitAsk {
@@ -178,7 +186,7 @@ pub trait Scheduler: Send + Sync + 'static {
         &self,
         patient: &PatientKey,
         ask: &VisitAsk,
-    ) -> impl Future<Output = Result<Vec<Slot>, SchedulerDown>> + Send;
+    ) -> impl Future<Output = Result<FoundVisits, SchedulerDown>> + Send;
 
     /// The hospital's visit groups (FUTURE-SETTINGS.md §13.1).
     fn groups(&self) -> &VisitGroups;
@@ -288,7 +296,7 @@ impl Scheduler for FakeScheduler {
         Ok(BookResult::Booked(booked))
     }
 
-    async fn visits(&self, patient: &PatientKey, ask: &VisitAsk) -> Result<Vec<Slot>, SchedulerDown> {
+    async fn visits(&self, patient: &PatientKey, ask: &VisitAsk) -> Result<FoundVisits, SchedulerDown> {
         // The visits the sandbox patients already have (`ehr/fixtures/sandbox.json`). The fake
         // has no clock: a visit's status says whether it is over.
         let sandbox = sandbox();
@@ -328,7 +336,8 @@ impl Scheduler for FakeScheduler {
         if ask.past && ask.range.is_none() {
             found.reverse();
         }
-        Ok(found)
+        // The fake has no clock, so no window: every visit to come counts.
+        Ok(FoundVisits { visits: found, within_days: None })
     }
 
     fn groups(&self) -> &VisitGroups {

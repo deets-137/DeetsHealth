@@ -32,6 +32,12 @@ name: Note the time the call started
 under: -
 plays: Sent to the model when the call starts, after Role and rules: the hospital's time, in its time zone. Never heard.
 
+## note.repeat_dropped
+tab: Anytime
+name: Note after a repeated line
+under: -
+plays: Sent to the model when its reply only repeated a fixed line the caller just heard: the reply was not spoken, and the model is asked once to act. Never heard.
+
 ## tool.emergency
 tab: Core
 name: Send to 911
@@ -97,6 +103,12 @@ tab: Greet
 name: Date of birth
 under: identify
 plays: The model fills it from the caller's words.
+
+## arg.identify.caller_wants
+tab: Greet
+name: What the caller wants
+under: identify
+plays: The model fills it when the caller has already said they want to book, hear about a visit, or both; the agent then does not ask again after the code.
 
 ## line.birth_not_possible
 tab: Greet
@@ -180,7 +192,19 @@ plays: Too many wrong codes. The call goes to a person.
 tab: Verify
 name: Say the caller is verified
 under: check_code
-plays: The code is right. The chart and booking open.
+plays: The code is right and the caller has not said what they need: the chart and booking open, and the caller is asked.
+
+## line.verified_go
+tab: Verify
+name: Say verified and go on
+under: check_code
+plays: In place of Say the caller is verified when the caller already said what they need: no question.
+
+## note.after_verified
+tab: Verify
+name: Note after verification
+under: check_code
+plays: Sent to the model with Say verified and go on: do what the caller asked. Never heard.
 
 ## tool.resend_code
 tab: Verify
@@ -337,6 +361,18 @@ tab: Menu
 name: Add one more visit
 under: find_visit
 plays: Added after the next visit when one more visit is coming.
+
+## line.more_visits_within
+tab: Menu
+name: Add how many more visits soon
+under: find_visit
+plays: In place of Add how many more visits when the search counted a window (7, 30 or 90 days).
+
+## line.one_more_visit_within
+tab: Menu
+name: Add one more visit soon
+under: find_visit
+plays: In place of Add one more visit when the search counted a window.
 
 ## line.more_visits
 tab: Menu

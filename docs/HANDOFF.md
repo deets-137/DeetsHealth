@@ -213,6 +213,17 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   Build 2 (E-4): `$find` with the patient's demographics, a last day, a time of day, days and a
   clinician; Epic's page of 10 and More; `$book` with a read after, and a lost reply asked
   about, never sent twice. The desk tests are in EPIC.md §7.10 (build 1 and build 2 as built).
+- **Follow up (Claude, open): `emergency_reminder` fails at the code turn** (2026-11-15). The
+  caller reads "246810"; Claude gets it (the request log shows it, after `task.verify`) and asks
+  for the code again, 4 of 4 fresh draws. The other 14 kept scripts pass. Suspects, from this
+  sitting: the repeat guard's `note.repeat_dropped` staying in the context, `identify`'s new
+  `caller_wants`, the call-start note. Next: one fresh draw with each removed in turn (about
+  $0.003 each), read with `show_call.py --requests`; then record the scripts again and write
+  the stamp (`test_the_kept_recordings_match_the_prompt_file` fails until then). Committed with
+  this test failing, on the owner's word ("commit everything for now").
+- **Built, desk test open: the request log, the EHR ledger, the repeat guard** (2026-11-15,
+  AGENT.md §1, DEBUGGING.md §3). The Epic ledger is tested in ehr only: the first Epic-mode
+  console call after the dev server restarts shows `epic` events (`show_call.py`).
 - **Real booking in Epic mode, always** (the owner, 2026-11-15: no switch). `$find` and `$book`
   work on the sandbox (EPIC.md §7.10); each booking in Epic mode writes to Epic's shared
   sandbox. Local mode stays fake.

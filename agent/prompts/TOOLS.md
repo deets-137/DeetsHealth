@@ -17,7 +17,9 @@ exists.
 ## identify
 Takes the name and the date of birth that the caller said, and reads them back for a yes.
 Nothing goes to the record yet. The code refuses a name the caller did not say, and a date of
-birth that cannot be true; each refusal asks again and costs no try.
+birth that cannot be true; each refusal asks again and costs no try. It also keeps what the caller
+said they want (to book, to hear about a visit, or both), so the agent does not ask again
+after the code.
 record: none
 lines: line.birth_not_possible, line.name_not_said, line.read_back
 
@@ -32,7 +34,7 @@ lines: line.ask_details, line.code_sent
 Checks the six-digit code the caller reads back. A right code verifies the caller and opens the
 chart and booking. Too many wrong codes end verification and hand the caller to a person.
 record: reads
-lines: line.code_length, line.verified, line.locked, line.code_wrong
+lines: line.code_length, line.verified, line.verified_go, line.locked, line.code_wrong
 
 ## resend_code
 Sends the code again, to the same number. After the last one, hands the caller to a person.
@@ -82,7 +84,7 @@ Offers the visit's instructions, or reads them at once when the caller named the
 private visit's type, reason and instructions are never spoken. If it is the visit booked on
 this call, its time is not said again.
 record: reads
-lines: line.no_visits, line.no_visit_match, line.no_past_visits, line.which_visit, line.visit_group, line.another_visit, line.choice_or, line.next_visit, line.visit_found, line.past_seen, line.past_missed, line.past_cancelled, line.booked_visit_asked, line.visit_online, line.visit_type, line.visit_reason, line.one_more_visit, line.more_visits, line.visit_instructions, line.offer_instructions
+lines: line.no_visits, line.no_visit_match, line.no_past_visits, line.which_visit, line.visit_group, line.another_visit, line.choice_or, line.next_visit, line.visit_found, line.past_seen, line.past_missed, line.past_cancelled, line.booked_visit_asked, line.visit_online, line.visit_type, line.visit_reason, line.one_more_visit, line.more_visits, line.one_more_visit_within, line.more_visits_within, line.visit_instructions, line.offer_instructions
 
 ## read_instructions
 Reads the instructions of the visit the caller just heard: how to prepare for it. Asks the

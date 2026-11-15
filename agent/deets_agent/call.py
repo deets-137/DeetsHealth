@@ -49,6 +49,9 @@ from deets_agent.voice import Voice
 # After a response ends, how long to wait for a tool call or a new response before the turn
 # counts as over. Tool calls to ehr take milliseconds; this only covers frame ordering.
 TURN_GRACE_S = 0.4
+# After the repeat guard drops a reply and asks the model once more, how long the turn waits
+# for that reply to start before it counts as over anyway.
+RETRY_WAIT_S = 10.0
 # The longest one bot turn may take before the harness gives up on it.
 TURN_LIMIT_S = 60.0
 
@@ -71,8 +74,29 @@ def invented_values(said: str, sources: list[str]) -> list[str]:
     return sorted({v for v in found if v.lower() not in known})
 
 
+def _plain(text: str) -> str:
+    """Lowercase letters and digits, one space between words: how the repeat guard compares."""
+    return " ".join("".join(c for c in w if c.isalnum()) for w in text.lower().split()).strip()
+
+
+def _after(raw: str, plain_len: int) -> str:
+    """What is left of `raw` once its first `plain_len` plain characters are passed."""
+    for i in range(len(raw) + 1):
+        if len(_plain(raw[:i])) >= plain_len and (i == len(raw) or not raw[i].isalnum()):
+            # The line's own closing marks go with it.
+            return raw[i:].lstrip(".,!?;: ")
+    return ""
+
+
 class TurnCollector(FrameProcessor):
-    """Collects the bot's words for one turn and reports when the turn is over."""
+    """Collects the bot's words for one turn and reports when the turn is over.
+
+    It is also **the repeat guard** (the owner, 2026-11-15, after `emergency_reminder` heard the
+    911 reminder twice): the first model reply after a fixed line is held while it reads as
+    that same line, word for word. If it is the line, it is dropped before the voice gets it,
+    and when the model called no tool, it is asked once to act instead (`note.repeat_dropped`).
+    A reply that differs from the line goes on at the first word that differs, so a normal
+    reply waits for nothing."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -87,6 +111,18 @@ class TurnCollector(FrameProcessor):
         self._model_text: list[str] = []
         self._fixed_lines: list[str] = []
         self.invented: list[tuple[str, list[str]]] = []
+        # The repeat guard: the last fixed line, as plain words, until the next reply starts;
+        # the reply's frames held while they read as that line; whether one was dropped.
+        self._armed = ""
+        self._guarding = ""
+        self._held: list[LLMTextFrame] = []
+        self._dropped = False
+        self._calls_in_response = 0
+        self._awaiting_retry = False
+        self._retried: set[str] = set()
+        # Queues a frame at the pipeline's start (TypedCall sets it): the guard's one retry.
+        self.requeue = None
+        self.repeats_dropped = 0
         # The call's Flow (for the role prompt and the caller's lines), set by TypedCall.
         self.flow: CallFlow | None = None
         # The dev call record and the Flow manager, set by TypedCall when a record is open.
@@ -100,9 +136,17 @@ class TurnCollector(FrameProcessor):
                 self._in_response = True
                 self._model_text.clear()
                 self._cancel_settle()
+                self._awaiting_retry = False
+                self._guarding, self._armed = self._armed, ""
+                self._held.clear()
+                self._dropped = False
+                self._calls_in_response = 0
                 if self.record is not None and self.manager is not None:
                     self.record.node(self.manager.current_node)
             elif isinstance(frame, LLMTextFrame):
+                if self._guarding:
+                    await self._guard(frame, direction)
+                    return
                 self._add(frame.text)
                 self._model_text.append(frame.text)
             elif isinstance(frame, TTSSpeakFrame):
@@ -110,9 +154,12 @@ class TurnCollector(FrameProcessor):
                 # response starts within the grace and joins this turn; if not, the turn ends.
                 self._add(frame.text, whole=True)
                 self._fixed_lines.append(frame.text)
+                self._armed = _plain(frame.text)
                 self._cancel_settle()
                 self._settle = asyncio.create_task(self._settle_turn())
             elif isinstance(frame, FunctionCallsStartedFrame):
+                await self._release(direction)
+                self._calls_in_response += len(frame.function_calls)
                 self._pending_calls += len(frame.function_calls)
                 self._cancel_settle()
                 if self.record is not None:
@@ -125,7 +172,11 @@ class TurnCollector(FrameProcessor):
                         frame.tool_call_id, frame.function_name, frame.result, getattr(frame, "error", None)
                     )
             elif isinstance(frame, LLMFullResponseEndFrame):
+                await self._release(direction)
                 self._in_response = False
+                # Dropped, and the model said nothing new and called no tool: one more try.
+                if self._dropped and self._calls_in_response == 0 and not "".join(self._model_text).strip():
+                    self._ask_again()
                 self._check_values()
                 self._cancel_settle()
                 self._settle = asyncio.create_task(self._settle_turn())
@@ -134,6 +185,52 @@ class TurnCollector(FrameProcessor):
                 self._flush()
                 await self.turns.put(ENDED)
         await self.push_frame(frame, direction)
+
+    async def _guard(self, frame: LLMTextFrame, direction: FrameDirection) -> None:
+        """Hold `frame` while the reply so far reads as the fixed line; drop the line if it is."""
+        self._held.append(frame)
+        raw = "".join(f.text for f in self._held)
+        said, line = _plain(raw), self._guarding
+        if not said or (line.startswith(said) and len(said) < len(line)):
+            return
+        if said.startswith(line):
+            # The line again: never spoken twice. Anything after it goes on.
+            rest = _after(raw, len(line))
+            self._held.clear()
+            self._guarding = ""
+            self._dropped = True
+            self.repeats_dropped += 1
+            if self.record is not None:
+                self.record.event("repeat_dropped")
+            if rest.strip():
+                self._add(rest)
+                self._model_text.append(rest)
+                await self.push_frame(LLMTextFrame(text=rest), direction)
+            return
+        await self._release(direction)
+
+    async def _release(self, direction: FrameDirection) -> None:
+        """The reply is not the line: the held frames go on, in order."""
+        held, self._held = self._held, []
+        self._guarding = ""
+        for f in held:
+            self._add(f.text)
+            self._model_text.append(f.text)
+            await self.push_frame(f, direction)
+
+    def _ask_again(self) -> None:
+        """After a dropped repeat with no tool called: the model gets one more turn to act, once
+        per line, so a model that repeats again cannot loop."""
+        line = self._fixed_lines[-1] if self._fixed_lines else ""
+        if self.requeue is None or line in self._retried:
+            return
+        self._retried.add(line)
+        self._awaiting_retry = True
+        self.requeue(
+            LLMMessagesAppendFrame(
+                messages=[{"role": "developer", "content": text("note.repeat_dropped")}], run_llm=True
+            )
+        )
 
     def _check_values(self) -> None:
         """Flag each value in the model's own words that no one gave it: a number, a month or a
@@ -176,6 +273,10 @@ class TurnCollector(FrameProcessor):
 
     async def _settle_turn(self) -> None:
         await asyncio.sleep(TURN_GRACE_S)
+        if self._awaiting_retry:
+            # The guard asked the model once more: its reply joins this turn.
+            await asyncio.sleep(RETRY_WAIT_S)
+            self._awaiting_retry = False
         if self._pending_calls == 0 and not self._in_response:
             self._flush()
 
@@ -214,6 +315,7 @@ class TypedCall:
         self.flow.llm = llm
         self._collector = TurnCollector()
         self._collector.flow = self.flow
+        self._collector.requeue = lambda frame: asyncio.ensure_future(self._worker.queue_frame(frame))
         # Reads each caller line before the model does (screen.py).
         self._screen = CallerScreen(self.flow)
         # The dev call record (call_record.py): the typed harness passes one; tests do not.

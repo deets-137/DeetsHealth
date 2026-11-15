@@ -1,0 +1,171 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch4TNDznBD5s9s3PWWTE8",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 241
+     },
+     "cache_creation_input_tokens": 241,
+     "cache_read_input_tokens": 4811,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 10,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSuAgKEAgTGAI4AUIIdGhpbmtpbmcSDHTBtIWbmUNI9KRWvBoM+hZL51ZFpCHQScqIIjBgfjHvUpr2ciYwbnWZ4KCGiIa69oS0oq4sX/x5HKIt/L+mQNszeN0xWEdMpFtMiMQq1Qc8GyoRAgq0WqsW9ohoEihY/qLQRLHNYoSEPF7zcfdXFwp8rpNOKd9n8Zamog6DhlNRNh7HPtlTNHx0rdmFzW06OZzofBrZboZ4ujAk+oR3urKP2oBbhQwYY3aXPvf8ZCPdEns6DsMpymYUDEAAjx3p3I9DZKQAdTYEJYgytVxSURQgpi/6yRZyQ0V5cNTk15ZBih8LyQ2jwWzb9X/jzsmzLxTqshxJZ08/pRqKAwMdJt4GcgKNZKDozJ4kAsYxT5t79m608ReiURFOIv3ER0ozJ8M5WF7Plt56U5XhLTuc85QMZYBMoCS7y+4mXJmqSImoI7s2G5OVsFbuWwIm2nCxcKlSkjwBjtY/L3Cw8sRDEaZperzVm+xjTco6qExQDGzhQHoOpgoMST2kN9SSpmhU1gIrhEnjdKVmeFyFvqAaII0840IBdCEwCLQ/BGvtxuX3LemsdkYS3RdeChM44i+KdQdvrTs+irHkHgJUlUmUqDEA4H4VlCskyBNy8G4BvP/zIPxCjxH34bfb4xn2XCoC9/7AXiv9xC0n3bCCCmc18vnN1PpX374gS7g+0Y2690aIV4csDvk3y10sv6plcRehICwMt+jUDaax4M+rcdvvpm6SzvzLD7p4za7F29V2K4HWEgzpgFG/+SJFghlAoO/i4ZV90Duc/0f7AKjjFXhKy1vKXZ3tj9McadDeezmw87ndk7CuozYzCvl2+svQDL3lgY0BriQjcoM1q62RXn8SlkoPP9FxnLfI061QcM4fFwXwr//KeQ5Vtbi4dp/KFUDkWn/LZu3ROtDWHPr9+181Ak6NdES8b+szB6kiX8wIhBek4fkpSwUuNZ42/dlQcWDIX5GugHy9IYOJlz2AthuDwca7DM62rycTRvrMQw7KlxLZ72LKGsJiYbrWw80W/RWXB2JziB+oz2ZUPMfcmFlAqsEp2HHDeSe8lmJ/6q6E026k5C64Nr6qAI+0a/r8/CPZERaqm+Inxl7c/5o8ZCAMDwpKw1ofL/xKTmIh1CiC4rtNPQWyC7z62rxLKUoayDVYWZlPcfcmj+Tei09MMS6UoTQuOaKYfcfxlIRSpShqt3Z//AvBFZsD/XB/XPkZKhtfUD2oMHp4o0/xyT3uQmu1rRTX/H1kg/68Zyoyegqppjkg0pKOfeN787nSqdURdooEnDk0xNZQnAwe1aLKoe3DH2TpUYxDyo5yWU8s4kYru+1s/+Feix3GHAM5+8M0/zvjILDjB31DTaoGytpRuFoy42SaZF7LOJu1XbJd+eNWV/kZktijoE4T23uXdXzs36UUpGV6rjkYAQ==",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "I'm s",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "orry, I still need the ",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "6-digit code from your text",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " message before",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " I can book.",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " Could you read me",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " the",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " six",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " digits?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 241,
+    "cache_read_input_tokens": 4811,
+    "input_tokens": 4,
+    "output_tokens": 137,
+    "output_tokens_details": {
+     "thinking_tokens": 99
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

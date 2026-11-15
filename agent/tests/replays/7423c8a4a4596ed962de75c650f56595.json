@@ -1,0 +1,171 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch4S1SDYPqaUb1TS8dzvU",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 182
+     },
+     "cache_creation_input_tokens": 182,
+     "cache_read_input_tokens": 4425,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 5,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQS8AgKEAgTGAI4AUIIdGhpbmtpbmcSDGVpzixNl5fL/9YdrhoMYgz+0JzNmQ6JgP21IjB/WyF21v5wheFuxVVontjUK0eOh0/8b01rpOmt1l3YtHbOdRC1CGWaj8W/aMKT6ToqjQiIkFvhUbmXnF6e+LHfgucODzjhsQKNMxe2vXv/suxuMDVtLlAqSmdBtIQcUTIbtas2HAQBAcqLT12/HzwYHExgUzvKZ6mEkWQy8RFbsBa3sR8983z/vY9VZLqHxXcGPJq/LFmfVcUlahFo5G5zH77iM7jRBHT+kKpCNWs6WyTQBlzpcDdEUo6jru84vWiwAswd1rLN94OBLQQ2EStVWbW7ggNduW/O6pFY0l282Q6hAOK9OZwGovEPFg+25TNjcUjSv2KePy8nVKiC2nzBnOUgh6PZKgq6Mzeydiv1RwhbMhRvXyqFXT0dSexG3DtuAbtLsJ5n6XZCsGQA4rh9CLL05ubRF5qHlZa4zEl8e1KCStIc+i3wx7RzdYFYmJ/xdrPEcXass3qWDHLnsTYBx7m4DYue1Du+Er1QhRT0nHDj+E/zfYbnZ9md2JcOUrZ04h2BONwFy9+o3ENik+NXbSPKwUBKJZiW3fOYdXIL2eBSdEmIZbIfJfZa3T2oldsuuJgp+QnffonAfU7QkQI6y7RsWODXtCqLbdZQHkRKeDiowf18zVJVZL0Baq72vm67jZgB0gGm/Alb7VltEucA5cAHDItjka4Yy36RLv2MLzErN3W6+x3m6O9yqTWxbSZS2PB+x0N4C1OaLJcdI+lOfFmXlFn5btrZnPuc2QVFUkHcazRJJA/oZyX4r/5dtNUKXOCCXdulV94JWtG/5mwQOnFnagBM9b89/bxp3jOOWfRnT7OVJadYzjaYv9wicjSG+e2EEgwm+RSab5ct1NZXfTRE6hP5i5ySDGow/kkMyiCbU5/1viX12zf+MrYizAAYUgdYXG5c2ASYxHbkekKS1bOvX0Ju79q8avdfkvIjOZDh/S3A2ietZtKFxvN79QEUktUFOIRMdNi7jidNdxWQVeebiohLUlYTBG3SpUVeSJAZQI7lmxRWdpcbAEgr7I6FUb7nfIdiakKT+YbWv9TRn545bSyJfPggJbUVo2vahMVRewa2gs5Vt/H0/MG1RXMr10egGY7D7LJYjNpFNVR5g1VjJQhQ24l3EqTaoaCTw3g5IQ9WdZjt7sVty15psG4fsIerEC/rKXLjFJnhyWabFjjb5Wf0AD9D7bSlo11s25ns+WamwxFtGpul2kffav5H05fM+4RkR2zg6Z/Uep58TGZx6TdiE1fUfKoMWsfvrv8GlBVbJp/k6W4kO38klWxhRwsjK/nRcIjV3iYfVwRZ2a/bYfljMTcUORmSDW6pQUWIz/U1t4ej3pBiy7+g/pBC4x+XfYRZ18QzNcxIpRzzE6Hfeo2N2CIZDwB6DfHfWqez2jaU4TW4R5VYwOwe+EawDeASMhiJc98s4PG8k+OgUlBvTBT12hSKsOHCM5BtTxgB",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "Th",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "anks,",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " I'll note that. First",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": ", is Jordan ",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "Ellis, born March 12,",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " 1984, correct?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " Please say yes or t",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "ell me what needs f",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "ixing.",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 182,
+    "cache_read_input_tokens": 4425,
+    "input_tokens": 4,
+    "output_tokens": 183,
+    "output_tokens_details": {
+     "thinking_tokens": 130
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

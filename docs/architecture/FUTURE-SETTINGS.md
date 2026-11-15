@@ -707,13 +707,14 @@ caller's visits and what it says about it, and the hospital facts that Epic's `$
 ### 13.3 Finding a visit
 | Setting | Default | Choices |
 |---|---|---|
+| The question after verification | asked only when the caller has not said what they need (identify's `caller_wants`; the owner, 2026-11-15) | always ask |
 | The narrowing question | on, when visit groups exist, and only when the caller named a day, a month, a clinician or a kind of visit ("my next visit" is always the soonest) | off |
 | Matches that start it | more than 2 | any number |
 | Groups one question names | 3 at most, then "or another visit" | 1 to 5 |
 | Group order | the group with the soonest visit first | the list's own order |
 | How far back a past visit is found | 400 days | any number of days |
 | Which past statuses are said | seen, missed, cancelled | any of the three |
-| Visits counted after the soonest | the next 90 days | any number of days |
+| The search windows for the visits to come | 7 days, then 30, then 90, then no end; the others counted in the window that found the soonest | any windows |
 
 ### 13.4 Instructions and staff
 | Setting | Default | Choices |

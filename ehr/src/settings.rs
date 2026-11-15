@@ -104,6 +104,7 @@ const fn p(key: &'static str, placeholders: &'static [&'static str]) -> Setting 
 pub const PROMPT: &[Setting] = &[
     p("role", &["today"]),
     p("note.call_start", &["now"]),
+    p("note.repeat_dropped", &[]),
     p("task.greet", &[]),
     p("task.verify", &[]),
     p("task.menu", &[]),
@@ -112,6 +113,7 @@ pub const PROMPT: &[Setting] = &[
     p("arg.identify.given_name", &[]),
     p("arg.identify.family_name", &[]),
     p("arg.identify.birth_date", &[]),
+    p("arg.identify.caller_wants", &[]),
     p("tool.confirm_details", &[]),
     p("tool.check_code", &[]),
     p("arg.check_code.code", &[]),
@@ -159,6 +161,8 @@ pub const PROMPT: &[Setting] = &[
     p("line.code_sent", &[]),
     p("line.code_length", &[]),
     p("line.verified", &[]),
+    p("line.verified_go", &[]),
+    p("note.after_verified", &[]),
     p("line.locked", &[]),
     p("line.code_wrong", &[]),
     p("line.no_more_codes", &[]),
@@ -186,6 +190,8 @@ pub const PROMPT: &[Setting] = &[
     p("line.past_cancelled", &["visit"]),
     p("line.one_more_visit", &[]),
     p("line.more_visits", &["count"]),
+    p("line.one_more_visit_within", &["days"]),
+    p("line.more_visits_within", &["count", "days"]),
     p("line.no_visit_match", &[]),
     p("line.no_past_visits", &[]),
     p("line.which_visit", &["groups"]),
@@ -821,7 +827,7 @@ mod tests {
                 (s.key.to_string(), json!(format!("Words {words}.")).to_string())
             })
             .collect();
-        assert_eq!(check(PROMPT, &set).unwrap().len(), 112);
+        assert_eq!(check(PROMPT, &set).unwrap().len(), 118);
 
         let with = |key: &str, text: &str| {
             let mut s = set.clone();

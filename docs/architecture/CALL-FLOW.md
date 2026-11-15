@@ -74,6 +74,8 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | The emergency phrase screen | `EMERGENCY_PHRASES`, `CallerScreen` (`agent/deets_agent/screen.py`) | the patterns are in the code, each with its examples | FUTURE-SETTINGS.md §3 |
 | The medical-question line | `medical_question_fn` | `line.medical_question` | FUTURE-SETTINGS.md §2 |
 | Verification lines | `_identify_fn`, `_confirm_details_fn`, `_check_code_fn`, `_resend_code_fn` | `line.read_back`, `line.ask_details`, `line.birth_not_possible`, `line.name_not_said`, `line.code_sent`, `line.code_length`, `line.code_wrong`, `line.code_resent`, `line.verified` | — |
+| After the code, no second question when the caller already said what they need | `_identify_fn` (`caller_wants`, `CALLER_WANTS`), `_check_code_fn`, `CallFlow.wants` | `line.verified_go`; `note.after_verified` | FUTURE-SETTINGS.md §13.3 |
+| A slow read sent once more, quietly | `_once_more` (`find_visit`, `find_slots`) | — | EPIC.md §7.10 |
 | The text message with the code | `SECTION` (`ehr/src/texts.rs`) | `text.code` | — |
 | Booking lines | `_find_slots_fn`, `_choose_option_fn`, `_book_fn`, `_find_visit_fn` | `line.slots`, `line.slot_option`, `line.no_slots`, `line.which_option`, `line.confirm_slot`, `line.slot_taken`, `line.booked`, `line.next_visit`, `line.no_visits`; after `book`, the model also gets `visit_is` and `reason_for_visit` | — |
 | A change or cancel goes to staff, with a flag; the caller hears which visit stays booked | `_change_visit_fn` | `line.change_booked`, `line.change_visit` | — |

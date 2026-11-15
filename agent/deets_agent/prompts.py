@@ -38,6 +38,8 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "role": {"today"},
     # The hospital's time when the call began, in the call's own messages (the owner's 1A).
     "note.call_start": {"now"},
+    # Sent when the repeat guard dropped a reply that only said a fixed line again (call.py).
+    "note.repeat_dropped": set(),
     "task.greet": set(),
     "task.verify": set(),
     "task.menu": set(),
@@ -46,6 +48,8 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "arg.identify.given_name": set(),
     "arg.identify.family_name": set(),
     "arg.identify.birth_date": set(),
+    # What the caller already said they want (the owner, 2026-11-15: no second question).
+    "arg.identify.caller_wants": set(),
     "tool.confirm_details": set(),
     "tool.check_code": set(),
     "arg.check_code.code": set(),
@@ -96,6 +100,8 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "line.code_sent": set(),
     "line.code_length": set(),
     "line.verified": set(),
+    "line.verified_go": set(),
+    "note.after_verified": set(),
     "line.locked": set(),
     "line.code_wrong": set(),
     "line.no_more_codes": set(),
@@ -129,6 +135,9 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "line.past_cancelled": {"visit"},
     "line.one_more_visit": set(),
     "line.more_visits": {"count"},
+    # The count in the window the search found the visit in (7, 30 or 90 days).
+    "line.one_more_visit_within": {"days"},
+    "line.more_visits_within": {"count", "days"},
     "line.no_visit_match": set(),
     "line.no_past_visits": set(),
     # The narrowing question (the owner's V1A): "Is this about your imaging visit or ...?"
@@ -496,6 +505,7 @@ CODE_VALUE_INFO: dict[str, tuple[str, str, bool]] = {
     "reason": ("Why the visit is, as the record says.", "The record.", True),
     "now": ("The hospital's time when the call began, with its time zone.", "ehr's clock, in the hospital's time zone.", False),
     "count": ("How many more visits are coming.", "The record.", True),
+    "days": ("How many days ahead the count of visits covers.", "ehr's search window.", False),
     "groups": ("The kinds of visit the caller is asked to choose from.", "The record and the hospital's visit groups.", True),
     "group": ("One kind of visit, by the hospital's name for it.", "The hospital's visit groups.", True),
     "instructions": ("How to prepare for the visit, as the record says.", "The record.", True),

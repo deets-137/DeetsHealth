@@ -282,3 +282,19 @@ where {visit_type} = online or where {clinic} = north if we ever do multiple cli
   clinics. A System variable would then hold one value per clinic, chosen by the number the
   caller dialed or by the visit's location.
 - Each needs its own design.
+- **Events from the call loop** (the owner, 2026-11-15). `TurnCollector` (`agent/deets_agent/call.py`)
+  sees what the caller is about to hear: each fixed line, the model's words, each tool call,
+  each turn's start and end, and what its checks find (an invented value; a repeated fixed
+  line, the repeat guard). It can feed the rules engine:
+  - **As named events,** never read directly: `repeat_dropped`, `invented_value`,
+    `slow_answer`. ehr and the caller screen emit events the same way. The engine subscribes,
+    so it never depends on one Pipecat processor's insides.
+  - **Inside the wall:** the model's words are transcript, so a rule on them runs during the
+    call, in the code. The console shows the rule, never a call's words.
+  - **Before speech, only in the processor:** dropping a reply or holding the voice can happen
+    only in the processor before the voice (Sonic). A rule can turn such a guard on or off or
+    tune its limits; the guard's code stays in `TurnCollector`.
+  - Rules seen so far: drop a repeated fixed line and ask the model once (being built in code,
+    2026-11-15); flag a call whose model said a value no one gave it; say the holding line
+    when an answer is slow to start; offer a person after two turns with no tool in the
+    verify step.

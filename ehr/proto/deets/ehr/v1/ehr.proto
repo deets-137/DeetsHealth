@@ -304,7 +304,25 @@ message CloseCallRequest {
   string handle = 1 [(secret) = true];
 }
 
-message CloseCallReply {}
+message CloseCallReply {
+  // The call's EHR ledger (docs/ops/DEBUGGING.md §3): each request ehr sent the EHR, in order.
+  repeated EhrRequest ledger = 1;
+}
+
+// One request to the EHR. Names and counts only: never a value, an id or a patient.
+message EhrRequest {
+  // The gRPC call that sent it ("FindVisit").
+  string rpc = 1;
+  // "GET Appointment?date&patient&service-category&status": the resource and parameter names.
+  string what = 2;
+  // The HTTP status; 0 when no answer came.
+  uint32 status = 3;
+  uint32 ms = 4;
+  uint32 results = 5;
+  uint32 bytes = 6;
+  // When it started, in milliseconds from the call's start in ehr.
+  uint32 at_ms = 7;
+}
 
 message IdentifyRequest {
   string handle = 1 [(secret) = true];
@@ -477,4 +495,7 @@ message FindVisitReply {
   repeated string groups = 3 [(phi) = true];
   // With `groups`: other visits match outside the groups named ("or another visit").
   bool other_visits = 4;
+  // `more` counts the visits in the next this many days (the window the search found the
+  // visit in: 7, 30 or 90); 0: with no limit.
+  uint32 more_within_days = 5;
 }

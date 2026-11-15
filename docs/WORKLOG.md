@@ -40,6 +40,19 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - Scoped a database-backed Local EHR against testing on Epic's sandbox alone; the owner chose
   to write option A (a local FHIR server in Epic's shapes) as an idea for later:
   ideas/LOCAL-EHR.md.
+- Scored the Camila call `20261115-002907-test` (Epic mode): 3 of 6 rated dimensions; model
+  ratings in `annotations.jsonl`. `FindVisit` passed the 3 s deadline: the new 90-day first
+  window (Camila has 269 visits ahead). Fixed on the owner's word: 7, then 30, then 90, then no
+  end (an open search returns all, the probe showed); one quiet retry of a slow read; and no
+  menu question after the code when the caller already said what they want (identify's
+  `caller_wants`, `line.verified_go`, `note.after_verified`).
+- The repeat guard (the owner's "do the code guard"): `TurnCollector` drops a reply that only
+  repeats the fixed line just spoken and asks the model once to act. A normal reply waits for
+  nothing; a repeat costs one model turn (about 0.5 to 0.8 s) in place of about 6 s of speech.
+- The request log and the EHR ledger (the owner: "log it and tag it"): schema 12 of the call
+  record; `ledger.rs`; `show_call.py --requests`. The log showed Claude did get "246810" in
+  `emergency_reminder` and still asked for the code; 4 of 4 fresh draws. Not yet found why.
+  Tried: the guard's retry without a note (worse: the model repeated the line again).
 - Not done: the hospital's location list (no `location-reference` sent); Config › Hospital
   itself; the patient's time zone in `$find`.
 

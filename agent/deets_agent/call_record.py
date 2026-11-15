@@ -72,8 +72,11 @@ CALLS = config.AGENT / "calls"
 # `system_version` on `call_start`, the label of the System variables the call ran with
 # (SYSTEM-PAGE.md §3.4). 11: since 2026-11-13, late night: `label` on `call_start` when the
 # person typed one beside Start, and `started_by` (`owner` or `guest`) on a dev server call
-# (docs/ops/DEMO.md §3.6). The catalog reads all eleven.
-SCHEMA_VERSION = 11
+# (docs/ops/DEMO.md §3.6). 12: since 2026-11-15, each `llm_request` holds what was sent to
+# Claude, as a delta (the system prompt when it changed, the messages added since the last
+# request), and `epic` events hold ehr's own requests to Epic, from CloseCall (AGENT.md §1).
+# The catalog reads all twelve.
+SCHEMA_VERSION = 12
 
 
 def cost_usd(tokens: dict[str, int], model: str, cache_ttl: str = "5m", geo: bool = True) -> float:
@@ -111,6 +114,18 @@ def replay_cost(path: Path, model: str = config.MODEL) -> float:
 def _ms(seconds: float) -> float:
     """A span in milliseconds, to a tenth: a fake tool takes 1 to 4 ms, so whole ms hide it."""
     return round(seconds * 1000, 1)
+
+
+def _bare(message: Any) -> Any:
+    """A message without its cache markers and thinking blocks: what the turn said."""
+    if not isinstance(message, dict) or not isinstance(message.get("content"), list):
+        return message
+    blocks = [
+        {k: v for k, v in b.items() if k != "cache_control"} if isinstance(b, dict) else b
+        for b in message["content"]
+        if not (isinstance(b, dict) and b.get("type") in ("thinking", "redacted_thinking"))
+    ]
+    return {**message, "content": blocks}
 
 
 class _LlmTrace:
@@ -210,6 +225,9 @@ class CallRecord:
         # Every live request is sent US-only (llm.py), billed at 1.1×.
         self.geo = True
         self._tool_start: dict[str, float] = {}
+        # What the last request to Claude held, so the next one records only what is new.
+        self._sent_system: Any = None
+        self._sent_messages: list[Any] = []
         self._last_caller: float | None = None
         self._answer_start: float | None = None
         self._node: str | None = None
@@ -291,14 +309,34 @@ class CallRecord:
 
     def llm_request(self, key: str, params: dict[str, Any], hit: bool, dropped: int) -> _LlmTrace:
         tools = [t.get("name") for t in params.get("tools") or [] if isinstance(t, dict)]
+        messages = list(params.get("messages", []))
         fields = {
             "key": key[:8],
             "hit": hit,
-            "messages": len(params.get("messages", [])),
+            "messages": len(messages),
             "tools": tools,
             "thinking_dropped": dropped,
         }
+        # What was sent, as a delta (schema 12): a test call's record keeps the full text, like
+        # the rest of it (REGULATIONS.md §8); synthetic callers only. A request that does not
+        # extend the last one (a step change rewrote the context) is kept whole.
+        system = params.get("system")
+        if system != self._sent_system:
+            fields["system"] = system
+            self._sent_system = system
+        # Compared without the cache markers and thinking blocks, which move from turn to turn.
+        messages = [_bare(m) for m in messages]
+        n = len(self._sent_messages)
+        if messages[:n] == self._sent_messages:
+            fields["new_messages"] = messages[n:]
+        else:
+            fields["all_messages"] = messages
+        self._sent_messages = messages
         return _LlmTrace(self, fields)
+
+    def epic(self, entry: dict[str, Any]) -> None:
+        """One of ehr's requests to Epic on this call (CloseCall's ledger): names and counts only."""
+        self.event("epic", **entry)
 
     def ehr(
         self, name: str, ms: float, outcome: str, result: str | None = None, left: dict[str, int] | None = None

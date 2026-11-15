@@ -226,7 +226,11 @@ impl Epic {
                 }
             }
         }
-        let token = self.token().await?;
+        // A new token is a request too (the ledger names it; its body is a secret, never read).
+        let started = Instant::now();
+        let got = self.token().await;
+        crate::ledger::note("POST", &self.token_url, if got.is_ok() { 200 } else { 0 }, started, None);
+        let token = got?;
         let life = Duration::from_secs(token.expires_in).saturating_sub(TOKEN_MARGIN);
         *current = Some((token.clone(), Instant::now() + life));
         Ok(token)
@@ -240,22 +244,30 @@ impl Epic {
         }
         for fresh in [false, true] {
             let token = self.bearer(fresh).await?;
-            let reply = self
+            let started = Instant::now();
+            let sent = self
                 .client
                 .get(url.clone())
                 .bearer_auth(token.secret.as_str())
                 .header("Accept", "application/fhir+json")
                 .send()
-                .await
-                .map_err(|_| EpicError("FHIR read: no answer".into()))?;
+                .await;
+            let Ok(reply) = sent else {
+                crate::ledger::note("GET", &url, 0, started, None);
+                return Err(EpicError("FHIR read: no answer".into()));
+            };
             let status = reply.status().as_u16();
+            let body = reply.text().await.ok();
+            crate::ledger::note("GET", &url, status, started, body.as_deref());
             if status == 401 && !fresh {
                 continue;
             }
             if status != 200 {
                 return Err(EpicError(format!("FHIR read: HTTP {status}")));
             }
-            return reply.json().await.map_err(|_| EpicError("FHIR read: not JSON".into()));
+            return body
+                .and_then(|b| serde_json::from_str(&b).ok())
+                .ok_or_else(|| EpicError("FHIR read: not JSON".into()));
         }
         Err(EpicError("FHIR read: HTTP 401".into()))
     }
@@ -270,7 +282,8 @@ impl Epic {
         }
         for fresh in [false, true] {
             let token = self.bearer(fresh).await?;
-            let reply = self
+            let started = Instant::now();
+            let sent = self
                 .client
                 .post(url.clone())
                 .bearer_auth(token.secret.as_str())
@@ -278,13 +291,18 @@ impl Epic {
                 .header("Content-Type", "application/fhir+json")
                 .body(body.to_string())
                 .send()
-                .await
-                .map_err(|_| EpicError("FHIR post: no answer".into()))?;
+                .await;
+            let Ok(reply) = sent else {
+                crate::ledger::note("POST", &url, 0, started, None);
+                return Err(EpicError("FHIR post: no answer".into()));
+            };
             let status = reply.status().as_u16();
+            let text = reply.text().await.ok();
+            crate::ledger::note("POST", &url, status, started, text.as_deref());
             if status == 401 && !fresh {
                 continue;
             }
-            return Ok((status, reply.json().await.ok()));
+            return Ok((status, text.and_then(|t| serde_json::from_str(&t).ok())));
         }
         Err(EpicError("FHIR post: HTTP 401".into()))
     }
