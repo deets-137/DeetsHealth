@@ -305,23 +305,31 @@ export const saveSystem = (values: SystemValues) => saveSettings<SystemSettings>
 
 /** Config › Hospital (HOSPITAL-CONFIG.md): the hospital's lists and numbers, as ehr's
  * hospital.rs keeps them. Facts about the hospital, never protected data. */
-export type VisitTypeRow = { system: string; code: string; record: string; spoken: string; online: boolean; book: boolean };
+/** `code`: the type's ID in the hospital's visit type list (`visit_type_list`). */
+export type VisitTypeRow = { code: string; record: string; spoken: string; online: boolean; book: boolean };
 export type VisitGroupRow = { name: string; words: string[]; visit_types: string[] };
-export type ReasonRow = { system: string; code: string; words: string[]; visit_type: string; specialty: string };
+/** A reason's code system, by name: "hospital" is the hospital's own list (`diagnosis_list`). */
+export type ReasonSystem = "" | "snomed" | "icd10cm" | "hospital";
+export type ReasonRow = { system: ReasonSystem; code: string; words: string[]; visit_type: string; specialty: string };
 export type TimeOfDayRow = { name: string; from: string; hours: number };
 export type HoursRow = { day: string; opens: string; closes: string };
 export type ClosedDayRow = { date: string; name: string };
 export type LocationRow = { record: string; spoken: string; id: string; address: string; phone: string };
-export type SpecialtyRow = { system: string; code: string; spoken: string; words: string[] };
+/** `code`: the specialty's ID in the hospital's specialty list (`specialty_list`). */
+export type SpecialtyRow = { code: string; spoken: string; words: string[] };
 export type HospitalValues = {
   time_zone: string;
+  /** Each list's OID, set once ("urn:oid:…", or empty): the owner's A, 2026-11-15. */
+  visit_type_list: string;
   visit_types: VisitTypeRow[];
   visit_groups: VisitGroupRow[];
+  diagnosis_list: string;
   reasons: ReasonRow[];
   times_of_day: TimeOfDayRow[];
   hours: HoursRow[];
   closed_days: ClosedDayRow[];
   locations: LocationRow[];
+  specialty_list: string;
   specialties: SpecialtyRow[];
   slots_offered: number;
   narrow_over: number;

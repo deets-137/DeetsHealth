@@ -19,13 +19,16 @@ HOSPITAL = REPO / "ehr" / "fixtures" / "hospital.json"
 # settings.rs › HOSPITAL are the same list (test_dev_server.py checks the file holds each).
 HOSPITAL_KEYS = (
     "time_zone",
+    "visit_type_list",
     "visit_types",
     "visit_groups",
+    "diagnosis_list",
     "reasons",
     "times_of_day",
     "hours",
     "closed_days",
     "locations",
+    "specialty_list",
     "specialties",
     "slots_offered",
     "narrow_over",

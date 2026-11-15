@@ -1,19 +1,21 @@
 {
   "about": "The dev hospital: the Default version of Config › Hospital (architecture/HOSPITAL-CONFIG.md), and the copy ehr uses with no settings store. One hospital for the local fake and Epic's sandbox. Drafts, for the owner to edit. The coded visit types are Epic's sandbox build (EPIC.md §5.2); the reason is Epic's own sample for $find (open.epic api:840). No protected data.",
   "time_zone": "America/Chicago",
+  "visit_type_list": "urn:oid:1.2.840.114350.1.13.0.1.7.2.808267",
   "visit_types": [
-    { "system": "", "code": "", "record": "Office Visit", "spoken": "an office visit", "online": false, "book": true },
-    { "system": "", "code": "", "record": "Video Visit", "spoken": "a video visit", "online": true, "book": true },
-    { "system": "urn:oid:1.2.840.114350.1.13.0.1.7.2.808267", "code": "1003", "record": "New Patient Appointment", "spoken": "a new patient visit", "online": false, "book": true },
-    { "system": "urn:oid:1.2.840.114350.1.13.0.1.7.2.808267", "code": "1400000001", "record": "MyChart Video Visit", "spoken": "a video visit", "online": true, "book": true },
-    { "system": "", "code": "", "record": "X-Ray Exam", "spoken": "an X-ray", "online": false, "book": false }
+    { "code": "", "record": "Office Visit", "spoken": "an office visit", "online": false, "book": true },
+    { "code": "", "record": "Video Visit", "spoken": "a video visit", "online": true, "book": true },
+    { "code": "1003", "record": "New Patient Appointment", "spoken": "a new patient visit", "online": false, "book": true },
+    { "code": "1400000001", "record": "MyChart Video Visit", "spoken": "a video visit", "online": true, "book": true },
+    { "code": "", "record": "X-Ray Exam", "spoken": "an X-ray", "online": false, "book": false }
   ],
   "visit_groups": [
     { "name": "primary care", "words": ["checkup", "check-up", "regular doctor"], "visit_types": ["Office Visit", "New Patient Appointment"] },
     { "name": "imaging", "words": ["x-ray", "xray", "scan"], "visit_types": ["X-Ray Exam"] }
   ],
+  "diagnosis_list": "",
   "reasons": [
-    { "system": "urn:oid:2.16.840.1.113883.6.96", "code": "46866001", "words": ["broken leg", "fractured leg"], "visit_type": "Office Visit", "specialty": "family medicine" }
+    { "system": "snomed", "code": "46866001", "words": ["broken leg", "fractured leg"], "visit_type": "Office Visit", "specialty": "family medicine" }
   ],
   "times_of_day": [
     { "name": "morning", "from": "08:00", "hours": 4 },
@@ -36,10 +38,11 @@
     { "record": "Main Street Clinic", "spoken": "", "id": "", "address": "", "phone": "" },
     { "record": "EMC Family Medicine", "spoken": "the family medicine clinic", "id": "", "address": "", "phone": "" }
   ],
+  "specialty_list": "",
   "specialties": [
-    { "system": "", "code": "", "spoken": "family medicine", "words": ["family doctor", "primary care", "regular doctor"] },
-    { "system": "", "code": "", "spoken": "dermatology", "words": ["skin doctor"] },
-    { "system": "", "code": "", "spoken": "cardiology", "words": ["heart doctor"] }
+    { "code": "", "spoken": "family medicine", "words": ["family doctor", "primary care", "regular doctor"] },
+    { "code": "", "spoken": "dermatology", "words": ["skin doctor"] },
+    { "code": "", "spoken": "cardiology", "words": ["heart doctor"] }
   ],
   "slots_offered": 3,
   "narrow_over": 2,

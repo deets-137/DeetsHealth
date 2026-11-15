@@ -8,6 +8,33 @@ updated: 2026-11-15
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-15 (Windows, morning) — kept scripts green; Epic's code systems
+- The owner: "Go for 1-3 please". His Epic knowledge does not cover Cadence; he knows 4-digit
+  codes (1003, 1024) as IDs of a facility or location.
+- `emergency_reminder`: 4 fresh live draws, all passed the code turn and booked (about $0.01).
+  The test still failed on replay, because record mode reused the night's failing replies.
+  Deleted the 10 replies only this script uses, recorded it again ($0.003), and ran
+  `record_and_test`: 15 of 15 scripts, every agent test passes, stamp and costs written.
+- Research (open.epic MCP: `tutorial:2659`, `api:840`, `api:928`): the parts of an Epic OID;
+  the master file spelled in ASCII (808267 = PRC, visit types; 696871 = EDG; 686980 = DEP);
+  one system per list, different in a hospital's test and production Epic; `indications` takes
+  the hospital's EDG code and SNOMED; specialties are a category list; no API lists visit
+  types. Written to EPIC.md §7.11 and HOSPITAL-CONFIG.md §2.10; §7's fork notes that the
+  research supports A. Nothing committed.
+- His screenshot of the Visit types table, saved as
+  `docs/architecture/images/hospital-visit-type-code-2026-11-15.png` (synthetic build values
+  only). He asked for A in detail, and to show a master-file record as "R PRC 1003".
+- His choice: A ("translating to master files, id types, and records works best. and no
+  inventing or guessing, we respect Epic's decision"). Built (HOSPITAL-CONFIG.md §5.1):
+  `visit_type_list`, `diagnosis_list`, `specialty_list` in `hospital.rs`, settings.rs,
+  config.py, the Default and `api.ts`; reasons name their system; `hospital::upgrade` reads
+  older versions in the new shape; `$find` takes the list's OID; the page's list tables and
+  "R PRC 1003" IDs (`epic-oid.ts`, only the two OID forms Epic's examples name).
+- Checks: ehr 110 pass and clippy clean (built in a separate target folder: the dev server
+  held the exe); agent 247 pass against that build (`DEETS_EHR_BIN`), ruff clean; console
+  `tsc` clean; docs:check clean. Not run: the full `npm run check` (it needs the dev server
+  stopped). Nothing committed.
+
 ## 2026-11-15 (Windows, late) — Config › Hospital built
 - The owner: "Let's talk building config > Hospital. re-evaluate the build and design given
   what's been build out." The re-evaluation found the hospital's values in three built-in files

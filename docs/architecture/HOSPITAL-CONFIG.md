@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [docs/architecture/images/hospital-columns-misaligned-2026-11-15.png, ehr/src/hospital.rs, ehr/fixtures/hospital.json, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/scheduler.rs, ehr/src/epic_ehr.rs, ehr/src/visits.rs, ehr/src/session.rs, ehr/migrations/0009_settings_hospital.sql, ehr/proto/deets/ehr/v1/ehr.proto, agent/deets_agent/config.py, agent/deets_agent/dev_server.py, agent/deets_agent/flow.py, agent/deets_agent/ehr_client.py, console/src/pages/hospital.ts, console/src/agent/api.ts]
+sources: [docs/architecture/images/hospital-columns-misaligned-2026-11-15.png, docs/architecture/images/hospital-visit-type-code-2026-11-15.png, ehr/src/hospital.rs, ehr/fixtures/hospital.json, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/scheduler.rs, ehr/src/epic_ehr.rs, ehr/src/visits.rs, ehr/src/session.rs, ehr/migrations/0009_settings_hospital.sql, ehr/proto/deets/ehr/v1/ehr.proto, agent/deets_agent/config.py, agent/deets_agent/dev_server.py, agent/deets_agent/flow.py, agent/deets_agent/ehr_client.py, console/src/pages/hospital.ts, console/src/pages/epic-oid.ts, console/src/agent/api.ts, console/src/styles/config.css, docs/integrations/EPIC.md]
 updated: 2026-11-15
 ---
 # DeetsHealth — Config › Hospital: the hospital's own lists
@@ -38,8 +38,8 @@ today. "Not used yet" means the page keeps it and no call reads it; its note on 
 so.
 
 ### 2.1 Visit types (Epic's `service-type`) — Visits tab, used now
-- Columns: the record's name, the spoken name, the code system, the code, Online, Agent may
-  book.
+- Above the table: the **Visit type list**, one OID for every row (§5.1). Columns: the
+  record's name, the spoken name, the ID ("R PRC 1003"), Online, Agent may book.
 - A visit or a slot whose type, as the record names it, is on the list (in any case) says the
   row's spoken name and takes the row's Online mark. A spoken name that names sensitive care
   makes the visit private (FUTURE-SETTINGS.md §9). A type not on the list keeps the record's
@@ -61,7 +61,9 @@ so.
   (`VisitGroups::new`). Since 2A the groups apply in Epic mode too.
 
 ### 2.3 Reasons as codes (Epic's `indications`) — Visits tab, not used yet
-- Columns: the caller's words, the code system, the code, the visit type, the specialty.
+- Above the table: the **Diagnosis list**, the OID of the hospital's own diagnoses (§5.1).
+  Columns: the caller's words, the code system by name (SNOMED CT, ICD-10-CM, the hospital's
+  diagnoses), the code, the visit type, the specialty.
 - Decided 2026-11-14 (EPIC.md §5.2): booking sends the reason in the caller's words only. This
   list is the map for when a hospital codes reasons. The Default row is Epic's own sample:
   SNOMED 46866001, a broken leg.
@@ -91,8 +93,8 @@ so.
   `Location.Read` could fill the address and phone, once per row, never once per call.
 
 ### 2.8 Specialties (Epic's `specialties`) — Places tab, not used yet
-- Columns: the spoken name, the caller's words, the code system, the code. Epic gives no list
-  of a hospital's specialty codes by API.
+- Above the table: the **Specialty list**, one OID (§5.1). Columns: the spoken name, the
+  caller's words, the ID. Epic gives no list of a hospital's specialty codes by API.
 
 ### 2.9 Booking — Booking tab, used now
 - Slots offered at a time (1 to 5); visits before the narrowing question; groups one question
@@ -100,6 +102,29 @@ so.
   than the one before; one Epic read per window, then one with no end). FUTURE-SETTINGS.md
   §13.2 and §13.3 list the choices not built yet (the order, the clinician's name, times on one
   day).
+
+### 2.10 What a code and its system mean (Epic's docs, 2026-11-15)
+> **Part:** research · 2026-11-15. The whole record, with Epic's document ids: EPIC.md §7.11.
+
+- **The code system names the list; the code names the row in it.** In
+  `urn:oid:1.2.840.114350.1.13.0.1.7.2.808267`: `1.2.840.114350` is Epic, `.1.13` is Epic's
+  EDI application, `0` is the organization (the sandbox), `1` the environment (Epic's own; a
+  hospital's production is 2, its test is 3), `.7` HL7 use, and `.2.808267` the records of the
+  PRC master file (P R C in ASCII: 80 82 67), Cadence's visit types.
+- **All of one hospital's visit types share one system.** The system changes between the
+  hospital's test and production Epic, and between hospitals.
+- **A code alone does not say what it is.** 1003 is a visit type here because its system is
+  PRC. Departments and facilities also have short record IDs (Epic's sample: department "1",
+  system `.2.686980`, DEP).
+- **A hospital may name its visit types two ways:** by record ID (`.2.808267`, as the sandbox
+  does) or by the value of PRC item 11 (`.3.808267.11`, as Epic's `$find` sample does).
+- **Reasons (`indications`):** the hospital's own diagnosis list (EDG, `.2.696871`) and SNOMED
+  CT; when both are sent, the hospital's code wins. Epic's sample also sends ICD-10-CM.
+- **Specialties:** a category list (`.10.…`), small codes ("3" = Allergy in Epic's sample).
+- **Locations:** `$find` takes a reference to a Location, not a code. `Location.Read` gives the
+  name, address, phone, hours and specialty.
+- **No API lists these.** The hospital's Epic team gets the OIDs from Epic's OID Generator
+  utility and the codes from its Cadence build.
 
 ## 3. Where the values come from
 - **The store**: the `hospital` service of the settings store (`settings_hospital`, migration
@@ -161,7 +186,46 @@ so.
 
   ![The owner's screenshot, 2026-11-15: the Visits tab, each editable column's words right of its header (an orange line marks Spoken name); he asks what Code system and Code are](images/hospital-columns-misaligned-2026-11-15.png)
 
+### 5.1 One Epic list per list (the owner's A, 2026-11-15)
+> **Part:** built · 2026-11-15. The owner: "Let's go with A and I'll iterate for usability
+> afterwards. Code system wouldn't make sense to an analyst in the scope of their work, so
+> translating to master files, id types, and records works best. and no inventing or guessing,
+> we respect Epic's decision and listen to their guidance here."
+
+- **ehr › `hospital.rs`:** three new keys, each one OID or empty: `visit_type_list`,
+  `diagnosis_list`, `specialty_list` (`check_key` takes `urn:oid:` and dotted numbers). The
+  visit type and specialty rows lose `system`; `code` is the row's ID in its list. A reason's
+  `system` is a name from `REASON_SYSTEMS`: `snomed`, `icd10cm` or `hospital`. `from_pairs`
+  refuses a row with an ID when its list is empty, and a "hospital" reason when the diagnosis
+  list is empty; the error names the row.
+- **Versions saved before A** are read in today's shape (`hospital::upgrade`, called by
+  `settings::get` for the hospital): rows that all name one OID give it to the list, when the
+  version has no list key; a reason's SNOMED or ICD-10-CM OID becomes its name; another OID
+  becomes "hospital" and the diagnosis list. Rows that name two OIDs stay as they are, so the
+  version does not fit and the call uses the file (as for any version that does not fit).
+- **`$find`** sends `visit_type_list` as the system of every visit type (`epic_ehr.rs`). The
+  request to Epic is unchanged.
+- **The console:** each list has a one-row table above its rows: the OID (edited in place) and
+  "What the OID says". A row's ID shows its list's prefix in gray, "R PRC 1003"; the prefix
+  changes as the OID is typed. A reason's code system is a dropdown; a reason on the hospital's
+  list shows the diagnosis list's prefix. `console/src/pages/epic-oid.ts` reads an OID.
+- **What the page reads from an OID, and only this** (Epic says to treat an OID as opaque,
+  open.epic tutorial:2659): Epic's documented pattern `1.2.840.114350.1.13.<CID>.<EnvType>.7.…`,
+  with EnvType in Epic's words (1 Epic's own environment, 2 production, 3 non-production), and
+  two forms that Epic's own examples name: `.7.2.<file>`, a master file's records (Epic's AIP
+  example: the letters as ASCII codes), shown as "R PRC"; and `.7.5.737384.<n>`, an ID type
+  (Epic's MRN example), shown as "R IIT n". Any other OID says "Not a form Epic's documentation
+  names: kept as entered", and its rows show no prefix. The page never builds an OID.
+- **The Default:** `visit_type_list` is the sandbox's PRC OID; `diagnosis_list` and
+  `specialty_list` are empty; the reason row is `snomed`.
+
 **Decided inside the owner's choices (for his review):**
+- A: the list's OID sits in a one-row table above its rows, titled "Epic's OID for the list"
+  and "What the OID says". An OID that is not in Epic's documented forms gets no label and no
+  prefix, never a guess. A specialty list's OID (a category list, `.10.…`, in Epic's sample)
+  gets no label for that reason.
+- A reason's systems are named SNOMED CT, ICD-10-CM and "The hospital's diagnoses"; "None" is
+  allowed for a row with no code.
 - The tabs and columns of §2, and the spoken names of the Default ("an office visit", "a video
   visit", "a new patient visit", "an X-ray"; "EMC Family Medicine" says "the family medicine
   clinic").
@@ -185,19 +249,27 @@ so.
 6. Choose the Default in the versions list: the page shows it, read only.
 7. In Epic mode, a call that asks for Camila Lopez's next visit says "the family medicine
    clinic".
+8. **One list per list (§5.1).** Restart `npm run dev` first (a new `ehr`). On Visits, the
+   Visit type list shows the OID and "Records of the master file PRC (organization 0, Epic's
+   own environment)". New Patient Appointment's ID reads "R PRC 1003"; Office Visit's ID is
+   empty and has no prefix.
+9. Choose Edit. Clear the Visit type list's OID. The problem "Visit types, row 3: an ID needs
+   the visit type list's OID" shows and Save waits. Type the OID back: the prefixes come back.
+10. On a reason row, choose "The hospital's diagnoses": the problem asks for the Diagnosis
+    list's OID. Choose SNOMED CT again.
+11. Choose an older version (saved before today): it shows in the new shape, each ID in its
+    list.
+12. In Epic mode, ask to book a visit: `$find` still returns times (the same request as before).
 
 ## 7. Open
-- **The owner's fork (2026-11-15, night; he decides in the morning): how the page shows the code
-  system.** Each code column pair names one item of the hospital's build: Code is the item's ID
-  (a visit type's ID in Cadence, 1003), and Code system is the list it comes from, as an OID
-  (`1.2.840.114350` is Epic's root). They are sent to `$find` as one coding.
-  - **A (recommended): one ID list per list, set once** above the table ("Epic visit type list
-    (OID)"); each row keeps only its ID. Specialties the same. Reasons keep a system per row,
-    chosen by name (SNOMED CT, ICD-10-CM, the hospital's own). Cost: a schema change; no mixing
-    of two lists.
-  - **B: a system on each row, with plain names** ("ID list", "ID"; a known OID shown by its
-    name). Cost: the same OID typed on every row.
-  - Before he decides: research Epic's documentation on these systems (HANDOFF.md, Open now).
+- **Decided 2026-11-15: A, one Epic list per list** (built, §5.1). Not chosen: B, an OID on
+  each row. The owner will iterate on the page's usability after his desk test. The research
+  behind it: §2.10, EPIC.md §7.11.
+
+  ![The owner's screenshot, 2026-11-15: the Visit types table, the Code 1003 boxed; he asks for A in detail and to show it as "R PRC 1003"](images/hospital-visit-type-code-2026-11-15.png)
+- A label for an OID form that Epic's documentation does not name (an item, `.3.<file>.<item>`,
+  as Epic's `$find` sample sends; a category list, `.10.…`): only from Epic's own words, when a
+  hospital needs it.
 - Import from a file (the hospital's Cadence export), as well as typing.
 - Whether a location may override the hospital's hours and time zone, or only add to them.
 - Each list that is not used yet waits for its feature: the specialty and location in `$find`,

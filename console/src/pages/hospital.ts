@@ -7,9 +7,10 @@
 // Some lists are kept but read by no call yet: each one's note says so ("Not used by calls
 // yet"). No row is protected data: a row is a fact about the hospital. Every size, color and
 // timing is an existing token: the page reuses System's classes and adds none.
-import { saveHospital, type HospitalSettings, type HospitalValues } from "../agent/api";
+import { saveHospital, type HospitalSettings, type HospitalValues, type ReasonSystem } from "../agent/api";
 import { hospitalSettings } from "../agent/stores";
 import { settingsView, type Kit } from "./config-kit";
+import { describeEpicOid, recordPrefix } from "./epic-oid";
 import { el } from "./page";
 import { field, grow, heading, row, table } from "./system";
 import type { View } from "./subnav";
@@ -17,15 +18,16 @@ import { remember, remembered, tabBar } from "./tab-bar";
 
 type Draft = HospitalValues;
 type Key = keyof HospitalValues;
+type ListKey = "visit_type_list" | "diagnosis_list" | "specialty_list";
 type Limits = HospitalSettings["limits"];
 const TABS = ["visits", "times", "places", "booking"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_KEY = "deets.console.hospital.tab";
 /** Each tab's lists, in the page's order. */
 const TAB_KEYS: Record<Tab, Key[]> = {
-  visits: ["visit_types", "visit_groups", "reasons"],
+  visits: ["visit_type_list", "visit_types", "visit_groups", "diagnosis_list", "reasons"],
   times: ["time_zone", "times_of_day", "hours", "closed_days"],
-  places: ["locations", "specialties"],
+  places: ["locations", "specialty_list", "specialties"],
   booking: ["slots_offered", "narrow_over", "groups_named", "past_days", "ahead_windows"],
 };
 const DAYS: [string, string][] = [
@@ -39,6 +41,15 @@ const DAYS: [string, string][] = [
 ];
 const NOT_USED = "Not used by calls yet: kept for when the agent can use it.";
 const HH_MM = /^([01]\d|2[0-3]):[0-5]\d$/;
+/** An OID as a FHIR system, or empty: ehr's hospital.rs › oid. */
+const OID = /^(urn:oid:\d+(\.\d+)*)?$/;
+/** A reason's code system, by name (ehr's hospital.rs › REASON_SYSTEMS). */
+const REASON_SYSTEMS: [ReasonSystem, string][] = [
+  ["", "None"],
+  ["snomed", "SNOMED CT"],
+  ["icd10cm", "ICD-10-CM"],
+  ["hospital", "The hospital's diagnoses"],
+];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** A cell of words: "a, b, c" in the box, a list in the draft. */
@@ -75,15 +86,25 @@ function problem(d: Draft, l: Limits): string | null {
     }
     return null;
   };
+  const list = (name: string, oid: string) => (OID.test(oid) && oid.length <= l.cell + 8 ? null : `${name}: an OID such as urn:oid:1.2.840.114350…, or empty`);
+  const needsList = <T>(name: string, rows: T[], oid: string, uses: (r: T) => boolean, what: string) => {
+    const i = oid ? -1 : rows.findIndex(uses);
+    return i < 0 ? null : `${name}, row ${i + 1}: ${what}`;
+  };
   const checks: (() => string | null)[] = [
     () => (d.time_zone ? null : "Time zone: choose one"),
+    () => list("Visit type list", d.visit_type_list),
+    () => list("Diagnosis list", d.diagnosis_list),
+    () => list("Specialty list", d.specialty_list),
     () =>
       each("Visit types", d.visit_types, (r) => {
         if (one(r.record, true)) return "the record's name is empty or too long";
-        if ([r.spoken, r.system, r.code].some((x) => one(x, false))) return "a cell is too long";
-        if (r.code.trim() && !r.system.trim()) return "a code needs its code system";
+        if ([r.spoken, r.code].some((x) => one(x, false))) return "a cell is too long";
         return null;
       }),
+    () => needsList("Visit types", d.visit_types, d.visit_type_list, (r) => !!r.code.trim(), "an ID needs the visit type list's OID"),
+    () => needsList("Specialties", d.specialties, d.specialty_list, (r) => !!r.code.trim(), "an ID needs the specialty list's OID"),
+    () => needsList("Reasons", d.reasons, d.diagnosis_list, (r) => r.system === "hospital", "the hospital's list needs its OID"),
     () => (twice(d.visit_types, (r) => r.record) ? `Visit types, row ${twice(d.visit_types, (r) => r.record)}: the record's name is there twice` : null),
     () =>
       each("Visit groups", d.visit_groups, (g) =>
@@ -92,7 +113,15 @@ function problem(d: Draft, l: Limits): string | null {
     () => (twice(d.visit_groups, (g) => g.name) ? `Visit groups, row ${twice(d.visit_groups, (g) => g.name)}: the name is there twice` : null),
     () =>
       each("Reasons", d.reasons, (r) =>
-        !r.words.length ? "needs the caller's words" : many(r.words) ? "too many words, or one too long" : [r.system, r.code, r.visit_type, r.specialty].some((x) => one(x, false)) ? "a cell is too long" : null,
+        !r.words.length
+          ? "needs the caller's words"
+          : many(r.words)
+            ? "too many words, or one too long"
+            : r.code.trim() && !r.system
+              ? "a code needs its code system"
+              : [r.code, r.visit_type, r.specialty].some((x) => one(x, false))
+                ? "a cell is too long"
+                : null,
       ),
     () =>
       d.times_of_day.length > l.times
@@ -117,7 +146,7 @@ function problem(d: Draft, l: Limits): string | null {
     () => (twice(d.locations, (r) => r.record) ? `Locations, row ${twice(d.locations, (r) => r.record)}: the record's name is there twice` : null),
     () =>
       each("Specialties", d.specialties, (s) =>
-        one(s.spoken, true) ? "the spoken name is empty or too long" : many(s.words) ? "too many words, or one too long" : [s.system, s.code].some((x) => one(x, false)) ? "a cell is too long" : null,
+        one(s.spoken, true) ? "the spoken name is empty or too long" : many(s.words) ? "too many words, or one too long" : one(s.code, false) ? "a cell is too long" : null,
       ),
     () => {
       const w = d.ahead_windows;
@@ -280,6 +309,41 @@ class Parts {
     return wrap;
   }
 
+  /** The "R PRC" spans of each list's rows, kept current while the list's OID is typed. */
+  private prefixes = new Map<ListKey, HTMLElement[]>();
+
+  /** A list's one OID, set once above its rows (the owner's A, 2026-11-15), and what the OID
+   * says in an analyst's words (epic-oid.ts: only the forms Epic's documentation names). */
+  private listBlock(title: string, key: ListKey, help: string): HTMLElement {
+    const d = this.d;
+    const t = table(title, ["Epic's OID for the list", "What the OID says"]);
+    const says = el(`<span></span>`);
+    says.textContent = describeEpicOid(d[key]);
+    const oid = this.text(title, d[key], (v) => {
+      d[key] = v.trim();
+      says.textContent = describeEpicOid(d[key]);
+      for (const p of this.prefixes.get(key) ?? []) p.textContent = recordPrefix(d[key]);
+    });
+    t.body.append(
+      ...row(title, [oid, says], [
+        ["The OID:", help],
+        ["Where it comes from:", "The hospital's Epic team runs Epic's OID Generator utility and sends it. It differs between the hospital's test and production Epic."],
+      ]),
+    );
+    return t.wrap;
+  }
+
+  /** A row's ID in its list, after the list's prefix ("R PRC 1003"). The prefix is shown only;
+   * the OID and the ID are what is kept and sent. */
+  private idCell(key: ListKey, value: string, on: (v: string) => void): HTMLElement {
+    const wrap = el(`<div class="sys-id"><span class="sys-id-file"></span></div>`);
+    const prefix = wrap.firstElementChild as HTMLElement;
+    prefix.textContent = recordPrefix(this.d[key]);
+    this.prefixes.set(key, [...(this.prefixes.get(key) ?? []), prefix]);
+    wrap.append(this.text("ID", value, on));
+    return wrap;
+  }
+
   /** Add a row (Edit only): an empty row at the end, to fill in place. */
   private add<T>(what: string, rows: T[], blank: () => T): HTMLElement {
     const wrap = el(`<div class="sys-add"><div class="cfg-control"><button class="cfg-button" type="button"></button></div></div>`);
@@ -299,9 +363,10 @@ class Parts {
     const out = heading(
       "Visit types",
       d.visit_types.length,
-      "Epic's service-type. A visit whose type is on this list says the spoken name and takes the Online mark. Epic searches each type the agent may book that has a code; the local fake books the first of each kind, in this order.",
+      "Epic's service-type. A visit whose type is on this list says the spoken name and takes the Online mark. Epic searches each type the agent may book that has an ID; the local fake books the first of each kind, in this order.",
     );
-    const t = table("Visit types", ["The record's name", "Spoken name", "Code system", "Code", "Online", "Agent may book", ""]);
+    out.push(this.listBlock("Visit type list", "visit_type_list", "The list every visit type's ID belongs to, sent with each ID to Epic's $find."));
+    const t = table("Visit types", ["The record's name", "Spoken name", "ID", "Online", "Agent may book", ""]);
     for (const r of d.visit_types) {
       t.body.append(
         ...row(
@@ -309,8 +374,7 @@ class Parts {
           [
             this.text("The record's name", r.record, (v) => (r.record = v)),
             this.text("Spoken name", r.spoken, (v) => (r.spoken = v)),
-            this.text("Code system", r.system, (v) => (r.system = v)),
-            this.text("Code", r.code, (v) => (r.code = v)),
+            this.idCell("visit_type_list", r.code, (v) => (r.code = v)),
             this.onOff("Online", r.online, (v) => (r.online = v)),
             this.onOff("Agent may book", r.book, (v) => (r.book = v)),
             this.moves(d.visit_types, r),
@@ -318,12 +382,12 @@ class Parts {
           [
             ["The record's name:", "The type's name as the record holds it. A visit of this name, in any case, takes this row."],
             ["Spoken name:", "What the caller hears for this type. Empty: the record's own words. A name that names sensitive care makes the visit private."],
-            ["Code:", r.code ? "Sent to Epic's $find as the visit type." : "None: Epic cannot search or book this type. The local fake can."],
+            ["ID:", r.code ? "The type's ID in the visit type list, sent to Epic's $find." : "None: Epic cannot search or book this type. The local fake can."],
           ],
         ),
       );
     }
-    out.push(t.wrap, this.add("a visit type", d.visit_types, () => ({ system: "", code: "", record: "", spoken: "", online: false, book: false })));
+    out.push(t.wrap, this.add("a visit type", d.visit_types, () => ({ code: "", record: "", spoken: "", online: false, book: false })));
     return out;
   }
 
@@ -359,24 +423,33 @@ class Parts {
   reasons(): HTMLElement[] {
     const d = this.d;
     const out = heading("Reasons as codes", d.reasons.length, `Epic's indications: the caller's words for a reason, as a code. ${NOT_USED} A booking sends the caller's own words today.`);
+    out.push(this.listBlock("Diagnosis list", "diagnosis_list", "The hospital's own diagnosis list, for a reason whose code system is the hospital's diagnoses. Epic: when the hospital's code and a SNOMED code are both sent, the hospital's code wins."));
     const t = table("Reasons as codes", ["The caller's words", "Code system", "Code", "Visit type", "Specialty", ""]);
     for (const r of d.reasons) {
+      const code = r.system === "hospital" ? this.idCell("diagnosis_list", r.code, (v) => (r.code = v)) : this.text("Code", r.code, (v) => (r.code = v));
       t.body.append(
         ...row(
           r.words[0] || "A new reason",
           [
             this.wordsCell("The caller's words", r.words, (v) => (r.words = v)),
-            this.text("Code system", r.system, (v) => (r.system = v)),
-            this.text("Code", r.code, (v) => (r.code = v)),
+            this.choose(REASON_SYSTEMS, r.system, (v) => {
+              r.system = v as ReasonSystem;
+              this.kit.changed();
+              this.kit.rerender();
+            }),
+            code,
             this.text("Visit type", r.visit_type, (v) => (r.visit_type = v)),
             this.text("Specialty", r.specialty, (v) => (r.specialty = v)),
             this.moves(d.reasons, r),
           ],
-          [["Code:", "A SNOMED code or the hospital's own diagnosis code. Epic's own sample sends SNOMED 46866001, a broken leg."]],
+          [
+            ["Code system:", "SNOMED CT, ICD-10-CM, or the hospital's own diagnoses (the Diagnosis list above)."],
+            ["Code:", "Epic's own sample sends SNOMED CT 46866001, a broken leg."],
+          ],
         ),
       );
     }
-    out.push(t.wrap, this.add("a reason", d.reasons, () => ({ system: "", code: "", words: [], visit_type: "", specialty: "" })));
+    out.push(t.wrap, this.add("a reason", d.reasons, () => ({ system: "" as ReasonSystem, code: "", words: [], visit_type: "", specialty: "" })));
     return out;
   }
 
@@ -497,7 +570,8 @@ class Parts {
   specialties(): HTMLElement[] {
     const d = this.d;
     const out = heading("Specialties", d.specialties.length, `Epic's specialties: the department's specialty, for "a skin doctor". ${NOT_USED}`);
-    const t = table("Specialties", ["Spoken name", "The caller's words", "Code system", "Code", ""]);
+    out.push(this.listBlock("Specialty list", "specialty_list", "The list every specialty's ID belongs to. Epic gives no list of a hospital's specialties by API."));
+    const t = table("Specialties", ["Spoken name", "The caller's words", "ID", ""]);
     for (const r of d.specialties) {
       t.body.append(
         ...row(
@@ -505,15 +579,14 @@ class Parts {
           [
             this.text("Spoken name", r.spoken, (v) => (r.spoken = v)),
             this.wordsCell("The caller's words", r.words, (v) => (r.words = v)),
-            this.text("Code system", r.system, (v) => (r.system = v)),
-            this.text("Code", r.code, (v) => (r.code = v)),
+            this.idCell("specialty_list", r.code, (v) => (r.code = v)),
             this.moves(d.specialties, r),
           ],
-          [["Code:", "The specialty code of the hospital's own build. Epic gives no list of them by API."]],
+          [["ID:", "The specialty's ID in the specialty list, from the hospital's own build."]],
         ),
       );
     }
-    out.push(t.wrap, this.add("a specialty", d.specialties, () => ({ system: "", code: "", spoken: "", words: [] })));
+    out.push(t.wrap, this.add("a specialty", d.specialties, () => ({ code: "", spoken: "", words: [] })));
     return out;
   }
 

@@ -308,7 +308,7 @@ impl EpicScheduler {
             json!({"name": "patient", "resource": who}),
             json!({"name": "startTime", "valueDateTime": start.to_string()}),
             json!({"name": "service-type", "valueCodeableConcept": {"coding": [
-                {"system": kind.system, "code": kind.code, "display": kind.record}
+                {"system": h.visit_type_list, "code": kind.code, "display": kind.record}
             ]}}),
         ];
         if let Some(d) = &wish.latest_day {

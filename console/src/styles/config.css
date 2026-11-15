@@ -1134,6 +1134,31 @@ select.cfg-field {
   min-width: 0;
 }
 
+/* A row's ID after its list's prefix, "R PRC 1003" (Config › Hospital, the owner's A,
+   2026-11-15). The gap holds the box's pulled-in left edge (the rule above), so in Edit the
+   box starts just after the prefix and the words do not move. */
+.sys-id {
+  display: flex;
+  align-items: baseline;
+  gap: calc(var(--space-4) + var(--edge) + var(--space-2));
+  min-width: 0;
+}
+
+.sys-id-file {
+  flex: none;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.sys-id-file:empty {
+  display: none;
+}
+
+.sys-id .prompt-control {
+  flex: 1;
+  min-width: 0;
+}
+
 .sys-table tr.prompt-bad .prompt-text {
   border-color: var(--error);
 }

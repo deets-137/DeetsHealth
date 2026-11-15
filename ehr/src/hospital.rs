@@ -12,6 +12,11 @@
 //!
 //! Some lists are kept but read by no call yet (the owner's 1B: "what we have left to build"):
 //! `specialties`, `reasons`, `hours`, `closed_days`, and a location's id, address and phone.
+//!
+//! **One Epic list per list** (the owner's A, 2026-11-15): `visit_type_list`,
+//! `specialty_list` and `diagnosis_list` each hold one OID, set once; a row holds only its ID
+//! in that list. A reason names its code system by name (`REASON_SYSTEMS`). A version saved
+//! before A, with an OID on each row, is converted when it is read (`upgrade`).
 
 use std::sync::{Arc, OnceLock};
 
@@ -31,13 +36,16 @@ const SOURCE: &str = include_str!("../fixtures/hospital.json");
 /// same list.
 pub const KEYS: &[&str] = &[
     "time_zone",
+    "visit_type_list",
     "visit_types",
     "visit_groups",
+    "diagnosis_list",
     "reasons",
     "times_of_day",
     "hours",
     "closed_days",
     "locations",
+    "specialty_list",
     "specialties",
     "slots_offered",
     "narrow_over",
@@ -57,14 +65,31 @@ pub const TIMES_MAX: usize = 12;
 /// The most search windows.
 pub const WINDOWS_MAX: usize = 5;
 
+/// The code systems a reason may name, by name, and the OID each stands for. "hospital" is the
+/// hospital's own diagnosis list (`diagnosis_list`): Epic's `indications` takes "a community
+/// diagnosis code and/or a SNOMED code" (open.epic api:840); Epic's sample sends ICD-10-CM too.
+pub const REASON_SYSTEMS: &[(&str, &str)] = &[
+    ("snomed", "urn:oid:2.16.840.1.113883.6.96"),
+    ("icd10cm", "urn:oid:2.16.840.1.113883.6.90"),
+    ("hospital", ""),
+];
+
+/// The list keys and the rows they serve: a row's ID is in its list's OID.
+const LISTS: &[(&str, &str)] = &[("visit_type_list", "visit_types"), ("specialty_list", "specialties")];
+
+/// An OID as a FHIR system: empty, or `urn:oid:` and dotted numbers.
+fn oid(text: &str) -> bool {
+    let Some(rest) = text.strip_prefix("urn:oid:") else { return text.is_empty() };
+    !rest.is_empty() && rest.len() <= CELL_MAX && rest.split('.').all(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+}
+
 /// One visit type (Epic's `service-type`). `record` is the type's name as the record holds it;
-/// a visit or a slot of that name takes the row's spoken name and its Online mark. Only a row
-/// with a code reaches Epic's `$find`; the local fake books any row the agent may book.
+/// a visit or a slot of that name takes the row's spoken name and its Online mark. `code` is
+/// the type's ID in the hospital's visit type list (`visit_type_list`). Only a row with an ID
+/// reaches Epic's `$find`; the local fake books any row the agent may book.
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct VisitTypeRow {
-    #[serde(default)]
-    pub system: String,
     #[serde(default)]
     pub code: String,
     pub record: String,
@@ -103,12 +128,10 @@ pub struct LocationRow {
     pub phone: String,
 }
 
-/// One specialty (Epic's `specialties`). Kept; no call reads it yet.
+/// One specialty (Epic's `specialties`), its ID in `specialty_list`. Kept; no call reads it yet.
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SpecialtyRow {
-    #[serde(default)]
-    pub system: String,
     #[serde(default)]
     pub code: String,
     pub spoken: String,
@@ -121,6 +144,7 @@ pub struct SpecialtyRow {
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ReasonRow {
+    /// A name from `REASON_SYSTEMS`, or empty.
     #[serde(default)]
     pub system: String,
     #[serde(default)]
@@ -184,6 +208,12 @@ fn minute_of(hh_mm: &str) -> Option<u16> {
 /// The hospital, checked. Built only by [`Hospital::from_pairs`], so every value fits.
 pub struct Hospital {
     pub time_zone: String,
+    /// The OID of the hospital's visit type list: the system of every visit type's ID.
+    pub visit_type_list: String,
+    /// The OID of the hospital's own diagnosis list: a reason's "hospital" system.
+    pub diagnosis_list: String,
+    /// The OID of the hospital's specialty list.
+    pub specialty_list: String,
     pub visit_types: Vec<VisitTypeRow>,
     pub visit_groups: Vec<VisitGroup>,
     pub reasons: Vec<ReasonRow>,
@@ -272,16 +302,20 @@ pub fn check_key(key: &str, value: &Value) -> Result<(), String> {
             let zone = value.as_str().filter(|z| !z.is_empty() && z.len() <= 64).ok_or("time_zone: an IANA name, such as America/Chicago")?;
             TimeZone::get(zone).map(|_| ()).map_err(|_| "time_zone: not a known IANA name".to_string())
         }
+        "visit_type_list" | "specialty_list" | "diagnosis_list" => {
+            let text = value.as_str().ok_or_else(|| format!("{key}: an OID as text"))?;
+            if oid(text) {
+                Ok(())
+            } else {
+                Err(format!("{key}: an OID such as urn:oid:1.2.840.114350…, or empty"))
+            }
+        }
         "visit_types" => {
             let list: Vec<VisitTypeRow> = field(key, value)?;
             rows(key, &list, |r| {
                 cell(&r.record, true).map_err(|e| format!("the record's name {e}"))?;
                 cell(&r.spoken, false).map_err(|e| format!("the spoken name {e}"))?;
-                cell(&r.system, false).map_err(|e| format!("the code system {e}"))?;
-                cell(&r.code, false).map_err(|e| format!("the code {e}"))?;
-                if !r.code.trim().is_empty() && r.system.trim().is_empty() {
-                    return Err("a code needs its code system".into());
-                }
+                cell(&r.code, false).map_err(|e| format!("the ID {e}"))?;
                 Ok(())
             })?;
             match twice(&list, |r| &r.record) {
@@ -309,7 +343,13 @@ pub fn check_key(key: &str, value: &Value) -> Result<(), String> {
                     return Err("needs the caller's words".into());
                 }
                 words(&r.words).map_err(|e| format!("the caller's words {e}"))?;
-                for (what, text) in [("the code system", &r.system), ("the code", &r.code), ("the visit type", &r.visit_type), ("the specialty", &r.specialty)] {
+                if !r.system.is_empty() && !REASON_SYSTEMS.iter().any(|(n, _)| *n == r.system) {
+                    return Err("the code system is not SNOMED CT, ICD-10-CM or the hospital's list".into());
+                }
+                if !r.code.trim().is_empty() && r.system.is_empty() {
+                    return Err("a code needs its code system".into());
+                }
+                for (what, text) in [("the code", &r.code), ("the visit type", &r.visit_type), ("the specialty", &r.specialty)] {
                     cell(text, false).map_err(|e| format!("{what} {e}"))?;
                 }
                 Ok(())
@@ -384,8 +424,7 @@ pub fn check_key(key: &str, value: &Value) -> Result<(), String> {
             let list: Vec<SpecialtyRow> = field(key, value)?;
             rows(key, &list, |s| {
                 cell(&s.spoken, true).map_err(|e| format!("the spoken name {e}"))?;
-                cell(&s.system, false).map_err(|e| format!("the code system {e}"))?;
-                cell(&s.code, false).map_err(|e| format!("the code {e}"))?;
+                cell(&s.code, false).map_err(|e| format!("the ID {e}"))?;
                 words(&s.words).map_err(|e| format!("the caller's words {e}"))?;
                 Ok(())
             })
@@ -430,18 +469,43 @@ impl Hospital {
         let time_zone: String = field("time_zone", get("time_zone"))?;
         let tz = TimeZone::get(&time_zone).map_err(|_| "time_zone: not a known IANA name".to_string())?;
         let visit_groups: Vec<VisitGroup> = field("visit_groups", get("visit_groups"))?;
+        let visit_type_list: String = field("visit_type_list", get("visit_type_list"))?;
+        let diagnosis_list: String = field("diagnosis_list", get("diagnosis_list"))?;
+        let specialty_list: String = field("specialty_list", get("specialty_list"))?;
+        let visit_types: Vec<VisitTypeRow> = field("visit_types", get("visit_types"))?;
+        let reasons: Vec<ReasonRow> = field("reasons", get("reasons"))?;
+        let specialties: Vec<SpecialtyRow> = field("specialties", get("specialties"))?;
+        // An ID means nothing without its list: the row names which list must be set.
+        if visit_type_list.is_empty() {
+            if let Some(i) = visit_types.iter().position(|r| !r.code.trim().is_empty()) {
+                return Err(format!("visit_types: row {}: an ID needs the visit type list's OID", i + 1));
+            }
+        }
+        if specialty_list.is_empty() {
+            if let Some(i) = specialties.iter().position(|r| !r.code.trim().is_empty()) {
+                return Err(format!("specialties: row {}: an ID needs the specialty list's OID", i + 1));
+            }
+        }
+        if diagnosis_list.is_empty() {
+            if let Some(i) = reasons.iter().position(|r| r.system == "hospital") {
+                return Err(format!("reasons: row {}: the hospital's list needs its OID", i + 1));
+            }
+        }
         Ok(Self {
             groups: VisitGroups::new(&visit_groups),
             visit_groups,
             tz,
             time_zone,
-            visit_types: field("visit_types", get("visit_types"))?,
-            reasons: field("reasons", get("reasons"))?,
+            visit_type_list,
+            diagnosis_list,
+            specialty_list,
+            visit_types,
+            reasons,
             times_of_day: field("times_of_day", get("times_of_day"))?,
             hours: field("hours", get("hours"))?,
             closed_days: field("closed_days", get("closed_days"))?,
             locations: field("locations", get("locations"))?,
-            specialties: field("specialties", get("specialties"))?,
+            specialties,
             slots_offered: n("slots_offered") as usize,
             narrow_over: n("narrow_over") as usize,
             groups_named: n("groups_named") as usize,
@@ -558,6 +622,68 @@ fn file_map() -> &'static Map<String, Value> {
     })
 }
 
+/// A version saved before the owner's A (2026-11-15) held an OID on each visit type and
+/// specialty row, and an OID as a reason's system. Read it in today's shape: when every row of
+/// a list names the same OID and the version has no list key, that OID becomes the list's; a
+/// reason's SNOMED or ICD-10-CM OID becomes its name, and another OID becomes "hospital" with
+/// that OID as the diagnosis list. Rows that name two OIDs are left as they are, so the
+/// version fails its check and the call uses the file, as for any version that does not fit.
+/// `values` are (key, JSON text), as the store holds them.
+pub fn upgrade(values: &mut Vec<(String, String)>) {
+    let has = |values: &[(String, String)], key: &str| values.iter().any(|(k, _)| k == key);
+    let mut lists: Vec<(String, String)> = Vec::new();
+    for (list_key, rows_key) in LISTS {
+        let Some(slot) = values.iter_mut().find(|(k, _)| k == rows_key) else { continue };
+        let Ok(Value::Array(mut rows)) = serde_json::from_str::<Value>(&slot.1) else { continue };
+        let named: Vec<String> = rows.iter().filter_map(|r| r.get("system")?.as_str().map(str::to_string)).filter(|s| !s.is_empty()).collect();
+        let one = named.first().cloned();
+        if named.iter().any(|s| Some(s) != one.as_ref()) {
+            continue;
+        }
+        for r in &mut rows {
+            if let Some(o) = r.as_object_mut() {
+                o.remove("system");
+            }
+        }
+        slot.1 = Value::Array(rows).to_string();
+        if let Some(oid) = one {
+            lists.push((list_key.to_string(), oid));
+        }
+    }
+    if let Some(slot) = values.iter_mut().find(|(k, _)| k == "reasons") {
+        if let Ok(Value::Array(mut rows)) = serde_json::from_str::<Value>(&slot.1) {
+            let mut own: Option<String> = None;
+            let mut two = false;
+            for r in &mut rows {
+                let Some(s) = r.get("system").and_then(Value::as_str).map(str::to_string) else { continue };
+                if s.is_empty() || REASON_SYSTEMS.iter().any(|(n, _)| *n == s) {
+                    continue;
+                }
+                let name = match REASON_SYSTEMS.iter().find(|(_, o)| !o.is_empty() && *o == s) {
+                    Some((n, _)) => n.to_string(),
+                    None => {
+                        two |= own.as_ref().is_some_and(|o| *o != s);
+                        own.get_or_insert(s);
+                        "hospital".to_string()
+                    }
+                };
+                r["system"] = Value::String(name);
+            }
+            if !two {
+                slot.1 = Value::Array(rows).to_string();
+                if let Some(oid) = own {
+                    lists.push(("diagnosis_list".to_string(), oid));
+                }
+            }
+        }
+    }
+    for (key, oid) in lists {
+        if !has(values, &key) {
+            values.push((key, Value::String(oid).to_string()));
+        }
+    }
+}
+
 /// The file's values, by key: the Default version the agent seeds (dev_server.py).
 pub fn file_values() -> Vec<(&'static str, Value)> {
     KEYS.iter().map(|k| (*k, file_map()[*k].clone())).collect()
@@ -641,7 +767,12 @@ mod tests {
     fn a_bad_list_is_refused_by_its_row_never_its_value() {
         let bad = [
             ("time_zone", json!("Mars/Olympus")),
-            ("visit_types", json!([{"record": "A", "code": "1"}])),
+            ("visit_type_list", json!("1.2.840.114350")),
+            ("visit_type_list", json!("urn:oid:1.2..3")),
+            ("diagnosis_list", json!(7)),
+            ("visit_types", json!([{"record": "A", "system": "urn:oid:1.2"}])),
+            ("reasons", json!([{"words": ["a"], "system": "urn:oid:2.16.840.1.113883.6.96"}])),
+            ("reasons", json!([{"words": ["a"], "code": "1"}])),
             ("visit_types", json!([{"record": "A"}, {"record": "a"}])),
             ("visit_types", json!([{"record": "A", "extra": 1}])),
             ("times_of_day", json!([{"name": "Late Night", "from": "22:00", "hours": 1}])),
@@ -659,5 +790,70 @@ mod tests {
             assert!(e.starts_with(key), "{e}");
             assert!(!e.contains("Mars") && !e.contains("Line"), "an error holds a value: {e}");
         }
+    }
+
+    #[test]
+    fn an_id_needs_its_list() {
+        let none = json!("");
+        let typed = json!([{"record": "A", "code": "1003"}]);
+        let e = Hospital::from_pairs([("visit_type_list", &none), ("visit_types", &typed)]).err().unwrap();
+        assert_eq!(e, "visit_types: row 1: an ID needs the visit type list's OID");
+        let own = json!([{"words": ["a"], "system": "hospital", "code": "9"}]);
+        let e = Hospital::from_pairs([("diagnosis_list", &none), ("reasons", &own)]).err().unwrap();
+        assert!(e.starts_with("reasons: row 1"), "{e}");
+        // With no ID, no list is needed: the local fake's own types.
+        let plain = json!([{"record": "Office Visit", "book": true}]);
+        assert!(Hospital::from_pairs([("visit_type_list", &none), ("visit_types", &plain)]).is_ok());
+    }
+
+    /// The store's (key, JSON text) pairs, as `settings::get` returns them.
+    fn stored(pairs: &[(&str, Value)]) -> Vec<(String, String)> {
+        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+    }
+
+    fn parsed(values: &[(String, String)]) -> Vec<(String, Value)> {
+        values.iter().map(|(k, v)| (k.clone(), serde_json::from_str(v).unwrap())).collect()
+    }
+
+    #[test]
+    fn a_version_from_before_a_reads_in_today_s_shape() {
+        let prc = "urn:oid:1.2.840.114350.1.13.0.1.7.2.808267";
+        let edg = "urn:oid:1.2.840.114350.1.13.861.1.7.2.696871";
+        let mut values = stored(&[
+            ("visit_types", json!([
+                {"system": "", "code": "", "record": "Office Visit"},
+                {"system": prc, "code": "1003", "record": "New Patient Appointment"}
+            ])),
+            ("reasons", json!([
+                {"system": "urn:oid:2.16.840.1.113883.6.96", "code": "46866001", "words": ["broken leg"]},
+                {"system": edg, "code": "121346631", "words": ["leg"]}
+            ])),
+            ("specialties", json!([{"system": "", "code": "", "spoken": "dermatology"}])),
+        ]);
+        upgrade(&mut values);
+        let p = parsed(&values);
+        let h = Hospital::from_pairs(p.iter().map(|(k, v)| (k.as_str(), v))).expect("it fits");
+        assert_eq!(h.visit_type_list, prc);
+        assert_eq!(h.diagnosis_list, edg);
+        assert_eq!(h.visit_types[1].code, "1003");
+        assert_eq!(h.reasons[0].system, "snomed");
+        assert_eq!(h.reasons[1].system, "hospital");
+        // No row named a specialty list: the file's value stays.
+        assert_eq!(h.specialty_list, Hospital::file().specialty_list);
+    }
+
+    #[test]
+    fn rows_that_name_two_lists_are_not_merged() {
+        let mut values = stored(&[(
+            "visit_types",
+            json!([
+                {"system": "urn:oid:1.2.3", "code": "1", "record": "A"},
+                {"system": "urn:oid:1.2.4", "code": "2", "record": "B"}
+            ]),
+        )]);
+        upgrade(&mut values);
+        let p = parsed(&values);
+        assert!(Hospital::from_pairs(p.iter().map(|(k, v)| (k.as_str(), v))).is_err(), "the version must not fit");
+        assert!(!values.iter().any(|(k, _)| k == "visit_type_list"));
     }
 }

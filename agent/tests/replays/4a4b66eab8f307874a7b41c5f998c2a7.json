@@ -5,7 +5,7 @@
     "container": null,
     "content": [],
     "diagnostics": null,
-    "id": "msg_011Ch4S13ckAUhe8mG8sU9Lx",
+    "id": "msg_011Ch5DQa2jCwGsi9RzbK6x2",
     "model": "claude-haiku-5-5",
     "role": "assistant",
     "stop_details": null,
@@ -15,13 +15,13 @@
     "usage": {
      "cache_creation": {
       "ephemeral_1h_input_tokens": 0,
-      "ephemeral_5m_input_tokens": 1056
+      "ephemeral_5m_input_tokens": 4271
      },
-     "cache_creation_input_tokens": 1056,
-     "cache_read_input_tokens": 3057,
+     "cache_creation_input_tokens": 4271,
+     "cache_read_input_tokens": 0,
      "inference_geo": "us",
-     "input_tokens": 2,
-     "output_tokens": 5,
+     "input_tokens": 4,
+     "output_tokens": 16,
      "output_tokens_details": null,
      "server_tool_use": null,
      "service_tier": "standard",
@@ -32,49 +32,46 @@
   },
   {
    "content_block": {
-    "citations": null,
-    "text": "",
-    "type": "text"
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01LJW9NPsWLaLBgKbgJ4Vebe",
+    "input": {},
+    "name": "check_code",
+    "toolset_name": null,
+    "type": "tool_use"
    },
    "index": 0,
    "type": "content_block_start"
   },
   {
    "delta": {
-    "text": "Understood.",
-    "type": "text_delta"
+    "partial_json": "",
+    "type": "input_json_delta"
    },
    "index": 0,
    "type": "content_block_delta"
   },
   {
    "delta": {
-    "text": " Please h",
-    "type": "text_delta"
+    "partial_json": "{\"code\"",
+    "type": "input_json_delta"
    },
    "index": 0,
    "type": "content_block_delta"
   },
   {
    "delta": {
-    "text": "ang up and call 911 if",
-    "type": "text_delta"
+    "partial_json": ": \"2468",
+    "type": "input_json_delta"
    },
    "index": 0,
    "type": "content_block_delta"
   },
   {
    "delta": {
-    "text": " it gets worse, or if",
-    "type": "text_delta"
-   },
-   "index": 0,
-   "type": "content_block_delta"
-  },
-  {
-   "delta": {
-    "text": " this may be an emergency.",
-    "type": "text_delta"
+    "partial_json": "10\"}",
+    "type": "input_json_delta"
    },
    "index": 0,
    "type": "content_block_delta"
@@ -87,15 +84,15 @@
    "delta": {
     "container": null,
     "stop_details": null,
-    "stop_reason": "end_turn",
+    "stop_reason": "tool_use",
     "stop_sequence": null
    },
    "type": "message_delta",
    "usage": {
-    "cache_creation_input_tokens": 1056,
-    "cache_read_input_tokens": 3057,
-    "input_tokens": 2,
-    "output_tokens": 33,
+    "cache_creation_input_tokens": 4271,
+    "cache_read_input_tokens": 0,
+    "input_tokens": 4,
+    "output_tokens": 48,
     "output_tokens_details": {
      "thinking_tokens": 0
     },

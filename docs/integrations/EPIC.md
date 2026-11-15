@@ -857,3 +857,61 @@ booking, 1 search only when a reply is lost.
   every visit read aloud.
 - **V2A:** a lost `$book` reply with no booking found: the caller is asked whether to try
   again. Not chosen: B, `ehr` sends `$book` again without asking.
+
+### 7.11 Epic's code systems: what an OID says (research, 2026-11-15)
+> **Part:** research · 2026-11-15. From the open.epic MCP server: "ID Types for FHIR APIs"
+> (`tutorial:2659`), `Appointment.$find (STU3)` (`api:840`), `Location.Read (Organizational
+> Directory) (R4)` (`api:928`), and our probe (§5.2). Where a line is our reading and not
+> Epic's words, it says "we read".
+
+**The parts of an Epic OID** (`tutorial:2659`). A common pattern is
+`1.2.840.114350.1.13.<CID>.<EnvType>.7.<Value>`. Epic says this is one of several patterns,
+and that an app must treat an OID as opaque.
+
+| Part | Meaning |
+|---|---|
+| `1.2.840.114350` | Epic's root OID. |
+| `.1` | An application-type ID. |
+| `.13` | The application: 13 is EDI, 72 is Care Everywhere. |
+| `.<CID>` | The organization's Epic ID. Epic's text says the FHIR sandbox is 529; the systems our sandbox sends carry 0. |
+| `.<EnvType>` | 1 Epic (the sandboxes), 2 production, 3 non-production. |
+| `.7` | For use in HL7-type messages. |
+| `.<Value>` | Depends on the concept. It may have more sub-nodes. |
+
+**The Value part** (we read, from Epic's own examples). After `.7` comes a kind and then an
+Epic master file. The master file is written as the ASCII codes of its three letters. Epic's
+example `.7.2.657380` is "the Interface Specification (AIP) master file": A=65, I=73, P=80.
+- `.2.<file>`: the IDs of the records in a master file.
+  - `.2.808267` = PRC, Cadence's visit types. The sandbox sends this system on its visit
+    types; 1003 is the record "New Patient Appointment" (§5.2).
+  - `.2.696871` = EDG, the organization's diagnoses (Epic's `$find` sample, `indications`).
+  - `.2.686980` = DEP, departments (Epic's `Location.Read` sample: a Location's identifier,
+    value "1").
+- `.3.<file>.<item>`: the values of one item of a master file. Epic's `$find` sample sends
+  its visit type as `.3.808267.11` (PRC item 11), code 95014. So a hospital can name a visit
+  type by its record ID or by an item's value. The two are different lists.
+- `.5.737384.<n>`: IIT record n, an ID type, such as an MRN (Epic's example `.5.737384.0`).
+- `.10.<file>.<item>`: a category list. Epic's `Location.Read` sample gives a department's
+  specialty in `urn:oid:1.2.840.114350.1.72.1.7.7.10.688867.4150`, code "3", "Allergy".
+  That system is under Care Everywhere (`.72`), not EDI.
+
+**What follows for Config › Hospital** (HOSPITAL-CONFIG.md §2.10):
+- **All the visit types of one hospital share one system.** The system names the list (a
+  master file or an item), not the visit type.
+- **The system differs between a hospital's test and production Epic** (EnvType 3 and 2), and
+  between hospitals (CID). The exception is an ID type whose "HL7 Root" field the hospital
+  fills with its own OID.
+- **A bare ID says nothing about its kind.** 1003 is a visit type only because its system is
+  PRC. A department or a facility also has a short record ID ("1" in Epic's sample).
+- **The `indications` systems:** "a community diagnosis code and/or a SNOMED code. If
+  multiple codes are received, the community diagnosis code takes precedence" (`api:840`).
+  The community code is the hospital's EDG list. Epic's sample also sends ICD-10-CM
+  (`2.16.840.1.113883.6.90`); the text does not name it.
+- **`specialties`** is "Department specialty code" (`api:840`): a category list value.
+- **`location-reference`** is a reference to a Location, not an ID with a system.
+  `Location.Read` gives the name, address, phone, hours of operation and the specialty, so one
+  read per row can fill the Places tab.
+- **No API lists a hospital's visit types or specialties.** `ValueSet.$expand` supports only
+  DocumentReference today (`tutorial:2659`). Epic tells vendors to ask the hospital: the
+  hospital runs Epic's "OID Generator" utility (a Galaxy document, for Epic's customers only)
+  and sends the OIDs.

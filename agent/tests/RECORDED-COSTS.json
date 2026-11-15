@@ -1,17 +1,17 @@
 {
- "book_a_visit": 0.0029,
- "booked_reason_asked": 0.0019,
- "change_after_booking": 0.0017,
- "code_confusion": 0.0006,
- "emergency_reminder": 0.0017,
- "emergency_then_book": 0.0024,
+ "book_a_visit": 0.0045,
+ "booked_reason_asked": 0.0023,
+ "change_after_booking": 0.0016,
+ "code_confusion": 0.0007,
+ "emergency_reminder": 0.0032,
+ "emergency_then_book": 0.0037,
  "flag_for_someone_else": 0.0004,
- "leave_at_code": 0.0008,
+ "leave_at_code": 0.0009,
  "leave_at_greet": 0.0001,
- "medical_question": 0.0018,
+ "medical_question": 0.0029,
  "no_code_after_resend": 0.0006,
- "no_text_to_person": 0.0005,
+ "no_text_to_person": 0.0006,
  "off_topic": 0.0004,
- "read_back_correction": 0.0009,
- "visit_reason_offer": 0.0013
+ "read_back_correction": 0.0014,
+ "visit_reason_offer": 0.0015
 }

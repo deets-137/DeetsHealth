@@ -231,13 +231,16 @@ pub const SYSTEM: &[Setting] = &[s("variables", Kind::Variables)];
 /// The hospital (HOSPITAL-CONFIG.md): one setting per list or number, as hospital.rs › KEYS.
 pub const HOSPITAL: &[Setting] = &[
     s("time_zone", Kind::Hospital),
+    s("visit_type_list", Kind::Hospital),
     s("visit_types", Kind::Hospital),
     s("visit_groups", Kind::Hospital),
+    s("diagnosis_list", Kind::Hospital),
     s("reasons", Kind::Hospital),
     s("times_of_day", Kind::Hospital),
     s("hours", Kind::Hospital),
     s("closed_days", Kind::Hospital),
     s("locations", Kind::Hospital),
+    s("specialty_list", Kind::Hospital),
     s("specialties", Kind::Hospital),
     s("slots_offered", Kind::Hospital),
     s("narrow_over", Kind::Hospital),
@@ -682,6 +685,11 @@ pub async fn get(pool: &PgPool, service: &str, table: &str, id: i64) -> Result<O
         .iter()
         .map(|r| (r.get::<String, _>("key"), r.get::<String, _>("value")))
         .collect();
+    let mut values = values;
+    // A hospital version saved before the owner's A (2026-11-15) reads in today's shape.
+    if service == "hospital" {
+        crate::hospital::upgrade(&mut values);
+    }
     Ok(Some((v, values)))
 }
 
