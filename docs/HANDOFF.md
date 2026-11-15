@@ -121,7 +121,7 @@ passed 4 of 4 fresh draws this morning; its old failing replies were deleted and
 recorded again. The Epic code-system research is done (EPIC.md §7.11, HOSPITAL-CONFIG.md
 §2.10). **Built, desk test open: the owner's A, one Epic list per list** (HOSPITAL-CONFIG.md
 §5.1, desk test §6 steps 8 to 12; "R PRC 1003" on each row). Committed `74b4ecc`. **Built,
-desk test open, not committed: the preference question (1A) and the note label (N2)**
+desk test open, committed `5af7aa9`: the preference question (1A) and the note label (N2)**
 (CALL-FLOW.md, HOSPITAL-CONFIG.md §2.9): book a visit on Local without saying how or when; the
 agent asks once, then offers times; in Epic mode the `$book` note ends with the label.
 `Location.Search (Organizational Directory) (R4)` is registered (the owner, 2026-11-15) and
