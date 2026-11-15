@@ -1,5 +1,5 @@
 {
-  "about": "The dev hospital: the Default version of Config › Hospital (architecture/HOSPITAL-CONFIG.md), and the copy ehr uses with no settings store. One hospital for the local fake and Epic's sandbox. Drafts, for the owner to edit. The coded visit types are Epic's sandbox build (EPIC.md §5.2); the reason is Epic's own sample for $find (open.epic api:840). No protected data.",
+  "about": "The dev hospital: the Default version of Config › Hospital (architecture/HOSPITAL-CONFIG.md), and the copy ehr uses with no settings store. One hospital for the local fake and Epic's sandbox. Drafts, for the owner to edit. The coded visit types are Epic's sandbox build (EPIC.md §5.2), and so are the departments and specialty IDs from `ehr epic-locations` (EPIC.md §2.2); the reason is Epic's own sample for $find (open.epic api:840). No protected data.",
   "time_zone": "America/Chicago",
   "visit_type_list": "urn:oid:1.2.840.114350.1.13.0.1.7.2.808267",
   "visit_types": [
@@ -36,17 +36,22 @@
   ],
   "locations": [
     { "record": "Main Street Clinic", "spoken": "", "id": "", "address": "", "phone": "" },
-    { "record": "EMC Family Medicine", "spoken": "the family medicine clinic", "id": "", "address": "", "phone": "" }
+    { "record": "EMC Family Medicine", "spoken": "the family medicine clinic", "id": "", "address": "", "phone": "" },
+    { "record": "EMC Cardiology", "spoken": "", "id": "", "address": "", "phone": "" },
+    { "record": "EMC Cardiology Procedures", "spoken": "", "id": "", "address": "", "phone": "" },
+    { "record": "EMH X-Ray Imaging", "spoken": "", "id": "", "address": "", "phone": "" }
   ],
-  "specialty_list": "",
+  "specialty_list": "urn:oid:1.2.840.114350.1.13.0.1.7.10.686980.110",
   "specialties": [
-    { "code": "", "spoken": "family medicine", "words": ["family doctor", "primary care", "regular doctor"] },
+    { "code": "9", "spoken": "family medicine", "words": ["family doctor", "primary care", "regular doctor"] },
     { "code": "", "spoken": "dermatology", "words": ["skin doctor"] },
-    { "code": "", "spoken": "cardiology", "words": ["heart doctor"] }
+    { "code": "4", "spoken": "cardiology", "words": ["heart doctor"] },
+    { "code": "40", "spoken": "radiology", "words": ["x-ray", "imaging"] }
   ],
   "slots_offered": 3,
   "narrow_over": 2,
   "groups_named": 3,
   "past_days": 400,
-  "ahead_windows": [7, 30, 90]
+  "ahead_windows": [7, 30, 90],
+  "booking_note_label": "(automated transcription from patient)"
 }

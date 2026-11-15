@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: none
-sources: [ehr/src/epic.rs, ehr/src/epic_ehr.rs, ehr/fixtures/epic-sandbox.json]
+sources: [ehr/src/epic.rs, ehr/src/epic_ehr.rs, ehr/fixtures/epic-sandbox.json, docs/architecture/images/epic-catalog-location-2026-11-15.png, docs/architecture/images/epic-catalog-resources-1-2026-11-15.png, docs/architecture/images/epic-catalog-resources-2-2026-11-15.png, docs/architecture/images/epic-catalog-resources-3-2026-11-15.png]
 updated: 2026-11-15
 ---
 # DeetsHealth — Epic: the backend app registration and the sandbox
@@ -63,6 +63,7 @@ choice, and gets a use as we build; nothing calls it yet.
 | Refill state (R3) | `MedicationDispense.Read (Fill Status) (R4)`, `MedicationDispense.Search (Fill Status) (R4)` | Core |
 | Lab results (R4) | `Observation.Read (Labs) (R4)`, `Observation.Search (Labs) (R4)`, `DiagnosticReport.Read (Results) (R4)`, `DiagnosticReport.Search (Results) (R4)` | Core |
 | Who and where | `Practitioner.Read (Organizational Directory) (R4)`, `PractitionerRole.Read (Organizational Directory) (R4)`, `Location.Read (Organizational Directory) (R4)`, `Organization.Read (Organizational Directory) (R4)` | Core |
+| The hospital's departments for Config › Hospital › Places (added by the owner, 2026-11-15) | `Location.Search (Organizational Directory) (R4)` | Held |
 | A note filed to the chart (the emergency flag's chart note, FUTURE-SETTINGS.md §1; a check-in summary) | `DocumentReference.Create (Clinical Notes) (R4)` — **a write** | Held |
 | The full medicine list, with outside and patient-reported ones | `MedicationStatement.Read (STU3)`, `MedicationStatement.Search (STU3)` | Held |
 | Labs ordered with no result yet | `ServiceRequest.Read (Orders) (R4)`, `ServiceRequest.Search (Orders) (R4)` | Held |
@@ -92,6 +93,37 @@ every API; `/Specifications/Api?id=N` gives one API's allowed audiences, its URL
 - **The form and the catalog disagree on Flowsheets.** The catalog allows
   `Observation (Flowsheets) (R4)` for Backend Systems; the form removed it when the audience
   changed. Lab results do not need it.
+- **Location (read 2026-11-15, open.epic `api:928`, `api:10084`; the owner's screenshots of
+  Epic's Summary of Resources below).** Four Location APIs: `Location.Read (STU3)`,
+  `Location.Read` and `Location.Search (Organizational Directory) (R4)`, and `Location (Outside
+  Record)` (payer data exchange, not ours). **`Location.Read (Organizational Directory) (R4)` is
+  registered** (§2.1): one department by its FHIR id, with its name, address, phone, hours,
+  `partOf`, its identifiers (the DEP ID, the NPI) and its specialty as an extension.
+  **`Location.Search (Organizational Directory) (R4)` allows Backend Systems; the owner
+  registered it the same day** (§2.1, Held; not tried yet). Its search inputs are `_id`, `address` and `status` (active only when left out);
+  `name`, `address-city`, `-state`, `-postalcode`, `-country`, `identifier` and `partof` are
+  filtered after the search. A search with no input is error 4110, and Epic names no "every
+  department" search.
+- **The sandbox try (2026-11-15, `ehr epic-locations`, about 10 reads).**
+  - `Location.Read` of the 4 departments on Camila Lopez's visits: each has a DEP ID
+    (`…7.2.686980`), an NPI, `partOf` its facility, and a specialty extension in
+    `urn:oid:1.2.840.114350.1.13.0.1.7.10.686980.110` (codes 9 "Family Medicine", 4
+    "Cardiology", 40 "Radiology").
+  - `Location.Search`: `status=active` alone is HTTP 400. `address=WI`, `address=Verona` and
+    `address-state=WI` each return **all 435 locations in one page** (no `next` link; 325 with a
+    specialty, 401 with a parent). With `_count=100`: pages of 100 and a `next` link (`total`
+    then counts the page, not the whole). `name=Family` alone returned 1 location; its matching
+    rule is not clear.
+  - Two kinds of location: facilities (`partOf` none; `…7.2.696570`, 69 65 70 = EAF, and
+    `2.16.840.1.113883.4.4`, a tax ID) and departments (DEP, `partOf` a facility).
+  - We read: the specialty's system is a category list (`.7.10.`) on an item of DEP
+    (`.686980.110`). Epic's documents name this form only as "OID for a Category List";
+    epic-oid.ts gives it no label.
+
+  ![The owner's screenshot, 2026-11-15: Epic's catalog, the Location APIs highlighted](../architecture/images/epic-catalog-location-2026-11-15.png)
+  ![The owner's screenshot, 2026-11-15: Epic's Summary of Resources, part 1](../architecture/images/epic-catalog-resources-1-2026-11-15.png)
+  ![The owner's screenshot, 2026-11-15: Epic's Summary of Resources, part 2](../architecture/images/epic-catalog-resources-2-2026-11-15.png)
+  ![The owner's screenshot, 2026-11-15: Epic's Summary of Resources, part 3](../architecture/images/epic-catalog-resources-3-2026-11-15.png)
 - **CTI:** `StoreCallID` (Backend Systems) belongs to Epic's Computer-Telephony Integration
   group. Not selected; worth a look when the hand-off to staff is designed (Phase 3).
 
@@ -437,13 +469,14 @@ All go from `ehr` (Rust) only, over `ehr`'s AWS-LC client (`ehr/src/epic.rs` `Ep
 | `GET Appointment?patient&service-category=appointment&status=…&date=ge…&date=lt…` | `epic_ehr.rs` › `EpicScheduler::visits` (`appointments`) | each `FindVisit`, after both factors pass | the verified patient's FHIR id (`EhrPass`); the day or month the caller named, as a date range | 1 (a day, a month, the past) or 1 to 2 (the visits to come: 90 days, then 400) |
 | `POST STU3 Appointment/$find` | `epic_ehr.rs` › `EpicScheduler::find_one` | each `FindSlots` in Epic mode, after both factors pass | the verified patient's `identifier`, `name` and `birthDate`, in the body (`EhrPass`); the days, time of day and weekdays asked for | 1 per visit type (in person or online: 1; either: 2) |
 | `POST` Epic's `next` link of a `$find` page (empty Parameters) | `epic_ehr.rs` › `EpicScheduler::find_more` | `FindSlots` with `more`, when this page's slots are all offered | none new (the link is Epic's own) | 1 per page |
-| `POST STU3 Appointment/$book` | `epic_ehr.rs` › `EpicScheduler::book` | each `Book` in Epic mode | the patient's FHIR id and the caller's reason as `appointmentNote` (`EhrPass`) | 1 per booking; a write |
+| `POST STU3 Appointment/$book` | `epic_ehr.rs` › `EpicScheduler::book` | each `Book` in Epic mode | the patient's FHIR id and the caller's reason as `appointmentNote`, then the hospital's label (`booking_note_label`, HOSPITAL-CONFIG.md §2.9) (`EhrPass`) | 1 per booking; a write |
 | `GET Appointment/{id}` (R4) | `epic_ehr.rs` › `EpicScheduler::book` | after a booking, for its instructions | the new visit's id | 1 per booking |
 | `GET Appointment?patient&…&date` for one minute | `epic_ehr.rs` › `EpicScheduler::booked_at` | only when a `$book` reply is lost (V2A) | the patient's FHIR id | 1, rarely |
 | `GET Patient/{id}` and the `Appointment` search for 60 days | `epic_ehr.rs` › `EpicEhr::sandbox_list` | `ehr epic-sandbox`: the Chat page's Epic list, at most once per 5 minutes (dev server cache) | none: public test patient ids from `epic-sandbox.json` | about 2 per test patient (about 15) |
 | `ehr epic-find` (the probe): one `Appointment` search, `Patient/{id}`, seven `$find`s, then the real `find` and `find_more` (about 4 more) | `main.rs` › `epic_find`; `epic_ehr.rs` › `EpicEhr::probe_find` | by hand | Camila Lopez's public test details | about 13 |
 | `ehr epic-book`: `Patient/{id}`, one `$find`, one `$book`, one `Appointment` read, two visit searches | `main.rs` › `epic_book`; `epic_ehr.rs` › `EpicEhr::probe_book` | by hand, only with the owner's go-ahead (a write; run once, 2026-11-15) | Camila Lopez's public test details | about 6, one write |
 | `GET metadata` and one `Patient` search | `main.rs` › `epic_check` | `ehr epic-check`, by hand | Camila Lopez's public test details | about 5 |
+| `ehr epic-locations` (the probe): one `Appointment` search, `Location/{id}` per department named, six `Location?…` searches | `main.rs` › `epic_locations` | by hand | Camila Lopez's public test FHIR id | about 11 |
 
 Not sent yet: `Patient.$match`, the medicine, refill and lab reads (R2–R4), `Practitioner` / `Location` reads, and booking (STU3 `$find`, `$book`). Each joins this table when it is built. The planned writes are booking and the held chart note (`DocumentReference.Create`, §2.1).
 
@@ -911,6 +944,14 @@ example `.7.2.657380` is "the Interface Specification (AIP) master file": A=65, 
 - **`location-reference`** is a reference to a Location, not an ID with a system.
   `Location.Read` gives the name, address, phone, hours of operation and the specialty, so one
   read per row can fill the Places tab.
+- **`indications` and the chart (asked 2026-11-15).** Epic's `$find` text gives no step that
+  reads the chart first: the user enters the criteria (when, specialty or visit type, time
+  zone, optional facts about the patient), and the hospital's Cadence rules choose the slots;
+  "some organizations may ignore or require any of these properties" (`api:840`). Epic says
+  `Condition.Search` returns a diagnosis with both its ICD-10 code and an Epic ID
+  (`tutorial:2659`); `Condition.Search (Problems) (R4)` (`api:953`) is the patient's whole
+  problem list history. **No Condition API is registered** (§2.1). Which system that Epic ID
+  carries is not confirmed: no sample or sandbox reply read yet.
 - **No API lists a hospital's visit types or specialties.** `ValueSet.$expand` supports only
   DocumentReference today (`tutorial:2659`). Epic tells vendors to ask the hospital: the
   hospital runs Epic's "OID Generator" utility (a Galaxy document, for Epic's customers only)

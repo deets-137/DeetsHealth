@@ -28,7 +28,7 @@ const TAB_KEYS: Record<Tab, Key[]> = {
   visits: ["visit_type_list", "visit_types", "visit_groups", "diagnosis_list", "reasons"],
   times: ["time_zone", "times_of_day", "hours", "closed_days"],
   places: ["locations", "specialty_list", "specialties"],
-  booking: ["slots_offered", "narrow_over", "groups_named", "past_days", "ahead_windows"],
+  booking: ["slots_offered", "narrow_over", "groups_named", "past_days", "ahead_windows", "booking_note_label"],
 };
 const DAYS: [string, string][] = [
   ["mon", "Monday"],
@@ -592,7 +592,7 @@ class Parts {
 
   booking(): HTMLElement[] {
     const d = this.d;
-    const out = heading("Booking", 5, "How the agent offers slots and finds a caller's visits.");
+    const out = heading("Booking", 6, "How the agent offers slots, finds a caller's visits, and notes a booking.");
     const t = table("Booking", ["Setting", "Value"]);
     const windows = field("Search windows (days, comma separated)", d.ahead_windows.join(", "), 40, (v) => {
       d.ahead_windows = unwords(v).map(Number);
@@ -604,6 +604,11 @@ class Parts {
       ["Groups one question names", this.num("Groups one question names", d.groups_named, 1, 5, (v) => (d.groups_named = v)), "The rest are \"another visit\"."],
       ["Days back for a past visit", this.num("Days back for a past visit", d.past_days, 1, 3650, (v) => (d.past_days = v)), "How far back \"when was I last seen?\" looks."],
       ["Search windows (days)", windows, "The search for the visits to come widens through these windows, then has no end. Each window is longer than the one before. One read to Epic per window."],
+      [
+        "Label after the reason in the booking note",
+        this.text("Label after the reason in the booking note", d.booking_note_label, (v) => (d.booking_note_label = v)),
+        "Epic's $book files the caller's reason, in their own words, as the visit's note; this label follows it, so staff know who said it. Empty: the words alone. Epic keeps 500 characters; the label is kept whole.",
+      ],
     ];
     for (const [name, control, help] of rows) t.body.append(...row(name, [name, control], [["What it does:", help]]));
     out.push(t.wrap);

@@ -35,6 +35,7 @@ HOSPITAL_KEYS = (
     "groups_named",
     "past_days",
     "ahead_windows",
+    "booking_note_label",
 )
 # The limits ehr's hospital.rs checks, for the page's own checks before a save. The same numbers
 # as CELL_MAX, ROWS_MAX, WORDS_MAX, TIMES_MAX and WINDOWS_MAX there.

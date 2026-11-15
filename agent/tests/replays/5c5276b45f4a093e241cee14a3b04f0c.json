@@ -1,0 +1,115 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch5HrdndjQDMDPmDcVCER",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 285
+     },
+     "cache_creation_input_tokens": 285,
+     "cache_read_input_tokens": 6931,
+     "inference_geo": "us",
+     "input_tokens": 2,
+     "output_tokens": 8,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSlggKEAgTGAI4AUIIdGhpbmtpbmcSDLIbHgc5uS5aaWElZxoMF4h6DquVTVApGLuhIjBe+rZBB/M5mSuiG6voZ6vw4bjFHWVvKKLcA9xH4sHqOAlJqAzgm5AoSVJSm7W2kW0qswfj4CkQZC4WjnvrvmBYZ9Y71GZpPFo7xwrLOBOtEhPsOFefPVFq8kwdUkaS71ORbXMT1GQ5sGvDZC9A4+U6PYD4LU2C1bCO+1YLWKle5LPmIqrn3prQdL4Tl48yQyVRfyUNRaKlIqPOSeo0KFIGUBYATZVrAzHmNFdw0VSXPl664MNd630nz1m6Uws9qvPDR8F5t7AfmYUrIQPaTsPGIEIxyV0rwlTpB/KBJNELloQEl40fdXSfKaXHax8sdVEle28WM664/NvdOTZkkCpzh9wcDZZyzdQIX/2DFJjIUg5khQMBGSccFrVGOJGWcutxVqfvN3aSbbC/3PvfLpncr8+SSqjQugrV+43J2AC4yq9jYshtI/ZzE2Oe1ynit4bSmRFnBGLUUlrpse4Ipp5Y50Xp5F2JhjMb0h2xL+f7/3YV0kKaHJ8MfgBlLzVkRMfWOWpOAOV5f7GGdV0W/6cPFxQq1AKvtPhK/v6ym6XUrI1NLrmkADT7l4YRnzAwloN5lvbfVwb/YQdLtXj8YUW/KAXKDIfC0ldckd317FIGcdK6/byoxioDZqtMlFPH7Ls0nj6mnVIgRGnT/ygXGQoXrUEOBJ7LLrs8BN8/jlyNbDsI1eAp90n5ByiITee33cGBZg2MR45iGBwDn6pwrzpjyMQInAzclZIiIMCNhHrIMZvVa6p6SR3Semq3oncozt8tZt1qfAAOUgePs+AMx7mug6X4wM8UXgOSS0y7FdcOhteOC3rlUFHw4Sb3IR726/clSyoX5oC7zngZbPCPDRaLAy0H95RgmZh976MjZlgBePJJEA8x5PPT2E7df/jOjpOJO7YNgfPdXGQTgHEtPv9CTXjJB5glTta2Gc20QVFOr2jc1aRgLi6sVP9BwYomp68mACxYb1z4SmFvz/lU8P1s6qgxGhOdZ3J7b5Ladn58AHTjFLxgQaGiQg3mMUjQZrd5EVeJkDwDvsojjAcSDXcSNkAnUWpb4jKL6c+fMUfpfZ6Bzs0fhE5oB0PEyWC7uHcSN8FIbwFnT7nWCa1mk7lj0pgLV28o1ghhBCCHE/LUgvZqK+snZ1JnOAEBGkP5QhmSdaZ9fYsaSAkrqAjlAD4v4gtCPBX5lRIFTYGmfwocIp2SuHTUWUH8nyhm3ICnPYMN9TTkf44fbcrfywPMjejgAVXYB74Nar239G7SezW743arU3mW9DN7paFfREpr3rhD8ZUGHtWrIJT0Mal2usXcTWw4iXXhSB98xPON6pjg5ODRgqwQOBgB",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "Is there anything else I can help",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " you with?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 285,
+    "cache_read_input_tokens": 6931,
+    "input_tokens": 2,
+    "output_tokens": 105,
+    "output_tokens_details": {
+     "thinking_tokens": 91
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

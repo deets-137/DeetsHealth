@@ -1,0 +1,136 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch5J2DjJmHWRFRDUdJpNx",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 154
+     },
+     "cache_creation_input_tokens": 154,
+     "cache_read_input_tokens": 5430,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 4,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSoQgKEAgTGAI4AUIIdGhpbmtpbmcSDFxVuYC0C0GZV4kP8RoMdUNblZiCKjxUNecSIjDk/IY7LfYfNVrdajRG04kVbceHA89hlI3Am914719vQb0/XF8l0B9QV3+k1TkseroqvgeoTjl41Z7PLzHvLEq9ewM2rDgeLfc5Ph8d6elWic71rVeql1DSnzMi0EhXQP8uEjnE/Ub3jlx68DBR4kx/lVPugO0D5sgI5PZcxSnxey/XRavMHGbjuAe5xkqd3nNMpPdspbKSydBo/VSTnZ7equkVVxwAdTi4IAzpJQAC7of5gDKT/MSRAAKZMTUuRrtvIG6UVKpLd4vnT48mKIbBBi9TkrmvHgH3PwzEs9x4aJQnzxubJi98PXA7+IaiHa1FJ5n3QIWbw2qnjjy9AcTKv2ZPtnItc+c3o2yy9t3bBlOxEkV2PaAdDuKILjaa0VLsyZB21+Nztkvt+wsDW80rUXCO4+e4Te9qVwRutK8MQXLgqxCSKQ+VZbrtxef7CX08wWRZxbgW14Kg+1OpQbrKguParQ9DmRIMuhz1tTln6NgZIZxeLJEQXC1JCViexLGZ0PO/HcCYNYZ3w8B/gsVliN1yUk+RLN/pCsyfHE3G84IsAzQxRmeoYg6Z0+z49p8uvb6d1E84suT2ipYqzpwEGMVoZtxQXG26icDyejFsJuUf0uI7JK4xBSCF0qyIC/dqoRWWhcMqUkfGdRN9HtzDKfet0X7HhKOZ+x14XzLKFXAQtK1Oyc31gBJbRiEYJUwGXS4T1HFLoke0sFQP6kQuqEAe4AjmJTSbgvo1LtrRfJDbfPjoR/DRES/6NN3JCoo7KU4j2VDjmldkRpCF4/Zst6m7+V8dS+/mSx+ioFwqddXne/WBEHY8nOKfNExSLVH8MOvC9AwYz9rTtirB4NK1Dhh6mU31/t+J3kqTFvug8lpF9QyqvRSsDbUlHPKs2cCe1fbf84WJPCOfjCtoTxdSTQQFPqLN2i1rUArjYQ7rh8NldsS+XvpB6+nbNbdbVAp0SwJNPRqQrzHHcuVZF4P2lOUE0KFbn5oQKwh+b7LUPZpsEv75NS/vYJumriDE9TY5+Q7QO5bUmtMswhFrNxbx0tf2lZDT4L8MyLN3AddFVbuEqMZjcEAyF9x/vEapFyS1Ag3bXdJSAF15Lxkt8w1cH7UWIGGOOKmi76GPmyiaWxNtoG3b8U6Qim/SSUrOGfNCNEZHXvG7RCXSDLMY5Q0kzSnJ71orkD42CmtWcXi56KvdHJm0OUEUWcrUV0+8GNQIo72Eig9RLP1dQDSIQdFHbbii6yfyJF7yOK7sv/jQpa8x6/X8IfI/d2VgnYW+dN2Zuith6OCw6wEvcU9NtOtGI9O5swg5Dt0KY3HQmQJwyN1IS9VULxilnyenu8CmAbwDGAE=",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01NgBjeRwpy8181eYFKitJ2s",
+    "input": {},
+    "name": "find_slots",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"reaso",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "n\": \"ch",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "eck-up\"}",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 154,
+    "cache_read_input_tokens": 5430,
+    "input_tokens": 4,
+    "output_tokens": 162,
+    "output_tokens_details": {
+     "thinking_tokens": 110
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

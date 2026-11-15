@@ -336,6 +336,8 @@ export type HospitalValues = {
   groups_named: number;
   past_days: number;
   ahead_windows: number[];
+  /** Put after the caller's words in the note a booking files in Epic (the owner's N2). */
+  booking_note_label: string;
 };
 export type HospitalSettings = {
   store: boolean;

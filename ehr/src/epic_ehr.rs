@@ -387,7 +387,7 @@ impl Scheduler for EpicScheduler {
         let start: Timestamp = start.parse().map_err(|_| SchedulerDown)?;
         let pass = EhrPass::issue();
         let id = patient.0.reveal(&pass).clone();
-        let words: String = note.words.reveal(&pass).chars().take(MAX_NOTE).collect();
+        let words = h.booking_note(note.words.reveal(&pass), MAX_NOTE);
         let body = json!({"resourceType": "Parameters", "parameter": [
             {"name": "patient", "valueIdentifier": {"value": id}},
             {"name": "appointment", "valueIdentifier": {"value": proposed}},

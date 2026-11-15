@@ -52,6 +52,7 @@ pub const KEYS: &[&str] = &[
     "groups_named",
     "past_days",
     "ahead_windows",
+    "booking_note_label",
 ];
 
 /// The longest cell: a name, a code, an address.
@@ -232,6 +233,9 @@ pub struct Hospital {
     pub past_days: i64,
     /// The windows the search for the visits to come widens through, in days, then no end.
     pub ahead_windows: Vec<i64>,
+    /// Put after the caller's words in the note a booking files in Epic (the owner's N2,
+    /// 2026-11-15), so staff know the reason is the caller's own. Empty: the words alone.
+    pub booking_note_label: String,
     tz: TimeZone,
     groups: VisitGroups,
 }
@@ -429,6 +433,10 @@ pub fn check_key(key: &str, value: &Value) -> Result<(), String> {
                 Ok(())
             })
         }
+        "booking_note_label" => {
+            let text = value.as_str().ok_or_else(|| format!("{key}: text"))?;
+            cell(text, false).map_err(|e| format!("{key}: the label {e}"))
+        }
         "slots_offered" => whole(key, value, 1, 5).map(|_| ()),
         "narrow_over" => whole(key, value, 1, 10).map(|_| ()),
         "groups_named" => whole(key, value, 1, 5).map(|_| ()),
@@ -511,6 +519,7 @@ impl Hospital {
             groups_named: n("groups_named") as usize,
             past_days: n("past_days"),
             ahead_windows: field("ahead_windows", get("ahead_windows"))?,
+            booking_note_label: field("booking_note_label", get("booking_note_label"))?,
         })
     }
 
@@ -545,6 +554,32 @@ impl Hospital {
     /// The names the model may pick for `find_slots`'s time of day.
     pub fn time_names(&self) -> Vec<String> {
         self.times_of_day.iter().map(|t| t.name.clone()).collect()
+    }
+
+    /// Whether the call can book both an in-person and an online visit: Epic searches the coded
+    /// types, the local fake books any type the agent may book.
+    pub fn books_both_modes(&self, epic: bool) -> bool {
+        let has = |online: bool| {
+            if epic {
+                self.coded_bookable().any(|t| t.online == online)
+            } else {
+                self.fake_type(online).is_some()
+            }
+        };
+        has(true) && has(false)
+    }
+
+    /// The note `$book` files with a visit: the caller's words, then the hospital's label
+    /// (`booking_note_label`), within Epic's `limit` characters. The label is kept whole; the
+    /// caller's words are cut when the two do not fit.
+    pub fn booking_note(&self, words: &str, limit: usize) -> String {
+        let label = self.booking_note_label.trim();
+        if label.is_empty() {
+            return words.chars().take(limit).collect();
+        }
+        let room = limit.saturating_sub(label.chars().count() + 1);
+        let words: String = words.trim().chars().take(room).collect();
+        format!("{words} {label}")
     }
 
     /// The visit types Epic's `$find` searches: the agent may book them, and each has a code.
@@ -790,6 +825,32 @@ mod tests {
             assert!(e.starts_with(key), "{e}");
             assert!(!e.contains("Mars") && !e.contains("Line"), "an error holds a value: {e}");
         }
+    }
+
+    #[test]
+    fn the_note_keeps_the_label_whole_and_cuts_the_words() {
+        let h = Hospital::file();
+        assert_eq!(h.booking_note("headache", 500), "headache (automated transcription from patient)");
+        let long = "a".repeat(600);
+        let note = h.booking_note(&long, 500);
+        assert_eq!(note.chars().count(), 500);
+        assert!(note.ends_with(" (automated transcription from patient)"));
+        let none = json!("");
+        let plain = Hospital::from_pairs([("booking_note_label", &none)]).unwrap();
+        assert_eq!(plain.booking_note("headache", 500), "headache");
+    }
+
+    #[test]
+    fn both_modes_only_when_both_can_be_booked() {
+        let h = Hospital::file();
+        assert!(h.books_both_modes(false) && h.books_both_modes(true));
+        let one = json!([
+            {"record": "Office Visit", "book": true},
+            {"code": "1400000001", "record": "MyChart Video Visit", "online": true, "book": true}
+        ]);
+        let h = Hospital::from_pairs([("visit_types", &one)]).unwrap();
+        assert!(h.books_both_modes(false), "the fake books both");
+        assert!(!h.books_both_modes(true), "Epic has only the online type with an ID");
     }
 
     #[test]

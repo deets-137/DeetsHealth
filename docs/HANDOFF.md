@@ -106,7 +106,17 @@ test passes, and the stamp is written (`tests/RECORDED-PROMPT.sha256`). `emergen
 passed 4 of 4 fresh draws this morning; its old failing replies were deleted and it was
 recorded again. The Epic code-system research is done (EPIC.md §7.11, HOSPITAL-CONFIG.md
 §2.10). **Built, desk test open: the owner's A, one Epic list per list** (HOSPITAL-CONFIG.md
-§5.1, desk test §6 steps 8 to 12; "R PRC 1003" on each row). Not committed. Then the open desk
+§5.1, desk test §6 steps 8 to 12; "R PRC 1003" on each row). Committed `74b4ecc`. **Built,
+desk test open, not committed: the preference question (1A) and the note label (N2)**
+(CALL-FLOW.md, HOSPITAL-CONFIG.md §2.9): book a visit on Local without saying how or when; the
+agent asks once, then offers times; in Epic mode the `$book` note ends with the label.
+`Location.Search (Organizational Directory) (R4)` is registered (the owner, 2026-11-15) and
+tried (`ehr epic-locations`, EPIC.md §2.2): one search returns all 435 sandbox locations. The
+import route is designed (HOSPITAL-CONFIG.md §8, EAF facilities over DEP departments); not
+built. **The call records start fresh (the owner's A, 2026-11-15):** the 158 old records and
+the annotations are in the tag `archive/calls-2026-11-15` (local, not pushed), removed from
+`agent/calls/`, and cleared from the dev database. **His step, the evening of 2026-11-15:** a new
+baseline of console Test calls (the draft list is in the WORKLOG entry of that day). Then the open desk
 tests: booking builds 1 and 2, the request log, the EHR ledger and the repeat guard (EPIC.md
 §7.10; AGENT.md §1). Restart `npm run dev` first: its `ehr` predates these sittings.
 Ideas left for later: ideas/LOCAL-EHR.md; many hospitals with rules-based routing

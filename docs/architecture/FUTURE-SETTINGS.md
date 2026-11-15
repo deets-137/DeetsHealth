@@ -704,6 +704,8 @@ caller's visits and what it says about it, and the hospital facts that Epic's `$
 |---|---|---|
 | Slots kept for the call | Epic's page (10), and its `next` link | fixed by Epic |
 | Slots offered at a time | 3 (Config › Hospital, built) | 1 to 5 |
+| How and when, before the first search | asked once, for what the caller has not said; "in person or online?" only when the call can book both (the owner's 1A, 2026-11-15; built, in code) | off: search first, ask after |
+| The label after the reason in the booking note | "(automated transcription from patient)" (Config › Hospital, built; the owner's N2) | any one line, or none |
 | Order | the soonest first | spread over different days |
 | The clinician's name | said with each slot | once, when every slot offered has the same clinician |
 | Times on one day | each said in full | said together ("Tuesday at 9 or at 2:30") |

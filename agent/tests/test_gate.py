@@ -46,7 +46,7 @@ def handler(node, name):
 
 
 def new_flow(ehr) -> CallFlow:
-    flow = CallFlow(ehr, today=FAKE_TODAY)
+    flow = CallFlow(ehr, today=FAKE_TODAY, preference_asked=True)
     # The caller's lines, as the screen feeds them, so the name guard lets these names through.
     flow.heard("Jordan Ellis, March 12, 1984")
     flow.heard("Nobody Here")
@@ -355,7 +355,7 @@ async def test_a_flag_keeps_only_what_the_caller_said(ehr):
     """Fork 1A, 2026-11-12: the model's evidence is checked by code. A quote the caller said
     (punctuation and case aside) is kept; one they did not say is counted and dropped. Nothing is
     spoken (fork 2A)."""
-    flow = CallFlow(ehr, today=FAKE_TODAY)
+    flow = CallFlow(ehr, today=FAKE_TODAY, preference_asked=True)
     flow.heard("I'm calling for my mom. She's been really confused lately, I'm worried.")
     seen = []
     flow.on_flag = seen.append
@@ -378,7 +378,7 @@ async def test_a_flag_keeps_only_what_the_caller_said(ehr):
 
 
 async def test_an_unknown_flag_kind_becomes_other_and_code_flags_raise_once(ehr):
-    flow = CallFlow(ehr, today=FAKE_TODAY)
+    flow = CallFlow(ehr, today=FAKE_TODAY, preference_asked=True)
     assert flow.raise_flag("made_up_kind", "model").kind == "other"
     assert flow.raise_flag("verification_failed", "code") is not None
     assert flow.raise_flag("verification_failed", "code") is None
@@ -390,7 +390,7 @@ async def test_a_summary_that_guesses_a_pronoun_goes_back_once(ehr):
     second one is kept as it is. Evidence (the caller's own words) is never checked for it."""
     from deets_agent.prompts import text
 
-    flow = CallFlow(ehr, today=FAKE_TODAY)
+    flow = CallFlow(ehr, today=FAKE_TODAY, preference_asked=True)
     flow.heard("What was the reason on the visit again? Is it online?")
     seen = []
     flow.on_flag = seen.append
@@ -412,7 +412,7 @@ async def test_a_summary_that_guesses_a_pronoun_goes_back_once(ehr):
 def test_the_reason_sent_is_the_callers_own_words(ehr):
     """The visit's note is the caller's words, never the model's (2026-11-14): the model's reason
     is kept only if the caller said it, as for a flag's evidence; else the caller's latest line."""
-    flow = CallFlow(ehr, today=FAKE_TODAY)
+    flow = CallFlow(ehr, today=FAKE_TODAY, preference_asked=True)
     flow.heard("Can I book a visit for my strawberry water distillation?")
     assert flow._reason_words("strawberry water distillation") == "strawberry water distillation"
     assert flow._reason_words("Strawberry-water distillation.") == "Strawberry-water distillation."
@@ -436,4 +436,48 @@ async def test_an_online_wish_offers_online_times_and_says_so(ehr):
     await handler(node, "choose_option")({"option": result["options"][0]}, fm)
     result, _ = await handler(node, "book")({}, fm)
     assert ", online, for" in result["spoken_to_caller"] and result["visit_is"] == "online"
+    await flow.close()
+
+
+async def test_the_preference_is_asked_once_before_the_first_search(ehr):
+    """The owner's 1A (2026-11-15): before the first search the caller is asked what they have
+    not said, in one fixed line, and no search runs; the next find_slots searches whatever the
+    answer. A caller who said both gets no question."""
+    flow = CallFlow(ehr, today=FAKE_TODAY)
+    flow.heard("Jordan Ellis, March 12, 1984")
+    fm = manager()
+    await flow.start()
+    assert flow.books_both_modes, "the local fake books in person and online"
+    await identify(flow, JORDAN, fm)
+    await handler(flow.verify(), "check_code")(CODE, fm)
+    flow.heard("I'd like a check-up")
+    result, node = await handler(flow.menu(), "find_slots")({"reason": "a check-up"}, fm)
+    assert result["spoken_to_caller"] == text("line.ask_preference_both")
+    assert result["next_step"] == text("note.after_ask_preference") and "options" not in result
+    # The answer gives only "online": no second question, the search runs.
+    result, node = await handler(flow.menu(), "find_slots")({"reason": "a check-up", "visit_mode": "online"}, fm)
+    assert node["name"] == "schedule" and result["options"]
+    await flow.close()
+
+    # Said when but not how: only "in person or online?".
+    flow = CallFlow(ehr, today=FAKE_TODAY)
+    flow.heard("Jordan Ellis, March 12, 1984")
+    await flow.start()
+    await identify(flow, JORDAN, fm)
+    await handler(flow.verify(), "check_code")(CODE, fm)
+    result, _ = await handler(flow.menu(), "find_slots")({"reason": "a check-up", "any_time": True}, fm)
+    assert result["spoken_to_caller"] == text("line.ask_preference_mode")
+    await flow.close()
+
+    # Said both: no question. A hospital that books one kind never asks how.
+    flow = CallFlow(ehr, today=FAKE_TODAY, books_both_modes=False)
+    flow.heard("Jordan Ellis, March 12, 1984")
+    await flow.start()
+    flow.books_both_modes = False
+    await identify(flow, JORDAN, fm)
+    await handler(flow.verify(), "check_code")(CODE, fm)
+    result, node = await handler(flow.menu(), "find_slots")(
+        {"reason": "a check-up", "time_of_day": "afternoon"}, fm
+    )
+    assert node["name"] == "schedule" and result["options"]
     await flow.close()

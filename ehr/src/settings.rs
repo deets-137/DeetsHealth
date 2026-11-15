@@ -129,6 +129,7 @@ pub const PROMPT: &[Setting] = &[
     p("arg.find_slots.time_of_day", &[]),
     p("arg.find_slots.days", &[]),
     p("arg.find_slots.clinician", &[]),
+    p("arg.find_slots.any_time", &[]),
     p("arg.find_slots.more", &[]),
     p("tool.choose_option", &[]),
     p("arg.choose_option.option", &[]),
@@ -170,6 +171,10 @@ pub const PROMPT: &[Setting] = &[
     p("line.code_wrong", &[]),
     p("line.no_more_codes", &[]),
     p("line.code_resent", &[]),
+    p("line.ask_preference_both", &[]),
+    p("line.ask_preference_mode", &[]),
+    p("line.ask_preference_when", &[]),
+    p("note.after_ask_preference", &[]),
     p("line.no_slots", &[]),
     p("line.no_more_slots", &[]),
     p("line.slots", &["options"]),
@@ -247,6 +252,7 @@ pub const HOSPITAL: &[Setting] = &[
     s("groups_named", Kind::Hospital),
     s("past_days", Kind::Hospital),
     s("ahead_windows", Kind::Hospital),
+    s("booking_note_label", Kind::Hospital),
 ];
 
 /// The System variables that cannot be removed or renamed: the code's own (SYSTEM-PAGE.md §3.1).
@@ -864,7 +870,7 @@ mod tests {
                 (s.key.to_string(), json!(format!("Words {words}.")).to_string())
             })
             .collect();
-        assert_eq!(check(PROMPT, &set).unwrap().len(), 118);
+        assert_eq!(check(PROMPT, &set).unwrap().len(), 123);
 
         let with = |key: &str, text: &str| {
             let mut s = set.clone();

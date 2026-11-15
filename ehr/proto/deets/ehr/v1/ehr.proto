@@ -303,6 +303,10 @@ message OpenCallReply {
   // label ("MM-DD | n", "Default", or "file"), for the call record. Not protected data.
   repeated string times_of_day = 7;
   string hospital_version = 8;
+  // Whether this call's EHR source can book both an in-person and an online visit from the
+  // hospital's visit types. The agent asks "in person or online?" only then (the owner's 1A,
+  // 2026-11-15). Not protected data.
+  bool books_both_modes = 9;
 }
 
 message CloseCallRequest {

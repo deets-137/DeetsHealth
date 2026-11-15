@@ -116,8 +116,8 @@ why it did not work or say the code they read is the right one, use hand_off at 
 ask them to try again: a person can help them, and you cannot.
 
 ## task.menu
-The caller is verified and has been asked what they need. To book a visit, use find_slots; to
-hear about a visit they have, use find_visit. If they want to change or cancel a visit,
+The caller is verified and has been asked what they need. To book a visit, use find_slots at
+once (it asks the caller how and when); to hear about a visit they have, use find_visit. If they want to change or cancel a visit,
 including one just booked, use change_visit: you cannot do it, and staff can. When they are
 done, use end_call.
 
@@ -180,7 +180,9 @@ The 6 digits the caller read.
 Send the text code again to the number on file.
 
 ## tool.find_slots
-Find open visit times for the caller.
+Find open visit times for the caller. Use it as soon as the caller wants to book, even if they
+named no day or time: it asks the caller what it needs. Never ask about the day, the time, or in
+person or online yourself.
 
 ## arg.find_slots.reason
 What the visit is for, in the caller's words.
@@ -189,7 +191,8 @@ What the visit is for, in the caller's words.
 The earliest day they can come, YYYY-MM-DD. Leave empty for the next open day.
 
 ## arg.find_slots.visit_mode
-in_person, online or either, from the caller's words. Leave it as either if they did not say.
+in_person or online, from the caller's words; either only when they said either is fine. Leave
+it empty if they did not say.
 
 ## arg.find_slots.latest_day
 The last day they can come, YYYY-MM-DD ("before Friday" is Thursday). Leave empty if they named
@@ -203,6 +206,9 @@ The days of the week they can come. Leave empty if they did not say.
 
 ## arg.find_slots.clinician
 The clinician they asked to see, in their words. Leave empty if they did not say.
+
+## arg.find_slots.any_time
+true when the caller said any day or time is fine. Otherwise false.
 
 ## arg.find_slots.more
 true when they want other times from the same search ("anything else?"); the other fields are
@@ -334,7 +340,8 @@ Thank you, you're verified.
 ## note.after_verified
 The caller is verified and said earlier what they need (caller_wants). Do it now, with the tool
 for it, without asking again what they want. If they want both, start with the one they named
-first.
+first. To book, use find_slots in this same turn and ask the caller nothing first: find_slots
+asks them how and when.
 
 ## line.locked
 I'm sorry, I can't confirm your identity on this call. Let me connect you with a person.
@@ -350,6 +357,21 @@ I can't send another code on this call. Let me connect you with a person.
 If those details match our records and we have a mobile number on file, a new code is on its
 way. If it doesn't come, just tell me and I'll connect you with a member of our staff. Could you
 read it to me when it arrives?
+
+## line.ask_preference_both
+Would you like to come in person or have an online visit? And is there a day or time that works
+best for you?
+
+## line.ask_preference_mode
+Would you like to come in person or have an online visit?
+
+## line.ask_preference_when
+Is there a day or time that works best for you?
+
+## note.after_ask_preference
+The caller was asked how and when they would like the visit. When they answer, use find_slots
+again with the same reason and what they said. If they say any day or time is fine, set any_time
+to true; if they say either way is fine, set visit_mode to either.
 
 ## line.no_slots
 I don't see any open times then. Would another day work?

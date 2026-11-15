@@ -294,6 +294,7 @@ NOTE_TOOL = {
     "note.after_reminder": "safety_reminder",
     "note.after_verified": "check_code",
     "note.after_flag": "flag_for_staff",
+    "note.after_ask_preference": "find_slots",
     # Also sent back by hand_off; both are global tools, so the scope is the same.
     "note.summary_pronoun": "flag_for_staff",
 }
@@ -359,6 +360,11 @@ class CallFlow:
     # The names `find_slots` may send as `time_of_day`: the call's own hospital version, from
     # OpenCall (`start`); the file's until then (HOSPITAL-CONFIG.md).
     times_of_day: tuple[str, ...] = TIMES_OF_DAY
+    # Whether the call can book both in person and online (OpenCall): only then is the caller
+    # asked which (the owner's 1A, 2026-11-15). And whether the preference question was asked:
+    # once a call, before the first search.
+    books_both_modes: bool = True
+    preference_asked: bool = False
     # Every option the caller has heard on this call, by its number. A number keeps its time for
     # the whole call, and a new search goes on from the last number, so "option 3" never means
     # two times (the owner, 2026-11-12, after a double booking).
@@ -404,6 +410,9 @@ class CallFlow:
         words = prompts.current()
         self.handle = await self.ehr.open_call(self.ehr_source, words.version_id, words.system_id)
         self.times_of_day = self.ehr.call_times(self.handle) or self.times_of_day
+        both = self.ehr.call_books_both(self.handle)
+        if both is not None:
+            self.books_both_modes = both
         got = self.ehr.call_clock(self.handle) if self.ehr_source == "epic" else None
         if got and got[0]:
             # ehr holds the hospital's one time zone, so "today" is the hospital's, not this PC's.
@@ -863,14 +872,29 @@ class CallFlow:
             reason = Shielded(self._reason_words(str(args.get("reason", ""))))
             day = str(args.get("earliest_day", "") or "").strip()
             last = str(args.get("latest_day", "") or "").strip()
-            mode = str(args.get("visit_mode", "") or "either").strip()
-            if mode not in VISIT_MODES:
-                mode = "either"
+            said_mode = str(args.get("visit_mode", "") or "").strip()
+            said_mode = said_mode if said_mode in VISIT_MODES else ""
+            mode = said_mode or "either"
             # Only values the hospital's lists hold; anything else is dropped, never sent.
             when = str(args.get("time_of_day", "") or "").strip().lower()
             when = when if when in self.times_of_day else ""
             days = tuple(d for d in (args.get("days") or []) if isinstance(d, str) and d in WEEKDAYS)
             who = str(args.get("clinician", "") or "").strip()
+            any_time = args.get("any_time") is True or str(args.get("any_time", "")).lower() == "true"
+            # The preference question (the owner's 1A, 2026-11-15): once a call, before the first
+            # search, the caller is asked what they have not said: in person or online (only when
+            # the hospital books both), and a day or time. No search runs until they answer.
+            if not more and not self.preference_asked:
+                ask_mode = self.books_both_modes and not said_mode
+                ask_when = not (any_time or DAY.fullmatch(day) or DAY.fullmatch(last) or when or days)
+                if ask_mode or ask_when:
+                    self.preference_asked = True
+                    key = "both" if ask_mode and ask_when else "mode" if ask_mode else "when"
+                    logger.info("find_slots: preference asked ({})", key)
+                    return await self._say(
+                        flow_manager, text(f"line.ask_preference_{key}"), next_step=text("note.after_ask_preference")
+                    )
+                self.preference_asked = True
             try:
                 slots, waiting = await self._once_more(
                     lambda: self.ehr.find_slots(
@@ -916,12 +940,13 @@ class CallFlow:
                 "time_of_day": "",
                 "days": "",
                 "clinician": "",
+                "any_time": "",
                 "more": "",
             },
             required=["reason"],
-            types={"more": "boolean"},
+            types={"more": "boolean", "any_time": "boolean"},
             schemas={
-                "visit_mode": {"type": "string", "enum": list(VISIT_MODES)},
+                "visit_mode": {"type": "string", "enum": ["", *VISIT_MODES]},
                 "time_of_day": {"type": "string", "enum": ["", *self.times_of_day]},
                 "days": {"type": "array", "items": {"type": "string", "enum": list(WEEKDAYS)}},
             },

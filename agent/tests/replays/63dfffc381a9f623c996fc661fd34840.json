@@ -1,0 +1,482 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch5Hr5iLEd7VHnpkvV9Ti",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 1400
+     },
+     "cache_creation_input_tokens": 1400,
+     "cache_read_input_tokens": 3760,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 8,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQS0wYKEAgTGAI4AUIIdGhpbmtpbmcSDB7vIJgeRq12MhUaehoMDiKB5e/nOyeSFnFpIjDmQdaqILbyJ1lr+HArtZhfNhZU5RGT3LF8P2rgLmIWq5UTL3OGk+up3RdwULkIK3Mq8AU4hADT3O2gPWdeQlV3C+CMqWI8kElhimk9J+onoByhh+Yl1tuL3Hcx6WqNdMTNp627KtVmhYMXif7YxdwH8r739BC7dFCS/D7zJf9kapbpla34wE+SSH0l0gh7ZZ5qz32KekUM5K6wnfPIC1jrzHAtPwA0D2O0ZTgheCmj91VyGBZaht7wZZ2YW3r6B50rsoNMrNGcVsNlqgDDB0cAETtLHdyH15Jq0QSNpdUejomFQb1clufVP9mf6hDjC+KZFRAJBO5KivNRllxMHTkMafEqNKgdtX2wbK20ljIEY7/3hYHkepKjccqmaahSxeTVfYmzvMZ4mq6HYjrcoeSB2zI6nCPSqf1i8EeAFaFKWgnfFGi2gjDvPdrykE1VPX0mUFQI+pfoe2DU2rdfYe0tXvL0HnRY85/O3TdI2zOy+/X+SIiYr9wahgh59jlHngvP1xnbGGeB3nhqls7a+y1FFRzJ2+3OjpdbZnX8d8R+ekSCyImZhgpYK/iuIDgCXEgQUS1KVK1jJKZuq0Up4TMnqMA4wvdxyeoOGDE2znpezubIo1Eumi9MMZ5cewx5G7BpfFrZ9kqRmGggn9EpvTNzmLJ2pnfnZDlt4vBaTuMVl3KCIwjVMJq1fS4tHT9Sk+WLp+ylIV6VLQOcp6+0noiZpchZoVjFXRJiiBv2Fx0mc2pz5uuvmf5KNBZxtmwi43WQZ++3qO7hzwKyA8nAwul81YEe/VaPaCqWza2EVwlMIcfi7o8ykVLj5PZaHDk7OS2TGqAXfF2qzzZ2okBxJpQGKgXODbDUlYuacWCjyAqV5epSQZha+trq2QoYlkC6rscNzDpc4Q9iQW43JAJ3WPVt1/zKfgYI+I4YbgopT8W62cMM+/ihmwYT85t1UjQAN/fRpBdLQURqnzWxaIpLB8m35IISr/htquulVaVLFDKp2RS6xvtOUIw1zT0mB1Fw/+SOKt78LfW98IsIzX9y5O5IfdPfAyUme8dus3L1cU8qYQ0JpxgB",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01Lo2ZNQgCXn43ZZZ5jTUYkt",
+    "input": {},
+    "name": "find_slots",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"reaso",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "n\": \"st",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "rawberr",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "y water",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " distil",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "lation\"}",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01R89CX8QJRgfzaY1getLNMk",
+    "input": {},
+    "name": "flag_for_staff",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 2,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"kind\"",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ": \"visi",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "t_reaso",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "n_revie",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "w\"",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"summ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ary\": \"",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "The ver",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ified c",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "aller a",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "sked to",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " book a",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " visit ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "for a r",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "eason t",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "hat doe",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "s not r",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ead as ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "a healt",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "h need.",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " Please",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " review",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " and ca",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ll back",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " if nee",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ded.\"",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"evid",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ence\": ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "[\"Can I",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " book a",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " visit ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "for my ",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "strawbe",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "rry wat",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "er dist",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "illatio",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "n?\"]}",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 2,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 1400,
+    "cache_read_input_tokens": 3760,
+    "input_tokens": 4,
+    "output_tokens": 280,
+    "output_tokens_details": {
+     "thinking_tokens": 69
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

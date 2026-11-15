@@ -1,0 +1,136 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch5JvpR5tApVTZHQXBacQ",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 1279
+     },
+     "cache_creation_input_tokens": 1279,
+     "cache_read_input_tokens": 5767,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 10,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSwQgKEAgTGAI4AUIIdGhpbmtpbmcSDP3v83LUN/mMR9Ms7RoMpNZsyoE/yk135Tv0IjCCvQv+MXVMRb3g15Wc0TDZfROH1bA79lRCAa3+Jm0C6/MVQVNj8b97lX+IzC5ap0Aq3gc2LOI6xBtw/nY7cue9oQYtZvPYayt7fxI49zC2eG45/WjuKB72oDXPpKFo/0tJP2tnXm4jJ9y6gvhX0C5/Qm/HOhAwjKtqGoyM6gdqghGJv5cwSGnz7AewFqfEaEvKJsy09wv7uE2lj+TOD99jg33EQO+3jXPlTAyBafrex9cPOhs9Mt4XupoL7Hy85Y8C8Ip1G5J8POKCbU1zVn3cg6PRhGsX2T/yKjp5sNg/KC7oSF9CfNnVd4OQWWykcHxzWopIB9aWn6CC2ZUu6csb1XQjef3oTqYJNCbJyDNssg+qHZVAgYB1TnUs6ExCxCSbM9VglOVcCby8RM/+OOT0zZOFH8Iklq8fclE7flV59BBGx32emT83gr3Jpo2cGckYy5e/fxOuv9+LzG4h54twPE4Grh3JJXqx6CzUMYm8tIpDrh0GYcV31UoDAY0UlQPVEi9Cu7Le1GQUbn0d1xuuLRxZN4sbsf1a9MemO88m0BVNxUbKGG8o2oBjU5S7kLHfcJLxCu4yy7OuTUFjYA3cenysb8gK0bkKyvbarSAf5YL1tsrrjBRmZvmUJP4zqHFyy+JIHhCJUlgFlSZAUewA8S/+pXKfRsaHOOWsgSAaLoHd2VBy/pEVkh8dg4M5PzmioYB4JAjkw6V/HjKDelVfq2viro9Jvh/dyAtSvQEau9qy0voqTV5uCA5H2m/X9Bg99sysVU4f1iSZSpvmNBjndclL+iN8HL7zOKepZXHsY9JrhbLy7bA2N5AnEiGf7lXrJjE+z1R1OVYDfrxutuIAWkJqLM/PPRoTkg9aVINhW6ri3cQGX2j4h//jHrfuaLkBhAZSwsmEgl0ubCgKVr0YikTb9nvVNnAz76J6IZeSFENsy7obxiQNX3KSjxeom3HflLK+tOggvxKeZqCxaG5V2gMu38cmF7VRA4OlG3CgrLGfsEN7GGifQ7ejYR9KcxYLX61xQqwTPNCGg5vl04xVATAIi6lxJcjh3+hBTMLDTKonrVgiK/b/HW6Hgpk/btdhnuNobt3XSJbtU+105Z5tQ0PuBhqP/OVeak4U1gHwYW6ROICsflMwQ3xsQFo2xkPGSHT6Zd+G0nB/x0CTcDyKDHq1gL0XFsfP+OhD+/5GbLZirmuABDz0QgZgRbxiRS3VK6oB+35QIxv+KoXlxtjmSbNzh4ghm3YIsDbfWmfZjHgJFIDZ06gZd6NzDp1mS7myxAXQq9iZiUj20hGmu0oD+b5ro12wTyLyF2Dcm1S64bb1aiPlvZRehAtUKRSzbkSI4egihopI93OWLu1BRP22NRhgkN4UbE+hpBPqP/Ex534YAQ==",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_011UARR8iWLDV86TnTKPg2DJ",
+    "input": {},
+    "name": "find_visit",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"when\"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ": \"2026",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "-11-03\"}",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 1279,
+    "cache_read_input_tokens": 5767,
+    "input_tokens": 4,
+    "output_tokens": 162,
+    "output_tokens_details": {
+     "thinking_tokens": 108
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

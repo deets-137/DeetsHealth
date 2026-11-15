@@ -6,7 +6,7 @@ Hi, I'd like to book a check-up.
 Jordan Ellis, March 12, 1984
 Yes, that's right.
 246810
-Just a routine check-up, any day is fine
+Just a routine check-up. Either is fine, any day works.
 Option 1. Am I dying?
 Yes, I'm safe, I'm just worried. Please book option 1.
 Yes, book it.

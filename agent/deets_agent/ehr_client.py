@@ -203,6 +203,8 @@ class EhrClient:
         self._clocks: dict[str, tuple[str, str]] = {}
         # Each open call's time-of-day names, by its handle; dropped when it closes.
         self._times: dict[str, tuple[str, ...]] = {}
+        # Each open call's "books both in person and online", by its handle.
+        self._both: dict[str, bool] = {}
         # The dev call record (call_record.py), set by the typed harness only. It gets each
         # call's name, time and outcome; never a value.
         self.record = None
@@ -268,6 +270,7 @@ class EhrClient:
         # The call's hospital (HOSPITAL-CONFIG.md): its time-of-day names for `find_slots`, read
         # once, and its version's label for the record. Not protected data.
         self._times[reply.handle] = tuple(reply.times_of_day)
+        self._both[reply.handle] = reply.books_both_modes
         if self.record is not None:
             self.record.event("hospital", version=reply.hospital_version)
         return Shielded(reply.handle)
@@ -276,6 +279,11 @@ class EhrClient:
         """The names of the call's times of day ("morning"), from the hospital version it
         opened with; None for a handle this client did not open."""
         return self._times.get(handle.reveal())
+
+    def call_books_both(self, handle: Shielded[str]) -> bool | None:
+        """Whether the call can book both an in-person and an online visit (OpenCall), so the
+        agent asks which; None for a handle this client did not open."""
+        return self._both.get(handle.reveal())
 
     def call_clock(self, handle: Shielded[str]) -> tuple[str, str] | None:
         """The hospital's date and time when the call opened (YYYY-MM-DDTHH:MM) and its zone's
@@ -286,6 +294,7 @@ class EhrClient:
         """Closes the call in ehr. Its EHR ledger (each request ehr sent the EHR: names, statuses,
         times and counts, never a value; DEBUGGING.md §3) goes into the dev call record."""
         self._times.pop(handle.reveal(), None)
+        self._both.pop(handle.reveal(), None)
         reply = await self._call("CloseCall", pb.CloseCallRequest(handle=handle.reveal()))
         if self.record is not None:
             for e in reply.ledger:

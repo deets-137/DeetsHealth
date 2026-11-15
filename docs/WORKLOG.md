@@ -8,6 +8,46 @@ updated: 2026-11-15
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-15 (Windows, afternoon) — Location probe, import route, fresh call baseline
+- `ehr epic-locations` (new probe, about 11 reads): `Location.Read` of Camila Lopez's 4
+  departments; `Location.Search` by address returns all 435 sandbox locations in one page;
+  facilities are EAF, departments DEP; the specialty system `…7.10.686980.110`. EPIC.md §2.2, §6.
+- The Default's Places from the probe's printout, no new search: the Specialty list's OID, IDs
+  9, 4, 40 (radiology a new row), three more departments by name. The owner liked the EAF/DEP
+  split; the import route is designed in HOSPITAL-CONFIG.md §8 (not built).
+- The survey of logs: `target/` 46 GB (kept, his word), the old Pipecat worktree 1.6 GB
+  (removed), 1,042 of 1,132 stored replies unused (kept for now), his Claude session
+  transcripts 243 MB (kept, his word).
+- His fork A: the 158 call records and 100 annotation lines are in the local tag
+  `archive/calls-2026-11-15`; removed from `agent/calls/`; the dev database's calls and
+  annotations deleted (158 and 100 rows; the audit table was empty).
+- **The draft list for his fresh baseline (his to edit):** a booking with no preference stated;
+  one for online, afternoons; an emergency during a booking; a failed code; "when is my next
+  visit?"; a visit's instructions; a change after booking; a caller for someone else; a medical
+  question; an off-topic question; one voice call.
+- Checks: ehr 112 pass; agent 248 pass against the new build; docs:check clean. Not committed.
+
+## 2026-11-15 (Windows, midday) — the preference question (1A), the note label (N2)
+- The owner asked what `$book` sends and how `$find` treats preferences; his forks: **1A**
+  (ask how and when once, before the first search) and **N2** "configurable (can be
+  '(automated transcription from patient)' to start)".
+- Built: `find_slots` asks once for what the caller has not said, in fixed lines
+  (`line.ask_preference_both/_mode/_when`, `note.after_ask_preference`, `arg.find_slots.any_time`);
+  "in person or online?" only when the call books both (`OpenCallReply.books_both_modes`,
+  `hospital.rs › books_both_modes`). `booking_note_label` on Config › Hospital › Booking;
+  `$book`'s note is the words, then the label (`Hospital::booking_note`). CALL-FLOW.md,
+  HOSPITAL-CONFIG.md §2.9, FUTURE-SETTINGS.md §13.2, EPIC.md §6.
+- The replays showed the model asking "What day and time…" itself in 3 of 7 booking scripts;
+  `tool.find_slots`, `task.menu` and `note.after_verified` now say find_slots asks. Seven scripts
+  got an answer line (one removed again). Recorded three times, about 2¢ in all; 15 of 15 pass.
+- His screenshots saved: `hospital-reasons-codes-2026-11-15.png`,
+  `hospital-specialties-2026-11-15.png` (his questions: §2.3 kept by 1B; §2.8 the sandbox can
+  fill its own departments by `Location.Read`) and `epic-catalog-location-2026-11-15.png`,
+  `epic-catalog-resources-1/2/3-2026-11-15.png` (EPIC.md §2.2). He then registered
+  `Location.Search (Organizational Directory) (R4)`; not tried yet.
+- Checks: ehr 112 unit tests pass, clippy clean (separate target folder); agent tests pass against it;
+  console `tsc` clean; docs:check clean. Not committed.
+
 ## 2026-11-15 (Windows, morning) — kept scripts green; Epic's code systems
 - The owner: "Go for 1-3 please". His Epic knowledge does not cover Cadence; he knows 4-digit
   codes (1003, 1024) as IDs of a facility or location.

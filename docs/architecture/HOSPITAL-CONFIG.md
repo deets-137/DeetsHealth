@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [docs/architecture/images/hospital-columns-misaligned-2026-11-15.png, docs/architecture/images/hospital-visit-type-code-2026-11-15.png, ehr/src/hospital.rs, ehr/fixtures/hospital.json, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/scheduler.rs, ehr/src/epic_ehr.rs, ehr/src/visits.rs, ehr/src/session.rs, ehr/migrations/0009_settings_hospital.sql, ehr/proto/deets/ehr/v1/ehr.proto, agent/deets_agent/config.py, agent/deets_agent/dev_server.py, agent/deets_agent/flow.py, agent/deets_agent/ehr_client.py, console/src/pages/hospital.ts, console/src/pages/epic-oid.ts, console/src/agent/api.ts, console/src/styles/config.css, docs/integrations/EPIC.md]
+sources: [docs/architecture/images/hospital-columns-misaligned-2026-11-15.png, docs/architecture/images/hospital-visit-type-code-2026-11-15.png, docs/architecture/images/hospital-reasons-codes-2026-11-15.png, docs/architecture/images/hospital-specialties-2026-11-15.png, ehr/src/hospital.rs, ehr/fixtures/hospital.json, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/scheduler.rs, ehr/src/epic_ehr.rs, ehr/src/visits.rs, ehr/src/session.rs, ehr/migrations/0009_settings_hospital.sql, ehr/proto/deets/ehr/v1/ehr.proto, agent/deets_agent/config.py, agent/deets_agent/dev_server.py, agent/deets_agent/flow.py, agent/deets_agent/ehr_client.py, console/src/pages/hospital.ts, console/src/pages/epic-oid.ts, console/src/agent/api.ts, console/src/styles/config.css, docs/integrations/EPIC.md]
 updated: 2026-11-15
 ---
 # DeetsHealth — Config › Hospital: the hospital's own lists
@@ -67,6 +67,12 @@ so.
 - Decided 2026-11-14 (EPIC.md §5.2): booking sends the reason in the caller's words only. This
   list is the map for when a hospital codes reasons. The Default row is Epic's own sample:
   SNOMED 46866001, a broken leg.
+- **Still kept (2026-11-15).** The owner asked whether this section still matters. No call uses
+  it, and none will while booking sends the caller's words. It stays, marked "not used", by his
+  1B ("1B will let us know what we have left to build"): Epic says a hospital's Cadence rules
+  may require `indications`, and then this list is the map.
+
+  ![The owner's screenshot, 2026-11-15: Reasons as codes, the Diagnosis list not set and one SNOMED row; he asks whether the section still matters](images/hospital-reasons-codes-2026-11-15.png)
 
 ### 2.4 The time zone — Times tab, used now
 - One IANA name for the hospital. Uses: the call's today and time (`OpenCallReply.local_now`),
@@ -95,6 +101,21 @@ so.
 ### 2.8 Specialties (Epic's `specialties`) — Places tab, not used yet
 - Above the table: the **Specialty list**, one OID (§5.1). Columns: the spoken name, the
   caller's words, the ID. Epic gives no list of a hospital's specialty codes by API.
+- **What the sandbox can give (2026-11-15).** A department's specialty, one at a time:
+  `Location.Read` (registered) returns it as an extension, with its code and system (EPIC.md
+  §7.11). The departments come from the Location references on the test patients' visits and on
+  `$find`'s proposed slots. So the sandbox can fill this list, the Specialty list's OID and the
+  Locations' FHIR ids, address and phone for the sandbox's own departments. The whole list of a
+  hospital's departments and specialties comes from the hospital (`Location.Search` exists in
+  Epic's catalog, `api:10084`).
+- **Tried the same day** (EPIC.md §2.2, after the owner registered `Location.Search`): one
+  `Location.Search` by address returns every location of the sandbox's organization, 435, in one
+  page; 325 carry a specialty. The sandbox's Specialty list OID is
+  `urn:oid:1.2.840.114350.1.13.0.1.7.10.686980.110` (9 Family Medicine, 4 Cardiology, 40
+  Radiology). So an import from Epic is possible: one search fills Locations (DEP departments,
+  each under its EAF facility) and Specialties. Not built.
+
+  ![The owner's screenshot, 2026-11-15: Specialties, the list's OID not set and three rows with no ID; he asks whether it is usable before a hospital](images/hospital-specialties-2026-11-15.png)
 
 ### 2.9 Booking — Booking tab, used now
 - Slots offered at a time (1 to 5); visits before the narrowing question; groups one question
@@ -102,6 +123,12 @@ so.
   than the one before; one Epic read per window, then one with no end). FUTURE-SETTINGS.md
   §13.2 and §13.3 list the choices not built yet (the order, the clinician's name, times on one
   day).
+- **The label after the reason in the booking note** (`booking_note_label`; the owner's N2,
+  2026-11-15: "configurable (can be '(automated transcription from patient)' to start)").
+  Epic's `$book` files `appointmentNote` as the caller's words, a space, then the label; the
+  label is kept whole and the words are cut to fit Epic's 500 characters
+  (`Hospital::booking_note`). Empty: the words alone. Epic mode only: the local fake keeps the
+  words, so a read-back never says the label.
 
 ### 2.10 What a code and its system mean (Epic's docs, 2026-11-15)
 > **Part:** research · 2026-11-15. The whole record, with Epic's document ids: EPIC.md §7.11.
@@ -270,8 +297,59 @@ so.
 - A label for an OID form that Epic's documentation does not name (an item, `.3.<file>.<item>`,
   as Epic's `$find` sample sends; a category list, `.10.…`): only from Epic's own words, when a
   hospital needs it.
-- Import from a file (the hospital's Cadence export), as well as typing.
+- Import from a file (the hospital's Cadence export), as well as typing. Places can come from
+  Epic itself: §8.
 - Whether a location may override the hospital's hours and time zone, or only add to them.
 - Each list that is not used yet waits for its feature: the specialty and location in `$find`,
   coded reasons, hours with the hand-off.
 - Many hospitals and the routing rules (ideas/README.md).
+
+## 8. Import Places from Epic (designed)
+> **Part:** designed · 2026-11-15. The owner: "Since an import is possible, let's doc the route
+> first, can help with fast onboarding for a clinic / hospital." And: "EAF / DEP split is perfect,
+> helps distinguish higher level locations with sublocations/departments and EAF / DEP are very
+> familiar terms for hospital folks." The facts behind it: EPIC.md §2.2 (the sandbox try).
+
+**Terms.** An **EAF** is a facility record ("EHS Hospital", "EHS Clinic"): a higher-level
+location. A **DEP** is a department record ("EMC Cardiology"): the place a visit is booked in,
+`partOf` one facility. Both are master files; the page names them "R EAF n" and "R DEP n"
+(epic-oid.ts).
+
+### 8.1 The route, for a new hospital
+1. **Before:** the hospital adds our client to its Epic (`Location.Read` and `Location.Search
+   (Organizational Directory) (R4)` are in our registration, EPIC.md §2.1) and names its time
+   zone. Nothing else is needed for Places: the search's reply carries its own systems.
+2. **One search:** `Location?address=<the hospital's state>`. On the sandbox this returned every
+   location of the organization (435) in one page. A hospital in several states: one search per
+   state. A `next` link is followed when a page is cut. Cost: 1 to a few reads per import, never
+   per call. No protected data: a location is a fact about the hospital.
+3. **Split by kind:** an EAF has an identifier in `….7.2.<EAF>` and no `partOf`; a DEP has an
+   identifier in `….7.2.<DEP>` and `partOf` an EAF. Anything else (rooms, billing offices) is
+   shown apart, not imported unless chosen.
+4. **Places › Locations:** one row per DEP, grouped under its EAF: the record's name, the FHIR id,
+   the DEP ID, the address, the phone, the hours (`hoursOfOperation`). The spoken name stays empty
+   for the analyst to write; empty means the record's words.
+5. **Places › Specialties:** the distinct specialties across the DEPs. Their one system becomes
+   the Specialty list's OID; each code becomes a row's ID; Epic's display becomes a draft spoken
+   name. The analyst adds the caller's words ("skin doctor").
+6. **A draft, never live:** the import fills the page in Edit, with each new or changed row
+   marked. Save makes the version, as for any edit. A later import of the same hospital shows
+   what is new, gone or changed since the active version (a refresh).
+7. **Not from this search:** visit types (PRC) and reasons (EDG). They come from the hospital's
+   Cadence team, or, for visit types, from the visits and `$find` replies seen.
+
+### 8.2 What the page needs for it (not built)
+- Locations gain columns: the kind (EAF or DEP), the facility it is part of, the DEP ID, the
+  hours. The table groups DEPs under their EAF.
+- An "Import from Epic" control on the Places tab, and an `ehr` RPC that runs the search (EHR
+  facts behind the EHR adapter; another EHR gets its own).
+- **The Default today** (2026-11-15, from the probe's printout, no new search): the Specialty
+  list's OID and IDs 9 (family medicine), 4 (cardiology), 40 (radiology, a new row); the
+  sandbox's four departments on Camila Lopez's visits by name. Their FHIR ids, addresses and
+  phones were not printed by the probe, so those cells stay empty until the import exists.
+
+### 8.3 Open (his to decide when the import is built)
+- A hospital in several states or cities: one search per state, or a list the analyst types.
+- Inactive locations (`status` other than active): left out, or shown greyed.
+- The table: DEPs grouped under each EAF heading, or one flat table with a Facility column.
+- Who may run an import: waits on the roles (ACCESS-ROLES.md).

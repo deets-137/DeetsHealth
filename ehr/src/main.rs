@@ -31,6 +31,12 @@
 //!   visit type and department from a public test patient's visit, then sends `$find` a few
 //!   ways. Prints statuses, Epic's own error words and the replies' shape. Books nothing.
 //!
+//!     ehr epic-locations
+//!
+//! - Probes the sandbox's Location APIs for Config › Hospital › Places (EPIC.md §2.2): the
+//!   departments on a public test patient's visits by `Location.Read`, then `Location.Search`
+//!   tries. Prints statuses, counts, systems and the hospital's department and specialty names.
+//!
 //!     ehr epic-sandbox
 //!
 //! - Prints the Chat page's Epic list as JSON (epic_ehr.rs `sandbox_list`): Epic's public test
@@ -144,6 +150,107 @@ async fn epic_book() -> Result<(), String> {
     let ehr = epic_ehr::connect_sandbox(&PathBuf::from(EPIC_CLIENT), &PathBuf::from(EPIC_KEY)).await?;
     for line in ehr.probe_book("erXuFYUfucBZaryVksYEcMg3").await? {
         println!("{line}");
+    }
+    Ok(())
+}
+
+/// `ehr epic-locations`: probes Epic's sandbox Location APIs for Config › Hospital › Places
+/// (EPIC.md §2.2; HOSPITAL-CONFIG.md §2.7, §2.8). `Location.Read` of the departments on a public
+/// test patient's visits, then a few `Location.Search` tries, each changing one input. Prints
+/// HTTP statuses, Epic's own issue words, counts, the fields present, the identifier and
+/// specialty systems, and department and specialty names: the hospital's setup, never a
+/// patient's value. About ten requests; reads only.
+async fn epic_locations() -> Result<(), String> {
+    use serde_json::Value;
+    let config = EpicConfig::sandbox(&PathBuf::from(EPIC_CLIENT), &PathBuf::from(EPIC_KEY))?;
+    let epic = Epic::connect(config).await.map_err(|e| e.to_string())?;
+    let token = epic.token().await.map_err(|e| e.to_string())?;
+
+    // What one Location holds: its fields, identifier systems, specialty, parent.
+    fn describe(l: &Value) -> String {
+        let fields: Vec<&str> = l.as_object().map(|o| o.keys().map(String::as_str).collect()).unwrap_or_default();
+        let systems: Vec<&str> =
+            l["identifier"].as_array().map(|a| a.iter().filter_map(|i| i["system"].as_str()).collect()).unwrap_or_default();
+        let specialty: Vec<String> = l["extension"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter(|e| e["url"].as_str().is_some_and(|u| u.ends_with("/specialty")))
+                    .flat_map(|e| e["valueCodeableConcept"]["coding"].as_array().cloned().unwrap_or_default())
+                    .map(|c| format!("{} {} \"{}\"", c["system"].as_str().unwrap_or("-"), c["code"].as_str().unwrap_or("-"), c["display"].as_str().unwrap_or("-")))
+                    .collect()
+            })
+            .unwrap_or_default();
+        format!(
+            "\"{}\" | fields {:?} | identifier systems {:?} | specialty {:?} | partOf {}",
+            l["name"].as_str().unwrap_or("-"),
+            fields,
+            systems,
+            specialty,
+            l["partOf"]["display"].as_str().map(|d| format!("\"{d}\"")).unwrap_or_else(|| "none".into()),
+        )
+    }
+    fn issues(b: &Value) -> Vec<String> {
+        let outcomes = std::iter::once(b).chain(b["entry"].as_array().into_iter().flatten().map(|e| &e["resource"]));
+        outcomes
+            .filter(|r| r["resourceType"] == "OperationOutcome")
+            .flat_map(|r| r["issue"].as_array().cloned().unwrap_or_default())
+            .map(|i| format!("{}: {}", i["severity"].as_str().unwrap_or("-"), i["details"]["text"].as_str().or(i["diagnostics"].as_str()).unwrap_or("-")))
+            .collect()
+    }
+    let locations = |b: &Value| -> Vec<Value> {
+        b["entry"].as_array().map(|e| e.iter().map(|x| x["resource"].clone()).filter(|r| r["resourceType"] == "Location").collect()).unwrap_or_default()
+    };
+
+    // 1. The departments on Camila Lopez's visits (a public test patient, EPIC.md §5.2).
+    let (status, bundle) = epic
+        .get(&token, "Appointment?patient=erXuFYUfucBZaryVksYEcMg3&service-category=appointment")
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut ids: Vec<String> = Vec::new();
+    for a in bundle.as_ref().and_then(|b| b["entry"].as_array()).into_iter().flatten() {
+        for p in a["resource"]["participant"].as_array().into_iter().flatten() {
+            if let Some(r) = p["actor"]["reference"].as_str().filter(|r| r.contains("Location/")) {
+                let id = r.rsplit('/').next().unwrap_or("").to_string();
+                if !id.is_empty() && !ids.contains(&id) {
+                    ids.push(id);
+                }
+            }
+        }
+    }
+    println!("Appointment.Search: HTTP {status}, {} distinct Location references", ids.len());
+    for id in &ids {
+        let (status, body) = epic.get(&token, &format!("Location/{id}")).await.map_err(|e| e.to_string())?;
+        match body.as_ref().filter(|b| b["resourceType"] == "Location") {
+            Some(l) => println!("Location.Read: HTTP {status} | {}", describe(l)),
+            None => println!("Location.Read: HTTP {status} | {:?}", body.as_ref().map(issues).unwrap_or_default()),
+        }
+    }
+
+    // 2. Location.Search: each try changes one input.
+    for query in ["status=active", "address=WI", "address=Verona", "address=WI&_count=100", "name=Family", "address-state=WI"] {
+        let (status, body) = epic.get(&token, &format!("Location?{query}")).await.map_err(|e| e.to_string())?;
+        let Some(b) = body else {
+            println!("Location?{query}: HTTP {status}, no body");
+            continue;
+        };
+        let found = locations(&b);
+        let links: Vec<&str> = b["link"].as_array().map(|l| l.iter().filter_map(|x| x["relation"].as_str()).collect()).unwrap_or_default();
+        println!(
+            "Location?{query}: HTTP {status}, {} Locations, total {}, links {:?}, issues {:?}",
+            found.len(),
+            b["total"].as_u64().map(|t| t.to_string()).unwrap_or_else(|| "-".into()),
+            links,
+            issues(&b)
+        );
+        let with_specialty = found.iter().filter(|l| l["extension"].as_array().is_some_and(|a| a.iter().any(|e| e["url"].as_str().is_some_and(|u| u.ends_with("/specialty"))))).count();
+        let with_parent = found.iter().filter(|l| !l["partOf"].is_null()).count();
+        if !found.is_empty() {
+            println!("  {with_specialty} with a specialty, {with_parent} with a parent location");
+            for l in found.iter().take(8) {
+                println!("  {}", describe(l));
+            }
+        }
     }
     Ok(())
 }
@@ -298,6 +405,9 @@ async fn run() -> Result<(), String> {
     }
     if first.peek().map(String::as_str) == Some("epic-book") {
         return epic_book().await;
+    }
+    if first.peek().map(String::as_str) == Some("epic-locations") {
+        return epic_locations().await;
     }
     if first.peek().map(String::as_str) == Some("ingest") {
         first.next();

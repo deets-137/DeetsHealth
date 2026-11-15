@@ -1,7 +1,0 @@
-{"t_ms": 0, "kind": "call_start", "schema_version": 2, "call_id": "20261112-014704-test", "source": "test", "scenario": null, "mode": "record", "model": "claude-haiku-5-5", "started": "2026-11-12T01:47:04"}
-{"t_ms": 44, "kind": "ehr", "call": "OpenCall", "ms": 1, "outcome": "ok"}
-{"t_ms": 49, "kind": "llm", "key": "2c3dad93", "hit": true, "messages": 1, "tools": ["hand_off", "end_call", "emergency", "medical_question", "identify", "confirm_details"], "thinking_dropped": 0, "usage": {"input_tokens": 4, "output_tokens": 31, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 1907}, "total_ms": 1}
-{"t_ms": 50, "kind": "node", "name": "greet"}
-{"t_ms": 451, "kind": "agent", "text": "Hello, this is the automated assistant for Main Street Clinic. How can I help you today?"}
-{"t_ms": 230247, "kind": "ehr", "call": "CloseCall", "ms": 1, "outcome": "ok"}
-{"t_ms": 230247, "kind": "call_end", "reason": "the caller hung up", "turns": 0, "requests": {"live": 0, "replayed": 1, "failed": 0}, "tokens": {"input_tokens": 0, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}, "cost_usd": 0.0}

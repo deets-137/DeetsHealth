@@ -444,7 +444,7 @@ plays: The model fills it when the caller names a day.
 tab: Menu
 name: In person or online
 under: find_slots
-plays: The model fills it when the caller says how they want to be seen; otherwise either.
+plays: The model fills it when the caller says how they want to be seen; empty when they did not say, and the code then asks once (the owner's 1A).
 
 ## arg.find_slots.latest_day
 tab: Menu
@@ -470,6 +470,12 @@ name: The clinician asked for
 under: find_slots
 plays: The model fills it when the caller asks for a clinician; the times are narrowed to that clinician.
 
+## arg.find_slots.any_time
+tab: Menu
+name: Any day or time is fine
+under: find_slots
+plays: The model sets it when the caller says any day or time is fine; the code then does not ask when.
+
 ## arg.find_slots.more
 tab: Menu
 name: More of the same search
@@ -487,6 +493,30 @@ tab: Menu
 name: One open time (in the list)
 under: find_slots
 plays: One time, inside Offer the open times.
+
+## line.ask_preference_both
+tab: Menu
+name: Ask how and when
+under: find_slots
+plays: The first search of the call, when the caller has said neither how nor when, and the hospital books both in person and online. Asked once; no search yet.
+
+## line.ask_preference_mode
+tab: Menu
+name: Ask in person or online
+under: find_slots
+plays: The first search of the call, when the caller said when but not how, and the hospital books both. Asked once.
+
+## line.ask_preference_when
+tab: Menu
+name: Ask a day or time
+under: find_slots
+plays: The first search of the call, when the caller has said no day, time of day, days or "any time". Asked once.
+
+## note.after_ask_preference
+tab: Menu
+name: Note after asking how and when
+under: find_slots
+plays: Sent to the model with a preference question. Never heard.
 
 ## line.no_slots
 tab: Menu

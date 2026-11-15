@@ -270,6 +270,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         // The call's hospital, read once: the same for every EHR source (the owner's 2A).
         let (hospital, hospital_version) = self.call_hospital().await;
         let times_of_day = hospital.time_names();
+        let books_both_modes = hospital.books_both_modes(source == Source::EpicSandbox);
         let (local_now, zone) = crate::sandbox::local_now(hospital.time_zone.clone());
         let handle = self.sessions.open(source, hospital).await.map_err(refused)?;
         if template.is_some() {
@@ -285,6 +286,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             zone,
             times_of_day,
             hospital_version,
+            books_both_modes,
         }))
     }
 
