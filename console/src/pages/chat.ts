@@ -148,18 +148,18 @@ export function chatPage(): Page {
                     ).join("")}
                   </div>
                 </div>
-                <div class="chat-lines" data-for="phi" role="log" aria-live="polite" aria-label="The call">
+                <div class="chat-lines" data-for="phi" translate="no" role="log" aria-live="polite" aria-label="The call">
                   <p class="empty">No live call to watch</p>
                 </div>
-                <div class="chat-lines" data-for="test" role="log" aria-live="polite" aria-label="The call">
+                <div class="chat-lines" data-for="test" translate="no" role="log" aria-live="polite" aria-label="The call">
                   <p class="empty">Press Start to begin a test call</p>
                 </div>
-                <div class="chat-lines" data-for="demo" role="log" aria-live="polite" aria-label="The call">
+                <div class="chat-lines" data-for="demo" translate="no" role="log" aria-live="polite" aria-label="The call">
                   <p class="empty">Pick a recorded call, then press Play</p>
                 </div>
 
                 <div class="chat-controls">
-                  <div class="help code" id="chat-code" hidden>
+                  <div class="help code" id="chat-code" translate="no" hidden>
                     <div class="help-card" id="chat-code-card" role="region" aria-label="The text message">
                       <div class="help-inner"><div class="help-body" id="chat-code-body"></div></div>
                     </div>
@@ -208,20 +208,20 @@ export function chatPage(): Page {
                   <button class="tab" role="tab" type="button" data-tab="review" hidden>Review</button>
                 </div>
                 <div class="tab-body" role="tabpanel" data-tab="patients">
-                  <div class="sandbox" id="sandbox-list"><p class="empty">Loading</p></div>
-                  <div class="calls" id="demo-calls" role="group" aria-label="Recorded calls"><p class="empty">Loading</p></div>
-                  <div class="live-calls" id="live-calls" role="group" aria-label="Live calls"><p class="empty">No live calls</p></div>
+                  <div class="sandbox" id="sandbox-list" translate="no"><p class="empty">Loading</p></div>
+                  <div class="calls" id="demo-calls" translate="no" role="group" aria-label="Recorded calls"><p class="empty">Loading</p></div>
+                  <div class="live-calls" id="live-calls" translate="no" role="group" aria-label="Live calls"><p class="empty">No live calls</p></div>
                 </div>
                 <div class="tab-body" role="tabpanel" data-tab="steps" hidden>
                   ${MODES.map(
-                    (m) => `<div class="steps-log" data-for="${m}" aria-label="The call's steps">` +
+                    (m) => `<div class="steps-log" data-for="${m}" translate="no" aria-label="The call's steps">` +
                       `<p class="empty">No call yet</p></div>`,
                   ).join("")}
                 </div>
                 <div class="tab-body review" role="tabpanel" data-tab="review" id="chat-review" hidden>
                 <div class="review-head">
                   <h2 class="review-outcome" id="review-outcome"></h2>
-                  <p class="review-call" id="review-call"></p>
+                  <p class="review-call" id="review-call" translate="no"></p>
                   <span class="review-status" id="review-status" role="status"></span>
                   <button class="review-star" id="review-star" type="button" aria-pressed="false"
                     aria-label="Star this call">${STAR_ICON}</button>
@@ -230,7 +230,7 @@ export function chatPage(): Page {
                   placeholder="Label" aria-label="A label for this call" />
                 <textarea class="review-input" id="review-note" rows="2" maxlength="2000"
                   placeholder="Note" aria-label="A note on this call"></textarea>
-                <div class="review-rows" id="review-rows"></div>
+                <div class="review-rows" id="review-rows" translate="no"></div>
                 </div>
               </section>
 
@@ -243,11 +243,11 @@ export function chatPage(): Page {
                 </div>
                 <div class="tab-body" role="tabpanel" data-tab="tools">
                   ${MODES.map(
-                    (m) => `<div class="tools-log" data-for="${m}" role="log" aria-label="Tool calls">` +
+                    (m) => `<div class="tools-log" data-for="${m}" translate="no" role="log" aria-label="Tool calls">` +
                       `<p class="empty">No tool calls yet</p></div>`,
                   ).join("")}
                 </div>
-                <div class="tab-body" role="tabpanel" data-tab="timeline" hidden>
+                <div class="tab-body" role="tabpanel" data-tab="timeline" translate="no" hidden>
                   <p class="empty">Empty for now</p>
                 </div>
                 <div class="tab-body resources" role="tabpanel" data-tab="resources" id="chat-resources" hidden>

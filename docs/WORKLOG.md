@@ -31,6 +31,26 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - Found while checking, each named in §8 as not built: no Content-Security-Policy in
   `console/`; no panic hook in `ehr`; the `audit` table has no writer.
 - No code changed in that part. Then:
+- **Two of the three gaps designed** (the owner: "design both"). The console's CSP and its
+  partner headers: CONSOLE.md §5.1. The panic hook and a guard per request that closes the
+  call's session: EHR-SERVICE.md §7a. Fork test: 0 real forks. Not built; no code changed.
+- **The CSP built** (the owner: "build the CSP"), for this PC and the demo: the one file
+  `console/security-headers.json`; `agent/deets_agent/security_headers.py` and the
+  `response_headers` middleware; `POST /agent/csp-report`; Vite's dev policy; Trusted Types
+  through `setHtml` in `page.ts`; `scripts/html-sinks.mjs` in the web scope. Decided inside
+  the design: CONSOLE.md §5.1 (`report-uri`, the print rule, the Permissions-Policy list,
+  HSTS). The panic hook waits for the booking build, which holds `ehr/src/service.rs`.
+- Checks: the type check, the sink check, a production build (no inline script; one
+  `innerHTML`), 6 new tests in `test_demo_door.py`. `test_the_kept_recordings_match_the_prompt_file`
+  fails because of the booking build's uncommitted prompt edit (a Record and test is due).
+  Not tested in a browser: the desk test is CONSOLE.md §5.1.
+- Committed the CSP alone (38601a4); the booking build's hunks in the same files stayed out.
+- **Protected data on screen** (the owner asked what else; then "add all 4"): `no-store` on
+  every reply and the page (assets keep their year), `Cross-Origin-Resource-Policy:
+  same-origin`, `<body spellcheck="false">` with the word boxes opting in, and
+  `translate="no"` on each region that shows a call or a person. CONSOLE.md §5.2, with its
+  desk test and the later items (idle logoff, reveal on click, the hospital's browser policy).
+  One new test in `test_demo_door.py`.
 - **The seal format's domain string renamed** (the owner: "rename the domain string before the
   first deploy"). His picks: the string `deetshealth.store.v1`; old values sealed again at
   start-up, none cleared.
@@ -47,19 +67,6 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   8 pass. `npm run db:test`: 4 pass.
 - `npm run check`: docs and core pass; its ehr step could not build (the running dev server
   held the ehr exe). The ehr tests then ran in `target/store-test`: 85 pass. Not run: the
-- **Two of the three gaps designed** (the owner: "design both"). The console's CSP and its
-  partner headers: CONSOLE.md §5.1. The panic hook and a guard per request that closes the
-  call's session: EHR-SERVICE.md §7a. Fork test: 0 real forks. Not built; no code changed.
-- **The CSP built** (the owner: "build the CSP"), for this PC and the demo: the one file
-  `console/security-headers.json`; `agent/deets_agent/security_headers.py` and the
-  `response_headers` middleware; `POST /agent/csp-report`; Vite's dev policy; Trusted Types
-  through `setHtml` in `page.ts`; `scripts/html-sinks.mjs` in the web scope. Decided inside
-  the design: CONSOLE.md §5.1 (`report-uri`, the print rule, the Permissions-Policy list,
-  HSTS). The panic hook waits for the booking build, which holds `ehr/src/service.rs`.
-- Checks: the type check, the sink check, a production build (no inline script; one
-  `innerHTML`), 6 new tests in `test_demo_door.py`. `test_the_kept_recordings_match_the_prompt_file`
-  fails because of the booking build's uncommitted prompt edit (a Record and test is due).
-  Not tested in a browser: the desk test is CONSOLE.md §5.1.
   agent's tests, which need a fresh ehr build.
 - Not yet done: the next start of the dev server on this PC and on the Mac, which seals each
   dev database again. Before it, this PC's database was all format 2 (1,652 transcript lines,

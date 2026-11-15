@@ -257,8 +257,9 @@ Every value in the system is still synthetic (§4.8). No BAA is signed and no re
   derived from the sealing key), never by the plain email.
 - **The console (§4.3):** record and call text goes into the page through `textContent`.
   The strict Content-Security-Policy, with Trusted Types and its partner headers, on this PC
-  and the demo (CONSOLE.md §5.1). The deploy's server, which will send the same file, is not
-  built.
+  and the demo (CONSOLE.md §5.1). Protected data on screen: no stored replies, no cross-site
+  loads, no browser spellcheck or translation of protected data (CONSOLE.md §5.2). The
+  deploy's server, which will send the same file, is not built.
 - **The demo's door (ops/DEMO.md):** Cloudflare Access in front; the agent checks the Access
   token (`agent/deets_agent/access.py`).
 

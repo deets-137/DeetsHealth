@@ -804,9 +804,9 @@ def build_app(state: State) -> FastAPI:
         file = _static_file(state.static, path)
         if file is None:
             raise HTTPException(404, "not found")
-        # The hashed assets never change under their name; the page and the rest are read anew.
-        cache = "public, max-age=31536000, immutable" if path.startswith("assets/") else "no-cache"
-        return FileResponse(file, headers={"cache-control": cache})
+        # The hashed assets never change under their name; the page and the rest are never
+        # stored (CONSOLE.md §5.1).
+        return FileResponse(file, headers={"cache-control": state.headers.cache(path)})
 
     @app.get("/agent/people")
     async def people(request: Request):

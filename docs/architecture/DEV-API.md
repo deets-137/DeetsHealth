@@ -74,7 +74,7 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 | `DELETE /agent/people/{person_id}/photo` | `clear_person_photo` | `setPersonPhoto()` | with `null`: deletes the picture (`SetUserPhoto` with none). The view again |
 | `POST /agent/csp-report` | `csp_report` | none: the browser, from the policy's `report-uri` | a report of what the page's Content-Security-Policy blocked (CONSOLE.md §5.1). Prints one line to stderr: the directive and what was blocked as a kind (`inline`, `eval`, `trusted-types-sink`) or a scheme and host, the first time a pair is seen and every hundredth after. Never the page's path, a query or a sample. 204; 400 when it is not a report; 413 over 8 KB |
 | `GET /demo` | `demo_root` | none: the address a guest types | 308 to `/demo/` |
-| `GET /demo/{path:path}` | `demo_page` | none: the browser | the demo build (`--static`, ops/DEMO.md §3.1): a file under its folder, `index.html` for `/demo/`. Hashed assets cached a year, the rest `no-cache`. 404 for a dotfile, a path outside the folder, a missing file, or outside the demo |
+| `GET /demo/{path:path}` | `demo_page` | none: the browser | the demo build (`--static`, ops/DEMO.md §3.1): a file under its folder, `index.html` for `/demo/`. Hashed assets cached a year, the rest `no-store` (CONSOLE.md §5.2). 404 for a dotfile, a path outside the folder, a missing file, or outside the demo |
 
 **The replies when a route refuses:**
 

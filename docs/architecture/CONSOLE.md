@@ -331,6 +331,58 @@ an inline script added by mistake fails on this PC first, not on the demo.
 - **HSTS goes on every demo file,** with no `includeSubDomains`, so it binds the demo's host
   only.
 
+### 5.2 Protected data on screen
+> **Part:** built · 2026-11-14 · the owner: "add all 4". For this PC and the demo.
+
+The policy in §5.1 controls what the page loads and runs. It does not stop the browser from
+storing what the page shows, or from sending it to a vendor. These four rules close that gap.
+Every view that shows protected data follows them.
+
+1. **Nothing with data is stored.** Every `/agent/*` reply carries `Cache-Control: no-store`
+   (the `api` headers). The page and its other files carry `no-store` too (the `cache` entry),
+   so no disk cache keeps a reply on a shared PC, and Back after leaving the page does not
+   show the old view again (no back/forward cache). Only the hashed files under `assets/`,
+   which hold no data, keep their one-year cache.
+2. **No other site may load a reply.** Every reply carries `Cross-Origin-Resource-Policy:
+   same-origin`.
+3. **No browser spellcheck in a field.** Edge's Microsoft Editor and Chrome's enhanced
+   spellcheck send the typed text to the vendor, which has no BAA. `<body spellcheck="false">`
+   in `index.html` is inherited by every field. A field for the agent's own words opts back in
+   with `spellcheck="true"` (Config › Agent's and Config › System's word boxes). A new field
+   that can hold protected data never opts in.
+4. **No page translation of protected data.** The browser's "Translate this page" sends the
+   page's text to Google or Microsoft. Each region that shows a call or a person carries
+   `translate="no"`: Chat's lines, the code card, the sandbox list, the recorded and live call
+   lists, the steps and tools logs, the timeline, the review's call and rows, and Teams ›
+   People's cards. Menus, labels and buttons stay translatable. A new view that shows protected
+   data puts `translate="no"` on its region.
+
+**On this PC (`npm run dev`)** Vite sets its own cache headers on the files it serves; rules 2
+to 4 apply as on the demo. Rule 1 holds for every `/agent/*` reply.
+
+**Later, with their own work:**
+- **Idle logoff and `Clear-Site-Data` at sign-out:** with staff sign-in (ideas/STAFF-SIGN-IN.md,
+  M2).
+- **Identifiers hidden until a click, each reveal audited:** a fork for the audit trail's
+  design (SECURITY.md §8).
+- **The hospital's browser policy:** a page cannot turn off extensions that read it, Edge's
+  Copilot sidebar, browser sync, or enhanced spellcheck and translation for a whole hospital.
+  Managed Edge and Chrome policies can. This goes on the list of what a hospital must do,
+  with the deploy.
+- **What no page can stop:** a screenshot, a phone camera, a person at the screen. The audit
+  trail and the idle logoff are the answer there.
+
+**Desk test.**
+1. Run `npm run demo`. Open the demo in Edge. In DevTools › Network, select a request to
+   `/demo/agent/catalog`. Expect: `cache-control: no-store` and
+   `cross-origin-resource-policy: same-origin`.
+2. Start a typed call in Chat and type a word with a spelling error. Expect: no red underline.
+   On Config › Agent, type the same word. Expect: a red underline.
+3. Right-click on Chat's lines › Translate to another language (Edge) or Translate (Chrome).
+   Expect: the menus and labels change; the call's lines and the rail's lists do not.
+4. Open a recorded call, go to another site, then press Back. Expect: the page loads again
+   from the start, not the old view.
+
 ## 6. Desk test
 **Passed, 2026-11-11** (the owner, in Edge). His notes, built the same day: no eyebrow over
 Settings, its panel fills the page; the icon; a Timeline panel at the top of the rail and a

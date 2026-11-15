@@ -58,6 +58,10 @@ class SecurityHeaders:
             headers.update(self.spec["demo"])
         return headers
 
+    def cache(self, path: str) -> str:
+        """The page's own files: `no-store`, except the hashed files under `assets/`."""
+        return self.spec["cache"]["assets" if path.startswith("assets/") else "page"]
+
     def api(self) -> dict[str, str]:
         """The headers on every reply that is not one of the console's files."""
         return dict(self.spec["api"])

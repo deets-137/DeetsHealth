@@ -15,7 +15,10 @@
     <title>DeetsHealth</title>
     <script type="module" src="/src/main.ts"></script>
   </head>
-  <body>
+  <!-- No browser spellcheck in any field (CONSOLE.md §5.1): Edge's Microsoft Editor and
+       Chrome's enhanced spellcheck send typed text to a vendor with no BAA. Every field takes
+       this; a field for the agent's own words opts back in with spellcheck="true". -->
+  <body spellcheck="false">
     <!-- The backdrop: soft light shapes drifting on the theme's base color. -->
     <div class="backdrop" aria-hidden="true">
       <div class="shape shape-1"></div>

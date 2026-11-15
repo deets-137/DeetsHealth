@@ -21,10 +21,16 @@
     "trusted-types": null
   },
   "report": "agent/csp-report",
+  "cache": {
+    "_about": "The page and its other files are never stored (no disk cache, no back/forward cache); the hashed files under assets/ hold no data and never change under their name.",
+    "page": "no-store",
+    "assets": "public, max-age=31536000, immutable"
+  },
   "page": {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
     "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
     "Permissions-Policy": "microphone=(self), camera=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), midi=(), display-capture=()"
   },
   "demo": {
@@ -32,6 +38,8 @@
   },
   "api": {
     "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+    "Cache-Control": "no-store",
+    "Cross-Origin-Resource-Policy": "same-origin",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer"
   }

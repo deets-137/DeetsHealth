@@ -118,7 +118,7 @@ def test_the_fake_twilio_refuses_the_tunnel(tmp_path):
 def test_the_built_console_is_served_under_demo(client):
     r = client.get("/demo/", headers=GUEST)
     assert r.status_code == 200 and "index-aaa.js" in r.text
-    assert r.headers["cache-control"] == "no-cache"
+    assert r.headers["cache-control"] == "no-store"
     a = client.get("/demo/assets/index-aaa.js", headers=GUEST)
     assert a.status_code == 200 and "immutable" in a.headers["cache-control"]
     assert client.get("/demo", headers=GUEST, follow_redirects=False).status_code == 308
@@ -189,3 +189,15 @@ def test_a_report_that_is_not_one_is_refused(client):
     assert client.post("/agent/csp-report", headers=GUEST, content=b"not json").status_code == 400
     assert client.post("/agent/csp-report", headers=GUEST, content=b"x" * 9000).status_code == 413
     assert client.post("/agent/csp-report", json={"csp-report": {}}).status_code == 403
+
+
+def test_nothing_with_data_is_stored_and_no_other_site_may_load_it(client):
+    for path in ("/agent/health", "/agent/catalog", "/demo/agent/health"):
+        r = client.get(path, headers=GUEST)
+        assert r.headers["cache-control"] == "no-store"
+        assert r.headers["cross-origin-resource-policy"] == "same-origin"
+    page = client.get("/demo/", headers=GUEST)
+    assert page.headers["cache-control"] == "no-store"
+    assert page.headers["cross-origin-resource-policy"] == "same-origin"
+    asset = client.get("/demo/assets/index-aaa.js", headers=GUEST)
+    assert "immutable" in asset.headers["cache-control"]

@@ -30,7 +30,7 @@ export function peopleView(): View {
     build() {
       const root = el(`
         <div class="people">
-          <div class="people-cards own-scrollbars" role="list" aria-label="People"><p class="empty">Loading</p></div>
+          <div class="people-cards own-scrollbars" translate="no" role="list" aria-label="People"><p class="empty">Loading</p></div>
         </div>`);
       const cards = root.querySelector<HTMLElement>(".people-cards")!;
 
