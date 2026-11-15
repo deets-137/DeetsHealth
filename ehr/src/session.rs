@@ -77,6 +77,8 @@ pub enum Stage {
 /// The patient a name and date of birth matched, and the code sent to them.
 pub struct Pending {
     pub patient: PatientKey,
+    /// The patient's demographics for a slot search (verify.rs `Candidate::facts`).
+    pub facts: Option<Shielded<String>>,
     pub phone: Shielded<String>,
     pub code: Shielded<String>,
     pub issued: Instant,
@@ -103,6 +105,12 @@ pub struct Session {
     pub code_failures: u32,
     /// The slots of the last FindSlots, by the token the agent got for each.
     pub offered: HashMap<Token, SlotId>,
+    /// The rest of the last search's slots, not offered yet, and the EHR's links to more pages
+    /// (FindSlots with `more`; EPIC.md §7.10).
+    pub rest: Vec<crate::scheduler::Slot>,
+    pub next_pages: Vec<String>,
+    /// The verified patient's demographics, for a slot search. Set when the code passes.
+    pub facts: Option<Shielded<String>>,
     /// The last FindSlots's reason, screened: Book sends it to the scheduler as the visit's
     /// note. Lives one call long, like the rest of the session.
     pub note: Option<BookNote>,
@@ -145,6 +153,9 @@ impl Sessions {
             resends: 0,
             code_failures: 0,
             offered: HashMap::new(),
+            rest: Vec::new(),
+            next_pages: Vec::new(),
+            facts: None,
             note: None,
             text_template: None,
             booked: HashMap::new(),

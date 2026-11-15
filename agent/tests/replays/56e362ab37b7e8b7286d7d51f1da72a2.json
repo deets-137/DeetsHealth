@@ -1,0 +1,139 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch4KRUV4y9q9btqiugEN4",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 277
+     },
+     "cache_creation_input_tokens": 277,
+     "cache_read_input_tokens": 6283,
+     "inference_geo": "us",
+     "input_tokens": 2,
+     "output_tokens": 3,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQS7gcKEAgTGAI4AUIIdGhpbmtpbmcSDHlmOdcdZEoR75N2RxoMDk7CCZP9sE7nXuR2IjCik04QqET7iZntZTj32qoW5kjQRINvgg907DPBpUrhImkxxB3NG2uiu+aiPgfqn7UqiwfaVGa/E86aasMGaRrpjTeS7rx2V7N55k+dh3Sx5CZYEQZx2bODXWcm5W4mvqX1zpB3WZHh/QJrXQa/khisS0LuZengsfiUWN8urfJrp2be2guYP6XlPvR9cKneCn/TURKdrES4I0K53cruo+d+TbVQ0+ArnoA6z89EVC24+0bdbv2+WgaCVxxZ5PpO7ZzGIgmZSAqmwjlMzK+nP5qBMuA5COOhjUXPHbMooocCm/3WCjFoxctnba6s07mHkAeGYE/uqJzFv3h8ag3cGf3SsJCLRSvzvJ6bDqdpXdOt+D/BN3kivIKWLp5Bji5I8vG3t0k0UElfyYLcq3hhpe00tMyL4AbqW6m1gEM7MjoDLNuIeZzoGM1GlGN9oxD7d+BYMEuXxD7AahCpvZvVwgc46u5vmql8fLTX3Ltcoh1Z4J/75GkD00kYm4YvlLxd2V8RncDWiSphYhV7DyCmunERMPw96u2dFUJANpuEU3MSmGaj+8aojQIy//TvW1aLsR892mb7j5u/DuKy7xNBLjdYYcds9EzomlzN/Fmpi5MEVKhFCrDoZtZ8NaosNIDa8oZpMJF6V4neeRZagvv3D1uLtq4qIC3awfR1yQqGUBNKlaQVNrQybinL+IzW7ZykrtvWSJ4a7tK8VJG9WEoPw885mJXkUZDzm0y1xwLa/gckw2F19fx3+ll5ag324q15tFSQgb1DiwPk6+2M78neKuFb2oJfXkCLD5Bqsd3kANom0w3YvUIONp4iEatDFeFqqFzZx5yMFxEP6tdqV8s4e1CrfTvqqrlcxBTJGjHTMqIzDvLkFy0hduE90YM//DfRUS+vuXxZw7XptZLUG0IrY1rbMrdyyf/2KuJc+JHuRNCAWgpiRUwlHPdUlpv55XG/Ri2zjRguD/1G8MDfzf1gDWCH5OwDT0fbwtEu7dxc8KEMihsz3qAu+0frSKS9Dyyxl+3iffFRsQUCkL4sIzns29z8thkw4BXy8f6v/4ULVxO2Ecgs7KLghNn2YiXW1H2fMfoqmokwPVuyFC4xUlIkVuSCaXCr0sCHnBwDU7KJRSebRjWvb2bbFFr8NNKaR9DCpVBzG/rbFfeerU22qvapzAUv83AObzJaVUlHeIbnrxtUf5NeD81pdATzAAmi4Vu/nnxrsIEt3ZfxxVuu9XVjwuuuDO8goII+1l9VBJNTpe3EZxu4uggccOqytD/fJc9gGAE=",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "The",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " visit is in person, not",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " online. Is there anything else",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " I can help you",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " with?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 277,
+    "cache_read_input_tokens": 6283,
+    "input_tokens": 2,
+    "output_tokens": 102,
+    "output_tokens_details": {
+     "thinking_tokens": 78
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

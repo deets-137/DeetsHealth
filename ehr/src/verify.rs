@@ -32,6 +32,10 @@ pub struct Candidate {
     /// the patient still counts in the match (so a near-twin is never skipped), but no code
     /// goes out, and the caller is handed off as after any failed match.
     pub phone: Option<Shielded<String>>,
+    /// The patient's demographics for a slot search (Epic's `$find`, EPIC.md §7.10): their
+    /// `identifier`, `name` and `birthDate` as the EHR sent them, as JSON. None for the fake.
+    /// Kept for the call only, in the session.
+    pub facts: Option<Shielded<String>>,
 }
 
 /// The EHR or the text service did not answer. Never carries text from them.
@@ -88,6 +92,7 @@ impl Patients for FakePatients {
                 family: Shielded::new(p.family.clone()),
                 birth_date: Shielded::new(p.birth_date.clone()),
                 phone: Some(Shielded::new(p.phone.clone())),
+                facts: None,
             })
             .filter(|c| c.birth_date == claimed.birth_date)
             .collect())

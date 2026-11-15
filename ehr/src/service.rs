@@ -12,8 +12,9 @@ use crate::{
     edge,
     epic_ehr::{EpicEhr, EpicSandbox},
     proto::v1::{self as pb, ehr_server::Ehr},
-    scheduler::{BookResult, Scheduler, SchedulerDown, Slot, SlotId, SlotWish},
+    scheduler::{BookResult, FoundSlots, Scheduler, SchedulerDown, Slot, SlotId, SlotWish, VisitAsk},
     visit_about::BookNote,
+    visits::{narrow, Found, Narrow, VisitGroups},
     session::{Pending, PatientKey, Refusal, Sessions, Source, Stage, Token},
     settings,
     store::Store,
@@ -30,10 +31,17 @@ enum Sched<S> {
 }
 
 impl<S: Scheduler> Sched<S> {
-    async fn find(&self, patient: &PatientKey, wish: &SlotWish) -> Result<Vec<Slot>, SchedulerDown> {
+    async fn find(&self, patient: &PatientKey, wish: &SlotWish) -> Result<FoundSlots, SchedulerDown> {
         match self {
             Sched::Local(s) => s.find(patient, wish).await,
             Sched::Epic(e) => e.scheduler.find(patient, wish).await,
+        }
+    }
+
+    async fn find_more(&self, patient: &PatientKey, next: &[String]) -> Result<FoundSlots, SchedulerDown> {
+        match self {
+            Sched::Local(s) => s.find_more(patient, next).await,
+            Sched::Epic(e) => e.scheduler.find_more(patient, next).await,
         }
     }
 
@@ -44,10 +52,17 @@ impl<S: Scheduler> Sched<S> {
         }
     }
 
-    async fn next_visit(&self, patient: &PatientKey) -> Result<Option<Slot>, SchedulerDown> {
+    async fn visits(&self, patient: &PatientKey, ask: &VisitAsk) -> Result<Vec<Slot>, SchedulerDown> {
         match self {
-            Sched::Local(s) => s.next_visit(patient).await,
-            Sched::Epic(e) => e.scheduler.next_visit(patient).await,
+            Sched::Local(s) => s.visits(patient, ask).await,
+            Sched::Epic(e) => e.scheduler.visits(patient, ask).await,
+        }
+    }
+
+    fn groups(&self) -> &VisitGroups {
+        match self {
+            Sched::Local(s) => s.groups(),
+            Sched::Epic(e) => e.scheduler.groups(),
         }
     }
 }
@@ -214,11 +229,17 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             let session = self.sessions.get(&handle).await.map_err(refused)?;
             session.lock().await.text_template = template;
         }
+        let (local_now, zone) = crate::sandbox::local_now(match source {
+            Source::EpicSandbox => crate::epic_ehr::sandbox_list_file().time_zone,
+            _ => crate::sandbox::sandbox().time_zone.clone(),
+        });
         Ok(Response::new(pb::OpenCallReply {
             handle: handle.to_hex(),
             identifies_left: MAX_IDENTIFIES,
             resends_left: MAX_RESENDS,
             code_tries_left: MAX_CODE_FAILURES,
+            local_now,
+            zone,
         }))
     }
 
@@ -257,11 +278,12 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         .map_err(down)?;
         // One match with a number that takes a text: a code goes out. With no such number on
         // file, nothing is sent, the same as no match.
-        if let Some(Candidate { patient, phone: Some(phone), .. }) = one_match(&claimed, found) {
+        if let Some(Candidate { patient, phone: Some(phone), facts, .. }) = one_match(&claimed, found) {
             let code = self.codes.issue();
             self.codes.send(&phone, &code, session.text_template.as_deref()).await.map_err(down)?;
             session.stage = Stage::Unverified(Some(Pending {
                 patient,
+                facts,
                 phone,
                 code,
                 issued: std::time::Instant::now(),
@@ -312,11 +334,12 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             Stage::Unverified(None) => None,
             Stage::Unverified(Some(p)) => {
                 // Constant time: the reply's timing never says how many digits were right.
-                (p.code.ct_eq(&code) && p.issued.elapsed() < CODE_LIFETIME).then(|| p.patient.clone())
+                (p.code.ct_eq(&code) && p.issued.elapsed() < CODE_LIFETIME).then(|| (p.patient.clone(), p.facts.clone()))
             }
         };
-        if let Some(patient) = right {
+        if let Some((patient, facts)) = right {
             session.stage = Stage::Verified(patient);
+            session.facts = facts;
             return reply(pb::CheckOutcome::Pass, 0);
         }
         session.code_failures += 1;
@@ -332,23 +355,53 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         &self,
         req: Request<pb::FindSlotsRequest>,
     ) -> Result<Response<pb::FindSlotsReply>, Status> {
-        let (handle, wish) = edge::find_slots(req.into_inner())?;
+        let (handle, ask) = edge::find_slots(req.into_inner())?;
         let session = self.sessions.get(&handle).await.map_err(refused)?;
         let mut session = session.lock().await;
         let patient = session.patient().map_err(refused)?;
-        let found = self.sched(session.source)?.find(&patient, &wish).await.map_err(scheduler_down)?;
+        let sched = self.sched(session.source)?;
+        let offered_at_once = crate::hospital::hospital().slots_offered;
 
-        // New tokens each time: a token from an older FindSlots no longer books. The reason
-        // asked with these slots is the one Book sends.
-        session.note = Some(wish.note.clone());
-        session.offered.clear();
+        let mut found = match ask {
+            // A new search. New tokens: a token from an older search no longer books. The
+            // reason asked with these slots is the one Book sends.
+            edge::SlotAsk::New(mut wish) => {
+                wish.who = session.facts.clone();
+                let found = sched.find(&patient, &wish).await.map_err(scheduler_down)?;
+                session.note = Some(wish.note.clone());
+                session.offered.clear();
+                session.next_pages = found.next;
+                let mut slots = found.slots;
+                // $find has no clinician input: the clinician the caller named narrows here,
+                // the same for every EHR (EPIC.md §7.1).
+                if let Some(who) = &wish.clinician {
+                    slots.retain(|s| who.names_clinician(&s.clinician));
+                }
+                slots
+            }
+            // The next ones of the same search (the owner, 2026-11-14: keep Epic's page of 10):
+            // the rest of this page, then the EHR's next page. The tokens already offered stay.
+            edge::SlotAsk::More => {
+                let rest = std::mem::take(&mut session.rest);
+                if rest.is_empty() && !session.next_pages.is_empty() {
+                    let page = sched.find_more(&patient, &session.next_pages).await.map_err(scheduler_down)?;
+                    session.next_pages = page.next;
+                    page.slots
+                } else {
+                    rest
+                }
+            }
+        };
+        let later = found.split_off(found.len().min(offered_at_once));
+        session.rest = later;
         let mut slots = Vec::with_capacity(found.len());
         for slot in &found {
             let token = Token::random();
             slots.push(edge::slot(&token, slot));
             session.offered.insert(token, slot.id.clone());
         }
-        Ok(Response::new(pb::FindSlotsReply { slots }))
+        let more = !session.rest.is_empty() || !session.next_pages.is_empty();
+        Ok(Response::new(pb::FindSlotsReply { slots, more }))
     }
 
     async fn book(
@@ -383,7 +436,10 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                         .clone()
                         .ok_or_else(|| Status::failed_precondition("slot_token: not offered on this call"))?;
                     let result = scheduler.book(&patient, &slot_id, &note).await.map_err(scheduler_down)?;
-                    session.booked.insert(key, (slot_token.clone(), result.clone()));
+                    // A lost reply is never the key's answer: the caller's yes retries it (V2A).
+                    if !matches!(result, BookResult::NotThrough) {
+                        session.booked.insert(key, (slot_token.clone(), result.clone()));
+                    }
                     result
                 }
             };
@@ -398,24 +454,45 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                     booked: None,
                     visit: None,
                 },
+                BookResult::NotThrough => pb::BookReply {
+                    outcome: pb::BookOutcome::NotThrough.into(),
+                    booked: None,
+                    visit: None,
+                },
             })
         });
         let reply = task.await.map_err(|_| Status::internal("the booking stopped"))??;
         Ok(Response::new(reply))
     }
 
-    async fn next_visit(
+    async fn find_visit(
         &self,
-        req: Request<pb::NextVisitRequest>,
-    ) -> Result<Response<pb::NextVisitReply>, Status> {
-        let handle = edge::handle(&req.get_ref().handle)?;
+        req: Request<pb::FindVisitRequest>,
+    ) -> Result<Response<pb::FindVisitReply>, Status> {
+        let (handle, question) = edge::find_visit(req.into_inner())?;
         let session = self.sessions.get(&handle).await.map_err(refused)?;
         let (patient, source) = {
             let session = session.lock().await;
             (session.patient().map_err(refused)?, session.source)
         };
-        let visit = self.sched(source)?.next_visit(&patient).await.map_err(scheduler_down)?;
-        Ok(Response::new(pb::NextVisitReply { visit: visit.as_ref().map(edge::visit) }))
+        let sched = self.sched(source)?;
+        let found = sched.visits(&patient, &question.ask).await.map_err(scheduler_down)?;
+        let groups = sched.groups();
+        let group = question.group.as_ref().and_then(|g| groups.named_by(g));
+        let ask = Narrow {
+            clinician: question.clinician.as_ref(),
+            unknown_group: question.group.is_some() && group.is_none(),
+            group,
+            by_day: question.ask.range.is_some(),
+        };
+        let reply = match narrow(found, &ask, groups) {
+            Found::None => pb::FindVisitReply::default(),
+            Found::Visit { visit, more } => pb::FindVisitReply { visit: Some(edge::visit(&visit)), more, ..Default::default() },
+            Found::Which { groups, other } => {
+                pb::FindVisitReply { groups: edge::groups(&groups), other_visits: other, ..Default::default() }
+            }
+        };
+        Ok(Response::new(reply))
     }
 
     async fn file_call(
@@ -723,6 +800,7 @@ mod tests {
             reason: reason.into(),
             earliest_day: day.into(),
             visit_mode: mode.into(),
+            ..Default::default()
         })
     }
 
@@ -920,12 +998,14 @@ mod tests {
         assert_eq!(err.code(), Code::FailedPrecondition);
     }
 
-    // ---- the next visit ----
+    // ---- the caller's visits ----
 
     async fn next(s: &Svc, h: &str) -> Result<Option<pb::Visit>, Status> {
-        s.next_visit(Request::new(pb::NextVisitRequest { handle: h.into() }))
-            .await
-            .map(|r| r.into_inner().visit)
+        ask_visit(s, pb::FindVisitRequest { handle: h.into(), ..Default::default() }).await.map(|r| r.visit)
+    }
+
+    async fn ask_visit(s: &Svc, req: pb::FindVisitRequest) -> Result<pb::FindVisitReply, Status> {
+        s.find_visit(Request::new(req)).await.map(|r| r.into_inner())
     }
 
     #[tokio::test]
@@ -943,6 +1023,99 @@ mod tests {
         let slot = find(&s, &h, "").await.remove(0);
         s.book(book_req(&h, &slot.token, "key-0000000000000001")).await.unwrap();
         assert_eq!(next(&s, &h).await.unwrap().unwrap().starts_at, "2026-11-02T09:00");
+    }
+
+    #[tokio::test]
+    async fn more_offers_the_rest_and_keeps_the_old_tokens() {
+        let s = svc();
+        let h = verified(&s).await;
+        let first = s.find_slots(find_req(&h, "")).await.unwrap().into_inner();
+        assert_eq!(first.slots.len(), 3);
+        assert!(first.more, "six fake slots: three wait");
+        let more = pb::FindSlotsRequest { handle: h.clone(), more: true, ..Default::default() };
+        let next = s.find_slots(Request::new(more.clone())).await.unwrap().into_inner();
+        assert_eq!(next.slots.len(), 3);
+        assert!(!next.more);
+        assert_ne!(first.slots[0].starts_at, next.slots[0].starts_at);
+        // A slot offered first still books after More.
+        let r = s.book(book_req(&h, &first.slots[0].token, "key-0000000000000001")).await.unwrap();
+        assert_eq!(r.into_inner().outcome, pb::BookOutcome::Booked as i32);
+        let none = s.find_slots(Request::new(more)).await.unwrap().into_inner();
+        assert!(none.slots.is_empty() && !none.more);
+    }
+
+    #[tokio::test]
+    async fn a_time_of_day_days_a_last_day_and_a_clinician_narrow_the_slots() {
+        let s = svc();
+        let h = verified(&s).await;
+        let ask = |f: fn(&mut pb::FindSlotsRequest)| {
+            let mut r = pb::FindSlotsRequest { handle: h.clone(), reason: "a check-up".into(), ..Default::default() };
+            f(&mut r);
+            r
+        };
+        let got = |r: pb::FindSlotsReply| r.slots.iter().map(|x| x.starts_at.clone()).collect::<Vec<_>>();
+        let afternoons = s.find_slots(Request::new(ask(|r| r.time_of_day = "afternoon".into()))).await.unwrap().into_inner();
+        assert_eq!(got(afternoons), ["2026-11-02T14:30", "2026-11-06T15:00"]);
+        let tuesdays = s.find_slots(Request::new(ask(|r| r.days = vec!["tue".into()]))).await.unwrap().into_inner();
+        assert_eq!(got(tuesdays), ["2026-11-03T10:00"]);
+        let by_tuesday = s.find_slots(Request::new(ask(|r| r.latest_day = "2026-11-03".into()))).await.unwrap().into_inner();
+        assert_eq!(got(by_tuesday), ["2026-11-02T09:00", "2026-11-02T14:30", "2026-11-03T10:00"]);
+        let okafor = s.find_slots(Request::new(ask(|r| r.clinician = "Dr. Okafor".into()))).await.unwrap().into_inner();
+        assert_eq!(got(okafor), ["2026-11-03T10:00", "2026-11-05T11:00"]);
+    }
+
+    fn visit_req(h: &str, when: &str, clinician: &str, past: bool, group: &str) -> pb::FindVisitRequest {
+        pb::FindVisitRequest { handle: h.into(), when: when.into(), clinician: clinician.into(), past, group: group.into() }
+    }
+
+    #[tokio::test]
+    async fn the_next_visit_gives_its_instructions_csn_and_a_count() {
+        let s = svc();
+        let h = verified(&s).await;
+        let r = ask_visit(&s, visit_req(&h, "", "", false, "")).await.unwrap();
+        let v = r.visit.unwrap();
+        assert_eq!(v.instructions, "Bring a list of the medicines you take.");
+        assert_eq!(v.csn, "90000101");
+        assert_eq!(v.status, pb::VisitStatus::Upcoming as i32);
+        assert_eq!(r.more, 2, "the X-ray and the December visit");
+        assert!(r.groups.is_empty(), "no question for the next visit");
+    }
+
+    #[tokio::test]
+    async fn a_past_visit_is_the_newest_with_its_status() {
+        let s = svc();
+        let h = verified(&s).await;
+        let v = ask_visit(&s, visit_req(&h, "", "", true, "")).await.unwrap().visit.unwrap();
+        assert_eq!((v.starts_at.as_str(), v.status), ("2026-10-20T14:00", pb::VisitStatus::Missed as i32));
+        let v = ask_visit(&s, visit_req(&h, "2026-10-06", "", false, "")).await.unwrap().visit.unwrap();
+        assert_eq!(v.status, pb::VisitStatus::Seen as i32);
+    }
+
+    #[tokio::test]
+    async fn a_month_with_several_visits_asks_which_group_and_a_group_answers_it() {
+        let s = svc();
+        let h = verified(&s).await;
+        // November holds two visits: no question. Dr. Lin has two, one in each group: the group
+        // picks one. A group the hospital does not have asks which.
+        let r = ask_visit(&s, visit_req(&h, "2026-11", "", false, "")).await.unwrap();
+        assert!(r.visit.is_some() && r.more == 1, "two visits: no question");
+        let r = ask_visit(&s, visit_req(&h, "", "Dr. Lin", false, "my scan")).await.unwrap();
+        assert_eq!(r.visit.unwrap().starts_at, "2026-11-20T08:15");
+        let r = ask_visit(&s, visit_req(&h, "", "Dr. Lin", false, "")).await.unwrap();
+        assert_eq!(r.visit.unwrap().starts_at, "2026-11-20T08:15", "two: the soonest and a count");
+        let r = ask_visit(&s, visit_req(&h, "", "", false, "my dentist")).await.unwrap();
+        assert_eq!(r.groups, ["primary care", "imaging"], "an unknown group asks which");
+        assert!(!r.other_visits);
+    }
+
+    #[tokio::test]
+    async fn a_bad_when_is_refused_and_no_match_is_empty() {
+        let s = svc();
+        let h = verified(&s).await;
+        let err = ask_visit(&s, visit_req(&h, "next week", "", false, "")).await.unwrap_err();
+        assert_eq!(err.code(), Code::InvalidArgument);
+        let r = ask_visit(&s, visit_req(&h, "2027-03", "", false, "")).await.unwrap();
+        assert!(r.visit.is_none() && r.groups.is_empty());
     }
 
     /// The Priya Raman call (2026-11-13): the reason given with FindSlots was lost at Book, so
@@ -1037,6 +1210,7 @@ mod tests {
                     family: c.family.clone(),
                     birth_date: c.birth_date.clone(),
                     phone: None,
+                    facts: None,
                 }])
             }
         }
@@ -1090,18 +1264,27 @@ mod tests {
             ("FindSlotsRequest", "handle"),
             ("FindSlotsRequest", "reason"),
             ("FindSlotsRequest", "earliest_day"),
+            ("FindSlotsRequest", "latest_day"),
+            ("FindSlotsRequest", "time_of_day"),
+            ("FindSlotsRequest", "clinician"),
             ("Slot", "token"),
             ("Slot", "starts_at"),
             ("Slot", "clinician"),
             ("Slot", "place"),
             ("BookRequest", "handle"),
             ("BookRequest", "slot_token"),
-            ("NextVisitRequest", "handle"),
+            ("FindVisitRequest", "handle"),
+            ("FindVisitRequest", "when"),
+            ("FindVisitRequest", "clinician"),
+            ("FindVisitRequest", "group"),
             ("Visit", "starts_at"),
             ("Visit", "clinician"),
             ("Visit", "place"),
             ("Visit", "visit_type"),
             ("Visit", "reason"),
+            ("Visit", "instructions"),
+            ("Visit", "csn"),
+            ("FindVisitReply", "groups"),
         ];
         // The People list's messages come first in the file (ehr.proto, after the settings).
         let people = [

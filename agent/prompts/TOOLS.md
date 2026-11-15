@@ -44,9 +44,12 @@ Finds open times for a visit, for the verified caller only, from the day the cal
 person, online or either, as the caller said. Each time gets an option number that stays the
 same for the whole call, and an online time says "online". The reason goes with the search in
 the caller's own words: the code keeps the model's words only if the caller said them, or else
-sends the caller's latest line. ehr keeps it for the booking.
+sends the caller's latest line. ehr keeps it for the booking. The caller may also name a last
+day, a time of day from the hospital's list, days of the week and a clinician. A few times are
+offered at a time (the hospital's setting); "more" offers the next ones of the same search. An
+online time says the hospital's time zone.
 record: reads
-lines: line.no_slots, line.slots, line.slot_option
+lines: line.no_slots, line.no_more_slots, line.slots, line.slot_option
 
 ## choose_option
 Takes the option number the caller chose and reads that time back for a yes. Nothing is booked
@@ -57,22 +60,35 @@ lines: line.which_option, line.confirm_slot
 ## book
 Books the time the caller said yes to, with the caller's reason as the visit's note for the
 scheduler (Epic's `appointmentNote`). A retry never books twice. If someone else took the time
-first, the caller hears so and can choose again.
+first, the caller hears so and can choose again. If the EHR's answer is lost, ehr searches for
+the booking; when none is found, the caller is asked before it tries again (never twice without
+a yes).
 record: writes
-lines: line.which_option, line.slot_taken, line.booked
+lines: line.which_option, line.slot_taken, line.book_not_through, line.booked
 
 ## change_visit
 The agent cannot move or cancel a visit. Tells the caller that staff will do it, flags the
-call for staff with the caller's own words, and hands the caller to a person.
+call for staff with the caller's own words and the visit's number at the hospital (its CSN),
+and hands the caller to a person.
 record: none
 lines: line.change_booked, line.change_visit
 
-## next_visit
-Reads the verified caller's next visit: its time, then what it is (online, its type, its
-reason), as the record says. A private visit's type and reason are never spoken. If it is the
-visit booked on this call, its time is not said again.
+## find_visit
+Reads one of the verified caller's visits: the next one, or the one they name by a day, a
+month, a clinician, a kind of visit or the past. Says its time, then what it is (online, its
+type, its reason), as the record says, and for a past visit whether the caller was seen. When
+too many visits match, asks which kind of visit the caller means (the hospital's visit groups).
+Offers the visit's instructions, or reads them at once when the caller named the visit. A
+private visit's type, reason and instructions are never spoken. If it is the visit booked on
+this call, its time is not said again.
 record: reads
-lines: line.no_visits, line.next_visit, line.booked_visit_asked, line.visit_online, line.visit_type, line.visit_reason
+lines: line.no_visits, line.no_visit_match, line.no_past_visits, line.which_visit, line.visit_group, line.another_visit, line.choice_or, line.next_visit, line.visit_found, line.past_seen, line.past_missed, line.past_cancelled, line.booked_visit_asked, line.visit_online, line.visit_type, line.visit_reason, line.one_more_visit, line.more_visits, line.visit_instructions, line.offer_instructions
+
+## read_instructions
+Reads the instructions of the visit the caller just heard: how to prepare for it. Asks the
+record nothing new.
+record: none
+lines: line.visit_instructions, line.no_instructions
 
 ## hand_off
 Ends the call with a hand-off to a person, with the model's reason and summary for staff.

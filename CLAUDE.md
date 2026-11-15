@@ -184,6 +184,11 @@ the branch `archive/patient-app`.
   (sign-in, roles, provisioning, audit, emergency access, reviews, change control); the work
   with a hospital's security team; F1 and F2 decided (step-up and reason for access, both
   hospital settings).
+- `HOSPITAL-CONFIG.md` — Config › Hospital: the hospital's own lists for booking (visit types,
+  hours, time of day, specialties, reasons as codes, locations, the time zone) and how slots
+  are offered.
+- `LOCAL-EHR.md` — a local FHIR server in Epic's shapes, backed by a database we shape and
+  reset, so Local mode runs the real Epic adapter (option A; left for later).
 
 ## Privacy rules (this project only — read before any code)
 The full rules are SECURITY.md (the phone agent's, 2026-10-19). In short:

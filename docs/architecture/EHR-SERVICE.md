@@ -2,7 +2,7 @@
 status: built
 desk_test: none
 sources: [ehr/proto/deets/ehr/v1/ehr.proto, ehr/src/service.rs, ehr/src/edge.rs, ehr/src/transport.rs, ehr/build.rs, agent/deets_agent/ehr_client.py, ehr/src/scheduler.rs, ehr/src/visit_about.rs, ehr/src/session.rs]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # DeetsHealth — The `ehr` service and its wire
 
@@ -79,7 +79,7 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `CheckCode` | `check_code` | `check_code` |
 | `FindSlots` | `find_slots` | `find_slots` |
 | `Book` | `book` | `book` |
-| `NextVisit` | `next_visit` | `next_visit` |
+| `FindVisit` | `find_visit` | `find_visit` |
 | `FileCall` | `file_call` | `file_call` |
 | `ListSettingVersions` | `list_setting_versions` | `list_setting_versions` |
 | `GetSettings` | `get_settings` | `get_settings` |
@@ -190,8 +190,8 @@ is ignored. So nothing past the edge sees a wire type.
   dropped there, so it never crosses the wire, and `reason_private` is set
   (FUTURE-SETTINGS.md §9).
 - **The contract** has eight calls: `OpenCall`, `CloseCall`, `Identify`, `ResendCode`,
-  `CheckCode`, `FindSlots`, `Book`, `NextVisit` (S5: the soonest visit, from fixed fake visits
-  and this run's bookings). There is no separate `SendCode`: `Identify` sends the first
+  `CheckCode`, `FindSlots`, `Book`, `FindVisit` (S5: the soonest visit, or one the caller
+  names; it replaced `NextVisit` on 2026-11-14, EPIC.md §7.10). There is no separate `SendCode`: `Identify` sends the first
   code when one patient matches. No test or flag can mark a session verified; every test
   walks `Identify` and `CheckCode`.
 - **Verification** (`verify.rs`): the `Patients` trait returns candidates; the match is ours

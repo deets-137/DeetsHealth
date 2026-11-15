@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: [ehr/src/epic.rs, ehr/src/epic_ehr.rs, ehr/fixtures/epic-sandbox.json]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # DeetsHealth — Epic: the backend app registration and the sandbox
 
@@ -252,10 +252,12 @@ each test call picks one with the Chat page's Epic / Local button (CHAT.md §13)
   FAILED_PRECONDITION when it was not given Epic. The session keeps the source for the whole
   call (`session.rs` `Source`).
 - **`ehr/src/epic_ehr.rs`:** `EpicPatients` searches `Patient?family&given&birthdate`;
-  `EpicScheduler.next_visit` searches `Appointment?patient&service-category=appointment&date`
-  in windows of 7, 90 and 400 days, so a patient with hundreds of visits costs one small read.
-  Finding and booking slots use the fake's slots moved to the weekdays after today
-  (`FakeScheduler::from_weekdays_after`). The token is reused until a minute before it expires;
+  `EpicScheduler.visits` searches `Appointment?patient&service-category=appointment&status&date`:
+  the visits to come in a 90-day window, then 400; a day or month the caller named; or the last
+  400 days for a past visit (EPIC.md §7.10; until 2026-11-14 the next visit only, in windows of
+  7, 90 and 400 days).
+  Finding and booking slots use `$find` and `$book` since 2026-11-15 (§7.10); before, the
+  fake's slots moved to the weekdays after today. The token is reused until a minute before it expires;
   a 401 gets one new token and one more try (`Epic::read`).
 - **A new pass, `EhrPass`** (`core/src/ehr_request.rs`): the search must carry the caller's name
   and date of birth, and the chart read the patient's id, in plain form. Only `epic_ehr.rs`
@@ -401,6 +403,26 @@ integrator's write-up. Each line says how sure it is. A sandbox `$find` settles 
   the reply's shape, never an id. About thirteen requests (nine `$find`s); it books nothing. **First run,
   2026-11-13 evening: the sandbox answered 503 "OltpServerUnavailable" to everything, even its
   `smart-configuration`.** Run it again when the sandbox is up.
+- **The probe answered, 2026-11-15** (`ehr epic-find`, rewritten: each try changes one input).
+  `$find` returns proposed visits when it gets the patient as a resource with their
+  `identifier`, `name` and `birthDate` (the rest of the demographics are not needed), a
+  `startTime`, and **`service-type` spelled with a dash** (`serviceType`, as in Epic's sample,
+  gets "not supported"). `location-reference` and `endTime` are optional. With no `endTime` the
+  reply holds 10 visits, `total` 10, and a `next` link; with a 14-day window, 6 and no link.
+  `time-of-day` works: `dayOfWeek` tue and thu gave 3; `timeOfDay` 08:00 for 4 hours gave none
+  (true: the open times are in the afternoon). Each proposed visit carries the timezone
+  extension, `contained` Slot (`busy-tentative`), and participants as **absolute** references
+  (`https://…/Practitioner/…`) with a display. Three "information" issues on every reply
+  (`name.use`, `identifier (oid)`, `service-type (oid)`) change nothing. The visit types on the
+  test patient's visits (system `urn:oid:1.2.840.114350.1.13.0.1.7.2.808267`): MyChart Video
+  Visit 1400000001, New Patient Appointment 1003, X-Ray Exam 1053001, Transthoracic
+  Echocardiogram Complete 10023. `$find` for 1003 returns visits too, but **each one comes back
+  as a MyChart Video Visit**: in the sandbox every slot is online, so an in-person booking cannot
+  be tried there. **The next page:** a GET of the `next` link (STU3 `$find?sessionID=…`) answers
+  403; a POST of an empty Parameters to it answers 200 with the next 10 and another `next`. The
+  probe's last step runs the real code (`EpicEhr::probe_find`): online 10 slots and a link, the
+  next page 10 more; either 20 (two `$find`s) and two links. `$book` is not tried: it writes to
+  the shared sandbox (the owner's call).
 
 ## 6. Every request we send to Epic
 > **Part:** built · 2026-11-13 — the ledger. Change it in the same commit as the request.
@@ -412,8 +434,15 @@ All go from `ehr` (Rust) only, over `ehr`'s AWS-LC client (`ehr/src/epic.rs` `Ep
 | `GET .well-known/smart-configuration` | `epic.rs` › `Epic::connect` | once, when `ehr` starts with Epic | none | 1 |
 | `POST` token endpoint, `client_credentials` with a signed ES384 assertion | `epic.rs` › `Epic::token` (through `bearer`) | at start of use, then about once an hour (the token lives 3600 s, renewed a minute early); once more after a 401 | none (the assertion names our client ID only) | 1 per hour |
 | `GET Patient?family&given&birthdate` | `epic_ehr.rs` › `EpicPatients::candidates` | each `Identify` (at most 3 per call, `MAX_IDENTIFIES`) | the caller's claimed name and date of birth, in the URL (`EhrPass`) | 1 per try |
-| `GET Appointment?patient&service-category=appointment&date=ge…&date=lt…` | `epic_ehr.rs` › `EpicScheduler::next_visit` (`appointments`) | each `NextVisit`, after both factors pass | the verified patient's FHIR id (`EhrPass`) | 1 to 3 (windows of 7, 90, 400 days) |
+| `GET Appointment?patient&service-category=appointment&status=…&date=ge…&date=lt…` | `epic_ehr.rs` › `EpicScheduler::visits` (`appointments`) | each `FindVisit`, after both factors pass | the verified patient's FHIR id (`EhrPass`); the day or month the caller named, as a date range | 1 (a day, a month, the past) or 1 to 2 (the visits to come: 90 days, then 400) |
+| `POST STU3 Appointment/$find` | `epic_ehr.rs` › `EpicScheduler::find_one` | each `FindSlots` in Epic mode, after both factors pass | the verified patient's `identifier`, `name` and `birthDate`, in the body (`EhrPass`); the days, time of day and weekdays asked for | 1 per visit type (in person or online: 1; either: 2) |
+| `POST` Epic's `next` link of a `$find` page (empty Parameters) | `epic_ehr.rs` › `EpicScheduler::find_more` | `FindSlots` with `more`, when this page's slots are all offered | none new (the link is Epic's own) | 1 per page |
+| `POST STU3 Appointment/$book` | `epic_ehr.rs` › `EpicScheduler::book` | each `Book` in Epic mode | the patient's FHIR id and the caller's reason as `appointmentNote` (`EhrPass`) | 1 per booking; a write |
+| `GET Appointment/{id}` (R4) | `epic_ehr.rs` › `EpicScheduler::book` | after a booking, for its instructions | the new visit's id | 1 per booking |
+| `GET Appointment?patient&…&date` for one minute | `epic_ehr.rs` › `EpicScheduler::booked_at` | only when a `$book` reply is lost (V2A) | the patient's FHIR id | 1, rarely |
 | `GET Patient/{id}` and the `Appointment` search for 60 days | `epic_ehr.rs` › `EpicEhr::sandbox_list` | `ehr epic-sandbox`: the Chat page's Epic list, at most once per 5 minutes (dev server cache) | none: public test patient ids from `epic-sandbox.json` | about 2 per test patient (about 15) |
+| `ehr epic-find` (the probe): one `Appointment` search, `Patient/{id}`, seven `$find`s, then the real `find` and `find_more` (about 4 more) | `main.rs` › `epic_find`; `epic_ehr.rs` › `EpicEhr::probe_find` | by hand | Camila Lopez's public test details | about 13 |
+| `ehr epic-book`: `Patient/{id}`, one `$find`, one `$book`, one `Appointment` read, two visit searches | `main.rs` › `epic_book`; `epic_ehr.rs` › `EpicEhr::probe_book` | by hand, only with the owner's go-ahead (a write; run once, 2026-11-15) | Camila Lopez's public test details | about 6, one write |
 | `GET metadata` and one `Patient` search | `main.rs` › `epic_check` | `ehr epic-check`, by hand | Camila Lopez's public test details | about 5 |
 
 Not sent yet: `Patient.$match`, the medicine, refill and lab reads (R2–R4), `Practitioner` / `Location` reads, and booking (STU3 `$find`, `$book`). Each joins this table when it is built. The planned writes are booking and the held chart note (`DocumentReference.Create`, §2.1).
@@ -526,3 +555,296 @@ A draft for the owner to order; each is a fork when it is built.
 7. Paging past the first 3 offers, then `next` (§7.2).
 8. The CSN kept with each visit, for the staff hand-off of a move or cancel (§7.3).
 9. A specialty, a referral, a coded reason: each waits for a hospital's map (§7.1).
+
+### 7.8 The owner's asks (2026-11-14)
+> **Part:** designed · 2026-11-14 — not built. Each item below is the owner's choice, forks 1A
+> and 2A included.
+
+- **The hospital's lists** (items 2, 5 and 9): visit types, hours, time of day, specialties,
+  reasons as codes, locations and the time zone go on a new page, Config › Hospital
+  ([ideas/HOSPITAL-CONFIG.md](../ideas/HOSPITAL-CONFIG.md)).
+- **`patientInstruction` in NextVisit's output** (item 1).
+  - `ehr` reads `Appointment.patientInstruction` in `appointment()` and adds it to `Visit` in
+    `ehr.proto` (`instructions`, tagged `phi`).
+  - The sensitive screen covers it. A private visit drops its instructions too, because they
+    can name the care ("bring your methadone dose card"). Instructions that hold a word on the
+    sensitive list are dropped the same way (FUTURE-SETTINGS.md §9).
+  - The model sees only whether there are instructions (`said`, `none on record`, `private`),
+    as for the reason. The words go to the caller in a fixed line spoken by code, never
+    written by the model.
+  - **When the agent says them** (the owner, 2A, 2026-11-14): it first asks "There are
+    instructions for this visit. Would you like to hear them?" When the caller asks about one
+    visit in particular, the agent reads that visit's instructions with no question first.
+  - After a booking: `$book`'s reply has no instructions (§7.4). One `Appointment.Read` per
+    booking gets them. Not asked for yet.
+- **The CSN in staff flags** (item 8). `ehr` keeps each visit's CSN (`identifier`) and sends it
+  to the agent with the visit, tagged `phi`. When a flag is about a visit (the code's
+  `booking_change` on `change_visit`, and later a cancel or "I will be late"), code adds that
+  visit's CSN to the flag's notes. The model never sees the CSN and never chooses the visit.
+  FLAGS.md §3.3.
+- **A time zone variable, and the time in `{today}`** (item 3).
+  - One time zone per hospital, and later per location (HOSPITAL-CONFIG.md §2.7). `ehr` and the
+    agent both read it. Today they do not agree: `ehr` takes "today" in the fixture's
+    `time_zone`; the agent takes `date.today()`, the PC's own zone (`call.py`, `flow.py`).
+  - `{today}` now holds the date only, in `role`. The code fills `role` at the start of each
+    call (`flow.py` › `role`), so a change shows on the next call. But `role` is the start of
+    the prefix the prompt cache shares across calls (ANTHROPIC.md §4.2): the cache matches it
+    byte by byte, so it changes once a day.
+  - **Where the time goes** (the owner, 1A, 2026-11-14): in a line the code sends at the start
+    of the call's own messages, in the hospital's time zone. `role` keeps the date only, so
+    the shared prefix stays the same for every call that day.
+- **Offering slots** (item 7). Keep Epic's whole page of 10 in `ehr` for the call. Filter it by
+  what the caller asked (time of day, the same clinician or place). A hospital setting decides
+  how many the agent offers at a time (now `MAX_OFFERED`, 3) and how it presents them. When
+  the caller turns down all of them, the agent offers the next ones on the page, then asks
+  Epic for the `next` page. A draft of the presentation choices, for the owner to edit:
+  - how many at a time (1 to 5);
+  - in what order: the soonest first, or spread over different days;
+  - whether the clinician is named for each slot, or once when all are the same;
+  - whether slots on the same day are said together ("Tuesday at 9 or at 2:30").
+
+### 7.9 Still not used after §7.8
+> **Part:** designed · 2026-11-14 — a list, by value to the caller. Each is a fork when its
+> work starts.
+
+1. **Every visit still to come, not only the soonest.** NextVisit returns one visit; the
+   search already returns them all in its window (`epic_ehr.rs` › `next_visit`). Fork 2A's
+   "a specific visit" ("my visit with Dr. Lin", "the one in March") needs this list, and so
+   does the CSN in a flag when the caller has more than one visit.
+2. **A last day** (`$find`'s `endTime`): "before Friday". The time-of-day list (HOSPITAL-CONFIG.md
+   §2.3) does not cover it.
+3. **A safe `$book` retry** (§7.4): search the patient's visits before sending `$book` again.
+   Without it a lost reply can book twice.
+4. **Instructions after a booking:** one `Appointment.Read` of the new visit (§7.4).
+5. **The verified patient's demographics in `$find`'s `patient`,** and the caller's time zone
+   for an online visit from another zone (§7.1). No new read.
+6. **Past visits** ("when was I last seen?"): the same search with `date=lt` today. It also
+   gives "the same place or clinician as last time".
+7. **`description`** as the visit's words when `serviceType` has no text (§7.3).
+8. **A referral** (`$find`'s `referrals`): needs a `ServiceRequest` read, held (§2.1).
+9. **Moves and cancels done by the agent:** no FHIR API. Only the HL7v2 paths (§7.6), through
+   the hospital's interface team.
+10. **The `status` search parameter** (§7.3): fewer bytes back, no change for the caller.
+11. **The 500-character limit on `appointmentNote`:** to confirm on a real booking (§7.2).
+
+### 7.10 Wiring §7.8 and §7.9: the design
+> **Part:** designed · 2026-11-14 — on paper, tested against `epic_ehr.rs`, `scheduler.rs`,
+> `service.rs`, `ehr.proto` and `flow.py`. The owner's forks V1A and V2A, 2026-11-14. Not built.
+
+Two builds: **build 1** uses `Appointment.Search` only and works on the sandbox now; **build 2**
+is E-4, the real `$find` and `$book`, and carries every item that needs them. The owner,
+2026-11-14: the two may be in flight together ("dw about one load-bearing in flight here").
+
+#### Build 1: the patient's visits (no E-4)
+- **One read path for visits.** `appointment()` in `epic_ehr.rs` reads, in addition:
+  `patientInstruction` (§7.8), `identifier` (the CSN, §7.8), and `description` as the visit's
+  words when `serviceType` has none (§7.9 item 7). All three pass the sensitive screen; the
+  CSN does not need it, as it says nothing about the care.
+- **The `status` parameter** (item 10). Visits to come: `status=booked,pending,arrived,checked-in`.
+  Past visits: `fulfilled,noshow,cancelled`. `appointment()` keeps its own status check as a
+  guard.
+- **The contract.** `Visit` in `ehr.proto` gains `instructions` (phi), `instructions_private`
+  (bool), `csn` (phi) and `status`. A new `token` (secret) names each visit on this call, as a
+  slot's token does: the agent and the model refer to a visit by its number on the call,
+  never by its CSN or its FHIR id.
+- **Which visit** (items 1 and 6; the owner's V1A). `NextVisit` becomes `Visits`: the visits that match
+  what the caller asked. The agent's tool `next_visit` becomes `find_visit`, with optional
+  arguments the model fills from the caller's words:
+  - `when`: a day (`YYYY-MM-DD`) or a month (`YYYY-MM`), past or to come;
+  - `clinician`: the caller's words for the clinician. `ehr` matches them to the
+    Practitioner's `display`, by whole words, any case;
+  - `past`: true for "when was I last seen?".
+  - `group`: a visit group the caller named ("my surgery"), an enum of the hospital's group
+    names (below).
+  With no argument: the soonest visit to come, as now, and how many more there are in the
+  next 90 days.
+- **The narrowing question** (the owner, with V1A: "configurably agent can ask a follow up to
+  narrow down (ie surgical type, or primary type, etc)"):
+  - **Visit groups** are a new list on Config › Hospital (HOSPITAL-CONFIG.md §2.9): a name the
+    caller hears ("surgery", "primary care", "imaging"), and its members by visit type,
+    specialty or location.
+  - When more visits match than the hospital's limit, and the caller named no group, `ehr`
+    returns how many matched in each group. Code speaks one fixed line that names the groups
+    ("Is this about your surgery visit or your primary care visit?",
+    `line.which_visit_group`, a draft). The model does not word the question. The caller's
+    answer comes back as `group`.
+  - **A group's name can reveal care.** A group that holds a private visit (FUTURE-SETTINGS.md
+    §9), or whose name holds a word on the sensitive list, is never named. Its visits are
+    said as "another visit", and the caller can still pick it by day or clinician.
+  - Only one group matches, or groups are off: the soonest visit and the count, as above.
+  - **The settings** (FUTURE-SETTINGS.md index, Booking): on or off; how many matches start
+    the question (a draft default: more than 2); how many groups one question names (a draft:
+    3 at most; the rest as "or another visit"); their order (a draft: the group with the
+    soonest visit first).
+- **Reads:** with `when`, one search of that day or month. With no argument, the 7, 90 and 400
+  day windows, as now (1 to 3 reads). `past` with no `when`: one search of the last 400 days.
+  No read is ever more than one patient's visits.
+- **What the caller hears.** The visit line, as now. Then, by fork 2A, "There are instructions
+  for this visit. Would you like to hear them?" When the caller asked about that visit by its
+  day or its clinician, the instructions follow at once. A past visit says its status: seen,
+  missed, or cancelled (the words are drafts in AGENT-PROMPT.md, the owner's to edit).
+- **Flags.** `change_visit` takes an optional visit number. Code adds that visit's CSN to the
+  `booking_change` flag; with no number, the visit booked on this call, else the last visit
+  read (FLAGS.md §3.3).
+- **The fake** (`scheduler.rs`, `ehr/fixtures/sandbox.json`) gets the same fields: a synthetic
+  CSN, instructions on some visits, two visits for one patient, a past visit of each status.
+  The kept scripts are recorded again.
+
+#### Build 2: E-4, `$find` and `$book`
+- **The `$find` request** (`EpicScheduler.find`):
+  - `service-type`: the visit types for the caller's mode, from the visit-type list
+    (HOSPITAL-CONFIG.md §2.1). Until Config › Hospital exists: a list in
+    `ehr/fixtures/epic-sandbox.json`.
+  - `startTime`: the start of `earliest_day`, in the hospital's zone.
+  - `endTime` (item 2): the end of a new `latest_day`, a `find_slots` argument like
+    `earliest_day`. Empty: no end.
+  - `time-of-day` (§7.8): `find_slots` gains `times` and `days`. `times` is an enum of the
+    names in the time-of-day list (HOSPITAL-CONFIG.md §2.3), so the model can only pick a name
+    the hospital made; `ehr` turns each name into `timeOfDay` and `duration`. `days` is an enum
+    of the weekdays.
+  - `patient` (item 5): a Patient resource with the FHIR id, the MRN `identifier`, the name and
+    the birth date, from the `Patient` search this call already made. `ehr` keeps them in the
+    session, `Shielded`, for the call only. No new read.
+  - The caller's own time zone (item 5) is not sent: the agent does not know it. For an online
+    visit the agent names the zone with the time ("2 PM Central time").
+- **The page of 10** (§7.8). The session keeps the whole page and Epic's `next` link. Filtered
+  by the clinician the caller named. The agent offers N at a time (a setting, now 3);
+  `find_slots` with `more: true` offers the next N, then reads the `next` page (one read).
+  Error 4113 runs `$find` again (one read).
+- **The department's time zone** (§7.2): each slot is spoken in its own zone.
+- **`$book`** sends `patient`, `appointment` and `appointmentNote` (§7.4), then reads the new
+  visit once (`Appointment.Read`, item 4) for its instructions and CSN. 1 extra read per
+  booking.
+- **A lost reply** (item 3; the owner's V2A). `ehr` never sends a second `$book` blind. It
+  searches the patient's visits at the slot's start: found and booked, the booking stands. Not
+  found: the caller hears that the booking did not go through and is asked whether to try
+  again (`line.book_not_through`, a draft). A yes sends one new `$book` for the same slot.
+- **Referrals** (item 8) wait: `ServiceRequest` is held in the registration (§2.1). Adding it is
+  the owner's choice. Then a caller who says they were referred gets their open referrals read
+  once, and its id goes to `$find`.
+- **Moves and cancels** (item 9) wait for a hospital's interface team (§7.6). Until then
+  `change_visit` and the flag with the CSN.
+
+#### Build 1 as built (2026-11-14)
+> **Part:** built · 2026-11-14 · desk test open
+
+Where this differs from the design above, this is the code.
+- **ehr:** `FindVisit` (`ehr.proto`) replaced `NextVisit`. `Scheduler::visits` returns the
+  visits a `VisitAsk` covers (`scheduler.rs`); `visits.rs` › `narrow` narrows them for every
+  EHR (clinician, group, the narrowing question). `VisitStatus` (upcoming, seen, missed,
+  cancelled; `VisitStatus::from_epic`). `VisitAbout::with_instructions` screens the
+  instructions (`visit_about.rs`). `Shielded::names_clinician` and `Shielded::first_named`
+  (`core/src/shielded.rs`) match the caller's words without revealing them. `edge.rs` ›
+  `find_visit` turns a day or a month into a range of days.
+- **Not built as designed:** no visit token. The agent numbers the visits the caller heard
+  (`CallFlow.visits_heard`), as it numbers slots; ehr is never asked about a visit by number.
+- **The narrowing question asks only when the caller named something** (a day, a month, a
+  clinician, or a kind of visit the hospital does not have). "My next visit" with nothing named
+  is always the soonest, with the count of the others. A design gap found while building: the
+  question would otherwise come before every next visit of a patient with three visits.
+- **A day or a month** searches every status a caller may hear of; a cancelled visit counts
+  only when no other visit matches.
+- **The window for the visits to come** is 90 days, then 400 (it was 7, 90, 400): the count of
+  the others needs the 90-day window. One read for most patients.
+- **Epic statuses:** a past `arrived` or `checked-in` visit reads as seen; a visit still
+  `booked` after its time has no known outcome and is never said.
+- **The CSN** is the `identifier` whose system or type names a CSN, else the first.
+- **The agent:** `find_visit` (`when`, `clinician`, `past`, `group`), `read_instructions`, and
+  `change_visit`'s `visit` (`flow.py`). Each result gives the model `visit_number`,
+  `visit_status`, `reason_for_visit` and `instructions` (`said`, `offered`, `none on record`,
+  `private`); never the CSN.
+- **The time (fork 1A):** ehr sends the hospital's date and time with `OpenCallReply`
+  (`local_now`, `zone`) from the fixture's `time_zone` (`sandbox.json`, `epic-sandbox.json`),
+  so ehr and the agent agree. An Epic call takes "today" and the time from it; a typed call
+  keeps `FAKE_TODAY` and `FAKE_CLOCK`. `note.call_start` goes to the model as the greet step's
+  second message, after `role`. Python on Windows has no time zone data, so the agent does not
+  compute the zone itself.
+- **The fakes:** `sandbox.json` gives Jordan Ellis three visits to come (one with
+  instructions, an X-ray with instructions), a past visit seen and one missed, each with a
+  synthetic CSN, and two visit groups (primary care, imaging). The Chat page's rail shows a past
+  visit's status.
+- **Words:** the new sections in AGENT-PROMPT.md and GUIDE.md (`line.visit_found` to
+  `note.after_which_visit`, `note.call_start`), drafts for the owner to edit.
+- **Tests:** `visits.rs` (the narrowing), `visit_about.rs` (instructions), `shielded.rs` (the
+  matches), `epic_ehr.rs` (instructions, CSN, status, `description`), `service.rs`
+  (`FindVisit` end to end on the fake), `test_gate.py` (the offer, `read_instructions`, no CSN
+  to the model).
+- **Desk test:** a typed or voice call as Jordan Ellis (Local): "when is my next visit?" (the
+  soonest, "2 more", the offer of instructions; say yes); "what about my x-ray?" (read at
+  once); "when was I last seen?" (the missed visit of October 20); "my visit with Dr. Lin"
+  (the X-ray, and one more); "I need to cancel my x-ray" (the flag in the record holds CSN
+  90000102). In Epic mode as Camila Lopez: "when is my next visit?"; the record's
+  `staff_flag` event and the model's tool results hold no CSN for the model.
+
+#### Build 2 as built (2026-11-15)
+> **Part:** built · 2026-11-15 · desk test open · one live `$book` sent on the owner's go-ahead
+
+- **The first real booking** (2026-11-15, `ehr epic-book`, the call's own code, the owner's
+  go-ahead for one): `$find` online for Camila Lopez gave 10 slots; `$book` of the first
+  answered `booked` with a CSN, the visit type, the same start as the slot offered, and the
+  note kept as the reason; her visits to come went from 268 to 269. The read after found no
+  instructions (the sandbox's video visits hold none). The switch stays off by default.
+- **Epic's own guidance** (`api:839`, `api:840`, read 2026-11-15): `$find` must come before
+  `$book`; the end user reviews the options "in collaboration with the patient" before booking
+  (our read-back and yes); a new patient needs `Patient.Create` first (not ours: the agent books
+  for verified patients only); the visit types and rules are agreed with each hospital before
+  go-live ("pre-coordination", Config › Hospital's visit-type list); `$find` may carry the
+  patient's time zone; `$book`'s reply is the Appointment, its CSN in `identifier`.
+
+Where this differs from the design above, this is the code.
+- **No switch, no stand-in** (the owner, 2026-11-15, after the first real booking): Epic mode
+  always finds slots with `$find` and books with `$book`. Every booking in Epic mode writes to
+  Epic's shared sandbox (Epic wipes test writes each week). Local mode stays fully fake. (A
+  switch, `DEETS_EPIC_BOOKING`, held it off for one day and is gone.)
+- **`$find`** (`EpicScheduler::find_one`): the patient's `identifier`, `name` and `birthDate`
+  (kept from the patient search in the session, `Candidate::facts`, `Session::facts`; no new
+  read), `startTime` (the earliest day's start in the hospital's zone, never before now),
+  `service-type` from the hospital's visit-type list (`epic-sandbox.json` › `visit_types`:
+  New Patient Appointment in person, MyChart Video Visit online), `endTime` from
+  `latest_day`, and `time-of-day` (`timeOfDay`, `duration`, `dayOfWeek`) from `time_of_day`
+  and `days`. "Either" sends one `$find` per type (2 reads) and merges them by time. No
+  `location-reference`: the hospital's location list is not built.
+- **The reply** (`page`, `proposed`): proposed visits only, each in its own department's time
+  zone, clinician and place from absolute or relative references. A slot's id carries its
+  start, for a lost reply.
+- **The page of 10 and More:** the service keeps the search's slots in the session, offers
+  `hospital.json` › `slots_offered` (3) at a time, and `FindSlots` with `more` offers the next
+  ones, then Epic's `next` page (`find_more`: a POST of empty Parameters to Epic's link, 1
+  request; a refusal or an expired page gives none). The tokens
+  already offered still book. The clinician the caller named narrows the slots in the service,
+  for every EHR (`Shielded::names_clinician`).
+- **`$book`:** the patient and the proposed visit as `valueIdentifier`s and `appointmentNote`
+  (the caller's words, 500 characters at most); the reply's Appointment (or a Bundle holding
+  one) must be `booked`; then one `Appointment.Read` for its instructions. HTTP 4xx: the slot
+  is taken. No answer, 5xx, or a reply that is not a booked Appointment: a search of the
+  patient's visits in the minute of the slot's start; found, the booking stands; not found,
+  `BOOK_OUTCOME_NOT_THROUGH`, never kept as the key's answer, so the caller's yes books
+  (`line.book_not_through`, V2A).
+- **The hospital's own setup:** `ehr/fixtures/hospital.json` holds the times of day (morning
+  8–12, afternoon 12–5, evening 5–8, drafts) and the slots offered at once; ehr
+  (`hospital.rs`) and the agent (`flow.py` › `TIMES_OF_DAY`) read the same file. The model can
+  only pick a listed name (an enum); ehr refuses any other.
+- **The agent:** `find_slots` gains `latest_day`, `time_of_day`, `days`, `clinician` and
+  `more`; its result says `more_waiting`. An online time says the hospital's zone ("8:30 AM
+  CST"). The fake honours the same wishes, so the kept scripts and tests cover them.
+- **Tests:** `edge.rs` (the new fields, refusals), `service.rs` (More keeps old tokens; time of
+  day, days, last day, clinician), `epic_ehr.rs` (a `$find` page in the sandbox's shape; the
+  demographics hold only three fields; the visit types), `hospital.rs`, `test_gate.py`
+  (numbering goes on; unlisted wishes dropped; the zone).
+- **Desk test (Local):** "I need a check-up, afternoons only" (2 times); "anything else?"
+  (more; numbering goes on from 4); "with Dr. Okafor on Tuesday" (one time). **Epic, once the
+  switch is on (the owner's call):** as Camila Lopez, "a video visit next week" (real proposed
+  times in the department's zone); book one; "when is my next visit?" (the new visit, with its
+  CSN in a change flag).
+
+#### The cost, in FHIR calls
+Build 1: 0 to 1 more read per question about a visit, 0 more for instructions and the CSN.
+Build 2: 1 `$find` per search, 1 per later page, 1 `$book` and 1 `Appointment.Read` per
+booking, 1 search only when a reply is lost.
+
+#### The forks (the owner, 2026-11-14)
+- **V1A:** `find_visit` with `when`, `clinician`, `past` and `group`; the soonest by default,
+  then a count of the others; and the narrowing question, a hospital setting. Not chosen: B,
+  every visit read aloud.
+- **V2A:** a lost `$book` reply with no booking found: the caller is asked whether to try
+  again. Not chosen: B, `ehr` sends `$book` again without asking.

@@ -126,6 +126,41 @@ class Visit:
     reason: Shielded[str] = field(default_factory=lambda: Shielded(""))
     online: bool = False
     reason_private: bool = False
+    # How to prepare (Epic's `patientInstruction`), after the same screen; `instructions_private`:
+    # the record held some and ehr dropped them (EPIC.md §7.8).
+    instructions: Shielded[str] = field(default_factory=lambda: Shielded(""))
+    instructions_private: bool = False
+    # The visit's number at the hospital (Epic's CSN): for a staff flag only, never the model
+    # (FLAGS.md §3.3). "" when unknown.
+    csn: Shielded[str] = field(default_factory=lambda: Shielded(""))
+    # "upcoming", "seen", "missed" or "cancelled".
+    status: str = "upcoming"
+
+
+class BookNotThrough(Exception):
+    """The EHR's reply to a booking was lost, and a search found no such booking (the owner's
+    V2A, EPIC.md §7.10). The caller is asked whether to try again; a retry with the same key
+    books."""
+
+
+@dataclass(frozen=True)
+class FoundVisit:
+    """FindVisit's answer (EPIC.md §7.10): one visit and how many others matched, or, when too
+    many matched, the visit groups to ask the caller about."""
+
+    visit: Visit | None = None
+    more: int = 0
+    # The hospital's group names; tied to this caller they say what their visits are.
+    groups: tuple[Shielded[str], ...] = ()
+    other_visits: bool = False
+
+
+STATUSES = {
+    pb.VISIT_STATUS_UPCOMING: "upcoming",
+    pb.VISIT_STATUS_SEEN: "seen",
+    pb.VISIT_STATUS_MISSED: "missed",
+    pb.VISIT_STATUS_CANCELLED: "cancelled",
+}
 
 
 def _slot(s) -> Slot:
@@ -149,6 +184,10 @@ def _visit(v) -> Visit:
         reason=Shielded(v.reason),
         online=v.online,
         reason_private=v.reason_private,
+        instructions=Shielded(v.instructions),
+        instructions_private=v.instructions_private,
+        csn=Shielded(v.csn),
+        status=STATUSES.get(v.status, "upcoming"),
     )
 
 
@@ -158,6 +197,8 @@ class EhrClient:
     def __init__(self, channel: grpc.aio.Channel) -> None:
         self._channel = channel
         self._stub = pb_grpc.EhrStub(channel)
+        # Each open call's clock from ehr, by handle, until its Flow takes it (`call_clock`).
+        self._clocks: dict[str, tuple[str, str]] = {}
         # The dev call record (call_record.py), set by the typed harness only. It gets each
         # call's name, time and outcome; never a value.
         self.record = None
@@ -219,7 +260,13 @@ class EhrClient:
             pb.OpenCallRequest(ehr=source, prompt_version=prompt_version, system_version=system_version),
             left=lambda r: {"identify": r.identifies_left, "resend": r.resends_left, "code": r.code_tries_left},
         )
+        self._clocks[reply.handle] = (reply.local_now, reply.zone)
         return Shielded(reply.handle)
+
+    def call_clock(self, handle: Shielded[str]) -> tuple[str, str] | None:
+        """The hospital's date and time when the call opened (YYYY-MM-DDTHH:MM) and its zone's
+        short name, from ehr, which holds the one time zone (FUTURE-SETTINGS.md §13.1). Once."""
+        return self._clocks.pop(handle.reveal(), None)
 
     async def close_call(self, handle: Shielded[str]) -> None:
         await self._call("CloseCall", pb.CloseCallRequest(handle=handle.reveal()))
@@ -427,9 +474,16 @@ class EhrClient:
         reason: Shielded[str],
         earliest_day: Shielded[str] | None,
         visit_mode: str = "either",
-    ) -> list[Slot]:
-        """`reason`: the caller's own words (flow.py checks them); ehr keeps them for this call
-        and Book sends them to the scheduler as the visit's note."""
+        latest_day: Shielded[str] | None = None,
+        time_of_day: str = "",
+        days: tuple[str, ...] = (),
+        clinician: Shielded[str] | None = None,
+        more: bool = False,
+    ) -> tuple[list[Slot], bool]:
+        """The slots to offer now, and whether more of the same search wait. `reason`: the
+        caller's own words (flow.py checks them); ehr keeps them for this call and Book sends
+        them to the scheduler as the visit's note. `more`: the next slots of the last search;
+        every other argument is ignored."""
         reply = await self._call(
             "FindSlots",
             pb.FindSlotsRequest(
@@ -437,9 +491,14 @@ class EhrClient:
                 reason=reason.reveal(),
                 earliest_day=earliest_day.reveal() if earliest_day else "",
                 visit_mode=VISIT_MODES.get(visit_mode, pb.VISIT_MODE_UNSPECIFIED),
+                latest_day=latest_day.reveal() if latest_day else "",
+                time_of_day=time_of_day,
+                days=list(days),
+                clinician=clinician.reveal() if clinician else "",
+                more=more,
             ),
         )
-        return [_slot(s) for s in reply.slots]
+        return [_slot(s) for s in reply.slots], reply.more
 
     async def book(
         self, handle: Shielded[str], slot_token: Shielded[str], idempotency_key: str
@@ -454,14 +513,41 @@ class EhrClient:
                 idempotency_key=idempotency_key,
             ),
             deadline=BOOK_DEADLINE_S,
-            result=lambda r: "booked" if r.outcome == pb.BOOK_OUTCOME_BOOKED else "slot_taken",
+            result=lambda r: {pb.BOOK_OUTCOME_BOOKED: "booked", pb.BOOK_OUTCOME_NOT_THROUGH: "not_through"}.get(
+                r.outcome, "slot_taken"
+            ),
         )
         if reply.outcome == pb.BOOK_OUTCOME_BOOKED and reply.HasField("visit"):
             return _visit(reply.visit)
+        if reply.outcome == pb.BOOK_OUTCOME_NOT_THROUGH:
+            raise BookNotThrough()
         return None
 
-    async def next_visit(self, handle: Shielded[str]) -> Visit | None:
-        reply = await self._call("NextVisit", pb.NextVisitRequest(handle=handle.reveal()))
-        if not reply.HasField("visit"):
-            return None
-        return _visit(reply.visit)
+    async def find_visit(
+        self,
+        handle: Shielded[str],
+        when: Shielded[str] | None = None,
+        clinician: Shielded[str] | None = None,
+        past: bool = False,
+        group: Shielded[str] | None = None,
+    ) -> FoundVisit:
+        """One of the verified caller's visits: the soonest to come with no argument, else the
+        one the caller named (a day or month YYYY-MM-DD / YYYY-MM, a clinician, the past, a
+        visit group)."""
+        reply = await self._call(
+            "FindVisit",
+            pb.FindVisitRequest(
+                handle=handle.reveal(),
+                when=when.reveal() if when else "",
+                clinician=clinician.reveal() if clinician else "",
+                past=past,
+                group=group.reveal() if group else "",
+            ),
+            result=lambda r: "visit" if r.HasField("visit") else ("which" if r.groups else "none"),
+        )
+        return FoundVisit(
+            visit=_visit(reply.visit) if reply.HasField("visit") else None,
+            more=reply.more,
+            groups=tuple(Shielded(g) for g in reply.groups),
+            other_visits=reply.other_visits,
+        )

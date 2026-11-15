@@ -17,6 +17,8 @@ const PHI: u64 = 50001;
 const SECRET: u64 = 50002;
 /// `FieldDescriptorProto.type` for a string.
 const TYPE_STRING: u64 = 9;
+/// FieldDescriptorProto.Label: LABEL_REPEATED.
+const LABEL_REPEATED: u64 = 3;
 
 fn main() {
     println!("cargo:rerun-if-changed=proto");
@@ -50,8 +52,8 @@ fn main() {
 /// One message of the contract, with the fields the marks name.
 struct Marked {
     name: String,
-    /// Every field, in order: (name, marked).
-    fields: Vec<(String, bool)>,
+    /// Every field, in order: (name, marked, repeated).
+    fields: Vec<(String, bool, bool)>,
 }
 
 /// The messages in our package that have at least one marked field.
@@ -86,7 +88,7 @@ fn marked_messages(fds: &[u8]) -> Vec<Marked> {
                         "{name}.{fname}: a marked field may not sit in a oneof"
                     );
                 }
-                fields.push((fname, marked));
+                fields.push((fname, marked, varint(field, 4) == Some(LABEL_REPEATED)));
             }
             if any {
                 found.push(Marked { name, fields });
@@ -103,7 +105,7 @@ fn redacted_rs(messages: &[Marked]) -> String {
         let _ = writeln!(s, "impl ::core::fmt::Debug for {} {{", m.name);
         s.push_str("    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {\n");
         let _ = writeln!(s, "        f.debug_struct({:?})", m.name);
-        for (field, marked) in &m.fields {
+        for (field, marked, _) in &m.fields {
             if *marked {
                 let _ = writeln!(s, "            .field({field:?}, &format_args!(\"***\"))");
             } else {
@@ -116,7 +118,7 @@ fn redacted_rs(messages: &[Marked]) -> String {
     s.push_str("/// Every marked field of the contract, as (message, field).\n");
     s.push_str("pub const MARKED_FIELDS: &[(&str, &str)] = &[\n");
     for m in messages {
-        for (field, marked) in &m.fields {
+        for (field, marked, _) in &m.fields {
             if *marked {
                 let _ = writeln!(s, "    ({:?}, {field:?}),", m.name);
             }
@@ -129,8 +131,10 @@ fn redacted_rs(messages: &[Marked]) -> String {
     s.push_str("    #[test]\n    fn no_marked_field_reaches_a_debug_print() {\n");
     for m in messages {
         let _ = write!(s, "        let v = {} {{ ", m.name);
-        for (field, marked) in &m.fields {
-            if *marked {
+        for (field, marked, repeated) in &m.fields {
+            if *marked && *repeated {
+                let _ = write!(s, "{field}: vec![\"CANARY\".into()], ");
+            } else if *marked {
                 let _ = write!(s, "{field}: \"CANARY\".into(), ");
             }
         }

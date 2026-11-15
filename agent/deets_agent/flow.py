@@ -44,6 +44,7 @@ caller's yes and the offered slots live on this object, as `Shielded`.
 from __future__ import annotations
 
 import functools
+import json
 import re
 import secrets
 import time
@@ -56,13 +57,15 @@ from loguru import logger
 from pipecat.flows import NO_RESPONSE, FlowManager, FlowsFunctionSchema, NodeConfig
 from pipecat.frames.frames import TTSSpeakFrame
 
-from deets_agent import prompts
+from deets_agent import config, prompts
 from deets_agent.ehr_client import (
     VISIT_MODES,
+    BookNotThrough,
     CheckOutcome,
     EhrClient,
     EhrError,
     ErrorKind,
+    FoundVisit,
     Slot,
     Visit,
 )
@@ -71,6 +74,13 @@ from deets_agent.shielded import Shielded
 
 # The longest reason ehr takes (edge.rs › MAX_REASON).
 MAX_REASON_CHARS = 500
+# FindVisit's day or month (EPIC.md §7.10).
+WHEN = re.compile(r"\d{4}-\d{2}(-\d{2})?")
+DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
+# The hospital's times of day, by name: the only values find_slots's `time_of_day` may take
+# (ehr/fixtures/hospital.json, which ehr reads too; FUTURE-SETTINGS.md §13.1).
+TIMES_OF_DAY = tuple(t["name"] for t in json.loads(config.HOSPITAL.read_text(encoding="utf-8"))["times_of_day"])
+WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 # The clinic's name is the System variable `{clinic}` (agent/prompts/VARIABLES.md; SYSTEM-PAGE.md
 # §3.1): `prompts.text` fills it in any section that holds it.
@@ -78,6 +88,8 @@ MAX_REASON_CHARS = 500
 # ehr's fake slots start the week after this day (ehr/src/scheduler.rs). A typed call and the
 # tests use it as "today" so the fakes are in the future and the replay cache holds.
 FAKE_TODAY = date(2026, 10, 26)
+# The time a typed or test call starts at, for the same reason (the call-start note, 1A).
+FAKE_CLOCK = "9 AM CST"
 # The earliest birth date ehr accepts (ehr/src/edge.rs).
 EARLIEST_BIRTH = date(1900, 1, 1)
 
@@ -97,6 +109,11 @@ def spoken_date(d: date) -> str:
     return f"{_MONTHS[d.month - 1]} {d.day}, {d.year}"
 
 
+def spoken_clock(hour: int, minute: int) -> str:
+    """14, 30 -> '2:30 PM'; 9, 0 -> '9 AM'."""
+    return f"{hour % 12 or 12}{'' if minute == 0 else f':{minute:02d}'} {'AM' if hour < 12 else 'PM'}"
+
+
 def spoken_time(starts_at: str) -> str:
     """'2026-11-02T14:30' -> 'Monday, November 2, at 2:30 PM'."""
     t = datetime.strptime(starts_at, "%Y-%m-%dT%H:%M")
@@ -106,15 +123,17 @@ def spoken_time(starts_at: str) -> str:
     return f"{spoken_day(t.date())}, at {hour}{minute} {half}"
 
 
-def _visit_words(v: Slot | Visit, say_online: bool = True) -> str:
+def _visit_words(v: Slot | Visit, say_online: bool = True, zone: str = "") -> str:
     """The one place a visit's values become words (a reveal on purpose). An online visit says
     so after its place (2026-11-14), so the caller knows before choosing; an in-person one reads
-    as it always did. `say_online=False` where a line of its own says it (`line.visit_online`)."""
+    as it always did. `say_online=False` where a line of its own says it (`line.visit_online`).
+    `zone`: the hospital's zone, said after an online visit's time, since the caller may be
+    elsewhere (EPIC.md §7.10)."""
     how = ", online," if v.online and say_online else ","
-    return (
-        f"{spoken_time(v.starts_at.reveal())}, with {v.clinician.reveal()} "
-        f"at {v.place.reveal()}{how} for {v.minutes} minutes"
-    )
+    when = spoken_time(v.starts_at.reveal())
+    if v.online and zone:
+        when = f"{when} {zone}"
+    return f"{when}, with {v.clinician.reveal()} at {v.place.reveal()}{how} for {v.minutes} minutes"
 
 
 def _reason_status(v: Visit) -> str:
@@ -200,6 +219,9 @@ class StaffFlag:
     # Quotes the model gave that the caller never said. Counted, never kept: a quote the
     # caller did not say is the model's words, not evidence.
     unverified: int = 0
+    # The CSN of the visit the flag is about, so staff find it at once (FLAGS.md §3.3). Code
+    # picks the visit; the model never sees a CSN.
+    csn: Shielded[str] | None = None
 
     def test_record(self) -> dict[str, Any]:
         """The fields for the dev call record. Test mode keeps full values (REGULATIONS.md §8);
@@ -210,6 +232,7 @@ class StaffFlag:
             "summary": self.summary.reveal() if self.summary is not None else None,
             "evidence": [q.reveal() for q in self.evidence],
             "unverified": self.unverified,
+            "csn": self.csn.reveal() if self.csn is not None else None,
         }
 
 
@@ -261,7 +284,9 @@ TOOL_STEPS = ("greet", "verify", "menu", "schedule")
 
 # A note goes to the model in the result of one tool, so it is read in that tool's steps.
 NOTE_TOOL = {
-    "note.after_next_visit": "next_visit",
+    "note.after_find_visit": "find_visit",
+    "note.after_offer_instructions": "find_visit",
+    "note.after_which_visit": "find_visit",
     "note.after_reminder": "safety_reminder",
     "note.after_flag": "flag_for_staff",
     # Also sent back by hand_off; both are global tools, so the scope is the same.
@@ -317,6 +342,12 @@ class CallFlow:
 
     ehr: EhrClient
     today: date = field(default_factory=date.today)
+    # The hospital's time as the call starts, for the model (the owner's 1A, 2026-11-14): in
+    # the call's own messages, not in `role`, so the shared prompt cache holds. An Epic call
+    # takes it, and today, from ehr's clock in the hospital's time zone (`start`).
+    clock: str = FAKE_CLOCK
+    # The hospital's time zone's short name ("CST"), said after an online slot's time.
+    zone: str = FAKE_CLOCK.split()[-1]
     # The EHR this call reads: `local` (ehr's fakes) or `epic` (Epic's public sandbox, dev only).
     ehr_source: str = "local"
     handle: Shielded[str] | None = None
@@ -330,6 +361,10 @@ class CallFlow:
     # choice A, 2026-11-12), and the visit booked last on this call.
     chosen: int | None = None
     last_booked: Visit | None = None
+    # Every visit the caller has heard on this call, by its number, and the last one (for
+    # read_instructions and change_visit). The model names a visit by its number only.
+    visits_heard: dict[int, Visit] = field(default_factory=dict)
+    last_visit: Visit | None = None
     # Set when the Flow moves to a node that ends the call (goodbye, hand off).
     closing: bool = False
     # Every caller line on this call, for the name guard. Protected data: Shielded, call-long.
@@ -357,6 +392,17 @@ class CallFlow:
         # The call's prompt version: ehr takes the text message's words from it (CONSOLE.md §9).
         words = prompts.current()
         self.handle = await self.ehr.open_call(self.ehr_source, words.version_id, words.system_id)
+        got = self.ehr.call_clock(self.handle) if self.ehr_source == "epic" else None
+        if got and got[0]:
+            # ehr holds the hospital's one time zone, so "today" is the hospital's, not this PC's.
+            at = datetime.strptime(got[0], "%Y-%m-%dT%H:%M")
+            self.today = at.date()
+            self.clock = f"{spoken_clock(at.hour, at.minute)} {got[1]}".strip()
+            self.zone = got[1]
+
+    def clock_note(self) -> str:
+        """The call-start note: the hospital's time when the call began (1A)."""
+        return text("note.call_start", now=self.clock)
 
     async def close(self) -> None:
         if self.handle is not None:
@@ -416,7 +462,7 @@ class CallFlow:
         return self._step({
             "name": "greet",
             "role_message": role(self.today),
-            "task_messages": self._task("greet"),
+            "task_messages": [*self._task("greet"), {"role": "developer", "content": self.clock_note()}],
             "functions": [self._identify_fn(), self._confirm_details_fn()],
             "pre_actions": [
                 {"type": "tts_say", "text": greeting(), "append_text_to_context": False},
@@ -440,7 +486,12 @@ class CallFlow:
         return self._step({
             "name": "menu",
             "task_messages": self._task("menu"),
-            "functions": [self._find_slots_fn(), self._next_visit_fn(), self._change_visit_fn()],
+            "functions": [
+                self._find_slots_fn(),
+                self._find_visit_fn(),
+                self._read_instructions_fn(),
+                self._change_visit_fn(),
+            ],
         })
 
     def schedule(self) -> NodeConfig:
@@ -499,7 +550,12 @@ class CallFlow:
         return False
 
     def raise_flag(
-        self, kind: str, source: str, summary: str | None = None, quotes: list[str] | tuple[str, ...] = ()
+        self,
+        kind: str,
+        source: str,
+        summary: str | None = None,
+        quotes: list[str] | tuple[str, ...] = (),
+        csn: Shielded[str] | None = None,
     ) -> StaffFlag | None:
         """Raise a flag. A code flag of one kind is raised once per call; the model may add its
         own of any kind. Each quote is kept only if the caller said it (fork 1A)."""
@@ -515,6 +571,7 @@ class CallFlow:
             summary=Shielded(summary.strip()) if summary and summary.strip() else None,
             evidence=kept,
             unverified=len([q for q in quotes if q.strip()]) - len(kept),
+            csn=csn if csn is not None and csn.reveal() else None,
         )
         self.flags.append(flag)
         logger.info("staff flag raised: {} by {}, {} quotes kept", kind, source, len(kept))
@@ -772,33 +829,69 @@ class CallFlow:
 
     def _find_slots_fn(self) -> FlowsFunctionSchema:
         async def handler(args, flow_manager: FlowManager):
+            more = args.get("more") is True or str(args.get("more", "")).lower() == "true"
             reason = Shielded(self._reason_words(str(args.get("reason", ""))))
-            day = str(args.get("earliest_day", "")).strip()
+            day = str(args.get("earliest_day", "") or "").strip()
+            last = str(args.get("latest_day", "") or "").strip()
             mode = str(args.get("visit_mode", "") or "either").strip()
             if mode not in VISIT_MODES:
                 mode = "either"
+            # Only values the hospital's lists hold; anything else is dropped, never sent.
+            when = str(args.get("time_of_day", "") or "").strip().lower()
+            when = when if when in TIMES_OF_DAY else ""
+            days = tuple(d for d in (args.get("days") or []) if isinstance(d, str) and d in WEEKDAYS)
+            who = str(args.get("clinician", "") or "").strip()
             try:
-                slots = await self.ehr.find_slots(self.handle, reason, Shielded(day) if day else None, mode)
+                slots, waiting = await self.ehr.find_slots(
+                    self.handle,
+                    reason,
+                    Shielded(day) if DAY.fullmatch(day) else None,
+                    mode,
+                    latest_day=Shielded(last) if DAY.fullmatch(last) else None,
+                    time_of_day=when,
+                    days=days,
+                    clinician=Shielded(who) if who else None,
+                    more=more,
+                )
             except EhrError as e:
                 return await self._ehr_trouble(flow_manager, e, "find_slots")
             logger.info("find_slots: {} found", len(slots))
             self.chosen = None
             if not slots:
-                return await self._say(flow_manager, text("line.no_slots"))
+                return await self._say(flow_manager, text("line.no_more_slots" if more else "line.no_slots"))
             numbers = [self._number_for(s) for s in slots]
             options = " ".join(
-                text("line.slot_option", number=str(n), visit=_visit_words(s)) for n, s in zip(numbers, slots)
+                text("line.slot_option", number=str(n), visit=_visit_words(s, zone=self.zone))
+                for n, s in zip(numbers, slots)
             )
             return await self._say(
-                flow_manager, text("line.slots", options=options), self.schedule(), options=numbers
+                flow_manager,
+                text("line.slots", options=options),
+                self.schedule(),
+                options=numbers,
+                more_waiting=waiting,
             )
 
         return _tool(
             "find_slots",
             handler,
-            {"reason": "", "earliest_day": "", "visit_mode": ""},
+            {
+                "reason": "",
+                "earliest_day": "",
+                "latest_day": "",
+                "visit_mode": "",
+                "time_of_day": "",
+                "days": "",
+                "clinician": "",
+                "more": "",
+            },
             required=["reason"],
-            schemas={"visit_mode": {"type": "string", "enum": list(VISIT_MODES)}},
+            types={"more": "boolean"},
+            schemas={
+                "visit_mode": {"type": "string", "enum": list(VISIT_MODES)},
+                "time_of_day": {"type": "string", "enum": ["", *TIMES_OF_DAY]},
+                "days": {"type": "array", "items": {"type": "string", "enum": list(WEEKDAYS)}},
+            },
         )
 
     def _number_for(self, slot: Slot) -> int:
@@ -826,7 +919,8 @@ class CallFlow:
                 return await self._say(flow_manager, text("line.which_option"))
             self.chosen = option
             logger.info("choose_option: read back")
-            line = text("line.confirm_slot", number=str(option), visit=_visit_words(self.offered[option]))
+            said = _visit_words(self.offered[option], zone=self.zone)
+            line = text("line.confirm_slot", number=str(option), visit=said)
             return await self._say(flow_manager, line)
 
         return _tool("choose_option", handler, {"option": ""}, types={"option": "integer"})
@@ -840,6 +934,11 @@ class CallFlow:
             key = self.book_keys.setdefault(option, secrets.token_urlsafe(24))
             try:
                 booked = await self.ehr.book(self.handle, self.offered[option].token, key)
+            except BookNotThrough:
+                # The owner's V2A: never a second booking without the caller's yes. The choice
+                # stays, so a yes books the same time with the same key.
+                logger.info("book: the reply was lost and no booking was found")
+                return await self._say(flow_manager, text("line.book_not_through"))
             except EhrError as e:
                 return await self._ehr_trouble(flow_manager, e, "book")
             self.chosen = None
@@ -855,7 +954,7 @@ class CallFlow:
             # call, 2026-11-13).
             return await self._say(
                 flow_manager,
-                text("line.booked", visit=_visit_words(booked)),
+                text("line.booked", visit=_visit_words(booked, zone=self.zone)),
                 self.menu(),
                 visit_is="online" if booked.online else "in person",
                 reason_for_visit=_reason_status(booked),
@@ -869,49 +968,147 @@ class CallFlow:
         # with the caller's own words (FLAGS.md).
         async def handler(args, flow_manager: FlowManager):
             asked = [self.caller_lines[-1].reveal()] if self.caller_lines else []
-            self.raise_flag("booking_change", "code", quotes=asked)
+            # The visit the change is about, so its CSN goes with the flag (FLAGS.md §3.3): the
+            # number the model gave, else the one booked on this call, else the last one heard.
+            try:
+                number = int(args.get("visit", 0) or 0)
+            except (TypeError, ValueError):
+                number = 0
+            about = self.visits_heard.get(number) or self.last_booked or self.last_visit
+            self.raise_flag("booking_change", "code", quotes=asked, csn=about.csn if about else None)
             if self.last_booked is not None:
-                line = text("line.change_booked", visit=_visit_words(self.last_booked))
+                line = text("line.change_booked", visit=_visit_words(self.last_booked, zone=self.zone))
             else:
                 line = text("line.change_visit")
             return await self._say(flow_manager, line, self.handed_off())
 
-        return _tool("change_visit", handler)
+        return _tool("change_visit", handler, {"visit": ""}, required=[], types={"visit": "integer"})
 
-    def _next_visit_fn(self) -> FlowsFunctionSchema:
+    def _visit_number(self, visit: Visit) -> int:
+        """The visit's number on this call: its old number if the caller heard it before."""
+        for n, v in self.visits_heard.items():
+            if _same_visit(v, visit):
+                self.visits_heard[n] = visit
+                return n
+        n = max(self.visits_heard, default=0) + 1
+        self.visits_heard[n] = visit
+        return n
+
+    def _find_visit_fn(self) -> FlowsFunctionSchema:
+        # One of the caller's visits (EPIC.md §7.10; the owner's V1A, 2026-11-14): the soonest to
+        # come, or one the caller names. ehr matches the words and narrows; the model never sees
+        # a CSN or an id, only the visit's number on this call.
         async def handler(args, flow_manager: FlowManager):
+            when = str(args.get("when", "") or "").strip()
+            if when and not WHEN.fullmatch(when):
+                when = ""
+            who = str(args.get("clinician", "") or "").strip()
+            group = str(args.get("group", "") or "").strip()
+            past = args.get("past") is True or str(args.get("past", "")).lower() == "true"
             try:
-                visit = await self.ehr.next_visit(self.handle)
+                found = await self.ehr.find_visit(
+                    self.handle,
+                    Shielded(when) if when else None,
+                    Shielded(who) if who else None,
+                    past,
+                    Shielded(group) if group else None,
+                )
             except EhrError as e:
-                return await self._ehr_trouble(flow_manager, e, "next_visit")
+                return await self._ehr_trouble(flow_manager, e, "find_visit")
+            asked = bool(when or who or group)
+            if found.groups:
+                return await self._say(
+                    flow_manager, self._which_visit(found), next_step=text("note.after_which_visit")
+                )
+            visit = found.visit
             if visit is None:
-                return await self._say(flow_manager, text("line.no_visits"))
-            # The time, then what the visit is, as the record says (the owner, 2026-11-13: an
-            # online visit keeps its place). The line ends without a question, so the model goes
-            # on and answers the rest of what the caller asked (Camila's call, 2026-11-13).
-            # The visit this call just booked is not read out again: the caller heard it a moment
-            # ago (the Priya Raman call); only what it is follows.
-            just_booked = self.last_booked is not None and _same_visit(visit, self.last_booked)
-            if just_booked:
-                words = [text("line.booked_visit_asked")]
-            else:
-                words = [text("line.next_visit", visit=_visit_words(visit, say_online=False))]
-            if visit.online:
-                words.append(text("line.visit_online"))
-            elif visit.visit_type:
-                words.append(text("line.visit_type", visit_type=visit.visit_type.reveal()))
-            if visit.reason:
-                words.append(text("line.visit_reason", reason=visit.reason.reveal()))
-            # For the model only: what the record holds, so it answers from facts and offers
-            # staff for the rest (offer_staff). Never the words of a private visit: ehr dropped them.
+                if past and not asked:
+                    return await self._say(flow_manager, text("line.no_past_visits"))
+                return await self._say(flow_manager, text("line.no_visit_match" if asked else "line.no_visits"))
+            number = self._visit_number(visit)
+            self.last_visit = visit
+            words = self._visit_lines(visit, asked)
+            if found.more and not asked and not past:
+                words.append(
+                    text("line.one_more_visit") if found.more == 1 else text("line.more_visits", count=str(found.more))
+                )
+            # The owner's 2A (2026-11-14): instructions are offered first; read at once when the
+            # caller asked about this visit by its day, clinician or group. Never for a visit
+            # that is over.
+            instructions = "none on record"
+            if visit.instructions_private:
+                instructions = "private"
+            elif visit.instructions.reveal() and visit.status == "upcoming":
+                if asked:
+                    words.append(text("line.visit_instructions", instructions=visit.instructions.reveal()))
+                    instructions = "said"
+                else:
+                    words.append(text("line.offer_instructions"))
+                    instructions = "offered"
+            note = "note.after_offer_instructions" if instructions == "offered" else "note.after_find_visit"
             return await self._say(
                 flow_manager,
                 " ".join(words),
+                visit_number=number,
+                visit_status=visit.status,
                 reason_for_visit=_reason_status(visit),
-                next_step=text("note.after_next_visit"),
+                instructions=instructions,
+                next_step=text(note),
             )
 
-        return _tool("next_visit", handler)
+        return _tool(
+            "find_visit",
+            handler,
+            {"when": "", "clinician": "", "past": "", "group": ""},
+            required=[],
+            types={"past": "boolean"},
+        )
+
+    def _which_visit(self, found: FoundVisit) -> str:
+        """The narrowing question: the groups by name, and "another visit" for the rest."""
+        items = [text("line.visit_group", group=g.reveal()) for g in found.groups]
+        if found.other_visits:
+            items.append(text("line.another_visit"))
+        return text("line.which_visit", groups=f" {text('line.choice_or')} ".join(items))
+
+    def _visit_lines(self, visit: Visit, asked: bool) -> list[str]:
+        """The visit's time, then what it is, as the record says (the owner, 2026-11-13: an online
+        visit keeps its place). The line ends without a question, so the model goes on and answers
+        the rest of what the caller asked (Camila's call, 2026-11-13). The visit this call just
+        booked is not read out again: the caller heard it a moment ago (the Priya Raman call)."""
+        said = _visit_words(visit, say_online=False, zone=self.zone)
+        just_booked = self.last_booked is not None and _same_visit(visit, self.last_booked)
+        if visit.status == "seen":
+            words = [text("line.past_seen", visit=said)]
+        elif visit.status == "missed":
+            words = [text("line.past_missed", visit=said)]
+        elif visit.status == "cancelled":
+            words = [text("line.past_cancelled", visit=said)]
+        elif just_booked:
+            words = [text("line.booked_visit_asked")]
+        elif asked:
+            words = [text("line.visit_found", visit=said)]
+        else:
+            words = [text("line.next_visit", visit=said)]
+        if visit.online:
+            words.append(text("line.visit_online"))
+        elif visit.visit_type:
+            words.append(text("line.visit_type", visit_type=visit.visit_type.reveal()))
+        if visit.reason:
+            words.append(text("line.visit_reason", reason=visit.reason.reveal()))
+        return words
+
+    def _read_instructions_fn(self) -> FlowsFunctionSchema:
+        # The caller said yes to hearing the instructions (2A), or asked how to prepare.
+        async def handler(args, flow_manager: FlowManager):
+            visit = self.last_visit
+            if visit is None or not visit.instructions.reveal():
+                return await self._say(flow_manager, text("line.no_instructions"))
+            return await self._say(
+                flow_manager, text("line.visit_instructions", instructions=visit.instructions.reveal())
+            )
+
+        return _tool("read_instructions", handler)
 
     def offer_staff_fn(self) -> FlowsFunctionSchema:
         # The owner's option A (2026-11-13), after Camila's call: when the agent cannot do what the

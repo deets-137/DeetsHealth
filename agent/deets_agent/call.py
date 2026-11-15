@@ -144,7 +144,13 @@ class TurnCollector(FrameProcessor):
         if not said or self.flow is None:
             return
         values = invented_values(
-            said, [role(self.flow.today), *self._fixed_lines, *(x.reveal() for x in self.flow.caller_lines)]
+            said,
+            [
+                role(self.flow.today),
+                self.flow.clock_note(),
+                *self._fixed_lines,
+                *(x.reveal() for x in self.flow.caller_lines),
+            ],
         )
         if values:
             self.invented.append((said, values))

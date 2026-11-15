@@ -39,8 +39,10 @@ service Ehr {
   rpc FindSlots(FindSlotsRequest) returns (FindSlotsReply);
   // Books one slot from the last FindSlots. A retry with the same key gets the same answer.
   rpc Book(BookRequest) returns (BookReply);
-  // The verified caller's next visit (DESIGN.md S5). Refused before both factors pass.
-  rpc NextVisit(NextVisitRequest) returns (NextVisitReply);
+  // One of the verified caller's visits (DESIGN.md S5; EPIC.md §7.10): the soonest to come, or
+  // one the caller names by day, month, clinician, group or past. When too many match, the
+  // groups to ask about. Refused before both factors pass.
+  rpc FindVisit(FindVisitRequest) returns (FindVisitReply);
   // Files one ended call's record into the call store (DATABASE.md), one line per message, so a
   // long call never meets the message limit. Keyed by the record's call id, not a handle: the
   // session is closed by then. FAILED_PRECONDITION when ehr runs without a store.
@@ -291,6 +293,11 @@ message OpenCallReply {
   uint32 identifies_left = 2;
   uint32 resends_left = 3;
   uint32 code_tries_left = 4;
+  // The hospital's date and time as the call opens, YYYY-MM-DDTHH:MM, in its time zone
+  // (FUTURE-SETTINGS.md §13.1; the owner's 1A, 2026-11-14), and that zone's short name ("CST").
+  // ehr holds the one time zone, so ehr and the agent agree on "today". Not protected data.
+  string local_now = 5;
+  string zone = 6;
 }
 
 message CloseCallRequest {
@@ -351,6 +358,16 @@ message FindSlotsRequest {
   // How the caller wants to be seen, from their words (the owner's 1A, 2026-11-13). Unset:
   // either way. At Epic this becomes the hospital's visit types (EPIC.md §5.2).
   VisitMode visit_mode = 4;
+  // The last day the caller can come, YYYY-MM-DD. Empty: no end (EPIC.md §7.10).
+  string latest_day = 5 [(phi) = true];
+  // A time of day from the hospital's list ("morning"); empty for any (FUTURE-SETTINGS.md §13.1).
+  string time_of_day = 6 [(phi) = true];
+  // Days of the week, "mon" to "sun"; none for any.
+  repeated string days = 7;
+  // The caller's words for a clinician; empty for any. The slots are narrowed to them.
+  string clinician = 8 [(phi) = true];
+  // The next slots of the last search, not a new search: every other field is ignored.
+  bool more = 9;
 }
 
 enum VisitMode {
@@ -361,6 +378,8 @@ enum VisitMode {
 
 message FindSlotsReply {
   repeated Slot slots = 1;
+  // More slots of the same search wait (FindSlots with `more`).
+  bool more = 2;
 }
 
 message Slot {
@@ -387,6 +406,9 @@ enum BookOutcome {
   BOOK_OUTCOME_BOOKED = 1;
   // Someone else took the slot between FindSlots and Book. Offer the others.
   BOOK_OUTCOME_SLOT_TAKEN = 2;
+  // The EHR's reply was lost and a search found no booking (the owner's V2A, EPIC.md §7.10):
+  // ask the caller whether to try again. A retry with the same key books.
+  BOOK_OUTCOME_NOT_THROUGH = 3;
 }
 
 message BookReply {
@@ -399,8 +421,24 @@ message BookReply {
   Visit visit = 3;
 }
 
-message NextVisitRequest {
+message FindVisitRequest {
   string handle = 1 [(secret) = true];
+  // A day (YYYY-MM-DD) or a month (YYYY-MM) the caller named; "" for none.
+  string when = 2 [(phi) = true];
+  // The caller's words for the clinician ("Dr. Lin"); "" for none.
+  string clinician = 3 [(phi) = true];
+  // A visit that is over ("when was I last seen?").
+  bool past = 4;
+  // The caller's words for a visit group ("my imaging"); "" for none.
+  string group = 5 [(phi) = true];
+}
+
+enum VisitStatus {
+  // Still to come.
+  VISIT_STATUS_UPCOMING = 0;
+  VISIT_STATUS_SEEN = 1;
+  VISIT_STATUS_MISSED = 2;
+  VISIT_STATUS_CANCELLED = 3;
 }
 
 message Visit {
@@ -419,9 +457,24 @@ message Visit {
   // The type or reason named sensitive care (FUTURE-SETTINGS.md §9): both were dropped in ehr
   // and are "". The agent may say only that it cannot share what the visit is for.
   bool reason_private = 8;
+  // How to prepare (Epic's `patientInstruction`, EPIC.md §7.8); "" for none or private.
+  string instructions = 9 [(phi) = true];
+  // The record held instructions and the screen dropped them.
+  bool instructions_private = 10;
+  // The visit's number at the hospital (Epic's CSN), for a staff flag only (FLAGS.md §3.3).
+  // Never sent to the model. "" when unknown.
+  string csn = 11 [(phi) = true];
+  VisitStatus status = 12;
 }
 
-message NextVisitReply {
-  // Unset when the caller has no visit coming.
+message FindVisitReply {
+  // Unset when no visit matched, or when `groups` is set.
   Visit visit = 1;
+  // How many others matched.
+  uint32 more = 2;
+  // Too many matched: the visit groups to ask the caller about, in order (FUTURE-SETTINGS.md
+  // §13.3). The names are the hospital's; tied to this caller they say what their visits are.
+  repeated string groups = 3 [(phi) = true];
+  // With `groups`: other visits match outside the groups named ("or another visit").
+  bool other_visits = 4;
 }

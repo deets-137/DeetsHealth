@@ -12,8 +12,9 @@ from pipecat.flows import NO_RESPONSE
 from pipecat.frames.frames import TTSSpeakFrame
 
 from deets_agent.flow import FAKE_TODAY, CallFlow
+from deets_agent.prompts import text
 
-CHART_TOOLS = {"find_slots", "book", "next_visit"}
+CHART_TOOLS = {"find_slots", "book", "find_visit"}
 JORDAN = {"given_name": "Jordan", "family_name": "Ellis", "birth_date": "1984-03-12"}
 CODE = {"code": "246810"}
 
@@ -101,7 +102,7 @@ async def test_no_chart_tool_exists_before_verification(ehr):
     flow = new_flow(ehr)
     assert not tools(flow.greet()) & CHART_TOOLS
     assert not tools(flow.verify()) & CHART_TOOLS
-    assert {"find_slots", "next_visit"} <= tools(flow.menu())
+    assert {"find_slots", "find_visit"} <= tools(flow.menu())
     assert {"book", "find_slots"} <= tools(flow.schedule())
 
 
@@ -109,7 +110,7 @@ async def test_ehr_refuses_the_chart_even_if_the_flow_were_bypassed(ehr):
     flow = new_flow(ehr)
     await flow.start()
     # Call the menu's tools without verifying: ehr refuses, and the Flow hands off.
-    _, next_node = await handler(flow.menu(), "next_visit")({}, manager())
+    _, next_node = await handler(flow.menu(), "find_visit")({}, manager())
     assert next_node["name"] == "hand_off"
     _, next_node = await handler(flow.menu(), "find_slots")({"reason": "a check-up"}, manager())
     assert next_node["name"] == "hand_off"
@@ -125,14 +126,18 @@ async def test_a_whole_call_through_the_handlers(ehr):
     result, node = await handler(node, "check_code")(CODE, fm)
     assert node["name"] == "menu"
 
-    result, nxt = await handler(node, "next_visit")({}, fm)
+    result, nxt = await handler(node, "find_visit")({}, fm)
     assert "Tuesday, November 10, at 10 AM" in result["spoken_to_caller"]
-    # What the visit is, from the record (FUTURE-SETTINGS.md §9); no question at the end, so
-    # the model goes on and answers the rest of what the caller asked.
+    # What the visit is, from the record (FUTURE-SETTINGS.md §9), how many more are coming, and
+    # the offer of its instructions (the owner's 2A, 2026-11-14): the line waits for a yes.
     assert "It is listed as Office Visit." in result["spoken_to_caller"]
     assert "The reason on record is Blood pressure follow-up." in result["spoken_to_caller"]
-    assert result["reason_for_visit"] == "said" and nxt is None
-    assert not result["spoken_to_caller"].rstrip().endswith("?")
+    assert "You have 2 more visits coming up after that." in result["spoken_to_caller"]
+    assert result["spoken_to_caller"].endswith("Would you like to hear them?") and nxt is NO_RESPONSE
+    assert (result["reason_for_visit"], result["instructions"], result["visit_number"]) == ("said", "offered", 1)
+    assert "csn" not in result and "90000101" not in str(result), "the model never sees a CSN"
+    result, _ = await handler(node, "read_instructions")({}, fm)
+    assert result["spoken_to_caller"] == "The instructions for this visit say: Bring a list of the medicines you take."
 
     flow.heard("I'd like to book a check-up, please.")
     result, node = await handler(flow.menu(), "find_slots")({"reason": "a check-up"}, fm)
@@ -151,7 +156,7 @@ async def test_a_whole_call_through_the_handlers(ehr):
 
     # Asked again (the Priya Raman call, 2026-11-13): the time is not read out a second time; the
     # type and the caller's own reason are, from the booking.
-    result, _ = await handler(node, "next_visit")({}, fm)
+    result, _ = await handler(node, "find_visit")({}, fm)
     assert result["spoken_to_caller"].startswith("That's the visit we just booked.")
     assert "Monday, November 2" not in result["spoken_to_caller"]
     assert "It is listed as Office Visit." in result["spoken_to_caller"]
@@ -159,8 +164,35 @@ async def test_a_whole_call_through_the_handlers(ehr):
     assert result["reason_for_visit"] == "said"
 
     # Every line the model was told about is a line the caller heard, word for word.
-    assert len(spoken(fm)) == 8  # the read-back, then seven lines
+    assert len(spoken(fm)) == 9  # the read-back, then eight lines
     assert spoken(fm)[-1] == result["spoken_to_caller"]
+    await flow.close()
+
+
+async def test_more_times_go_on_numbering_and_only_listed_wishes_are_sent(ehr):
+    """EPIC.md §7.10, build 2: the next times of the same search keep counting from the last
+    option number; a time of day or a day the hospital's lists do not hold is dropped, never
+    sent; an online time says the hospital's zone."""
+    flow = new_flow(ehr)
+    fm = manager()
+    await flow.start()
+    _, node = await identify(flow, JORDAN, fm)
+    _, node = await handler(node, "check_code")(CODE, fm)
+    flow.heard("I'd like a check-up, any time.")
+    result, node = await handler(node, "find_slots")({"reason": "a check-up"}, fm)
+    assert result["options"] == [1, 2, 3] and result["more_waiting"] is True
+    result, _ = await handler(node, "find_slots")({"reason": "a check-up", "more": True}, fm)
+    assert result["options"] == [4, 5, 6] and result["more_waiting"] is False
+    assert "8:30 AM CST" in result["spoken_to_caller"], "an online time names the zone"
+    result, _ = await handler(node, "find_slots")({"reason": "a check-up", "more": True}, fm)
+    assert result["spoken_to_caller"] == text("line.no_more_slots")
+    # "brunch" is not on the hospital's list: dropped, so the search runs without it.
+    result, _ = await handler(node, "find_slots")(
+        {"reason": "a check-up", "time_of_day": "brunch", "days": ["someday"]}, fm
+    )
+    assert result["options"] == [1, 2, 3]
+    result, _ = await handler(node, "find_slots")({"reason": "a check-up", "time_of_day": "afternoon"}, fm)
+    assert result["options"] == [2, 6]
     await flow.close()
 
 

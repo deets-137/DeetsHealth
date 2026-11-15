@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [ehr/src/texts.rs, ehr/src/verify.rs, ehr/src/service.rs, ehr/src/main.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/tests/texts.rs, core/src/text.rs, core/src/shielded.rs, agent/deets_agent/fake_twilio.py, agent/deets_agent/dev_server.py, agent/deets_agent/ehr_process.py, agent/deets_agent/call_record.py, agent/prompts/AGENT-PROMPT.md, agent/tests/test_fake_twilio.py, scripts/dev.mjs]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # DeetsHealth — The code by text
 
@@ -123,7 +123,7 @@ request must carry them in plain form, so core has a fifth pass, `TextPass`
 `ehr/fixtures/sandbox.json` holds the synthetic patients (each with a number in 555-0100 to
 555-0199, which no real phone uses) and their visits. `ehr/src/sandbox.rs` builds it into the
 binary; the fake patient search (`FakePatients`) and the fake scheduler's existing visits
-(`FakeScheduler::next_visit`) read it; `GET /agent/sandbox` sends it to the Chat page. One
+(`FakeScheduler::visits`) read it; `GET /agent/sandbox` sends it to the Chat page. One
 file, so the page always shows what the fakes use. Two tests guard it: every visit has its
 patient, and every number is in the unused range.
 

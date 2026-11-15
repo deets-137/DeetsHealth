@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [docs/architecture/images/system-test-variable-2026-11-13.png, agent/prompts/AGENT-PROMPT.md, agent/prompts/VARIABLES.md, agent/prompts/TOOLS.md, agent/deets_agent/prompts.py, agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/dev_server.py, agent/deets_agent/call_record.py, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/texts.rs, ehr/src/store.rs, ehr/proto/deets/ehr/v1/ehr.proto, ehr/migrations/0006_settings_system.sql, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, console/src/pages/agent.ts, console/src/pages/config.ts, console/src/styles/config.css]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # DeetsHealth — Config › System: variables and tools
 
@@ -58,7 +58,7 @@ list). 13 sections hold variables; 65 hold none:
 |---|---|
 | greet | `identify` `confirm_details` |
 | verify | `check_code` `resend_code` `identify` `confirm_details` |
-| menu | `find_slots` `next_visit` `change_visit` |
+| menu | `find_slots` `find_visit` `read_instructions` `change_visit` |
 | schedule | `choose_option` `book` `find_slots` `change_visit` |
 
 The words name tools as plain text. Nothing checks those names. A test on 2026-11-13 showed
@@ -265,7 +265,9 @@ Where this disagrees with §3, this is the code.
 > **Part:** idea · 2026-11-13
 - Turning a tool on or off for a hospital (FUTURE-SETTINGS.md). `emergency` can never be
   turned off.
-- The format of `{today}`.
+- The format of `{today}`. The owner, 2026-11-14: the date and the time, in the hospital's
+  time zone (a new setting). The time goes in a line at the start of the call's own messages,
+  not in `role`, which is in the shared prompt cache (the owner, 1A): EPIC.md §7.8.
 - Moving the existing plain tool names in the words to backticks. That changes the words,
   so the kept scripts must be recorded again (about a cent each).
 

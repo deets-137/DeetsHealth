@@ -2,7 +2,7 @@
 status: project
 desk_test: open
 sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/deets_agent/catalog.py, agent/prompts/AGENT-PROMPT.md]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # Staff flags — the agent marks a call for a person
 
@@ -71,6 +71,21 @@ becomes `other`. A hospital will add its own (FUTURE-SETTINGS.md §5).
   pronoun is kept as it is, so the call never loops. The caller hears no extra words; the
   hand-off's own line waits one model turn (about a second). The quotes in the evidence are
   the caller's own words and are never checked for pronouns.
+
+### 3.3 The visit's CSN in a flag about a visit (built)
+> **Part:** built · 2026-11-14 · desk test open — `StaffFlag.csn`, `change_visit`'s `visit`
+> argument (`flow.py`); the CSN from `Visit.csn` (`ehr.proto`). Designed — the owner: "include the identifier / CSN in flags for nurses
+> as applicable (ie changing/cancelling, notifying, etc)". EPIC.md §7.8.
+- **Why:** staff find the visit at once in the EHR, with no search by name and date.
+- **Which flags:** a flag about one visit. Today that is `booking_change`, raised by code on
+  `change_visit`. Later: a cancel, and a caller who says they will be late or cannot come (the
+  kinds are the owner's to name, §3).
+- **Which visit:** the one this call booked (`last_booked`), else the last one `find_visit` read, or the one whose number the model gives `change_visit`. Code
+  picks it. The model never sees a CSN and never names a visit.
+- **Where it goes:** in the flag's notes, `Shielded`, beside the summary and the evidence. The
+  CSN is an identifier, so it is protected data (§4): never in the kind, a toast or a log line.
+- **Needs:** `ehr` reads `Appointment.identifier` and sends it with the visit (EPIC.md §7.3).
+  The fake gives each visit a synthetic CSN.
 
 ## 4. Protected data
 - **The kind leaves the wall; the notes do not.** An alert, a toast, a log line or a catalog

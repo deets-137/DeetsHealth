@@ -58,6 +58,13 @@ hospital or a patient that the agent can do any of these things. The patient app
   account). Each connection names its BAA. Open: which vendors offer anything but a long-lived
   key; who in a hospital may connect one (STAFF-SIGN-IN.md, ACCESS-ROLES.md); where a sealed key
   lives in deploy A2 and in B.
+- **Config › Hospital** (the owner, 2026-11-14): [HOSPITAL-CONFIG.md](HOSPITAL-CONFIG.md). The
+  hospital's own lists that Epic's `$find` needs: visit types, hours, time of day,
+  specialties, reasons as codes, locations, and the time zone; and how many slots the agent
+  offers at a time.
+- **A local FHIR server in Epic's shapes** (the owner, 2026-11-15: "leave it for another
+  time"): [LOCAL-EHR.md](LOCAL-EHR.md). Local mode answers Epic's requests from a database we
+  shape and reset, so tests run the real Epic adapter with persistent, rolling data.
 - **Spanish and other languages.** Cartesia's Ink-2 is English only (VOICE-AGENT.md §8.6).
 - **Running on Epic's Agent Factory** once Epic opens external connectors (VOICE-AGENT.md §5).
 - **Other health products in this repo** (the owner, 2026-10-19: "if we ever get more health

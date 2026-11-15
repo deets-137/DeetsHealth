@@ -1,0 +1,147 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch4Jzb9UKQbjUECSANoEt",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 287
+     },
+     "cache_creation_input_tokens": 287,
+     "cache_read_input_tokens": 2972,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 8,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQS9AUKEAgTGAI4AUIIdGhpbmtpbmcSDPRZyNULO3+JaVmC+hoMWH5Fqmwv+diNrRLaIjBXtN8aQsgt0z1a3+vfIkbiVqTr8AS2sHXGq7EBCE1BSfxop/WVcw9g/0kr4OclsPsqkQVuni35AdSmfKXhUDdtbSTaHESyT9WBpvcxH1S1Ak0SOyC5QhDbep6hx23ILXQuJypIbH6b0Un7cinKgPjDqY4/DDZM7ZhOvzaMMNsI+dmY7LvpDPXa2eRcCqI7JfQj3axO9EG4ZblqBzPWlY9gLpNksr2q3le5eiwDd/Xx0zEUDllq4xfDwBXhAGP0p4D0DHPT0x0LRQsmxWxrUj2zwCWh/Ju2N/R7/ILNDgVFkIDSA0C/rNnQv5wOH/A3+Yq5pMlaHwHZ69ysYhGVUK7kX2Kxt7TWMuUr/dIV3wx5MImZgHQvDs0OV/8NjyP5d/wXzUybe2+NCUONYfHW7HS1wNvwkMHrhbSzJAq8u68rE4sk0qIQm8ddXayY/K++kOVcR1QXq2U0ngFliuwqeJz3LJlwwWlEK2laH+Ucm1gJXCp5Qh/Kkh9MaPBYRAMzQCXJPzDZi65NVIAlHyOf1O2Wj+AcInbkGBNb3xnehTOVAmh7teEI3NOoiyDfSPRTXHHmIoObMZT+f0GE5e4KwUX8nTpsKI9MOiy9IlC+dHElrvF+bTRtrwtKXmMtS98w/Obkr8WgSuFTbp+hMfAmiDjDQmc4WV7ZJIvi5SwQaQ9+mvN1F7hNrYbKNBrAH1Ft5FhX4NUoY7BRm5L8/SFvJ1mHn5PAXJDKHluGzDdJ13c8oG57FxfB7QHsr1II5rQbzz1e8QhmWxY+LQ89gnX3lIfsUBHmjl55f8dUs7zaOWmv14ZIUJS8kB92O+QRR4uoVrPt9bEhUJrWADtLvTGO7ld21Gw74GE7e7SixXnBZTPwEIOwcXk2ajAzIZVz4MK/YC6MdxUjR6BBGsbpeJqDpVDXl9SZbJmTr99Kq7h7NsE7A6MNZd0YAQ==",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "Than",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "ks, Casey. To book",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " your",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " visit, what",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " is",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " your date of birth?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 287,
+    "cache_read_input_tokens": 2972,
+    "input_tokens": 4,
+    "output_tokens": 81,
+    "output_tokens_details": {
+     "thinking_tokens": 56
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

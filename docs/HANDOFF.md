@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # DeetsHealth — Handoff
 
@@ -206,13 +206,16 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
 - **Next, the owner's pick in the morning: better kept-script tests** (AGENT.md §4, "What the
   kept scripts catch"). (1) show why a run failed in the Test hint; (2) several samples per
   script with a pass rate; (3) assert on events; (4) scripts for the gaps.
-- **Next for booking, the Epic half (E-4):** `EpicScheduler.book` sends the note as
-  `appointmentNote` and `visit_mode` picks the hospital's visit types. Waits
-  on: what Epic's `$find` needs (the owner's knowledge), then a sandbox probe of `$find` and
-  `$book` (a write to Epic's shared sandbox: ask first). E-4 in EPIC.md. **Epic's own spec is
-  read (2026-11-14, EPIC.md §5.2):** the visit type is `$find`'s only required input, and
-  `patient` is a Patient resource matched by demographics. `ehr epic-find` has the tries for
-  both; run it when the sandbox answers again.
+- **Built, desk test open: booking and visits, builds 1 and 2** (2026-11-15, EPIC.md §7.10;
+  forks 1A, 2A, V1A, V2A). Build 1: `find_visit` (the next visit, or one named by day, month,
+  clinician, kind or past; the narrowing question by visit group), instructions offered or read
+  (`read_instructions`), the CSN in a change flag, the hospital's time at the call's start.
+  Build 2 (E-4): `$find` with the patient's demographics, a last day, a time of day, days and a
+  clinician; Epic's page of 10 and More; `$book` with a read after, and a lost reply asked
+  about, never sent twice. The desk tests are in EPIC.md §7.10 (build 1 and build 2 as built).
+- **Real booking in Epic mode, always** (the owner, 2026-11-15: no switch). `$find` and `$book`
+  work on the sandbox (EPIC.md §7.10); each booking in Epic mode writes to Epic's shared
+  sandbox. Local mode stays fake.
 - **Built, desk test open: Config › Agent, the agent's words in the console** (2026-11-13; the
   owner's five tabs, Semantic | Flow, the names list). Every section of AGENT-PROMPT.md, versioned
   in the store (`prompt` service, migration 0005); a save writes the file and reaches the next
@@ -233,8 +236,8 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   2026-11-12). The Backend Services sign-in (E-2, EPIC.md §5.1), and Epic mode, **desk test
   passed 2026-11-13** (CHAT.md §13): the Epic / Local button left of Test; `OpenCall` names the
   EHR; `ehr` finds the caller and their next visit in Epic's sandbox (EPIC.md §5.2); the rail
-  lists Epic's 7 test patients and their visits. Booking stays on the stand-in slots until
-  E-4: the sandbox serves STU3 `$find`, but the parameters it needs are open. Open: the
+  lists Epic's 7 test patients and their visits. Booking: real `$find` and `$book` since
+  2026-11-15 (E-4, EPIC.md §7.10). Open: the
   medicine, refill and lab reads (R2–R4), and recording Epic's replies for the tests. Epic's
   sandbox rules and the steps for a hospital: EPIC.md §3.1, §4.
 - **Built, desk test open: what a visit is, and the offer of a person** (2026-11-13, after

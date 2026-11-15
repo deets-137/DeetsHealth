@@ -47,7 +47,7 @@ async def assert_booked_9am(ehr) -> None:
     handle = await ehr.open_call()
     await ehr.identify(handle, Shielded("Jordan"), Shielded("Ellis"), Shielded("1984-03-12"))
     await ehr.check_code(handle, Shielded("246810"))
-    visit = await ehr.next_visit(handle)
+    visit = (await ehr.find_visit(handle)).visit
     assert visit is not None and visit.starts_at.reveal() == "2026-11-02T09:00"
 
 

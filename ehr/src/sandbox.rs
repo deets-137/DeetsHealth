@@ -8,14 +8,22 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
+use crate::visits::VisitGroup;
+
 /// The fixture, built into the binary.
 const SOURCE: &str = include_str!("../fixtures/sandbox.json");
 
 #[derive(Deserialize)]
 pub struct Sandbox {
     pub place: String,
+    /// The fake hospital's time zone, an IANA name (FUTURE-SETTINGS.md §13.1).
+    pub time_zone: String,
     pub patients: Vec<Patient>,
     pub visits: Vec<Visit>,
+    /// The fake's visit groups (FUTURE-SETTINGS.md §13.1, a draft): the narrowing question's
+    /// names when a caller has several visits.
+    #[serde(default)]
+    pub visit_groups: Vec<VisitGroup>,
 }
 
 #[derive(Deserialize)]
@@ -42,6 +50,23 @@ pub struct Visit {
     /// The reason for the visit. Optional.
     #[serde(default)]
     pub reason: Option<String>,
+    /// How to prepare (Epic's `patientInstruction`). Optional.
+    #[serde(default)]
+    pub instructions: Option<String>,
+    /// The visit's number at the hospital (Epic's CSN), synthetic. Optional.
+    #[serde(default)]
+    pub csn: Option<String>,
+    /// As Epic names it: "booked" (the default), "fulfilled", "noshow" or "cancelled".
+    #[serde(default)]
+    pub status: Option<String>,
+}
+
+/// Now, in `zone`: (YYYY-MM-DDTHH:MM, the zone's short name). An unknown zone gives UTC: the
+/// fixture tests catch one first.
+pub fn local_now(zone: String) -> (String, String) {
+    let tz = jiff::tz::TimeZone::get(&zone).unwrap_or(jiff::tz::TimeZone::UTC);
+    let now = jiff::Timestamp::now().to_zoned(tz);
+    (now.strftime("%Y-%m-%dT%H:%M").to_string(), now.strftime("%Z").to_string())
 }
 
 /// The sandbox. A bad fixture fails the tests, so it never reaches a run.
@@ -61,6 +86,14 @@ mod tests {
         for v in &s.visits {
             assert!(s.patients.iter().any(|p| p.id == v.patient), "a visit for a patient not in the list");
         }
+    }
+
+    #[test]
+    fn the_time_zone_is_known() {
+        assert!(jiff::tz::TimeZone::get(&sandbox().time_zone).is_ok());
+        let (now, zone) = local_now(sandbox().time_zone.clone());
+        assert_eq!(now.len(), 16);
+        assert!(!zone.is_empty());
     }
 
     #[test]

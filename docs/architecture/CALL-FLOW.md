@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/screen.py, agent/deets_agent/config.py, agent/prompts/AGENT-PROMPT.md, ehr/src/service.rs, ehr/src/session.rs, ehr/src/texts.rs]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # The default call flow — where each piece lives
 
@@ -32,7 +32,7 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 |---|---|---|---|---|
 | greet | `CallFlow.greet` | `task.greet` | `identify`, `confirm_details` | verify, after `confirm_details` |
 | verify | `CallFlow.verify` | `task.verify` | `check_code`, `resend_code`, `identify`, `confirm_details` | menu on a pass; hand off on a lock or no more codes |
-| menu | `CallFlow.menu` | `task.menu` | `find_slots`, `next_visit`, `change_visit` | schedule, after `find_slots` offers times; hand off after `change_visit` |
+| menu | `CallFlow.menu` | `task.menu` | `find_slots`, `find_visit`, `read_instructions`, `change_visit` | schedule, after `find_slots` offers times; hand off after `change_visit` |
 | schedule | `CallFlow.schedule` | `task.schedule` | `choose_option`, `book`, `find_slots`, `change_visit` | menu, after `book`; hand off after `change_visit` |
 | goodbye | `CallFlow.goodbye` | none | none | the call ends |
 | hand off | `CallFlow.handed_off` | none | none | the call ends (Phase 1 has no transfer) |
@@ -55,8 +55,11 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | The goodbye (the disconnect) | `end_call_fn` → `goodbye()` | `line.goodbye` | not yet listed |
 | The hand-off (it may carry a staff flag) | `hand_off_fn` → `handed_off()` | `line.hand_off`; its flag fields: `arg.hand_off.*` | the transfer number: FUTURE-SETTINGS.md › Booking |
 | The offer of a person when the agent cannot help (a yes is `hand_off`, a no goes on) | `offer_staff_fn`, `OFFER_REASONS` | `tool.offer_staff`, `arg.offer_staff.why`, `line.offer_staff`, `line.offer_staff_private`; the rule: `role`, `task.menu` | FUTURE-SETTINGS.md §10 |
-| What the next visit is: its type, reason, online | `_next_visit_fn`; the screen in `ehr/src/visit_about.rs` | `line.visit_online`, `line.visit_type`, `line.visit_reason`; the model's next step: `note.after_next_visit` | FUTURE-SETTINGS.md §9 |
-| The next visit is the one just booked: its time is not said again | `_next_visit_fn`, `_same_visit`, `CallFlow.last_booked` | `line.booked_visit_asked` | — |
+| What a visit is: its type, reason, online | `_find_visit_fn`, `_visit_lines`; the screen in `ehr/src/visit_about.rs` | `line.visit_online`, `line.visit_type`, `line.visit_reason`; the model's next step: `note.after_find_visit` | FUTURE-SETTINGS.md §9 |
+| The visit is the one just booked: its time is not said again | `_visit_lines`, `_same_visit`, `CallFlow.last_booked` | `line.booked_visit_asked` | — |
+| Which visit: the next, one named, or a past one; the narrowing question | `_find_visit_fn`, `_which_visit`; in ehr `visits.rs` › `narrow` (`NARROW_OVER`, `GROUPS_NAMED`) | `line.next_visit`, `line.visit_found`, `line.past_seen`, `line.past_missed`, `line.past_cancelled`, `line.one_more_visit`, `line.more_visits`, `line.no_visit_match`, `line.no_past_visits`, `line.which_visit`; `note.after_which_visit` | FUTURE-SETTINGS.md §13.3 |
+| A visit's instructions: offered, or read at once when the caller named the visit | `_find_visit_fn`, `_read_instructions_fn` | `line.offer_instructions`, `line.visit_instructions`, `line.no_instructions`; `note.after_offer_instructions` | FUTURE-SETTINGS.md §13.4 |
+| The hospital's time at the call's start | `CallFlow.start`, `clock_note`; ehr's `OpenCallReply.local_now` | `note.call_start` | FUTURE-SETTINGS.md §13.1 |
 | In person, online or either (the caller's words) | `_find_slots_fn`, `VISIT_MODES` (`ehr_client.py`); the filter: `VisitMode` (`ehr/src/scheduler.rs`) | `arg.find_slots.visit_mode` | a hospital's visit types: FUTURE-SETTINGS.md › Booking |
 | An odd reason: booked as said, flagged for clinical review | `FLAG_KINDS` › `visit_reason_review` | the rule: `task.menu` | FLAGS.md §3.1 |
 | A staff summary never guesses a pronoun | `CallFlow._summary_back`, `guesses_a_pronoun` | the rule: `role`; `note.summary_pronoun` | FLAGS.md §3.2 |
@@ -72,7 +75,7 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | The medical-question line | `medical_question_fn` | `line.medical_question` | FUTURE-SETTINGS.md §2 |
 | Verification lines | `_identify_fn`, `_confirm_details_fn`, `_check_code_fn`, `_resend_code_fn` | `line.read_back`, `line.ask_details`, `line.birth_not_possible`, `line.name_not_said`, `line.code_sent`, `line.code_length`, `line.code_wrong`, `line.code_resent`, `line.verified` | — |
 | The text message with the code | `SECTION` (`ehr/src/texts.rs`) | `text.code` | — |
-| Booking lines | `_find_slots_fn`, `_choose_option_fn`, `_book_fn`, `_next_visit_fn` | `line.slots`, `line.slot_option`, `line.no_slots`, `line.which_option`, `line.confirm_slot`, `line.slot_taken`, `line.booked`, `line.next_visit`, `line.no_visits`; after `book`, the model also gets `visit_is` and `reason_for_visit` | — |
+| Booking lines | `_find_slots_fn`, `_choose_option_fn`, `_book_fn`, `_find_visit_fn` | `line.slots`, `line.slot_option`, `line.no_slots`, `line.which_option`, `line.confirm_slot`, `line.slot_taken`, `line.booked`, `line.next_visit`, `line.no_visits`; after `book`, the model also gets `visit_is` and `reason_for_visit` | — |
 | A change or cancel goes to staff, with a flag; the caller hears which visit stays booked | `_change_visit_fn` | `line.change_booked`, `line.change_visit` | — |
 | The holding line when a reply is cut off by the token cap (with a review flag, FLAGS.md §8) | `_CutOffGuard` (`agent/deets_agent/llm.py`), `on_cut_off` (`call.py`) | `line.one_moment` | FUTURE-SETTINGS.md › What the agent may say |
 | The clinic's name, and every other System variable | the call's `Words.variables` (`prompts.py`; the store's `system` service, or `agent/prompts/VARIABLES.md`), filled by `prompts.text` | fills `{clinic}` and the analyst's own `{name}`s in any section | Config › System (SYSTEM-PAGE.md) |

@@ -109,6 +109,41 @@ impl Shielded<String> {
         }
         a.len().min(b.len()) >= 5 && within_one_edit(&a, &b)
     }
+
+    /// "Do the caller's words name this clinician?" (`self` is the caller's words, `display` the
+    /// record's name, such as "Avery Lin, MD"). Titles ("Dr.", "doctor") are left out; every other
+    /// word the caller said must match a word of the name, with [`Shielded::same_name`]'s slip.
+    /// Answers yes or no and never reveals either value (EPIC.md §7.10).
+    pub fn names_clinician(&self, display: &Self) -> bool {
+        const TITLES: &[&str] = &["dr", "doctor", "md", "do", "np", "pa", "nurse", "practitioner"];
+        let words = |s: &str| -> Vec<String> {
+            s.split(|c: char| !c.is_alphabetic())
+                .map(str::to_lowercase)
+                .filter(|w| !w.is_empty() && !TITLES.contains(&w.as_str()))
+                .collect()
+        };
+        let (asked, name) = (words(&self.0), words(&display.0));
+        !asked.is_empty()
+            && asked.iter().all(|a| {
+                name.iter().any(|n| Shielded::new(a.clone()).same_name(&Shielded::new(n.clone())))
+            })
+    }
+
+    /// The first of `terms` that the caller's words name, by whole words in any case ("my surgery
+    /// visit" names "surgery"; "primary care" names "primary care"). Used for a visit group,
+    /// whose names are the hospital's, not protected data. Never reveals the caller's words.
+    pub fn first_named(&self, terms: &[&str]) -> Option<usize> {
+        let norm = |s: &str| -> String {
+            let words: Vec<String> =
+                s.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).map(str::to_lowercase).collect();
+            format!(" {} ", words.join(" "))
+        };
+        let said = norm(&self.0);
+        terms.iter().position(|t| {
+            let t = norm(t);
+            t.trim() != "" && said.contains(&t)
+        })
+    }
 }
 
 /// True when one insertion, deletion or substitution turns `a` into `b`.
@@ -184,6 +219,26 @@ mod tests {
         assert!(!n("Jordan").same_name(&n("Jardon")), "two slips");
         assert!(!n("Lee").same_name(&n("Lea")), "short names must match");
         assert!(!n("").same_name(&n("")), "empty never matches");
+    }
+
+    #[test]
+    fn a_clinician_is_named_by_their_own_words_without_titles() {
+        let n = |s: &str| Shielded::new(s.to_string());
+        assert!(n("Dr. Lin").names_clinician(&n("Avery Lin, MD")));
+        assert!(n("doctor avery lin").names_clinician(&n("Dr. Avery Lin")));
+        assert!(n("Okafur").names_clinician(&n("Dr. Sam Okafor")), "one slip in a long name");
+        assert!(!n("Dr. Lin").names_clinician(&n("Dr. Sam Okafor")));
+        assert!(!n("the doctor").names_clinician(&n("Dr. Sam Okafor")), "no name word left");
+    }
+
+    #[test]
+    fn first_named_finds_a_term_by_whole_words() {
+        let n = |s: &str| Shielded::new(s.to_string());
+        let terms = ["primary care", "imaging", "x-ray"];
+        assert_eq!(n("my primary care visit").first_named(&terms), Some(0));
+        assert_eq!(n("the X-ray one").first_named(&terms), Some(2));
+        assert_eq!(n("primary").first_named(&terms), None);
+        assert_eq!(n("imagingx").first_named(&terms), None);
     }
 
     #[test]

@@ -8,6 +8,41 @@ updated: 2026-11-14
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-15 (Windows) — booking builds 1 and 2: find_visit, instructions, CSN, $find, $book
+- The owner: document the settings first (FUTURE-SETTINGS.md §13, new), then build EPIC.md
+  §7.10 in order, build 1 then build 2.
+- **Build 1** (EPIC.md §7.10, "Build 1 as built"): `FindVisit` replaced `NextVisit`;
+  `find_visit`, `read_instructions`, `change_visit`'s visit number; instructions through the
+  sensitive screen; the CSN in a change flag (FLAGS.md §3.3); past visits; the narrowing
+  question by visit group; `description` and `status` read; the hospital's time at the call's
+  start, from ehr (`OpenCallReply.local_now`, fork 1A). Found while building: the narrowing
+  question would come before every "next visit" of a patient with three visits, so it asks
+  only when the caller named something; Python on Windows has no time zone data, so ehr holds
+  the zone.
+- **Build 2** (E-4, "Build 2 as built"): `ehr epic-find` rewritten and run; the sandbox
+  answered (EPIC.md §5.2, 2026-11-15): `$find` needs `service-type` with a dash and only the
+  identifier, name and birth date. Built `$find`, Epic's page of 10 and More, `$book` with a
+  read after, and the lost-reply rule (V2A), behind `DEETS_EPIC_BOOKING` (off). The time of
+  day, last day, days and clinician on `find_slots`. `ehr/fixtures/hospital.json` (new).
+- One wording change in the owner's words: `task.verify` now says plainly that a caller with
+  no text goes to a person even when they also ask for a new code (his option A of
+  2026-11-14). The call-start note had tipped the model to `resend_code` in
+  `no_code_after_resend` (3 of 3 runs); with the plain words it hands off.
+- Epic's `next` page: a GET of the link answers 403; a POST of empty Parameters to it gives
+  the next 10. `find_more` does that; the probe's last step runs the real code (10, then 10
+  more). In the sandbox every `$find` slot is a video visit, even for the in-person type.
+- Kept scripts recorded twice (about $0.03 each time); `npm run check` passes.
+- On the owner's go-ahead, one live booking (`ehr epic-book`, new): booked, with a CSN, at the
+  slot's start; Camila Lopez's visits to come went from 268 to 269. Read Epic's own guidance
+  for `$book` and `$find` through the open.epic MCP server (EPIC.md §7.10).
+- The owner: remove the switch. Epic mode now always uses `$find` and `$book`; the stand-in
+  (`FakeScheduler::from_weekdays_after`) is gone.
+- Scoped a database-backed Local EHR against testing on Epic's sandbox alone; the owner chose
+  to write option A (a local FHIR server in Epic's shapes) as an idea for later:
+  ideas/LOCAL-EHR.md.
+- Not done: the hospital's location list (no `location-reference` sent); Config › Hospital
+  itself; the patient's time zone in `$find`.
+
 ## 2026-11-14 (Windows) — booking: every Epic field, used or not
 - The owner: the Epic sandbox is the backup; list every booking field Epic gives that we do not
   read, and every input Epic accepts that we do not send.
@@ -22,6 +57,22 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   idempotency at Epic; the R4 search filters other than `date`, `patient`, `status`,
   `identifier` and `service-category` are post-filters.
 - No code changed. Nothing sent to Epic.
+- Then the owner's asks on the list: a Config › Hospital page for the hospital's lists (new:
+  ideas/HOSPITAL-CONFIG.md); `patientInstruction` in NextVisit's output; the CSN in flags about
+  a visit (FLAGS.md §3.3); a time zone setting and the time in `{today}`; keep Epic's page of 10
+  and make the number offered and its presentation a setting. Designed in EPIC.md §7.8. Two
+  forks left open there: when the instructions are said, and where the time goes (the prompt
+  cache). Found: the agent's today uses the PC's time zone, `ehr`'s uses the fixture's.
+- The owner chose 1A (the time in a line at the call's start, not in `role`) and 2A (ask
+  before reading instructions; read them at once when the caller asks about one visit). Added
+  EPIC.md §7.9: 11 booking items still not used.
+- Designed the wiring of §7.8 and §7.9 (EPIC.md §7.10): build 1 on `Appointment.Search`
+  (instructions, CSN, `description`, `status`, a `find_visit` that finds one visit, past
+  visits); build 2 is E-4 (`$find` with `endTime`, time of day, the patient, the page of 10;
+  `$book` with a read after; a safe path for a lost reply). Forks V1 and V2 open.
+- The owner chose V1A, with a narrowing question by visit group as a hospital setting
+  (HOSPITAL-CONFIG.md §2.9), and V2A (ask the caller before a second `$book`). Both builds may
+  be in flight together.
 
 ## 2026-11-14 (Windows) — SECURITY.md §8 rewritten to match the code
 - The owner asked for a walk through the security setup. §8 still said "Nothing of the phone

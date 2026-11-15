@@ -24,6 +24,7 @@
 mod edge;
 pub mod epic;
 pub mod epic_ehr;
+pub mod hospital;
 pub mod proto;
 pub mod sandbox;
 pub mod scheduler;
@@ -37,3 +38,4 @@ pub mod transport;
 pub mod users;
 pub mod verify;
 pub mod visit_about;
+pub mod visits;

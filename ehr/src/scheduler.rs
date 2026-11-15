@@ -9,9 +9,11 @@ use std::{collections::HashSet, future::Future, sync::Mutex};
 use deetshealth_core::Shielded;
 
 use crate::{
+    hospital::TimeOfDay,
     sandbox::sandbox,
     session::PatientKey,
     visit_about::{BookNote, VisitAbout},
+    visits::VisitGroups,
 };
 
 /// The EHR's own id for a slot. It never leaves this service: the agent gets a token.
@@ -31,6 +33,53 @@ pub struct Slot {
     /// Its type and reason, after the sensitive screen (visit_about.rs). Empty for an open
     /// slot.
     pub about: VisitAbout,
+    /// The visit's number at the hospital (Epic's CSN), once booked. For staff only: it goes in
+    /// a flag's notes, never to the model (FLAGS.md §3.3).
+    pub csn: Option<Shielded<String>>,
+    pub status: VisitStatus,
+    /// The hospital's visit group (visits.rs), from the visit type. None for a private visit.
+    pub group: Option<Shielded<String>>,
+}
+
+/// Where a visit stands, as the agent may say it (EPIC.md §7.10).
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum VisitStatus {
+    /// Booked and still to come (also an open slot).
+    #[default]
+    Upcoming,
+    Seen,
+    Missed,
+    Cancelled,
+}
+
+impl VisitStatus {
+    /// From Epic's status words. A visit still `booked` after its time has no known outcome,
+    /// so a caller hears nothing of it: None. `past` says whether the visit's time has gone.
+    pub fn from_epic(status: &str, past: bool) -> Option<Self> {
+        match (status, past) {
+            ("booked" | "pending" | "arrived" | "checked-in", false) => Some(Self::Upcoming),
+            ("arrived" | "checked-in" | "fulfilled", true) => Some(Self::Seen),
+            ("noshow", _) => Some(Self::Missed),
+            ("cancelled", _) => Some(Self::Cancelled),
+            _ => None,
+        }
+    }
+}
+
+/// The days a visit search covers: from `from` (YYYY-MM-DD) up to, not including, `to`.
+#[derive(Clone)]
+pub struct DayRange {
+    pub from: Shielded<String>,
+    pub to: Shielded<String>,
+}
+
+/// Which of the caller's visits to search (EPIC.md §7.10). None and not past: the visits to
+/// come. The clinician and the group are narrowed after, in visits.rs, the same for every EHR.
+pub struct VisitAsk {
+    /// A day or a month the caller named: every status in it.
+    pub range: Option<DayRange>,
+    /// The caller asked about a visit that is over ("when was I last seen?").
+    pub past: bool,
 }
 
 /// How the caller wants to be seen (the owner's 1A, 2026-11-13). At Epic, online or in person
@@ -54,34 +103,65 @@ impl VisitMode {
     }
 }
 
-/// What the caller asked for.
+/// What the caller asked for (EPIC.md §7.10, build 2).
 pub struct SlotWish {
     /// The caller's reason, screened: the visit's note when they book (Book).
     pub note: BookNote,
     /// YYYY-MM-DD; none means from the next open day.
     pub earliest_day: Option<Shielded<String>>,
+    /// YYYY-MM-DD, the last day the caller can come; none means no end ($find's `endTime`).
+    pub latest_day: Option<Shielded<String>>,
     pub mode: VisitMode,
+    /// A time of day from the hospital's list ("morning"; $find's `time-of-day`).
+    pub time_of_day: Option<TimeOfDay>,
+    /// The days of the week the caller can come; empty means any.
+    pub days: Vec<jiff::civil::Weekday>,
+    /// The caller's words for a clinician: the slots are narrowed to them after the search
+    /// ($find has no clinician input).
+    pub clinician: Option<Shielded<String>>,
+    /// The verified patient's demographics for Epic's `$find` (a Patient resource's
+    /// `identifier`, `name` and `birthDate`, as JSON), from the search that found them. The
+    /// service sets it; none for the fake.
+    pub who: Option<Shielded<String>>,
 }
 
+/// One search's slots, all of them, in order (the service offers a few at a time), and the
+/// EHR's links to more pages (Epic's `next`).
+#[derive(Default)]
+pub struct FoundSlots {
+    pub slots: Vec<Slot>,
+    pub next: Vec<String>,
+}
+
+// One answer per call, never stored in bulk: the size of the visit does not matter.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone)]
 pub enum BookResult {
     Booked(Slot),
     /// Someone else took it first.
     Taken,
+    /// The EHR's reply was lost, and a search found no such booking (the owner's V2A): the caller
+    /// is asked whether to try again. Never kept as the key's answer, so a retry books.
+    NotThrough,
 }
 
 /// The EHR did not answer. Never carries text from the EHR.
 pub struct SchedulerDown;
 
-/// The most slots one FindSlots returns: enough to choose from, short enough to say aloud.
-pub const MAX_OFFERED: usize = 3;
-
 pub trait Scheduler: Send + Sync + 'static {
+    /// Every slot that fits `wish`, soonest first.
     fn find(
         &self,
         patient: &PatientKey,
         wish: &SlotWish,
-    ) -> impl Future<Output = Result<Vec<Slot>, SchedulerDown>> + Send;
+    ) -> impl Future<Output = Result<FoundSlots, SchedulerDown>> + Send;
+
+    /// The next page of a search: the first of `next`, which `find` gave.
+    fn find_more(
+        &self,
+        patient: &PatientKey,
+        next: &[String],
+    ) -> impl Future<Output = Result<FoundSlots, SchedulerDown>> + Send;
 
     /// Books `slot` with `note`, the caller's reason, as the visit's note for the scheduler
     /// (Epic's `appointmentNote`). The booked slot's `about` holds its type and the reason.
@@ -92,11 +172,16 @@ pub trait Scheduler: Send + Sync + 'static {
         note: &BookNote,
     ) -> impl Future<Output = Result<BookResult, SchedulerDown>> + Send;
 
-    /// The patient's soonest visit still to come, if any (DESIGN.md S5).
-    fn next_visit(
+    /// The patient's visits that `ask` covers, in the order they are said: the soonest first,
+    /// or the newest first for a past one (DESIGN.md S5; EPIC.md §7.10).
+    fn visits(
         &self,
         patient: &PatientKey,
-    ) -> impl Future<Output = Result<Option<Slot>, SchedulerDown>> + Send;
+        ask: &VisitAsk,
+    ) -> impl Future<Output = Result<Vec<Slot>, SchedulerDown>> + Send;
+
+    /// The hospital's visit groups (FUTURE-SETTINGS.md §13.1).
+    fn groups(&self) -> &VisitGroups;
 }
 
 /// The fake's fixed slots: synthetic clinicians at a synthetic clinic, each with a visit type
@@ -120,6 +205,7 @@ pub struct FakeScheduler {
     taken: Mutex<HashSet<String>>,
     /// Bookings made on this run, by patient.
     booked: Mutex<Vec<(PatientKey, Slot)>>,
+    groups: VisitGroups,
 }
 
 impl Default for FakeScheduler {
@@ -131,30 +217,7 @@ impl Default for FakeScheduler {
 
 impl FakeScheduler {
     fn with_days(days: Vec<String>, place: String) -> Self {
-        Self { days, place, taken: Mutex::default(), booked: Mutex::default() }
-    }
-
-    /// The same slots, moved to real days: the fake's first day becomes the first weekday after
-    /// `today`, and each later fake day the next weekday after that. For Epic mode
-    /// (epic_ehr.rs), where the call's "today" is the real date, until
-    /// booking through STU3 `$find` and `$book` is built (E-4, EPIC.md §5.2).
-    pub fn from_weekdays_after(today: jiff::civil::Date, place: String) -> Self {
-        use jiff::civil::Weekday;
-        let mut fake_days: Vec<&str> = FAKE_SLOTS.iter().map(|s| s.1).collect();
-        fake_days.dedup();
-        let mut real = Vec::with_capacity(fake_days.len());
-        let mut day = today;
-        while real.len() < fake_days.len() {
-            day = day.tomorrow().expect("a date before 9999");
-            if !matches!(day.weekday(), Weekday::Saturday | Weekday::Sunday) {
-                real.push(day.to_string());
-            }
-        }
-        let days = FAKE_SLOTS
-            .iter()
-            .map(|s| real[fake_days.iter().position(|d| *d == s.1).unwrap()].clone())
-            .collect();
-        Self::with_days(days, place)
+        Self { days, place, taken: Mutex::default(), booked: Mutex::default(), groups: VisitGroups::new(&sandbox().visit_groups) }
     }
 
     /// An open slot: its type is known (and so whether it is online), its reason is not yet.
@@ -167,6 +230,9 @@ impl FakeScheduler {
             clinician: Shielded::new(clinician.to_string()),
             place: Shielded::new(self.place.clone()),
             about: VisitAbout::from_record(Some(visit_type), None),
+            csn: None,
+            status: VisitStatus::Upcoming,
+            group: self.groups.of(Some(visit_type)),
         }
     }
 
@@ -177,20 +243,29 @@ impl FakeScheduler {
 }
 
 impl Scheduler for FakeScheduler {
-    async fn find(&self, _: &PatientKey, wish: &SlotWish) -> Result<Vec<Slot>, SchedulerDown> {
+    async fn find(&self, _: &PatientKey, wish: &SlotWish) -> Result<FoundSlots, SchedulerDown> {
+        use jiff::civil::Date;
         let taken = self.taken.lock().unwrap();
-        Ok((0..FAKE_SLOTS.len())
+        let slots = (0..FAKE_SLOTS.len())
             .filter(|&i| !taken.contains(FAKE_SLOTS[i].0))
-            // Shielded compares without revealing.
+            // Shielded compares without revealing. The fake's own days and times are not
+            // protected: they are the fake's, until a patient books one.
+            .filter(|&i| wish.earliest_day.as_ref().is_none_or(|from| Shielded::new(self.days[i].clone()) >= *from))
+            .filter(|&i| wish.latest_day.as_ref().is_none_or(|to| Shielded::new(self.days[i].clone()) <= *to))
+            .filter(|&i| wish.time_of_day.is_none_or(|t| t.holds(FAKE_SLOTS[i].2)))
             .filter(|&i| {
-                wish.earliest_day
-                    .as_ref()
-                    .is_none_or(|from| Shielded::new(self.days[i].clone()) >= *from)
+                wish.days.is_empty()
+                    || self.days[i].parse::<Date>().is_ok_and(|d| wish.days.contains(&d.weekday()))
             })
             .map(|i| self.slot(i))
             .filter(|slot| wish.mode.fits(slot.about.online))
-            .take(MAX_OFFERED)
-            .collect())
+            .collect();
+        Ok(FoundSlots { slots, next: Vec::new() })
+    }
+
+    async fn find_more(&self, _: &PatientKey, _: &[String]) -> Result<FoundSlots, SchedulerDown> {
+        // The fake's search is one page.
+        Ok(FoundSlots::default())
     }
 
     async fn book(&self, patient: &PatientKey, slot: &SlotId, note: &BookNote) -> Result<BookResult, SchedulerDown> {
@@ -204,31 +279,59 @@ impl Scheduler for FakeScheduler {
         // (`appointmentNote`); NextVisit reads it back, through the sensitive screen.
         let mut booked = self.slot(i);
         booked.about = VisitAbout::booked(Some(FAKE_SLOTS[i].5), note);
+        // A synthetic CSN, the same for the same slot on every run (replay cache).
+        booked.csn = Some(Shielded::new(format!("900000{:02}", i + 1)));
+        if booked.about.private {
+            booked.group = None;
+        }
         self.booked.lock().unwrap().push((patient.clone(), booked.clone()));
         Ok(BookResult::Booked(booked))
     }
 
-    async fn next_visit(&self, patient: &PatientKey) -> Result<Option<Slot>, SchedulerDown> {
-        // The visits the sandbox patients already have (`ehr/fixtures/sandbox.json`).
+    async fn visits(&self, patient: &PatientKey, ask: &VisitAsk) -> Result<Vec<Slot>, SchedulerDown> {
+        // The visits the sandbox patients already have (`ehr/fixtures/sandbox.json`). The fake
+        // has no clock: a visit's status says whether it is over.
         let sandbox = sandbox();
-        let fixed = sandbox.visits.iter().map(|v| {
+        let fixed = sandbox.visits.iter().filter_map(|v| {
+            let status = VisitStatus::from_epic(v.status.as_deref().unwrap_or("booked"), false)
+                .or_else(|| VisitStatus::from_epic(v.status.as_deref()?, true))?;
             let key = PatientKey(Shielded::new(v.patient.clone()));
+            let about = VisitAbout::from_record(v.visit_type.as_deref(), v.reason.as_deref())
+                .with_instructions(v.instructions.as_deref());
+            let group = if about.private { None } else { self.groups.of(v.visit_type.as_deref()) };
             let visit = Slot {
-                id: SlotId(format!("visit-{}", v.patient)),
+                id: SlotId(format!("visit-{}-{}", v.patient, v.starts_at)),
                 starts_at: Shielded::new(v.starts_at.clone()),
                 minutes: v.minutes,
                 clinician: Shielded::new(v.clinician.clone()),
                 place: Shielded::new(sandbox.place.clone()),
-                about: VisitAbout::from_record(v.visit_type.as_deref(), v.reason.as_deref()),
+                about,
+                csn: v.csn.clone().map(Shielded::new),
+                status,
+                group,
             };
-            (key, visit)
+            Some((key, visit))
         });
         let booked = self.booked.lock().unwrap().clone();
-        // Shielded compares without revealing: the patient, and which start comes first.
-        Ok(fixed
+        // Shielded compares without revealing: the patient, the day, and which start comes first.
+        let mut found: Vec<Slot> = fixed
             .chain(booked)
             .filter(|(key, _)| key == patient)
             .map(|(_, visit)| visit)
-            .min_by(|a, b| a.starts_at.cmp(&b.starts_at)))
+            .filter(|v| match &ask.range {
+                Some(r) => v.starts_at >= r.from && v.starts_at < r.to,
+                None if ask.past => v.status != VisitStatus::Upcoming,
+                None => v.status == VisitStatus::Upcoming,
+            })
+            .collect();
+        found.sort_by(|a, b| a.starts_at.cmp(&b.starts_at));
+        if ask.past && ask.range.is_none() {
+            found.reverse();
+        }
+        Ok(found)
+    }
+
+    fn groups(&self) -> &VisitGroups {
+        &self.groups
     }
 }

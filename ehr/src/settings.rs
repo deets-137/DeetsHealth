@@ -103,6 +103,7 @@ const fn p(key: &'static str, placeholders: &'static [&'static str]) -> Setting 
 /// the same list; a test fails if the two differ (test_prompts.py).
 pub const PROMPT: &[Setting] = &[
     p("role", &["today"]),
+    p("note.call_start", &["now"]),
     p("task.greet", &[]),
     p("task.verify", &[]),
     p("task.menu", &[]),
@@ -119,11 +120,22 @@ pub const PROMPT: &[Setting] = &[
     p("arg.find_slots.reason", &[]),
     p("arg.find_slots.earliest_day", &[]),
     p("arg.find_slots.visit_mode", &[]),
+    p("arg.find_slots.latest_day", &[]),
+    p("arg.find_slots.time_of_day", &[]),
+    p("arg.find_slots.days", &[]),
+    p("arg.find_slots.clinician", &[]),
+    p("arg.find_slots.more", &[]),
     p("tool.choose_option", &[]),
     p("arg.choose_option.option", &[]),
     p("tool.book", &[]),
     p("tool.change_visit", &[]),
-    p("tool.next_visit", &[]),
+    p("arg.change_visit.visit", &[]),
+    p("tool.find_visit", &[]),
+    p("arg.find_visit.when", &[]),
+    p("arg.find_visit.clinician", &[]),
+    p("arg.find_visit.past", &[]),
+    p("arg.find_visit.group", &[]),
+    p("tool.read_instructions", &[]),
     p("tool.end_call", &[]),
     p("tool.hand_off", &[]),
     p("tool.offer_staff", &[]),
@@ -152,6 +164,7 @@ pub const PROMPT: &[Setting] = &[
     p("line.no_more_codes", &[]),
     p("line.code_resent", &[]),
     p("line.no_slots", &[]),
+    p("line.no_more_slots", &[]),
     p("line.slots", &["options"]),
     p("line.slot_option", &["number", "visit"]),
     p("line.which_option", &[]),
@@ -159,6 +172,7 @@ pub const PROMPT: &[Setting] = &[
     p("line.change_booked", &["visit"]),
     p("line.change_visit", &[]),
     p("line.slot_taken", &[]),
+    p("line.book_not_through", &[]),
     p("line.booked", &["visit"]),
     p("line.no_visits", &[]),
     p("line.next_visit", &["visit"]),
@@ -166,7 +180,24 @@ pub const PROMPT: &[Setting] = &[
     p("line.visit_online", &[]),
     p("line.visit_type", &["visit_type"]),
     p("line.visit_reason", &["reason"]),
-    p("note.after_next_visit", &[]),
+    p("line.visit_found", &["visit"]),
+    p("line.past_seen", &["visit"]),
+    p("line.past_missed", &["visit"]),
+    p("line.past_cancelled", &["visit"]),
+    p("line.one_more_visit", &[]),
+    p("line.more_visits", &["count"]),
+    p("line.no_visit_match", &[]),
+    p("line.no_past_visits", &[]),
+    p("line.which_visit", &["groups"]),
+    p("line.visit_group", &["group"]),
+    p("line.another_visit", &[]),
+    p("line.choice_or", &[]),
+    p("line.offer_instructions", &[]),
+    p("line.visit_instructions", &["instructions"]),
+    p("line.no_instructions", &[]),
+    p("note.after_find_visit", &[]),
+    p("note.after_offer_instructions", &[]),
+    p("note.after_which_visit", &[]),
     p("line.offer_staff", &[]),
     p("line.offer_staff_private", &[]),
     p("line.goodbye", &[]),
@@ -790,7 +821,7 @@ mod tests {
                 (s.key.to_string(), json!(format!("Words {words}.")).to_string())
             })
             .collect();
-        assert_eq!(check(PROMPT, &set).unwrap().len(), 81);
+        assert_eq!(check(PROMPT, &set).unwrap().len(), 112);
 
         let with = |key: &str, text: &str| {
             let mut s = set.clone();

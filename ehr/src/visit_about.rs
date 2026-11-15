@@ -66,6 +66,11 @@ pub struct VisitAbout {
     pub online: bool,
     /// The type or reason named sensitive care: both are dropped, and this is set.
     pub private: bool,
+    /// The record's instructions for the patient (Epic's `patientInstruction`, EPIC.md §7.8):
+    /// how to prepare. Dropped for a private visit, and when they name sensitive care.
+    pub instructions: Option<Shielded<String>>,
+    /// The record held instructions, and the screen dropped them. The agent says none.
+    pub instructions_private: bool,
 }
 
 /// The caller's reason for a visit they book: the note the scheduler gets with the booking
@@ -92,7 +97,7 @@ impl VisitAbout {
     pub fn booked(visit_type: Option<&str>, note: &BookNote) -> Self {
         let about = Self::from_record(visit_type, None);
         if about.private || note.private {
-            return Self { visit_type: None, reason: None, online: about.online, private: true };
+            return Self { online: about.online, private: true, ..Self::default() };
         }
         Self { reason: Some(note.words.clone()), ..about }
     }
@@ -104,10 +109,28 @@ impl VisitAbout {
         let online = visit_type.as_deref().is_some_and(|t| names_any(t, ONLINE));
         let private = [&visit_type, &reason].iter().any(|s| s.as_deref().is_some_and(|s| names_any(s, SENSITIVE)));
         if private {
-            return Self { visit_type: None, reason: None, online, private };
+            return Self { online, private, ..Self::default() };
         }
-        Self { visit_type: visit_type.map(Shielded::new), reason: reason.map(Shielded::new), online, private }
+        Self { visit_type: visit_type.map(Shielded::new), reason: reason.map(Shielded::new), online, ..Self::default() }
     }
+
+    /// Adds the record's instructions, through the same screen: a private visit, or
+    /// instructions that name sensitive care ("bring your methadone dose card"), keep none and
+    /// mark them private (EPIC.md §7.8).
+    pub fn with_instructions(self, instructions: Option<&str>) -> Self {
+        let Some(words) = instructions.map(str::trim).filter(|s| !s.is_empty()) else {
+            return self;
+        };
+        if self.private || names_sensitive(words) {
+            return Self { instructions: None, instructions_private: true, ..self };
+        }
+        Self { instructions: Some(Shielded::new(words.to_string())), ..self }
+    }
+}
+
+/// Whether `text` names a kind of sensitive care, by whole words (the [`SENSITIVE`] list).
+pub fn names_sensitive(text: &str) -> bool {
+    names_any(text, SENSITIVE)
 }
 
 /// Whether `text` holds any of `terms` as whole words, in any case. "ob" matches "OB visit" and
@@ -163,6 +186,18 @@ mod tests {
         let a = VisitAbout::from_record(Some("MyChart Video Visit"), None);
         assert!(a.online && !a.private && a.visit_type.is_some());
         assert!(!VisitAbout::from_record(Some("X-Ray Exam"), None).online);
+    }
+
+    #[test]
+    fn instructions_pass_the_same_screen() {
+        let a = VisitAbout::from_record(Some("Office Visit"), None).with_instructions(Some("Arrive 15 minutes early"));
+        assert!(a.instructions.is_some() && !a.instructions_private);
+        let b = VisitAbout::from_record(Some("Office Visit"), None).with_instructions(Some("Bring your methadone dose card"));
+        assert!(b.instructions.is_none() && b.instructions_private);
+        let c = VisitAbout::from_record(Some("Behavioral Health Follow Up"), None).with_instructions(Some("Arrive early"));
+        assert!(c.instructions.is_none() && c.instructions_private, "a private visit keeps none");
+        let d = VisitAbout::from_record(Some("Office Visit"), None).with_instructions(Some("  "));
+        assert!(d.instructions.is_none() && !d.instructions_private);
     }
 
     #[test]

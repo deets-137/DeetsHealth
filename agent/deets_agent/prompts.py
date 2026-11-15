@@ -36,6 +36,8 @@ VARIABLES_FILE = PROMPT_FILE.with_name("VARIABLES.md")
 # same list.
 PLACEHOLDERS: dict[str, set[str]] = {
     "role": {"today"},
+    # The hospital's time when the call began, in the call's own messages (the owner's 1A).
+    "note.call_start": {"now"},
     "task.greet": set(),
     "task.verify": set(),
     "task.menu": set(),
@@ -53,11 +55,24 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "arg.find_slots.earliest_day": set(),
     # In person, online or either (the owner's 1A, 2026-11-13).
     "arg.find_slots.visit_mode": set(),
+    # The caller's other wishes, and the next slots of the same search (EPIC.md §7.10).
+    "arg.find_slots.latest_day": set(),
+    "arg.find_slots.time_of_day": set(),
+    "arg.find_slots.days": set(),
+    "arg.find_slots.clinician": set(),
+    "arg.find_slots.more": set(),
     "tool.choose_option": set(),
     "arg.choose_option.option": set(),
     "tool.book": set(),
     "tool.change_visit": set(),
-    "tool.next_visit": set(),
+    "arg.change_visit.visit": set(),
+    # One of the caller's visits (EPIC.md §7.10).
+    "tool.find_visit": set(),
+    "arg.find_visit.when": set(),
+    "arg.find_visit.clinician": set(),
+    "arg.find_visit.past": set(),
+    "arg.find_visit.group": set(),
+    "tool.read_instructions": set(),
     "tool.end_call": set(),
     "tool.hand_off": set(),
     "tool.emergency": set(),
@@ -86,6 +101,7 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "line.no_more_codes": set(),
     "line.code_resent": set(),
     "line.no_slots": set(),
+    "line.no_more_slots": set(),
     "line.slots": {"options"},
     "line.slot_option": {"number", "visit"},
     "line.which_option": set(),
@@ -95,6 +111,8 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "line.change_booked": {"visit"},
     "line.change_visit": set(),
     "line.slot_taken": set(),
+    # A lost booking reply, and no booking found (the owner's V2A).
+    "line.book_not_through": set(),
     "line.booked": {"visit"},
     "line.no_visits": set(),
     "line.next_visit": {"visit"},
@@ -104,7 +122,27 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "line.visit_online": set(),
     "line.visit_type": {"visit_type"},
     "line.visit_reason": {"reason"},
-    "note.after_next_visit": set(),
+    # A visit the caller named, a past one, the count of the others (EPIC.md §7.10).
+    "line.visit_found": {"visit"},
+    "line.past_seen": {"visit"},
+    "line.past_missed": {"visit"},
+    "line.past_cancelled": {"visit"},
+    "line.one_more_visit": set(),
+    "line.more_visits": {"count"},
+    "line.no_visit_match": set(),
+    "line.no_past_visits": set(),
+    # The narrowing question (the owner's V1A): "Is this about your imaging visit or ...?"
+    "line.which_visit": {"groups"},
+    "line.visit_group": {"group"},
+    "line.another_visit": set(),
+    "line.choice_or": set(),
+    # How to prepare (the owner's 2A, 2026-11-14).
+    "line.offer_instructions": set(),
+    "line.visit_instructions": {"instructions"},
+    "line.no_instructions": set(),
+    "note.after_find_visit": set(),
+    "note.after_offer_instructions": set(),
+    "note.after_which_visit": set(),
     # When the agent cannot help: it says so and offers a person (FUTURE-SETTINGS.md §10).
     "tool.offer_staff": set(),
     "arg.offer_staff.why": set(),
@@ -456,12 +494,17 @@ CODE_VALUE_INFO: dict[str, tuple[str, str, bool]] = {
     "visit": ("A visit's time, clinician, place and length, spoken.", "The record.", True),
     "visit_type": ("What kind of visit it is, as the record says.", "The record.", True),
     "reason": ("Why the visit is, as the record says.", "The record.", True),
+    "now": ("The hospital's time when the call began, with its time zone.", "ehr's clock, in the hospital's time zone.", False),
+    "count": ("How many more visits are coming.", "The record.", True),
+    "groups": ("The kinds of visit the caller is asked to choose from.", "The record and the hospital's visit groups.", True),
+    "group": ("One kind of visit, by the hospital's name for it.", "The hospital's visit groups.", True),
+    "instructions": ("How to prepare for the visit, as the record says.", "The record.", True),
 }
 
 
-# The code values that come from the caller or the record, during a call; the rest (`today`)
+# The code values that come from the caller or the record, during a call; the rest (`today`, `now`)
 # are the code's own.
-CALL_VALUES = frozenset(CODE_VALUES - {"today"})
+CALL_VALUES = frozenset(CODE_VALUES - {"today", "now"})
 
 
 def load_tools(path: Path | None = None) -> dict[str, dict[str, Any]]:

@@ -11,6 +11,8 @@ AGENT = Path(__file__).resolve().parents[1]
 REPO = AGENT.parent
 CERTS = REPO / "dev-certs"
 REPLAYS = AGENT / "tests" / "replays"
+# The dev hospital's own setup, which ehr reads too (ehr/src/hospital.rs; FUTURE-SETTINGS.md §13).
+HOSPITAL = REPO / "ehr" / "fixtures" / "hospital.json"
 # DEETS_EHR_BIN points at another build, for when a running dev server holds this one (Windows
 # locks a running .exe; scripts/postgres.mjs reads the same setting).
 EHR_BINARY = Path(os.environ["DEETS_EHR_BIN"]) if os.environ.get("DEETS_EHR_BIN") else (

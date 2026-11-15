@@ -524,6 +524,8 @@ export type SandboxVisit = {
   place?: string;
   visit_type?: string | null;
   reason?: string | null;
+  /** As Epic names it; absent means booked. A past visit is "fulfilled", "noshow" or "cancelled". */
+  status?: string | null;
 };
 export type Sandbox = { place: string; patients: SandboxPatient[]; visits: SandboxVisit[]; more: Record<string, number> };
 export const sandbox = (ehr: EhrSource) => get<Sandbox>(`/agent/sandbox?ehr=${ehr}`);

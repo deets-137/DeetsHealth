@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/deets_agent/config.py, agent/prompts/AGENT-PROMPT.md, ehr/src/epic_ehr.rs, ehr/src/verify.rs, ehr/src/visit_about.rs]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # Future settings — what a hospital will configure
 
@@ -73,6 +73,13 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
 - Hours, visit types and transfer numbers. Not built (DESIGN.md K2). The visit types per mode
   (in person, online) and the booking's note: §9.2.
 - Which providers and locations are open to booking. Not built (OTHER-EHRS.md).
+- The hospital's lists for `$find`: visit types, hours, time of day, specialties, reasons as
+  codes, locations, and the time zone. On a new page, Config › Hospital — §13.1 (designed;
+  ideas/HOSPITAL-CONFIG.md; the owner, 2026-11-14).
+- How many slots the agent offers at a time (now 3) and how it presents them — §13.2.
+- The narrowing question when a caller has several visits: on or off, the visit groups, how
+  many matches start it, how many groups it names, their order; past visits; instructions;
+  the CSN in flags — §13.3, §13.4.
 
 **Records kept**
 - Retention: transcripts (30 days, a draft), recordings, the call log's plain columns, within
@@ -482,7 +489,7 @@ to describe by phone.
 - **The words** (AGENT-PROMPT.md, drafts): `line.next_visit` ("Your next visit is {visit}."),
   then `line.visit_online` or `line.visit_type` ("It is listed as {visit_type}."), then
   `line.visit_reason` ("The reason on record is {reason}."). The line ends without a question:
-  the model goes on and answers the rest of the caller's turn (`note.after_next_visit`).
+  the model goes on and answers the rest of the caller's turn (`note.after_find_visit`).
 - **The model's facts:** the tool result's `reason_for_visit` is `said`, `none on record` or
   `private`. On a question the record does not answer, the model uses `offer_staff` (§10).
 - **The screen** — `ehr/src/visit_about.rs` › `VisitAbout::from_record`, `SENSITIVE`: a type or
@@ -516,7 +523,8 @@ to describe by phone.
   place's name ("Behavioral Health Clinic") can reveal the same thing. Whether the screen also
   withholds them, and what the caller hears then, is open.
 - **Patient instructions** (Epic's `patientInstruction`, "Bring a list of your medicines"):
-  meant for the patient, and useful on a call. Not read yet; its own design.
+  meant for the patient, and useful on a call. Not read yet. The owner, 2026-11-14: NextVisit
+  says them, through this screen. Design: EPIC.md §7.8.
 - **Other EHRs:** each adapter maps its own type and reason fields to the same screen.
 
 **Every place it runs:** the call (the same on any phone); the console (one control per choice,
@@ -656,3 +664,66 @@ plan's credits. It is not what a caller should hear.
 - **The console:** one control per value; every change audited.
 - **The deploy:** A2 and B read it from the settings store.
 - **Each EHR:** no effect.
+
+## 13. Booking and visits: the hospital's lists, slots, finding a visit
+> **Part:** designed · 2026-11-14 — the owner's asks of 2026-11-14 (EPIC.md §7.8 to §7.10;
+> forks 1A, 2A, V1A, V2A). The defaults are built in two builds, in order (EPIC.md §7.10). The
+> page for the lists is Config › Hospital (ideas/HOSPITAL-CONFIG.md). **Build 1's defaults are
+> built** (§13.1's time zone and call time, §13.3, §13.4): `ehr/src/visits.rs` holds the
+> numbers, the fixtures hold the time zone and the fake's groups. **Build 2's are built
+> too** (2026-11-15): `ehr/fixtures/hospital.json` holds the times of day and the slots offered
+> at once; `epic-sandbox.json` the visit types per mode. The order and the clinician's name in
+> §13.2 keep their defaults in code; their other choices are not built.
+
+**What it controls:** how the agent finds and offers open slots, how it finds one of the
+caller's visits and what it says about it, and the hospital facts that Epic's `$find` needs.
+
+**The rules no setting changes:**
+- The model never names a patient, and never sees a CSN or a FHIR id. It names a visit or a
+  slot by its number on this call.
+- The sensitive screen (§9) covers a visit's instructions and every name of a visit group.
+- `ehr` never sends a second `$book` without the caller's yes (V2A).
+- No list holds protected data.
+
+### 13.1 The hospital's facts
+| Setting | Default in the build | Choices a hospital needs |
+|---|---|---|
+| The time zone | `ehr/fixtures/epic-sandbox.json` › `time_zone` (America/Chicago); the local fake uses the same | one IANA zone per hospital; one per location (HOSPITAL-CONFIG.md §2.7). `ehr` and the agent read the same value. |
+| The call's date and time | a line the code sends at the start of each call's messages, in that zone (fork 1A); `role` keeps the date | the format of the date and the time |
+| The visit types for each mode | a list in the fixture: the sandbox's types, in person and online | the hospital's codes, spoken names, lengths, new or returning (§2.1) |
+| The time-of-day names | a draft list: morning (8 to 12), afternoon (12 to 5), evening (after 5) | the hospital's names and hours (§2.3) |
+| Hours, specialties, reasons as codes, locations | none | each list (§2.2, §2.4 to §2.6). An empty list sends nothing to `$find`. |
+| Visit groups | none in Epic mode; a draft for the fake: primary care, imaging | the hospital's groups, their words and their members (§2.9) |
+
+### 13.2 Offering slots
+| Setting | Default | Choices |
+|---|---|---|
+| Slots kept for the call | Epic's page (10), and its `next` link | fixed by Epic |
+| Slots offered at a time | 3 (`MAX_OFFERED`) | 1 to 5 |
+| Order | the soonest first | spread over different days |
+| The clinician's name | said with each slot | once, when every slot offered has the same clinician |
+| Times on one day | each said in full | said together ("Tuesday at 9 or at 2:30") |
+
+### 13.3 Finding a visit
+| Setting | Default | Choices |
+|---|---|---|
+| The narrowing question | on, when visit groups exist, and only when the caller named a day, a month, a clinician or a kind of visit ("my next visit" is always the soonest) | off |
+| Matches that start it | more than 2 | any number |
+| Groups one question names | 3 at most, then "or another visit" | 1 to 5 |
+| Group order | the group with the soonest visit first | the list's own order |
+| How far back a past visit is found | 400 days | any number of days |
+| Which past statuses are said | seen, missed, cancelled | any of the three |
+| Visits counted after the soonest | the next 90 days | any number of days |
+
+### 13.4 Instructions and staff
+| Setting | Default | Choices |
+|---|---|---|
+| Instructions said | yes: asked first; read at once when the caller asked about that visit (2A) | off; always read |
+| The CSN in a flag about a visit | on, for `booking_change` | which flag kinds carry it (§5) |
+
+**Every place it runs:**
+- **The call:** the same on any phone.
+- **The console:** Config › Hospital for the lists and these values; every change audited.
+- **The deploy:** A2 and B read them from the settings store.
+- **Each EHR:** the lists' columns are Epic's; each adapter maps its own concepts behind them
+  (OTHER-EHRS.md). The local fake reads the same settings.

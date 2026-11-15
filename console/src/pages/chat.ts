@@ -2154,7 +2154,8 @@ function sandboxRows(s: Sandbox): HTMLElement[] {
     ul.className = "bullets";
     for (const v of visits) {
       const li = document.createElement("li");
-      li.textContent = [visitTime(v.starts_at), `${v.minutes} min`, v.visit_type, v.reason, v.clinician, v.place ?? s.place]
+      const past = v.status && v.status !== "booked" ? v.status : null;
+      li.textContent = [visitTime(v.starts_at), `${v.minutes} min`, past, v.visit_type, v.reason, v.clinician, v.place ?? s.place]
         .filter(Boolean)
         .join(" · ");
       ul.append(li);

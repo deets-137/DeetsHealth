@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: []
-updated: 2026-11-13
+updated: 2026-11-15
 ---
 # DeetsHealth — The agent (`agent/`), as built
 
@@ -124,7 +124,8 @@ for something the agent cannot do: the offer of a person, a "no", and the call g
   tool arguments at some level, so a line from any library keeps its level and place and loses
   its text. Our own lines carry kinds and counts only. An exception keeps its type, never its
   message.
-- **`NextVisit`** was added to the contract for S5 (EHR-SERVICE.md §6a).
+- **`NextVisit`** was added to the contract for S5 (EHR-SERVICE.md §6a). On 2026-11-14 `FindVisit`
+  replaced it, and the tool `find_visit` replaced `next_visit` (EPIC.md §7.10).
 - **The `emergency` tool** (2026-11-11, the owner's option A, from his third desk test). Global,
   like `end_call`. It speaks a fixed line: "If this might be an emergency, please hang up and
   call 911 now. If you're safe to go on, would you like me to keep helping with your call?" The

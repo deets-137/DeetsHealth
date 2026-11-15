@@ -1,0 +1,9 @@
+{
+  "about": "The dev hospital's own setup that a hospital will set on Config › Hospital (FUTURE-SETTINGS.md §13; ideas/HOSPITAL-CONFIG.md). Drafts, for the owner to edit. ehr reads it (the slot search); the agent reads the names (the find_slots tool). No protected data.",
+  "times_of_day": [
+    { "name": "morning", "from": "08:00", "hours": 4 },
+    { "name": "afternoon", "from": "12:00", "hours": 5 },
+    { "name": "evening", "from": "17:00", "hours": 3 }
+  ],
+  "slots_offered": 3
+}

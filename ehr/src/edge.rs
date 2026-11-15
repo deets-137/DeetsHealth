@@ -10,7 +10,7 @@ use tonic::Status;
 
 use crate::{
     proto::v1 as pb,
-    scheduler::{Slot, SlotWish, VisitMode},
+    scheduler::{DayRange, Slot, SlotWish, VisitAsk, VisitMode, VisitStatus},
     session::{Source, Token},
     verify::Claimed,
     visit_about::BookNote,
@@ -91,20 +91,61 @@ pub fn check_code(mut req: pb::CheckCodeRequest) -> Result<(Token, Shielded<Stri
     Ok((handle, Shielded::new(code)))
 }
 
-pub fn find_slots(mut req: pb::FindSlotsRequest) -> Result<(Token, SlotWish), Status> {
+/// A new search, or the next slots of the last one.
+pub enum SlotAsk {
+    New(SlotWish),
+    More,
+}
+
+pub fn find_slots(mut req: pb::FindSlotsRequest) -> Result<(Token, SlotAsk), Status> {
     let handle = handle(&req.handle)?;
+    if req.more {
+        return Ok((handle, SlotAsk::More));
+    }
     let reason = std::mem::take(&mut req.reason);
     if reason.trim().is_empty() || reason.chars().count() > MAX_REASON {
         return Err(Status::invalid_argument("reason: empty or too long"));
     }
-    let day = std::mem::take(&mut req.earliest_day);
-    let earliest_day = if day.is_empty() {
-        None
-    } else if is_day(&day) {
-        Some(Shielded::new(day))
-    } else {
-        return Err(Status::invalid_argument("earliest_day: not YYYY-MM-DD"));
+    let day = |s: String, what: &str| -> Result<Option<Shielded<String>>, Status> {
+        if s.is_empty() {
+            Ok(None)
+        } else if is_day(&s) {
+            Ok(Some(Shielded::new(s)))
+        } else {
+            Err(Status::invalid_argument(format!("{what}: not YYYY-MM-DD")))
+        }
     };
+    let earliest_day = day(std::mem::take(&mut req.earliest_day), "earliest_day")?;
+    let latest_day = day(std::mem::take(&mut req.latest_day), "latest_day")?;
+    let time = std::mem::take(&mut req.time_of_day);
+    let time_of_day = if time.trim().is_empty() {
+        None
+    } else {
+        // Only a name on the hospital's list: the model picks, the hospital decides what it means.
+        Some(crate::hospital::hospital().time_of_day(&time).ok_or_else(|| Status::invalid_argument("time_of_day: not on the hospital's list"))?)
+    };
+    let mut days = Vec::new();
+    for d in &req.days {
+        use jiff::civil::Weekday::*;
+        let w = match d.trim().to_ascii_lowercase().as_str() {
+            "mon" => Monday,
+            "tue" => Tuesday,
+            "wed" => Wednesday,
+            "thu" => Thursday,
+            "fri" => Friday,
+            "sat" => Saturday,
+            "sun" => Sunday,
+            _ => return Err(Status::invalid_argument("days: mon to sun")),
+        };
+        if !days.contains(&w) {
+            days.push(w);
+        }
+    }
+    let who = std::mem::take(&mut req.clinician).trim().to_string();
+    if who.chars().count() > MAX_NAME {
+        return Err(Status::invalid_argument("clinician: too long"));
+    }
+    let clinician = (!who.is_empty()).then(|| Shielded::new(who));
     let mode = match pb::VisitMode::try_from(req.visit_mode) {
         Ok(pb::VisitMode::Unspecified) => VisitMode::Either,
         Ok(pb::VisitMode::InPerson) => VisitMode::InPerson,
@@ -113,7 +154,10 @@ pub fn find_slots(mut req: pb::FindSlotsRequest) -> Result<(Token, SlotWish), St
     };
     // Screened here, as plain words, before they are wrapped (visit_about.rs).
     let note = BookNote::screen(reason.trim().to_string());
-    Ok((handle, SlotWish { note, earliest_day, mode }))
+    Ok((
+        handle,
+        SlotAsk::New(SlotWish { note, earliest_day, latest_day, mode, time_of_day, days, clinician, who: None }),
+    ))
 }
 
 pub fn book(req: &pb::BookRequest) -> Result<(Token, Token, String), Status> {
@@ -142,9 +186,61 @@ pub fn slot(token: &Token, slot: &Slot) -> pb::Slot {
     }
 }
 
+/// What the caller asked about a visit (EPIC.md §7.10). The clinician's and the group's words
+/// stay wrapped; the day or month becomes the range of days it covers.
+pub struct VisitQuestion {
+    pub ask: VisitAsk,
+    pub clinician: Option<Shielded<String>>,
+    pub group: Option<Shielded<String>>,
+}
+
+pub fn find_visit(mut req: pb::FindVisitRequest) -> Result<(Token, VisitQuestion), Status> {
+    let handle = handle(&req.handle)?;
+    let when = std::mem::take(&mut req.when);
+    let range = if when.is_empty() {
+        None
+    } else {
+        Some(day_range(when.trim()).ok_or_else(|| Status::invalid_argument("when: not YYYY-MM-DD or YYYY-MM"))?)
+    };
+    let words = |s: String, what: &str| -> Result<Option<Shielded<String>>, Status> {
+        let s = s.trim().to_string();
+        if s.chars().count() > MAX_NAME {
+            return Err(Status::invalid_argument(format!("{what}: too long")));
+        }
+        Ok((!s.is_empty()).then(|| Shielded::new(s)))
+    };
+    let clinician = words(std::mem::take(&mut req.clinician), "clinician")?;
+    let group = words(std::mem::take(&mut req.group), "group")?;
+    Ok((handle, VisitQuestion { ask: VisitAsk { range, past: req.past }, clinician, group }))
+}
+
+/// "2026-11-10" -> that day; "2026-11" -> that month. Each as [from, to).
+fn day_range(s: &str) -> Option<DayRange> {
+    let (from, to) = if is_day(s) {
+        let d: jiff::civil::Date = s.parse().ok()?;
+        (d, d.tomorrow().ok()?)
+    } else {
+        let b = s.as_bytes();
+        if b.len() != 7 || b[4] != b'-' || !b[..4].iter().chain(&b[5..]).all(u8::is_ascii_digit) {
+            return None;
+        }
+        let year: i16 = s[..4].parse().ok()?;
+        let month: i8 = s[5..].parse().ok()?;
+        let first = jiff::civil::Date::new(year, month, 1).ok()?;
+        (first, first.checked_add(jiff::Span::new().months(1)).ok()?)
+    };
+    Some(DayRange { from: Shielded::new(from.to_string()), to: Shielded::new(to.to_string()) })
+}
+
 /// The one reveal for a visit the caller already has, or has just booked.
 pub fn visit(slot: &Slot) -> pb::Visit {
     let pass = WirePass::issue();
+    let status = match slot.status {
+        VisitStatus::Upcoming => pb::VisitStatus::Upcoming,
+        VisitStatus::Seen => pb::VisitStatus::Seen,
+        VisitStatus::Missed => pb::VisitStatus::Missed,
+        VisitStatus::Cancelled => pb::VisitStatus::Cancelled,
+    };
     pb::Visit {
         starts_at: slot.starts_at.reveal(&pass).clone(),
         minutes: slot.minutes,
@@ -154,7 +250,17 @@ pub fn visit(slot: &Slot) -> pb::Visit {
         reason: slot.about.reason.as_ref().map(|s| s.reveal(&pass).clone()).unwrap_or_default(),
         online: slot.about.online,
         reason_private: slot.about.private,
+        instructions: slot.about.instructions.as_ref().map(|s| s.reveal(&pass).clone()).unwrap_or_default(),
+        instructions_private: slot.about.instructions_private,
+        csn: slot.csn.as_ref().map(|s| s.reveal(&pass).clone()).unwrap_or_default(),
+        status: status.into(),
     }
+}
+
+/// The one reveal for the groups the caller is asked about.
+pub fn groups(names: &[Shielded<String>]) -> Vec<String> {
+    let pass = WirePass::issue();
+    names.iter().map(|n| n.reveal(&pass).clone()).collect()
 }
 
 /// YYYY-MM-DD with a month 01 to 12 and a day 01 to 31.
@@ -294,10 +400,52 @@ mod tests {
             handle: Token::random().to_hex(),
             reason: "CANARY".into(),
             earliest_day: "CANARY-DAY".into(),
-            visit_mode: 0,
+            ..Default::default()
         };
         let err = find_slots(req).err().unwrap();
         assert!(!err.message().contains("CANARY"));
+        let req = pb::FindSlotsRequest {
+            handle: Token::random().to_hex(),
+            reason: "a check-up".into(),
+            time_of_day: "CANARY".into(),
+            ..Default::default()
+        };
+        assert!(!find_slots(req).err().unwrap().message().contains("CANARY"));
+    }
+
+    fn wish(ask: SlotAsk) -> SlotWish {
+        match ask {
+            SlotAsk::New(w) => w,
+            SlotAsk::More => panic!("a new search"),
+        }
+    }
+
+    #[test]
+    fn a_last_day_a_time_of_day_and_days_are_read() {
+        let req = pb::FindSlotsRequest {
+            handle: Token::random().to_hex(),
+            reason: "a check-up".into(),
+            latest_day: "2026-11-20".into(),
+            time_of_day: "Morning".into(),
+            days: vec!["tue".into(), "THU".into(), "tue".into()],
+            clinician: " Dr. Lin ".into(),
+            ..Default::default()
+        };
+        let w = wish(find_slots(req).ok().unwrap().1);
+        assert!(w.latest_day.is_some() && w.clinician.is_some() && w.who.is_none());
+        assert_eq!(w.time_of_day.unwrap().start(), "08:00:00");
+        assert_eq!(w.days, [jiff::civil::Weekday::Tuesday, jiff::civil::Weekday::Thursday]);
+        let bad = |f: fn(&mut pb::FindSlotsRequest)| {
+            let mut r = pb::FindSlotsRequest { handle: Token::random().to_hex(), reason: "x".into(), ..Default::default() };
+            f(&mut r);
+            find_slots(r).is_err()
+        };
+        assert!(bad(|r| r.latest_day = "Friday".into()));
+        assert!(bad(|r| r.time_of_day = "midnight".into()));
+        assert!(bad(|r| r.days = vec!["weekend".into()]));
+        // More: no reason needed, nothing else read.
+        let more = pb::FindSlotsRequest { handle: Token::random().to_hex(), more: true, ..Default::default() };
+        assert!(matches!(find_slots(more).ok().unwrap().1, SlotAsk::More));
     }
 
     #[test]
@@ -305,11 +453,11 @@ mod tests {
         let req = |mode: i32| pb::FindSlotsRequest {
             handle: Token::random().to_hex(),
             reason: "a check-up".into(),
-            earliest_day: String::new(),
             visit_mode: mode,
+            ..Default::default()
         };
-        assert_eq!(find_slots(req(0)).ok().unwrap().1.mode, VisitMode::Either);
-        assert_eq!(find_slots(req(2)).ok().unwrap().1.mode, VisitMode::Online);
+        assert_eq!(wish(find_slots(req(0)).ok().unwrap().1).mode, VisitMode::Either);
+        assert_eq!(wish(find_slots(req(2)).ok().unwrap().1).mode, VisitMode::Online);
         assert!(find_slots(req(9)).is_err());
     }
 
@@ -318,10 +466,9 @@ mod tests {
         let req = pb::FindSlotsRequest {
             handle: Token::random().to_hex(),
             reason: "  a prenatal check  ".into(),
-            earliest_day: String::new(),
-            visit_mode: 0,
+            ..Default::default()
         };
-        let (_, wish) = find_slots(req).ok().unwrap();
-        assert!(wish.note.private);
+        let (_, ask) = find_slots(req).ok().unwrap();
+        assert!(wish(ask).note.private);
     }
 }

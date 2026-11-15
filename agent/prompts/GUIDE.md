@@ -26,6 +26,12 @@ name: Role and rules
 under: -
 plays: The model reads it at every step.
 
+## note.call_start
+tab: Core
+name: Note the time the call started
+under: -
+plays: Sent to the model when the call starts, after Role and rules: the hospital's time, in its time zone. Never heard.
+
 ## tool.emergency
 tab: Core
 name: Send to 911
@@ -200,53 +206,185 @@ name: Menu instructions
 under: -
 plays: The model reads it once the caller is verified, until they choose a time.
 
-## tool.next_visit
+## tool.find_visit
 tab: Menu
-name: Tell the next visit
-under: next_visit
-plays: The model calls it when the caller asks about their next visit.
+name: Tell a visit
+under: find_visit
+plays: The model calls it when the caller asks about a visit they have: the next one, or one they name by day, month, clinician, kind or past.
+
+## arg.find_visit.when
+tab: Menu
+name: The day or month
+under: find_visit
+plays: Filled when the caller names a day or a month for the visit.
+
+## arg.find_visit.clinician
+tab: Menu
+name: The clinician named
+under: find_visit
+plays: Filled when the caller names the clinician.
+
+## arg.find_visit.past
+tab: Menu
+name: A visit that is over
+under: find_visit
+plays: Set when the caller asks about a past visit.
+
+## arg.find_visit.group
+tab: Menu
+name: The kind of visit
+under: find_visit
+plays: Filled when the caller names a kind of visit (an x-ray, a checkup).
 
 ## line.no_visits
 tab: Menu
 name: Say no visit is coming
-under: next_visit
+under: find_visit
 plays: No visit is coming.
+
+## line.no_visit_match
+tab: Menu
+name: Say no visit matches
+under: find_visit
+plays: The caller named a visit and none matches.
+
+## line.no_past_visits
+tab: Menu
+name: Say no past visit is on record
+under: find_visit
+plays: The caller asked about a past visit and the record has none.
+
+## line.which_visit
+tab: Menu
+name: Ask which visit
+under: find_visit
+plays: The caller named a visit and too many match: the agent asks which kind they mean (a hospital setting, FUTURE-SETTINGS.md §13.3).
+
+## line.visit_group
+tab: Menu
+name: Name one kind of visit
+under: find_visit
+plays: One choice inside Ask which visit, for each visit group.
+
+## line.another_visit
+tab: Menu
+name: Name the other visits
+under: find_visit
+plays: The last choice inside Ask which visit, when visits outside the named groups match.
+
+## line.choice_or
+tab: Menu
+name: Join the choices
+under: find_visit
+plays: The word between the choices of Ask which visit.
 
 ## line.next_visit
 tab: Menu
 name: Say the next visit
-under: next_visit
+under: find_visit
 plays: The next visit: its time, clinician, place and length.
+
+## line.visit_found
+tab: Menu
+name: Say the visit named
+under: find_visit
+plays: In place of Say the next visit when the caller named the visit.
+
+## line.past_seen
+tab: Menu
+name: Say the caller was seen
+under: find_visit
+plays: A past visit the caller came to.
+
+## line.past_missed
+tab: Menu
+name: Say the visit was missed
+under: find_visit
+plays: A past visit marked as missed.
+
+## line.past_cancelled
+tab: Menu
+name: Say the visit was cancelled
+under: find_visit
+plays: A visit that was cancelled.
 
 ## line.booked_visit_asked
 tab: Menu
 name: Say it is the visit just booked
-under: next_visit
+under: find_visit
 plays: In place of Say the next visit when the next visit is the one booked on this call: the caller heard its time a moment ago.
 
 ## line.visit_online
 tab: Menu
 name: Add that the visit is online
-under: next_visit
-plays: Added after Say the next visit when the visit is online.
+under: find_visit
+plays: Added after the visit when it is online.
 
 ## line.visit_type
 tab: Menu
 name: Add the visit type
-under: next_visit
-plays: Added after Say the next visit when the visit is in person and the record names its type. Never for a private visit.
+under: find_visit
+plays: Added after the visit when it is in person and the record names its type. Never for a private visit.
 
 ## line.visit_reason
 tab: Menu
 name: Add the visit reason
-under: next_visit
-plays: Added after Say the next visit when the record holds a reason. Never for a private visit.
+under: find_visit
+plays: Added after the visit when the record holds a reason. Never for a private visit.
 
-## note.after_next_visit
+## line.one_more_visit
 tab: Menu
-name: Note after the next visit
-under: next_visit
+name: Add one more visit
+under: find_visit
+plays: Added after the next visit when one more visit is coming.
+
+## line.more_visits
+tab: Menu
+name: Add how many more visits
+under: find_visit
+plays: Added after the next visit when two or more visits are coming after it.
+
+## line.offer_instructions
+tab: Menu
+name: Offer the instructions
+under: find_visit
+plays: Added last when the visit to come has instructions and the caller did not name the visit.
+
+## note.after_find_visit
+tab: Menu
+name: Note after a visit
+under: find_visit
 plays: Sent to the model after the visit is spoken. Never heard.
+
+## note.after_offer_instructions
+tab: Menu
+name: Note after offering instructions
+under: find_visit
+plays: Sent to the model after Offer the instructions. Never heard.
+
+## note.after_which_visit
+tab: Menu
+name: Note after asking which visit
+under: find_visit
+plays: Sent to the model after Ask which visit. Never heard.
+
+## tool.read_instructions
+tab: Menu
+name: Read the instructions
+under: read_instructions
+plays: The model calls it when the caller says yes to the instructions, or asks how to prepare.
+
+## line.visit_instructions
+tab: Menu
+name: Say the instructions
+under: read_instructions
+plays: The visit's instructions. Also added after Say the visit named, at once, when the caller named the visit. Never for a private visit.
+
+## line.no_instructions
+tab: Menu
+name: Say no instructions are on record
+under: read_instructions
+plays: The visit has no instructions to read.
 
 ## tool.find_slots
 tab: Menu
@@ -272,6 +410,36 @@ name: In person or online
 under: find_slots
 plays: The model fills it when the caller says how they want to be seen; otherwise either.
 
+## arg.find_slots.latest_day
+tab: Menu
+name: The last day
+under: find_slots
+plays: The model fills it when the caller names a last day they can come.
+
+## arg.find_slots.time_of_day
+tab: Menu
+name: The time of day
+under: find_slots
+plays: The model picks one of the hospital's times of day when the caller names one (FUTURE-SETTINGS.md §13.1).
+
+## arg.find_slots.days
+tab: Menu
+name: The days of the week
+under: find_slots
+plays: The model fills it when the caller names days of the week.
+
+## arg.find_slots.clinician
+tab: Menu
+name: The clinician asked for
+under: find_slots
+plays: The model fills it when the caller asks for a clinician; the times are narrowed to that clinician.
+
+## arg.find_slots.more
+tab: Menu
+name: More of the same search
+under: find_slots
+plays: Set when none of the times suit the caller and more are waiting.
+
 ## line.slots
 tab: Menu
 name: Offer the open times
@@ -290,11 +458,23 @@ name: Say no times are open
 under: find_slots
 plays: No open time from that day.
 
+## line.no_more_slots
+tab: Menu
+name: Say no more times are open
+under: find_slots
+plays: The caller asked for more times from the same search and none are left.
+
 ## tool.change_visit
 tab: Menu
 name: Hand a change to staff
 under: change_visit
 plays: The model calls it when the caller asks to move or cancel a visit. The call goes to a person, with a flag.
+
+## arg.change_visit.visit
+tab: Menu
+name: The visit to change
+under: change_visit
+plays: Filled with the visit's number when the caller heard the visit from Tell a visit.
 
 ## line.change_booked
 tab: Menu
@@ -349,6 +529,12 @@ tab: Schedule
 name: Say the time was taken
 under: book
 plays: Someone else took the time first.
+
+## line.book_not_through
+tab: Schedule
+name: Ask to try the booking again
+under: book
+plays: The EHR's answer to a booking was lost and a search found no booking: the caller is asked before the agent tries again (the owner's V2A).
 
 ## line.booked
 tab: Schedule

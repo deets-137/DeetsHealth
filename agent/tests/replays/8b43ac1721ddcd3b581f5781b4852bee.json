@@ -1,0 +1,163 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch4K1mbJeGXisxme8QTgx",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 41
+     },
+     "cache_creation_input_tokens": 41,
+     "cache_read_input_tokens": 3362,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 3,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQS9gUKEAgTGAI4AUIIdGhpbmtpbmcSDG5TdI2jOxEaMFdMoxoM+OTrvRLKNKQmWZwsIjAE8rEewQtivz0qqHh/NM1qmur2NgN4aC5JlWesPQQn0qspJOePBoLKX5kfQSEKptMqkwV+WfAflgdfFGY/SPNhMTbrV+mxzoN5vDTAZ5EO58Ja1GPQO4sWDpe7PNtT9pqMzFGm6qCVeC82PdOx0dCrknEMwJavkWRxSDspNf8NAX2eRDUbdUWAcHty+dNDDOSf/kNF16EQnu1KGJmy3LEy0ZxY3JVTUR/cDfN+7FCuRjM7CnEJlepN4BUTSlVJpXhC3xe2zULSB6777dQoVkna+XcSg6hlvQcdG91y3e7EesQUJFPbmgdep9tbuSQqHNcOHF7xRKfVEfH1q4j9Zzgtv5q65xR5A10mmS4fAbXZ35v2qSqpe4vnX+CyiOJKdSBT1wK/LyE/zwFSHsziJMVbNUvvy7bwLwvSWs+l/2e6dy1ipaY+jNIwaoAKX1iXsDtVZYuUNs9/yC0XJR9dhLOfPMZdfof4uaeTvkZWRkjYOP+rrOCVnehR8LbEdFOuBQXV9C0MB1sKoqINS3pdHpB0YG/eIMYWLSKv1n/MK8q9f7z29Dni3Gt8J3LSOgIDze6pcxSm9tSwUdQpEz7DlE5X9cHU+kMlPfywt4dpMrKWmXb78ZyhNiEX7iCq8Gd//2vKcsSWbMx4y1DAU6cngL4TPs+AlbQMbumChBC5kslIXxGxFHsNNUOzxxJwVCFhtSTynfXUJLXRCw+XjuetxkRTAZz4rpHEy6qHtCsDkYsElkj2EpfEo7VfMTceJOWncqVD3QzfDfftAU+qCYDXVToB41xUNrhZ9iOAF7NNqJTeaNFB5K3s08OvgjLShT0kTpizXNgM/qtVEJcd8fE2fvpFmPg9yAG6yrYqm4WMVmxXEYx1ayRv21/WIsFIBj0OBmKVxlzoStaZCfkvfSxaOaLYcFfujJTjzzngdBhwY71sgOlOD8plYBgB",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "I can only help with visits",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " at this clinic, and",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " that's all",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " I can disc",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "uss. Is",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " there an",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "ything you need for a",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " visit?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 41,
+    "cache_read_input_tokens": 3362,
+    "input_tokens": 4,
+    "output_tokens": 59,
+    "output_tokens_details": {
+     "thinking_tokens": 22
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

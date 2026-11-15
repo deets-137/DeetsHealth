@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [console/src/pages/agent.ts, console/src/pages/system.ts, console/src/styles/config.css, agent/prompts/GUIDE.md, agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/prompts.py, agent/deets_agent/dev_server.py, agent/tests/test_prompts.py, agent/prompts/AGENT-PROMPT.md, agent/prompts/TOOLS.md, docs/architecture/images/system-test-variable-2026-11-13.png, docs/architecture/images/agent-code-keys-jitter-2026-11-14.png]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # DeetsHealth — Config › Agent, arranged by the call
 
@@ -128,13 +128,7 @@ What the caller hears  4                       └
 | Section | Name | Under | Plays when |
 |---|---|---|---|
 | `task.menu` | Step 3: what the caller needs | — | The model reads it once the caller is verified, until they choose a time. |
-| `tool.next_visit` | Tell the next visit | — | The model calls it when the caller asks about their next visit. |
-| `line.no_visits` | No visits coming up | next_visit | No visit is coming. |
-| `line.next_visit` | Next visit | next_visit | The next visit: its time, clinician, place and length. |
-| `line.visit_online` | Online visit (part) | next_visit | Added after Next visit when the visit is online. |
-| `line.visit_type` | Visit type (part) | next_visit | Added when the visit is in person and the record names its type. Never for a private visit. |
-| `line.visit_reason` | Visit reason (part) | next_visit | Added when the record holds a reason. Never for a private visit. |
-| `note.after_next_visit` | After the next visit | next_visit | Sent to the model after the visit is spoken. Never heard. |
+| `tool.find_visit` | Tell a visit | — | Since 2026-11-14 (EPIC.md §7.10) it replaces `next_visit`, with its fields, lines and notes; `agent/prompts/GUIDE.md` holds the current rows. |
 | `tool.find_slots` | Find open times | — | The model calls it when the caller wants to book, or another day. Also in Schedule. |
 | `arg.find_slots.reason` | Reason for the visit | find_slots | The model fills it from the caller's words. |
 | `arg.find_slots.earliest_day` | Earliest day | find_slots | The model fills it when the caller names a day. |
