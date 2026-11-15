@@ -8,6 +8,63 @@ updated: 2026-11-14
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-14 (Windows) — booking: every Epic field, used or not
+- The owner: the Epic sandbox is the backup; list every booking field Epic gives that we do not
+  read, and every input Epic accepts that we do not send.
+- Read through the open.epic MCP server: `$find` (`api:840`), `$book` (`api:839`),
+  `Appointment.Search (R4)` (`api:10469`), `Slot.Read` (`api:862`), `Schedule.Read`
+  (`api:500`). Compared with `ehr/src/epic_ehr.rs`, `ehr/src/scheduler.rs` and `ehr.proto`.
+- Written: EPIC.md §7 (designed): the `$find` inputs, the proposed Appointment's fields, the
+  unread `Appointment.Search` fields and search parameters, `$book` in and out, Slot and
+  Schedule, the paths outside FHIR, and a draft list of 9 candidates by value to the caller.
+- New facts: `$find`'s reply carries the department's time zone; `comment` is capped at 500
+  characters (likely the note's limit); `$find` has no clinician input; `$book` has no
+  idempotency at Epic; the R4 search filters other than `date`, `patient`, `status`,
+  `identifier` and `service-category` are post-filters.
+- No code changed. Nothing sent to Epic.
+
+## 2026-11-14 (Windows) — SECURITY.md §8 rewritten to match the code
+- The owner asked for a walk through the security setup. §8 still said "Nothing of the phone
+  agent is built yet"; he asked for a rewrite.
+- §8 now has three lists, each checked against the code: built; built for dev only; not built.
+  Front matter: `sources` filled, `updated` set. `status` stays `designed` (the doc as a whole).
+- Found while checking, each named in §8 as not built: no Content-Security-Policy in
+  `console/`; no panic hook in `ehr`; the `audit` table has no writer.
+- No code changed in that part. Then:
+- **The seal format's domain string renamed** (the owner: "rename the domain string before the
+  first deploy"). His picks: the string `deetshealth.store.v1`; old values sealed again at
+  start-up, none cleared.
+- Built: `core/src/seal.rs` format 3 (format 2's padding under the new string; formats 1 and 2
+  open with the old string, never written; `CURRENT_FORMAT`). `ehr/src/store.rs`: `SEALED` (the
+  one list of sealed columns and row keys) and `Store::reseal`, run by `Store::connect`.
+- Decided inside his choice: one constant for both stores (the patient app's SQLite cache
+  writes format 3 too); a value that does not open keeps its bytes and is counted, and the
+  start does not fail; a row with nothing sealed again is not written; the old string stays in
+  the code as a read path with no date to remove it.
+- Tests: core `format_2_still_opens_and_the_domains_do_not_mix`; `ehr/tests/store.rs`
+  `an_older_store_is_sealed_again_in_the_current_format` (builds format 2 values by hand,
+  checks `SEALED` against the schema). `cargo test -p deetshealth-core --features sqlite seal`:
+  8 pass. `npm run db:test`: 4 pass.
+- `npm run check`: docs and core pass; its ehr step could not build (the running dev server
+  held the ehr exe). The ehr tests then ran in `target/store-test`: 85 pass. Not run: the
+  agent's tests, which need a fresh ehr build.
+- Not yet done: the next start of the dev server on this PC and on the Mac, which seals each
+  dev database again. Before it, this PC's database was all format 2 (1,652 transcript lines,
+  5,163 events, 33 staff flags, 3 users). Desk test: after `npm run dev`, stderr has one line
+  "ehr: sealed N values again in the current format", Security › Auth shows the same people,
+  and a filed call opens on the Chat page. A second start prints no such line.
+- The owner restarted the dev server (21:07). This PC's database is now all format 3: 1,652
+  transcript words, 5,163 event bodies, 33 flag summaries and 33 evidences, 19 annotation
+  words, 3 users' emails and names, 1 user's first name, last name and phone. No value is left
+  in an older format, so none failed to open (a value is written only after it opens).
+- Found: the line "sealed N values again" never reached his terminal. `ehr ingest` ran the
+  pass first, and `scripts/postgres.mjs › ingest` kept ehr's stderr unless ehr failed. Fixed:
+  `ingest` returns ehr's stderr lines as `notes`; `dev.mjs` and `db:ingest` print each as
+  `[db] ...`. The Mac's first start will show the line.
+- With the dev server stopped, `npm run check`: all 8 steps pass (docs, core tests, core for
+  WebAssembly, ehr tests, the ehr build for the agent, the agent's proto code, lint and tests).
+  Not run: `npm run check:all` (the web and keys steps; no change there).
+
 ## 2026-11-14 (Windows, late night) — Config › Agent: one layout, Plain | Code, new titles
 - The owner: the Agent page is "still a little confusing"; "Flow is more intuitive, but looks
   'scarier'". The cause in the code: Semantic split each tool from the lines it speaks; Flow

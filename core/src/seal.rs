@@ -5,7 +5,8 @@
 //! - **Associated data** binds a value to its place: table, row key and column. A sealed value
 //!   copied to another row, or to another column of the same row, fails to open.
 //! - **A format byte** leads every sealed value, so a later change of algorithm can tell old
-//!   values from new ones.
+//!   values from new ones. Format 3 (the owner, 2026-11-14) is format 2 under the store's own
+//!   domain string; formats 1 and 2 carry the patient app's and are opened, never written.
 //! - **Padding** (format 2, the owner, 2026-09-21): the plaintext is padded before it is
 //!   sealed, so the sealed length shows only a rough size class. Every value under 64 bytes
 //!   (a missing value, a date, a code) seals to the same length; a longer one is padded by
@@ -22,8 +23,11 @@ use zeroize::Zeroizing;
 /// plaintext as it is. Still opened, so a schema 1 file can be migrated; never written.
 const FORMAT_V1: u8 = 1;
 /// Format 2: as format 1, over the padded plaintext: a 4-byte length (little-endian), the
-/// plaintext, then zeros up to [`padded_len`].
+/// plaintext, then zeros up to [`padded_len`]. Still opened, so a store sealed before
+/// 2026-11-14 can be sealed again; never written.
 const FORMAT_V2: u8 = 2;
+/// Format 3: as format 2, with [`DOMAIN`] in the associated data in place of [`DOMAIN_OLD`].
+const FORMAT_V3: u8 = 3;
 /// The smallest padded plaintext.
 pub const PAD_FLOOR: usize = 64;
 
@@ -63,7 +67,9 @@ fn unpad(mut padded: Zeroizing<Vec<u8>>) -> Result<Zeroizing<Vec<u8>>, CoreError
     Ok(padded)
 }
 /// Leads the associated data, so these bytes can never pass for another use of the same key.
-const AAD_DOMAIN: &[u8] = b"deetshealth.cache.v1";
+const DOMAIN: &[u8] = b"deetshealth.store.v1";
+/// The domain of formats 1 and 2, named for the patient app's chart cache. Read only.
+const DOMAIN_OLD: &[u8] = b"deetshealth.cache.v1";
 
 /// Where a value lives. Every part goes into the associated data.
 pub struct Place<'a> {
@@ -74,9 +80,9 @@ pub struct Place<'a> {
 
 impl Place<'_> {
     /// Each part is length-prefixed, so no two places can make the same bytes.
-    fn aad(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(AAD_DOMAIN.len() + 16 + self.table.len() + self.row.len() + self.column.len());
-        for part in [AAD_DOMAIN, self.table.as_bytes(), self.row.as_bytes(), self.column.as_bytes()] {
+    fn aad(&self, domain: &[u8]) -> Vec<u8> {
+        let mut out = Vec::with_capacity(domain.len() + 16 + self.table.len() + self.row.len() + self.column.len());
+        for part in [domain, self.table.as_bytes(), self.row.as_bytes(), self.column.as_bytes()] {
             out.extend_from_slice(&(part.len() as u32).to_le_bytes());
             out.extend_from_slice(part);
         }
@@ -84,21 +90,22 @@ impl Place<'_> {
     }
 }
 
-/// Seal one value for one place, padded (format 2).
+/// Seal one value for one place, padded (format 3).
 pub fn seal<C: Cipher>(cipher: &C, key: &C::Key, place: &Place, plaintext: &[u8]) -> Result<Vec<u8>, CoreError> {
-    let body = cipher.seal(key, &place.aad(), &pad(plaintext)?)?;
+    let body = cipher.seal(key, &place.aad(DOMAIN), &pad(plaintext)?)?;
     let mut out = Vec::with_capacity(1 + body.len());
-    out.push(FORMAT_V2);
+    out.push(FORMAT_V3);
     out.extend_from_slice(&body);
     Ok(out)
 }
 
-/// Open one value from its place (format 2, or format 1 from a schema 1 file). The plaintext
-/// is wiped when it drops.
+/// Open one value from its place (format 3, or an older format a store has yet to seal
+/// again). The plaintext is wiped when it drops.
 pub fn open<C: Cipher>(cipher: &C, key: &C::Key, place: &Place, sealed: &[u8]) -> Result<Zeroizing<Vec<u8>>, CoreError> {
     match sealed.split_first() {
-        Some((&FORMAT_V2, body)) => unpad(cipher.open(key, &place.aad(), body)?),
-        Some((&FORMAT_V1, body)) => cipher.open(key, &place.aad(), body),
+        Some((&FORMAT_V3, body)) => unpad(cipher.open(key, &place.aad(DOMAIN), body)?),
+        Some((&FORMAT_V2, body)) => unpad(cipher.open(key, &place.aad(DOMAIN_OLD), body)?),
+        Some((&FORMAT_V1, body)) => cipher.open(key, &place.aad(DOMAIN_OLD), body),
         _ => Err(CoreError::Crypto),
     }
 }
@@ -107,14 +114,17 @@ pub fn open<C: Cipher>(cipher: &C, key: &C::Key, place: &Place, sealed: &[u8]) -
 #[cfg(test)]
 pub(crate) fn seal_v1<C: Cipher>(cipher: &C, key: &C::Key, place: &Place, plaintext: &[u8]) -> Result<Vec<u8>, CoreError> {
     let mut out = vec![FORMAT_V1];
-    out.extend(cipher.seal(key, &place.aad(), plaintext)?);
+    out.extend(cipher.seal(key, &place.aad(DOMAIN_OLD), plaintext)?);
     Ok(out)
 }
 
-/// Whether a sealed value is in the current format. The schema 2 migration re-seals the rest.
+/// Whether a sealed value is in the current format. A store seals the rest again.
 pub fn is_current(sealed: &[u8]) -> bool {
-    sealed.first() == Some(&FORMAT_V2)
+    sealed.first() == Some(&FORMAT_V3)
 }
+
+/// The current format's byte, for a store that asks its database which values are older.
+pub const CURRENT_FORMAT: u8 = FORMAT_V3;
 
 /// Open a value that holds text. Bytes that are not UTF-8 are wiped and refused.
 pub fn open_text<C: Cipher>(cipher: &C, key: &C::Key, place: &Place, sealed: &[u8]) -> Result<Zeroizing<String>, CoreError> {
@@ -165,7 +175,7 @@ mod tests {
     #[test]
     fn round_trip_text() {
         let s = seal(&Recorder, &(), &HERE, "7.2".as_bytes()).unwrap();
-        assert_eq!(s[0], FORMAT_V2);
+        assert_eq!(s[0], FORMAT_V3);
         assert_eq!(&*open_text(&Recorder, &(), &HERE, &s).unwrap(), "7.2");
         assert_eq!(&*open_text(&Recorder, &(), &HERE, &seal(&Recorder, &(), &HERE, b"").unwrap()).unwrap(), "");
     }
@@ -205,9 +215,28 @@ mod tests {
     #[test]
     fn format_1_still_opens() {
         let mut s = vec![FORMAT_V1];
-        s.extend(Recorder.seal(&(), &HERE.aad(), b"old").unwrap());
+        s.extend(Recorder.seal(&(), &HERE.aad(DOMAIN_OLD), b"old").unwrap());
         assert_eq!(&*open(&Recorder, &(), &HERE, &s).unwrap(), b"old");
         assert!(!is_current(&s));
+    }
+
+    /// A value sealed before 2026-11-14 (format 2, the old domain) still opens, and a format
+    /// byte never opens under the other format's domain.
+    #[test]
+    fn format_2_still_opens_and_the_domains_do_not_mix() {
+        let old_body = Recorder.seal(&(), &HERE.aad(DOMAIN_OLD), &pad(b"old").unwrap()).unwrap();
+        let mut s = vec![FORMAT_V2];
+        s.extend(&old_body);
+        assert_eq!(&*open(&Recorder, &(), &HERE, &s).unwrap(), b"old");
+        assert!(!is_current(&s));
+        // The same body under format 3's byte: the domain is wrong, so it is refused.
+        s[0] = FORMAT_V3;
+        assert_eq!(open(&Recorder, &(), &HERE, &s).unwrap_err(), CoreError::Crypto);
+        // And a format 3 value under format 2's byte.
+        let mut new = seal(&Recorder, &(), &HERE, b"new").unwrap();
+        assert!(is_current(&new));
+        new[0] = FORMAT_V2;
+        assert_eq!(open(&Recorder, &(), &HERE, &new).unwrap_err(), CoreError::Crypto);
     }
 
     #[test]
@@ -222,8 +251,8 @@ mod tests {
     #[test]
     fn places_never_collide() {
         // Without length prefixes, ("ab", "c") and ("a", "bc") would give the same bytes.
-        let a = Place { table: "t", row: "ab", column: "c" }.aad();
-        let b = Place { table: "t", row: "a", column: "bc" }.aad();
+        let a = Place { table: "t", row: "ab", column: "c" }.aad(DOMAIN);
+        let b = Place { table: "t", row: "a", column: "bc" }.aad(DOMAIN);
         assert_ne!(a, b);
     }
 

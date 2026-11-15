@@ -16,10 +16,10 @@ use std::path::Path;
 
 use deetshealth_core::{
     platform::Cipher,
-    seal::{open, open_text, seal, Place},
+    seal::{is_current, open, open_text, seal, Place, CURRENT_FORMAT},
 };
 use serde_json::Value;
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use zeroize::Zeroizing;
 
 use crate::seal_key::{AwsLc, SealKey};
@@ -30,6 +30,39 @@ pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 /// The file of labels, notes, stars and ratings (CHAT.md §7).
 pub const ANNOTATIONS: &str = "annotations.jsonl";
+
+/// One table's sealed columns, and its row key as SQL text: the `row` of each value's
+/// [`Place`], as the code that seals it builds it.
+pub struct SealedTable {
+    pub table: &'static str,
+    pub row: &'static str,
+    pub columns: &'static [&'static str],
+}
+
+/// Every sealed column of the store. A new sealed column needs its line here: [`Store::reseal`]
+/// walks this list, and a test (tests/store.rs) fails when the schema has a `bytea` column that
+/// is not on it.
+pub const SEALED: &[SealedTable] = &[
+    SealedTable { table: "transcript_lines", row: "call_id || '/' || seq", columns: &["words"] },
+    SealedTable { table: "call_events", row: "call_id || '/' || seq", columns: &["body"] },
+    SealedTable { table: "staff_flags", row: "call_id || '/' || seq", columns: &["summary", "evidence"] },
+    SealedTable { table: "annotations", row: "line_sha256", columns: &["words"] },
+    SealedTable {
+        table: "users",
+        row: "encode(email_hash, 'hex')",
+        columns: &["email", "name", "first_name", "last_name", "phone"],
+    },
+    SealedTable { table: "user_photos", row: "user_id::text", columns: &["photo"] },
+];
+
+/// What one [`Store::reseal`] did: counts only.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Resealed {
+    /// Values opened in an older format and sealed again in the current one.
+    pub values: usize,
+    /// Values in an older format that did not open in their place. Left as they were.
+    pub unopened: usize,
+}
 
 /// What one ingest did.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -166,7 +199,93 @@ impl Store {
             .await
             .map_err(|e| db("connect", e))?;
         MIGRATOR.run(&pool).await.map_err(|_| "the migrations failed".to_string())?;
-        Ok(Self { pool, key })
+        let store = Self { pool, key };
+        let done = store.reseal().await?;
+        if done.values > 0 {
+            eprintln!("ehr: sealed {} values again in the current format", done.values);
+        }
+        if done.unopened > 0 {
+            eprintln!("ehr: {} sealed values in an older format did not open; they stay as they are", done.unopened);
+        }
+        Ok(store)
+    }
+
+    /// Seal again every value that is in an older format (core's seal.rs: a new format byte).
+    /// Runs at each connect; with nothing old, it is one query per table that finds no row.
+    ///
+    /// - **Never destructive.** A value that does not open in its place keeps its bytes and is
+    ///   counted. One transaction per table: all of a table's values change, or none.
+    /// - **Safe to run twice at once** (`ehr` and `ehr ingest` start together): the rows are
+    ///   locked, and the second run finds them current.
+    /// - The plaintext is in memory between the open and the seal, wiped when it drops.
+    pub async fn reseal(&self) -> Result<Resealed, String> {
+        let mut out = Resealed::default();
+        for t in SEALED {
+            let old: Vec<String> =
+                t.columns.iter().map(|c| format!("(length({c}) > 0 AND get_byte({c}, 0) <> {CURRENT_FORMAT})")).collect();
+            let select = format!("SELECT {} AS k, {} FROM {} WHERE {} FOR UPDATE", t.row, t.columns.join(", "), t.table, old.join(" OR "));
+            let mut tx = self.pool.begin().await.map_err(|e| db("begin a reseal", e))?;
+            let rows = sqlx::query(&select).fetch_all(&mut *tx).await.map_err(|e| db("find the older values", e))?;
+            if rows.is_empty() {
+                continue;
+            }
+            let mut keys: Vec<String> = Vec::with_capacity(rows.len());
+            let mut values: Vec<Vec<Option<Vec<u8>>>> = t.columns.iter().map(|_| Vec::with_capacity(rows.len())).collect();
+            for r in &rows {
+                let key: String = r.get("k");
+                let mut changed = false;
+                let mut row: Vec<Option<Vec<u8>>> = Vec::with_capacity(t.columns.len());
+                for column in t.columns {
+                    let bytes: Option<Vec<u8>> = r.get(*column);
+                    row.push(match bytes {
+                        Some(b) if !b.is_empty() && !is_current(&b) => {
+                            let place = Place { table: t.table, row: &key, column };
+                            match open(&AwsLc, &self.key, &place, &b) {
+                                Ok(plain) => {
+                                    out.values += 1;
+                                    changed = true;
+                                    Some(seal(&AwsLc, &self.key, &place, &plain).map_err(|_| "sealing failed".to_string())?)
+                                }
+                                Err(_) => {
+                                    out.unopened += 1;
+                                    Some(b)
+                                }
+                            }
+                        }
+                        other => other,
+                    });
+                }
+                // A row with nothing sealed again is not written.
+                if changed {
+                    for (i, v) in row.into_iter().enumerate() {
+                        values[i].push(v);
+                    }
+                    keys.push(key);
+                }
+            }
+            if keys.is_empty() {
+                continue;
+            }
+            // One UPDATE for the table: the new values join the rows by their key.
+            let sets: Vec<String> = t.columns.iter().enumerate().map(|(i, c)| format!("{c} = v.n{i}")).collect();
+            let arrays: Vec<String> = (0..t.columns.len()).map(|i| format!("${}::bytea[]", i + 2)).collect();
+            let names: Vec<String> = (0..t.columns.len()).map(|i| format!("n{i}")).collect();
+            let update = format!(
+                "UPDATE {} SET {} FROM unnest($1::text[], {}) AS v(k, {}) WHERE {} = v.k",
+                t.table,
+                sets.join(", "),
+                arrays.join(", "),
+                names.join(", "),
+                t.row
+            );
+            let mut q = sqlx::query(&update).bind(keys);
+            for column in values {
+                q = q.bind(column);
+            }
+            q.execute(&mut *tx).await.map_err(|e| db("seal the older values again", e))?;
+            tx.commit().await.map_err(|e| db("commit a reseal", e))?;
+        }
+        Ok(out)
     }
 
     pub fn pool(&self) -> &PgPool {

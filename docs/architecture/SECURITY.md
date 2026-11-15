@@ -1,8 +1,8 @@
 ---
 status: designed
 desk_test: none
-sources: []
-updated: 2026-11-12
+sources: [core/src/shielded.rs, core/src/seal.rs, ehr/src/seal_key.rs, ehr/src/store.rs, ehr/src/verify.rs, ehr/src/transport.rs, ehr/build.rs, ehr/migrations/0001_calls.sql, ehr/migrations/0007_users.sql, ehr/migrations/0008_user_profile.sql, agent/deets_agent/redact.py, agent/deets_agent/access.py]
+updated: 2026-11-14
 ---
 # DeetsHealth — Security and privacy (the phone agent)
 
@@ -223,8 +223,59 @@ The full map of laws, guidance and standards, and what each asks of us: REGULATI
 - How a hospital approves our emergency support access (§4.10).
 
 ## 8. As built
-Nothing of the phone agent is built yet. The wrapper type, sealing format and error kinds are
-built in the core (CORE-CRATE.md), from the patient app.
+> **Part:** built · 2026-11-14. Where this disagrees with the design above, this is the code.
+
+Every value in the system is still synthetic (§4.8). No BAA is signed and no real call has run.
+
+**Built**
+- **The wrapper type (§4.2):** `Shielded<T>` in `core/src/shielded.rs`, with its passes
+  (CORE-CRATE.md). The agent has its own wrapper in Python, which prints `***`.
+- **The PHI tag in the contract (§4.5):** `ehr/build.rs` gives every message with a tagged
+  field a `Debug` that prints `***`. A test on each side lists the tagged fields
+  (EHR-SERVICE.md §4).
+- **The agent's log redactor (§4.5):** `agent/deets_agent/redact.py`, installed before the
+  pipeline starts. Our own code logs fixed text, kinds and counts. Every other library's log
+  text is withheld. An exception keeps its type and loses its message.
+  `agent/tests/test_phi_wall.py` checks it.
+- **The wire between the agent and `ehr` (§4.1):** mTLS, TLS 1.3 only, on a free port, with
+  dev certificates (EHR-SERVICE.md §6a). With `DEETS_REQUIRE_FIPS=1`, `ehr` refuses to start
+  unless its TLS is in FIPS mode.
+- **Caller verification (§4.4):** name and date of birth, then a code by text, checked in
+  `ehr/src/verify.rs`. No reply says whether a record matched. The limits per call and the lock
+  are EHR-SERVICE.md §6a. The text goes to a fake Twilio in dev (TEXTS.md).
+- **The gate and the binding (§4.9):** a chart tool does not exist before verification passes,
+  and no tool takes a patient argument. The code speaks each filled template word for word
+  (AGENT.md §3).
+- **Sealing (§4.6):** the format is `core/src/seal.rs`; the cipher is AES-256-GCM from AWS-LC
+  (`ehr/src/seal_key.rs`), a fresh random nonce for each value. The associated data binds a
+  value to its table, row and column. The plaintext is padded first, so the sealed length
+  shows only a size class. Since 2026-11-14 the format byte is 3 and the domain string names
+  the store; `ehr` seals older values again at start (DATABASE.md §4).
+- **The sealed columns in the dev store** (Postgres, DATABASE.md §4): transcript words, each
+  event's body, a staff flag's summary and evidence, an annotation's words, and a user's email,
+  names, phone and photo. A user is found by a keyed hash of the email (HMAC-SHA256 under a key
+  derived from the sealing key), never by the plain email.
+- **The console (§4.3):** record and call text goes into the page through `textContent`.
+- **The demo's door (ops/DEMO.md):** Cloudflare Access in front; the agent checks the Access
+  token (`agent/deets_agent/access.py`).
+
+**Built for dev only; the deploy's part is not built**
+- **The key (§4.6):** in dev, 32 random bytes in a git-ignored file, one per machine. A deploy
+  refuses that file. The data key from the hospital's KMS, BYOK and rotation are not built.
+- **Secrets:** in dev, the git-ignored `.env`. The secret manager is not built.
+- **FIPS mode:** the switch is built; the FIPS builds of both ends are not confirmed
+  (EHR-SERVICE.md §6).
+- **The call record (§4.5):** test mode keeps full words in `agent/calls/` on purpose. The
+  split into a log with no values and a sealed transcript is a gate on the first real call.
+
+**Not built**
+- The call back and the random chart question (§4.4).
+- The console's Content-Security-Policy (§4.3).
+- Staff single sign-on, roles and emergency access (§4.10). `users.role` is not read.
+- The audit trail: the `audit` table is in the schema, and nothing writes to it.
+- Retention and deletion (§4.7).
+- A panic hook in `ehr` (§4.5).
+- Recordings: none are kept.
 
 ## 9. Forks
 - **S1. Staff sign-in:** A the hospital's own single sign-on (decided 2026-10-19) · B our own

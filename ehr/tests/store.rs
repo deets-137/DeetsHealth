@@ -199,6 +199,135 @@ async fn the_people_list_seals_guards_the_owner_and_keeps_removed_rows() {
     sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
 }
 
+/// The associated data of formats 1 and 2, built by hand: the old domain, then the place, each
+/// part with its length in front (core's seal.rs).
+fn old_aad(table: &str, row: &str, column: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    for part in ["deetshealth.cache.v1", table, row, column] {
+        out.extend_from_slice(&(part.len() as u32).to_le_bytes());
+        out.extend_from_slice(part.as_bytes());
+    }
+    out
+}
+
+/// A value as a store sealed it before 2026-11-14: format 2, padded, under the old domain.
+fn seal_format_2(table: &str, row: &str, column: &str, plain: &[u8]) -> Vec<u8> {
+    use deetshealth_core::platform::Cipher;
+    let mut padded = (plain.len() as u32).to_le_bytes().to_vec();
+    padded.extend_from_slice(plain);
+    padded.resize(deetshealth_core::seal::padded_len(4 + plain.len()), 0);
+    let mut out = vec![2u8];
+    out.extend(AwsLc.seal(&key(), &old_aad(table, row, column), &padded).unwrap());
+    out
+}
+
+/// The format change of 2026-11-14 (core's seal.rs, format 3): a store sealed in format 2 is
+/// sealed again at the next connect, nothing is lost, a value in the wrong place is left alone,
+/// and the list of sealed columns is the schema's.
+#[tokio::test]
+async fn an_older_store_is_sealed_again_in_the_current_format() {
+    use deetshealth_core::seal::{is_current, open};
+    use deetshealth_ehr::store::{Resealed, SEALED};
+    use deetshealth_ehr::users;
+    use sqlx::Row;
+    let Ok(url) = std::env::var("DEETS_DATABASE_URL") else {
+        eprintln!("skipped: DEETS_DATABASE_URL is not set");
+        return;
+    };
+    let mut admin = PgConnection::connect(&url).await.unwrap();
+    let name = format!("deets_reseal_test_{}", std::process::id());
+    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    let base = url.rsplit_once('/').unwrap().0;
+    let test_url = format!("{base}/{name}");
+    let store = Store::connect(&test_url, key()).await.unwrap();
+    let pool = store.pool();
+
+    // The list is the schema's: every `bytea` column is on it, but the keyed hash a user is
+    // found by, which is not a sealed value.
+    let mut schema: Vec<(String, String)> = sqlx::query_as(
+        "SELECT table_name::text, column_name::text FROM information_schema.columns
+         WHERE table_schema = 'public' AND data_type = 'bytea' AND table_name NOT LIKE '\\_sqlx%'
+           AND (table_name, column_name) <> ('users', 'email_hash')",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap();
+    let mut listed: Vec<(String, String)> =
+        SEALED.iter().flat_map(|t| t.columns.iter().map(|c| (t.table.to_string(), c.to_string()))).collect();
+    schema.sort();
+    listed.sort();
+    assert_eq!(schema, listed, "store.rs › SEALED names every sealed column");
+
+    // A value in every sealed column.
+    store.file_record("call-a", RECORD.as_bytes()).await.unwrap();
+    let notes = "{\"kind\": \"label\", \"call\": \"call-a\", \"text\": \"a label\"}\n{\"kind\": \"keep\", \"call\": \"call-a\", \"value\": true}\n";
+    store.file_annotations(notes.as_bytes()).await.unwrap();
+    users::seed(&store, &["owner@example.com".into()]).await.unwrap();
+    let id = users::add(&store, "mary@example.com", "Mary Lee", "").await.unwrap();
+    let card = users::Profile { first_name: "Mary", last_name: "Lee", phone: "(555) 234-5678", email: "mary@example.com" };
+    users::update(&store, &id, &card).await.unwrap();
+    let webp = b"RIFF\x10\0\0\0WEBPVP8 face-bytes".to_vec();
+    users::set_photo(&store, &id, &webp).await.unwrap();
+    assert_eq!(store.reseal().await.unwrap(), Resealed::default(), "a current store: nothing to do");
+
+    // Turn it into a store from before the change: every value in format 2.
+    let mut old_values = 0;
+    for t in SEALED {
+        let rows = sqlx::query(&format!("SELECT {} AS k, {} FROM {}", t.row, t.columns.join(", "), t.table)).fetch_all(pool).await.unwrap();
+        for r in rows {
+            let k: String = r.get("k");
+            for column in t.columns {
+                let Some(bytes) = r.get::<Option<Vec<u8>>, _>(*column) else { continue };
+                assert!(is_current(&bytes));
+                let plain = open(&AwsLc, &key(), &Place { table: t.table, row: &k, column }, &bytes).unwrap();
+                sqlx::query(&format!("UPDATE {} SET {column} = $1 WHERE {} = $2", t.table, t.row))
+                    .bind(seal_format_2(t.table, &k, column, &plain))
+                    .bind(&k)
+                    .execute(pool)
+                    .await
+                    .unwrap();
+                old_values += 1;
+            }
+        }
+    }
+    // 3 lines of words (2 transcript, 1 label), 7 events, a flag's 2, the owner's 2, Mary's 5, 1 photo.
+    assert_eq!(old_values, 2 + 7 + 2 + 1 + 2 + 5 + 1);
+    // An old store still reads, before it is sealed again.
+    assert_eq!(users::photo(&store, &id).await.unwrap().unwrap().as_slice(), webp.as_slice());
+
+    // One value that belongs to another row: it must not open, and must not be lost.
+    let stray = seal_format_2("transcript_lines", "call-a/9", "words", b"another row's words");
+    sqlx::query("UPDATE transcript_lines SET words = $1 WHERE call_id = 'call-a' AND seq = 1").bind(&stray).execute(pool).await.unwrap();
+
+    // The next connect seals it all again.
+    store.pool().close().await;
+    let store = Store::connect(&test_url, key()).await.unwrap();
+    let pool = store.pool();
+    let mut current = 0;
+    for t in SEALED {
+        for column in t.columns {
+            let values: Vec<Option<Vec<u8>>> = sqlx::query_scalar(&format!("SELECT {column} FROM {}", t.table)).fetch_all(pool).await.unwrap();
+            current += values.iter().flatten().filter(|b| is_current(b)).count();
+        }
+    }
+    assert_eq!(current, old_values - 1, "every value but the stray one is current");
+    let kept: Vec<u8> = sqlx::query_scalar("SELECT words FROM transcript_lines WHERE call_id = 'call-a' AND seq = 1").fetch_one(pool).await.unwrap();
+    assert_eq!(kept, stray, "a value that does not open keeps its bytes");
+    assert_eq!(store.reseal().await.unwrap(), Resealed { values: 0, unopened: 1 }, "again: only the stray value is left");
+
+    // Nothing lost: the words, the person and the picture read back.
+    let words: Vec<u8> = sqlx::query_scalar("SELECT words FROM transcript_lines WHERE call_id = 'call-a' AND seq = 2").fetch_one(pool).await.unwrap();
+    let at = Place { table: "transcript_lines", row: "call-a/2", column: "words" };
+    assert_eq!(&*open_text(&AwsLc, &key(), &at, &words).unwrap(), "Jordan Ellis, March 12, 1984");
+    let mary = users::list(&store).await.unwrap().into_iter().find(|u| u.id == id).unwrap();
+    assert_eq!((mary.email.as_str(), mary.name.as_str(), mary.phone.as_str()), ("mary@example.com", "Mary Lee", "+15552345678"));
+    assert_eq!(users::photo(&store, &id).await.unwrap().unwrap().as_slice(), webp.as_slice());
+
+    store.pool().close().await;
+    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+}
+
 /// A person's card (users.rs › update, the picture; migration 0008): the old name split, a save
 /// sealed, the email moved to its new hash, a taken email refused, the phone's mark, the owner's
 /// last seen, and the picture sealed under the person's id.

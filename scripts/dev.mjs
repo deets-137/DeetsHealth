@@ -194,7 +194,10 @@ if (built.status !== 0) {
 if (!db.error) {
   const filed = ingest(db);
   if (filed.error) console.error(`[db] ${filed.error}`);
-  else console.log(`[db] ${filed.line}`);
+  else {
+    for (const note of filed.notes) console.log(`[db] ${note}`);
+    console.log(`[db] ${filed.line}`);
+  }
 }
 // The agent's gRPC code for ehr's contract is generated, not committed: make it again, so a
 // changed contract never meets old code (EHR-SERVICE.md §3).

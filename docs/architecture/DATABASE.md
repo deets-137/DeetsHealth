@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: open
-sources: [scripts/postgres.mjs, scripts/dev.mjs, agent/deets_agent/catalog.py, ehr/src/store.rs, ehr/src/seal_key.rs, ehr/src/service.rs, ehr/migrations/0001_calls.sql, ehr/migrations/0002_settings.sql, ehr/src/settings.rs, ehr/tests/store.rs, agent/deets_agent/ehr_client.py, agent/deets_agent/ehr_process.py, agent/deets_agent/dev_server.py]
+sources: [scripts/postgres.mjs, scripts/dev.mjs, agent/deets_agent/catalog.py, ehr/src/store.rs, ehr/src/seal_key.rs, core/src/seal.rs, ehr/src/service.rs, ehr/migrations/0001_calls.sql, ehr/migrations/0002_settings.sql, ehr/src/settings.rs, ehr/tests/store.rs, agent/deets_agent/ehr_client.py, agent/deets_agent/ehr_process.py, agent/deets_agent/dev_server.py]
 updated: 2026-11-14
 ---
 # The database — dev today, shaped for production
@@ -139,7 +139,19 @@ Plain columns hold no protected data; sealed columns are bytes under `seal.rs`.
   each value to its table, row and column. The dev key is `.pg/seal.key`, made by
   `scripts/postgres.mjs`; a deploy refuses a key file (`SealKey::from_dev_file`).
 - **Sealed columns:** transcript words, every event's body, a staff flag's summary and evidence,
-  an annotation's text or note. Plain: ids, kinds, times, counts, outcomes.
+  an annotation's text or note. Plain: ids, kinds, times, counts, outcomes. The one list of
+  them, with each table's row key, is `SEALED` in `store.rs`. A new sealed column needs its
+  line there; a test fails when the schema has a `bytea` column that the list lacks.
+- **The format change of 2026-11-14 (the owner):** the associated data's domain string was
+  `deetshealth.cache.v1`, a name from the patient app's cache. It is now
+  `deetshealth.store.v1`, under a new format byte (3). Formats 1 and 2 still open with the old
+  string and are never written.
+- **The re-seal pass:** `Store::reseal`, run by `Store::connect` after the migrations. It finds
+  each value whose first byte is not the current format, opens it in its place, and seals it
+  again. One transaction per table. A value that does not open keeps its bytes and is counted.
+  `ehr` prints the two counts on stderr, and nothing when both are zero. Two runs at once are
+  safe (the rows are locked). Each machine's database changes at its first start after the
+  pull; there is no step to do by hand. Key rotation (SECURITY.md §4.6) can use the same pass.
 - **Running it:** `ehr ingest [--calls DIR]` (`ehr/src/main.rs`). `npm run db:ingest` files
   the records by hand; `npm run dev` files them at each start, after it builds `ehr`.
   `npm run db:test` runs `ehr/tests/store.rs` against the dev cluster in a database of its own,

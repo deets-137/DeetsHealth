@@ -2,7 +2,7 @@
 status: project
 desk_test: open
 sources: []
-updated: 2026-11-13
+updated: 2026-11-14
 ---
 # DeetsHealth — The core crate (scaffold step 3)
 
@@ -252,7 +252,10 @@ Where this part and the design above disagree, this part is the code.
   then the cipher's output. The associated data is a domain string plus the **table, row key
   and column**, each length-prefixed: a value copied to another row, or to another column of
   the same row, fails to open (stricter than §5's "table and row key"). It takes and returns
-  bytes; it holds no pass. `open_text` refuses bytes that are not UTF-8.
+  bytes; it holds no pass. `open_text` refuses bytes that are not UTF-8. Since 2026-11-14 it
+  writes format 3: format 2's padding under the domain string `deetshealth.store.v1`. Formats
+  1 and 2 (the domain `deetshealth.cache.v1`) are opened, never written; `ehr` seals them
+  again at start (DATABASE.md §4).
 - **`src-tauri/src/cng.rs`:** `Cng` implements `Cipher` with CNG's pseudo-handles:
   AES-256-GCM (`BCRYPT_AES_GCM_ALG_HANDLE`), `BCryptGenRandom` (system RNG), SHA-256. Layout:
   nonce (12) ‖ ciphertext ‖ tag (16). `CngKey` holds only the CNG key handle, behind a mutex,

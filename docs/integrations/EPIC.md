@@ -417,3 +417,112 @@ All go from `ehr` (Rust) only, over `ehr`'s AWS-LC client (`ehr/src/epic.rs` `Ep
 | `GET metadata` and one `Patient` search | `main.rs` › `epic_check` | `ehr epic-check`, by hand | Camila Lopez's public test details | about 5 |
 
 Not sent yet: `Patient.$match`, the medicine, refill and lab reads (R2–R4), `Practitioner` / `Location` reads, and booking (STU3 `$find`, `$book`). Each joins this table when it is built. The planned writes are booking and the held chart note (`DocumentReference.Create`, §2.1).
+
+## 7. Booking: every field Epic has, and what we do with it
+> **Part:** designed · 2026-11-14 — research only, from Epic's specs through the open.epic MCP
+> server: `api:840` `$find`, `api:839` `$book`, `api:10469` `Appointment.Search (R4)`,
+> `api:862` `Slot.Read`, `api:500` `Schedule.Read`. No code changed. Each "not used" row is a
+> candidate; each becomes a fork for the owner when its work starts.
+
+The sandbox is the backup (the owner, 2026-11-14): this section is built from the spec, and a
+sandbox run only confirms it. Today `ehr` reads visits from `Appointment.Search` and books on
+the stand-in (§5.2). The agent's FindSlots asks the caller for three things only: the reason,
+the earliest day and in person or online (`ehr.proto` `FindSlotsRequest`).
+
+### 7.1 `$find`: the inputs Epic accepts
+The hospital's Cadence rules decide which inputs count; any may be required or ignored at a
+site. Only the visit type is required in the spec.
+
+| Input | What it is | What we have now | Gap |
+|---|---|---|---|
+| `service-type` (sample: `serviceType`) | The visit type, coded in the hospital's own system. **Required.** | `visit_mode` (in person, online, either) | A per-hospital map from mode (and later reason) to visit-type codes. Without it no `$find` works. |
+| `startTime` | The first moment to search. | `earliest_day` | None: send the day's start in the place's time zone. |
+| `endTime` | The last moment to search. | Nothing | The caller cannot say "before Friday". Without it we must pick a window ourselves. |
+| `time-of-day` (`Timing.repeat`: `dayOfWeek`, `timeOfDay`, `duration` + `durationUnit`) | Days of the week and a time of day the caller prefers. | Nothing | "Mornings", "Tuesdays or Thursdays", "after 3" are not asked. The highest patient value of the gaps: fewer slots read aloud and rejected. |
+| `location-reference` | A Location (department) to search in. | Nothing; one place per fixture | "At the north clinic" or "the same place as last time". The last visit's `Location` reference is already in each Appointment we read (§7.3). |
+| `specialties` | The department's specialty code. | Nothing | "I need a skin doctor." The flow assumes one clinic and one kind of visit. |
+| `indications` | The reason as a code (SNOMED or the hospital's own diagnosis code). | The reason in words only | Decided 2026-11-14 (§5.2): waits until a hospital maps reasons to codes. |
+| `referrals` | A referral id; Epic picks the visit type and providers from it. | Nothing | A caller who was referred. Needs a referral read (`ServiceRequest`, held in §2.1) first. |
+| `patient` (a whole Patient resource) | Demographics Epic uses to match the record: `name`, `birthDate`, `gender`, `identifier` (MRN or national id), `telecom`, home and temporary `address`, and a **time zone extension** | We plan to send the FHIR id only (the probe) | Send the verified patient's demographics from the `Patient` search we already make (no new read). The time zone is the caller's: it matters for an online visit from another zone. |
+
+**No input names a clinician.** "With Dr. Lin" can only be met by filtering the reply's
+participants, and by following the `next` page when the first 10 hold none.
+
+### 7.2 `$find`: what each proposed Appointment carries
+| Field | Use it? |
+|---|---|
+| `id` | Yes: the `$book` input only. A read of it fails. It stays in `ehr` behind the slot token. |
+| `identifier` (the CSN) | Not needed until booked. |
+| `start`, `end`, `minutesDuration` | Yes (as built for visits). |
+| **`extension` timezone: the department's time zone** | **Yes, new.** Replaces the one fixed `time_zone` in `epic-sandbox.json`: a hospital with sites in two zones speaks each slot in its own zone. |
+| `serviceType` | Yes: the visit type, and from it online or not (`visit_about.rs`). |
+| `specialty` | Candidate: lets the agent say "a cardiology visit". |
+| `appointmentType` | No: a broad class (ambulatory). |
+| `participant` (practitioner, location, and scheduled resources such as an MRI machine) | Yes: clinician and place by `display`. **Keep the references** too, for a clinician or place filter (§7.1). A resource participant (a machine) must never be read as the clinician. |
+| `contained` Slot (`start`, `end`, `status` busy-tentative, `schedule`) | No: the Appointment's own times are enough. |
+| `slot.display` | No: the provider's name again. |
+| `comment` (500 characters at most), `reason` | No: never `comment` (§5.2). The 500 is the likely length limit of our `appointmentNote` (open: confirm on a booking). |
+| `created`, `meta`, the Netherlands fields | No. |
+| The Bundle's `next` link | Yes, new: 10 a page; we offer 3 (`MAX_OFFERED`). When the caller turns all down, read the rest of the page, then `next`. Error 4113 means the page expired: run `$find` again. |
+
+### 7.3 `Appointment.Search (R4)`: the fields we do not read yet
+We read `id`, `status`, `start`, `minutesDuration` (else `end`), the Practitioner and Location
+`display`, `serviceType` and `reasonCode` (`epic_ehr.rs` › `appointment`).
+
+| Field | What it is | Candidate use |
+|---|---|---|
+| **`patientInstruction`** | Prep for the patient ("arrive 15 minutes early", "do not eat after midnight"). On 3 of Camila Lopez's visits. | **The strongest one.** NextVisit and a new booking could tell the caller how to prepare. Free text: it must pass the sensitive screen (`visit_about.rs`) and the hospital may want it off. |
+| `description` | The visit type's short subject line ("Visit for routine care"). | A fallback for the visit's words when `serviceType` has no text. Free text: through the screen. |
+| `identifier` (CSN) | The visit's number at the hospital. | The key for "which visit" when the agent hands a move or cancel to staff (S3, S4), so staff find it at once. Also the `identifier` search. |
+| `specialty` | The department's specialty. | As in §7.2. |
+| `participant.actor.reference` | The Practitioner and Location FHIR ids. | "Same doctor, same place as last time" → `$find`'s `location-reference`, and a filter on the reply. `Location.Read` (selected, §2.1) gives the address and phone, so the agent can say where to go. |
+| `participant.status`, `participant.period` | Accepted or declined; each person's time. | No. |
+| `reasonReference` | A link to a Condition. | No: a second read of a diagnosis, and sensitive. |
+| `appointmentType`, `created`, `comment` | | No (`comment` never). |
+
+**Search parameters we do not send:** `status=booked` would cut the reply to visits still on
+(we filter `booked`, `pending`, `arrived`, `checked-in` ourselves; a `status` list must keep all
+four). `identifier`, `actor`, `practitioner`, `location`, `service-type`, `specialty`,
+`appointment-type` and `reason-code` are **post-filters** in R4: Epic runs the plain search and
+then filters, so they save bytes, not load on the hospital's server.
+
+### 7.4 `$book`: what we send and get back
+- **Inputs (all three are planned):** `patient` and `appointment`, each a `valueIdentifier`
+  holding a FHIR id, and `appointmentNote` (`valueString`), the caller's reason. Epic's
+  parameter table also lists an Appointment resource with a `slot` reference; the sample does
+  not use it. Send the sample's shape; try the other only if a site refuses it.
+- **The reply:** `id`, `status` (always `booked`), `identifier` (the CSN), `serviceType`,
+  `start`, `end`, `minutesDuration`, `participant` (patient, practitioner, location). **Not in
+  the reply:** `patientInstruction`, the time zone, the note as Epic stored it. One
+  `Appointment.Read (R4)` of the new id (selected, §2.1) gets them, if §7.3's instruction is
+  wanted after a booking.
+- **No idempotency key at Epic.** `BookRequest.idempotency_key` protects the agent-to-`ehr`
+  retry only. If `$book` times out, `ehr` must not send it again blind: it searches the
+  patient's visits at that time first (one `Appointment.Search`), so a lost reply never books
+  twice.
+
+### 7.5 `Slot.Read` and `Schedule.Read`
+A Slot is reachable only from `$find`; it gives a time and a Schedule reference. A Schedule
+gives the Practitioner and Location. `$find` already sends both as participants, so neither read
+is needed: **0 extra FHIR calls**. They stay selected (§2.1) in case a site's `$find` sends Slots
+without participants.
+
+### 7.6 Outside Epic's FHIR
+Cancel, move, hold, waitlist and the patient's preferences have no FHIR API (§2.2, §5.2).
+Epic's interface list has two scheduling paths that are not FHIR, to read before S3 and S4:
+the HL7v2 **Incoming Appointment Scheduling** interface (new, moved, cancelled visits from an
+outside system) and **Appointment Notifications** (an IVR confirms a visit and sends it back to
+Epic). Each needs the hospital's interface team; neither is in our registration.
+
+### 7.7 The candidates, by value to the caller
+A draft for the owner to order; each is a fork when it is built.
+1. `patientInstruction`: how to prepare, on NextVisit and after Book (§7.3).
+2. Time of day and days of the week (`time-of-day`), and a last day (`endTime`) (§7.1).
+3. The department's time zone from `$find` (§7.2): correct times at a site in two zones.
+4. A safe `$book` retry: search before sending again (§7.4).
+5. The same place or clinician as the last visit (`location-reference`, the reply's
+   participants), and the place's address from `Location.Read` (§7.1, §7.3).
+6. The full demographics in `$find`'s `patient` (§7.1), and its time zone.
+7. Paging past the first 3 offers, then `next` (§7.2).
+8. The CSN kept with each visit, for the staff hand-off of a move or cancel (§7.3).
+9. A specialty, a referral, a coded reason: each waits for a hospital's map (§7.1).

@@ -2,7 +2,7 @@
 status: built
 desk_test: none
 sources: [core/src/store/mod.rs, core/src/store/sqlite.rs, core/src/seal.rs, archive/src-tauri/src/sites.rs, archive/src-tauri/src/keystore.rs, archive/src-tauri/src/cng.rs]
-updated: 2026-09-24
+updated: 2026-11-14
 legacy: patient-app
 ---
 # DeetsHealth — The sealed store
@@ -88,11 +88,13 @@ The owner chose padding on 2026-09-21 (Padmé, 64-byte floor).
    lengths from 1,000 to 1,999 fall into 17 classes.
 3. The cipher seals it with AES-256-GCM (Windows CNG) and a fresh random 96-bit nonce. Its
    output is nonce (12) ‖ ciphertext ‖ tag (16).
-4. A format byte (`2`) goes in front, so a later algorithm can tell old values from new.
-   Format `1` (no padding, schema 1) is still opened, for the migration; it is never
-   written.
-5. The associated data is `deetshealth.cache.v1`, the table, the row key and the column,
-   each with a 4-byte length in front. A value copied to another row or column fails to open.
+4. A format byte (`3`) goes in front, so a later algorithm can tell old values from new.
+   Format `1` (no padding, schema 1) and format `2` (padded, the old domain string) are still
+   opened; they are never written.
+5. The associated data is a domain string, the table, the row key and the column, each with a
+   4-byte length in front. A value copied to another row or column fails to open. The domain
+   string is `deetshealth.store.v1` since 2026-11-14 (format 3; the owner's choice). Formats 1
+   and 2 carry `deetshealth.cache.v1`, named for this cache.
 
 Sealed length = 1 + 12 + padded length + 16: 93 bytes for every short value.
 Cost: about +500 bytes per row against schema 1, and at most about 12% on a raw resource.

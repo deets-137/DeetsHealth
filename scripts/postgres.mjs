@@ -168,7 +168,9 @@ export function ingest(db) {
     env: { ...process.env, ...db.env },
   });
   if (done.status !== 0) return { error: (done.stderr || done.stdout).trim() || "ehr ingest failed" };
-  return { line: done.stdout.trim() };
+  // ehr's own notes on stderr (counts only, such as the re-seal pass's), one per line.
+  const notes = done.stderr.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  return { line: done.stdout.trim(), notes };
 }
 
 export function stopPostgres() {
@@ -190,6 +192,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   } else if (what === "ingest") {
     const db = await ensurePostgres();
     const done = db.error ? db : ingest(db);
+    for (const note of done.notes ?? []) console.log(`[db] ${note}`);
     console.log(`[db] ${done.error ?? done.line}`);
     process.exit(done.error ? 1 : 0);
   } else if (what === "test") {
