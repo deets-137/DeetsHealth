@@ -2,11 +2,26 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # DeetsHealth — Work log
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
+
+## 2026-11-15 (Windows) — roles: the forks to enforce them, and the build scoped
+- The owner: "Let's talk formalizing the roles and user system to enforce roles."
+- Forks brought and answered (ACCESS-ROLES.md §5): 1A, roles first on today's identity with a
+  seam for staff sign-in; 2A, several roles per person, the highest level per lever; 3A, None
+  hides a page, View shows it without its edit controls. Compliance kept. The owner's `owner`
+  flag gives way to a new Team role, **Deets**: Edit on every lever except PHI (None).
+- Scoped (ACCESS-ROLES.md §6): three hand-overs, the store and `ehr` (about 6 days), the dev
+  server (about 4), the console (about 5). A draft of each route's lever (§7). Nothing built.
+- STAFF-SIGN-IN.md §10 notes that roles now come first.
+- The owner: build all three parts at once in a cloud session, with checkpoints. The code map
+  (ACCESS-ROLES.md §8): every file to add or change, the checkpoints, and the desk test.
+- The size, at this project's pace: about 2 sittings to build, 1 to fix (ACCESS-ROLES.md §6).
+  The owner: run it locally in the morning, not in the cloud. Docs committed; no code.
+
 
 ## 2026-11-15 (Windows) — booking builds 1 and 2: find_visit, instructions, CSN, $find, $book
 - The owner: document the settings first (FUTURE-SETTINGS.md §13, new), then build EPIC.md

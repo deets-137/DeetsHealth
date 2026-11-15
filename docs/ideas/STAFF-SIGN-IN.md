@@ -266,6 +266,10 @@ users only (synthetic first). No FHIR calls, no minutes.
 **The hospital's side.** Its admin needs about an hour to register the console. Its change
 approval can take weeks. Start the request early in each sale.
 
+**Roles come first (the owner, 2026-11-15, fork 1 A in ACCESS-ROLES.md §5).** The roles are
+enforced on today's identity (the Cloudflare Access email, the launch token) behind one
+interface; M2 is then a new source behind it (ACCESS-ROLES.md §6).
+
 **The order** (a draft, for when the roles are built): the staff API and the store; M1 and M2
 on an Entra developer tenant; M3 with the roles; M5 with the first audited view; F1; M4; Okta;
 M6, M7, M8. OIDC only (the owner, 2026-11-12); SAML waits for a hospital that needs it (§8).
