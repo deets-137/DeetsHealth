@@ -3,6 +3,8 @@
 // never protected data. public/prepaint.js applies it before the first paint; keep its
 // key and defaults in step with this file.
 
+import { setHtml } from "./pages/page";
+
 export type Theme = "dark" | "light" | "moonlight";
 
 export const THEMES: { id: Theme; name: string; about: string }[] = [
@@ -46,7 +48,8 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 export function initThemeMenu() {
   const button = document.getElementById("app-title") as HTMLButtonElement;
   const menu = document.getElementById("app-menu") as HTMLElement;
-  menu.innerHTML =
+  setHtml(
+    menu,
     `<button class="menu-row" id="theme-row" type="button" role="menuitem" aria-haspopup="menu" aria-expanded="false">` +
     `<span>Theme</span><span class="menu-chev" aria-hidden="true">›</span></button>` +
     `<div class="flyout" id="theme-flyout" role="menu" aria-label="Theme" hidden>` +
@@ -56,7 +59,8 @@ export function initThemeMenu() {
         `<span class="swatch swatch--${t.id}" aria-hidden="true"></span><span class="menu-name">${esc(t.name)}</span>` +
         `<span class="menu-dot" aria-hidden="true"></span></button>`,
     ).join("") +
-    `</div>`;
+    `</div>`,
+  );
   const row = menu.querySelector("#theme-row") as HTMLButtonElement;
   const flyout = menu.querySelector("#theme-flyout") as HTMLElement;
   const items = [...flyout.querySelectorAll<HTMLButtonElement>("[data-theme-id]")];

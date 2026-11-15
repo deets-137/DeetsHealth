@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: passed 2026-11-11
-sources: [docs/architecture/images/chat-compact-toggles-2026-11-14.png, docs/architecture/images/nav-compact-layout-2026-11-14.png, console/src/picker.ts, console/src/pages/page.ts, console/src/styles/subnav.css, console/src/styles/chat.css, docs/architecture/images/config-agent-test-button-2026-11-14.png, console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
+sources: [console/security-headers.json, agent/deets_agent/security_headers.py, scripts/html-sinks.mjs, docs/architecture/images/chat-compact-toggles-2026-11-14.png, docs/architecture/images/nav-compact-layout-2026-11-14.png, console/src/picker.ts, console/src/pages/page.ts, console/src/styles/subnav.css, console/src/styles/chat.css, docs/architecture/images/config-agent-test-button-2026-11-14.png, console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
 updated: 2026-11-14
 ---
 # DeetsHealth — The console
@@ -222,8 +222,114 @@ patient app's cards (CONVERSION.md §5.1).
 - **The Content-Security-Policy comes from the deploy's response headers**, not a `<meta>`
   tag: Vite's dev server adds inline styles that a strict meta policy would block. The
   policy (no inline script, which is why `prepaint.js` is a file) is set with the deploy
-  (VOICE-AGENT.md §7.2). Not built.
+  (VOICE-AGENT.md §7.2). Built 2026-11-14 for this PC and the demo: §5.1.
 - No service worker and no offline cache (§2).
+
+### 5.1 The Content-Security-Policy and its partner headers
+> **Part:** built · 2026-11-14 · for this PC and the demo; the deploy's server is not built.
+> Fork test: 0 real forks (each choice below had one option left). As built: the end of this
+> section.
+
+**What the code allows (read 2026-11-14).** The built page (`console/dist-demo/index.html`) has
+no inline script and no inline style. No template holds a `style="…"` attribute. Styles set
+from code use `element.style`, which a policy does not block. The fonts are local files. A
+person's photo is a `blob:` address (`api.ts` `personPhoto`). Voice audio plays from a
+`MediaStream` (`srcObject`), which a policy does not govern. Every request (`fetch`, the
+`/agent/watch` WebSocket, the `/agent/build` EventSource) goes to the page's own host.
+`innerHTML` takes fixed app HTML only: `el()` in `page.ts`, the theme menu (`theme.ts`) and the
+icons in `chat.ts`. No template holds a value from a call or a record.
+
+**The page's policy** (the demo at `/demo/` and the deploy):
+
+| Directive | Value | Why |
+|---|---|---|
+| `default-src` | `'none'` | Everything not named below is refused. |
+| `script-src` | `'self'` | No inline script, no remote script, no `eval`. |
+| `style-src` | `'self'` | The built CSS file only. |
+| `img-src` | `'self' blob:` | The icons; a person's photo. No remote image. |
+| `font-src` | `'self'` | The Liberation fonts. |
+| `connect-src` | `'self'` | `fetch`, the WebSocket, the EventSource. |
+| `manifest-src` | `'self'` | The installed app. |
+| `base-uri`, `form-action`, `frame-ancestors`, `object-src` | `'none'` | No base change, no form post, no frame of the page, no plugin. |
+| `require-trusted-types-for` | `'script'` | A string given to `innerHTML` and its partners throws. |
+| `trusted-types` | `deets-html` | The one policy that may make HTML (below). |
+
+- **Trusted Types.** `page.ts` makes the one policy, `deets-html`. Every place that sets
+  `innerHTML` takes its HTML from that policy. A check in `npm run check` fails when
+  `innerHTML`, `outerHTML`, `insertAdjacentHTML` or `DOMParser` appears outside `page.ts`.
+  Chromium browsers (Edge, Chrome) enforce Trusted Types. A browser that does not know the
+  directive ignores it, so nothing breaks there.
+- **The partner headers:** `X-Content-Type-Options: nosniff`; `Referrer-Policy: no-referrer`;
+  `Cross-Origin-Opener-Policy: same-origin`; `Permissions-Policy` with the microphone for the
+  page itself only (the caller's seat) and every other feature off.
+  `Strict-Transport-Security` (one year, this host only) on the demo; the deploy's edge sends
+  it there.
+- **The `/agent/*` replies** (JSON, the stream, the photo): `Content-Security-Policy:
+  default-src 'none'; frame-ancestors 'none'` and `nosniff`. A reply opened as a page then
+  cannot run anything.
+- **Violation reports.** The policy names a report route on the agent (`POST
+  /agent/csp-report`). Its log line names the directive and the blocked address's scheme and
+  host, never the page's path or a sample. Without `'report-sample'`, a browser sends no
+  sample. The route needs its row in DEV-API.md when it is built.
+- **One source for the text.** The headers are one file in `console/`. The agent's dev server
+  reads it at start; the deploy reads the same file. No second copy.
+
+**On this PC (`npm run dev`).** Vite's dev server sends the same policy with two changes. Vite
+adds each CSS file as an inline `<style>`, so `style-src` adds `'unsafe-inline'`. Vite's error
+overlay sets `innerHTML`, so Trusted Types is not sent. Every other directive is the same, so
+an inline script added by mistake fails on this PC first, not on the demo.
+
+**Each place it runs.**
+- **The call:** not touched. The policy is the console's only.
+- **The console:** Edge, Chrome, Firefox 115 and Safari 16 (§2). Check on Safari that
+  `'self'` matches the `wss://` WebSocket. If it does not, add the host's `wss://` origin from
+  the server's own setting, never from the request's `Host`.
+- **The deploy (A2 and B):** the same file, sent by whatever serves the built console
+  (CLOUD.md).
+- **Each EHR:** not touched. The console never talks to an EHR.
+
+**Desk test (when built).**
+1. Run `npm run demo`. Open the demo in Edge. Open DevTools › Console. Use every page: Chat
+   (a typed call and a voice call), each Config page, Teams › People with a photo.
+   Expect: no line that names Content-Security-Policy or Trusted Types.
+2. In DevTools › Network, select the page's first request. Expect: the policy and the partner
+   headers in Response Headers.
+3. Open `/demo/` on a phone in Safari. Use Chat. Expect: the call connects (the WebSocket
+   passes the policy).
+4. Run `npm run dev`. Use the same pages on this PC. Expect: no policy line in DevTools ›
+   Console, and no `csp:` line in the terminal.
+
+**As built (2026-11-14).**
+- **The file:** `console/security-headers.json`: the page's directives, the `dev` changes (a
+  null drops a directive), the report path, the page's partner headers, the demo's HSTS, the
+  API's headers.
+- **The demo:** `agent/deets_agent/security_headers.py` reads the file at start
+  (`SecurityHeaders`; a missing file stops the start). A middleware in `dev_server.py`
+  (`response_headers`) runs outside the wall, so a refusal carries headers too. A path under
+  `/demo/` gets the page's headers and HSTS; every other reply gets the API's.
+- **This PC:** `console/vite.config.ts` builds the dev policy from the same file and sends it
+  with the partner headers (`server.headers`). A reply from the agent through the proxy keeps
+  its own.
+- **Trusted Types:** `setHtml` and `el` in `pages/page.ts` hold the `deets-html` policy. The
+  theme menu and Chat's four icons call `setHtml`. `scripts/html-sinks.mjs` is a step of the
+  web scope in `npm run check`: it fails on `innerHTML`, `outerHTML`, `insertAdjacentHTML`,
+  `DOMParser`, `createContextualFragment`, `document.write`, `srcdoc`, `eval` or
+  `new Function` outside `page.ts`. The built bundle holds one `innerHTML`, in `setHtml`.
+- **The report route:** `POST /agent/csp-report` (DEV-API.md §2). Tests:
+  `agent/tests/test_demo_door.py` (the page's and the API's headers, a refusal's headers, a
+  report's log line with no path or query, a bad report).
+
+**Decided while building, inside the design (for his review).**
+- **`report-uri`, not `report-to`.** A `report-to` report goes without cookies, so Access
+  would refuse it at Cloudflare. A `report-uri` report from the page goes with them and passes
+  both doors.
+- **A report prints the first time** a directive and blocked pair is seen, then every
+  hundredth time, so a page in a loop cannot flood the terminal.
+- **The Permissions-Policy list** names only features that Chromium knows (microphone for the
+  page; camera, geolocation, payment, USB, serial, HID, MIDI, screen capture off), so the list
+  adds no warning lines to DevTools.
+- **HSTS goes on every demo file,** with no `includeSubDomains`, so it binds the demo's host
+  only.
 
 ## 6. Desk test
 **Passed, 2026-11-11** (the owner, in Edge). His notes, built the same day: no eyebrow over

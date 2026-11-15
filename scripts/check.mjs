@@ -39,9 +39,12 @@ const SCOPES = {
 		steps: [["docs check", "node", ["scripts/docs-check.mjs"]]],
 	},
 	web: {
-		about: "the console's front end: type check",
-		match: [/^console\//, /^package(-lock)?\.json$/, /^scripts\/tokens\.mjs$/],
-		steps: [["front-end type check", "node", ["node_modules/typescript/bin/tsc", "-p", "console", "--noEmit"]]],
+		about: "the console's front end: type check, HTML sinks in page.ts only",
+		match: [/^console\//, /^package(-lock)?\.json$/, /^scripts\/(tokens|html-sinks)\.mjs$/],
+		steps: [
+			["front-end type check", "node", ["node_modules/typescript/bin/tsc", "-p", "console", "--noEmit"]],
+			["HTML sinks", "node", ["scripts/html-sinks.mjs"]],
+		],
 		full: [["front-end bundle", "node", ["node_modules/vite/bin/vite.js", "build", "console"]]],
 	},
 	core: {

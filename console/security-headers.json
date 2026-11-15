@@ -1,0 +1,38 @@
+{
+  "_about": "The console's response headers (CONSOLE.md §5.1): the one source. The agent's dev server sends them on the demo (agent/deets_agent/security_headers.py); Vite sends the page's with the dev changes (console/vite.config.ts); the deploy reads this file too. The server adds `report-uri` with its own base path. A null in `dev` drops that directive.",
+  "csp": {
+    "default-src": ["'none'"],
+    "script-src": ["'self'"],
+    "style-src": ["'self'"],
+    "img-src": ["'self'", "blob:"],
+    "font-src": ["'self'"],
+    "connect-src": ["'self'"],
+    "manifest-src": ["'self'"],
+    "base-uri": ["'none'"],
+    "form-action": ["'none'"],
+    "frame-ancestors": ["'none'"],
+    "object-src": ["'none'"],
+    "require-trusted-types-for": ["'script'"],
+    "trusted-types": ["deets-html"]
+  },
+  "dev": {
+    "style-src": ["'self'", "'unsafe-inline'"],
+    "require-trusted-types-for": null,
+    "trusted-types": null
+  },
+  "report": "agent/csp-report",
+  "page": {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Permissions-Policy": "microphone=(self), camera=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), midi=(), display-capture=()"
+  },
+  "demo": {
+    "Strict-Transport-Security": "max-age=31536000"
+  },
+  "api": {
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer"
+  }
+}

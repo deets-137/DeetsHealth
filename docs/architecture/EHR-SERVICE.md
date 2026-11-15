@@ -282,6 +282,52 @@ is ignored. So nothing past the edge sees a wire type.
 - **Rust unit tests** cover the session's states: open, identified, code sent, verified,
   locked, closed.
 
+## 7a. Panics
+> **Part:** designed · 2026-11-14 · not built. Fork test: 0 real forks (each choice below had
+> one option left).
+
+**The gap (read 2026-11-14).** `ehr` installs no panic hook. Rust's default hook writes the
+panic message, with its file and line, to stderr. `Shielded<T>` cannot be formatted, so a value
+in the wrapper cannot reach a message. But an `unwrap()` or `expect()` on a library's error
+prints that error's text. A Postgres error can name a row's value ("Key (…)=(…) already
+exists"). A `reqwest` error names its URL, and an Epic URL carries the patient id in its
+query. In dev, stderr goes to the terminal. In a deploy, it goes to the cloud's log, outside
+the wall (SECURITY.md §4.5).
+
+**The design.**
+1. **One hook, in the core crate:** `deetshealth_core::panic::install()`. `ehr` calls it first
+   in `main`, before any subcommand (`ingest` and the Epic probes too). The patient app's hook
+   (archived `src-tauri/src/log.rs`) is the model.
+2. **The hook writes one fixed line:** the thread's name and the file and line of the panic,
+   and "the message is withheld". It does not call the default hook. A backtrace, when
+   `RUST_BACKTRACE` is set, names frames only, never a value, so it stays.
+3. **A panic fails one request, never the server.** Each RPC's body runs under a guard. A
+   panic becomes `INTERNAL` with fixed text. The agent maps it to its fixed failure line
+   (`ehr_client.py`, `ErrorKind.OTHER`). The other calls on the same connection go on.
+4. **A panic in a call's request closes that call's session.** The guard knows the handle. It
+   closes the session as `CloseCall` does: it wipes the secrets, and every later request with
+   that handle is `UNAUTHENTICATED`. The agent then offers the caller a person. Reason: a
+   panic between two steps of the verify state (for example, after a code is sent and before
+   a wrong try is counted) must never let a caller skip a limit. A panic is a bug, so this
+   costs the caller a hand-off only when a bug fires.
+5. **A test that stays:** an integration test in `ehr/tests/` installs the hook with a
+   buffer in place of stderr, panics on a thread with a marker string, and checks that the
+   marker is not in the buffer. A second test makes a handler panic and checks the reply is
+   `INTERNAL`, the session is closed, and the next request on the same channel succeeds.
+
+**What this does not change.** The fake scheduler's `std::sync::Mutex` (`scheduler.rs`) is
+poisoned by a panic while it is held, and every later `lock().unwrap()` panics too. That fails
+closed, and the fake is dev only. The real adapters hold no `std` lock across a request.
+
+**Each place it runs.**
+- **The call:** a panic ends the chart path for that one call; the caller gets a person. Other
+  calls go on.
+- **The console:** not touched. Settings and people requests carry no handle; a panic there
+  fails that request only.
+- **The deploy (A2 and B):** the hook is in the binary, so both get it. The line it writes
+  carries no value, so the cloud's log may keep it.
+- **Each EHR:** the hook covers every adapter, because it is process wide.
+
 ## 8. Open
 Nothing open. Decided 2026-10-21 by the owner:
 - **The TLS library:** FIPS-validated crypto at both ends (§6).

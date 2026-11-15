@@ -72,6 +72,7 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 | `GET /agent/people/{person_id}/photo` | `person_photo` | `personPhoto()` | the person's picture, `image/webp`, `cache-control: no-store` (a face is PII); 404 when there is none |
 | `PUT /agent/people/{person_id}/photo` | `set_person_photo` | `setPersonPhoto()` | the body is the 256 px WebP the console made (`content-type: image/webp`, else 415; at most 256 KB, else 400); sealed in the store through `SetUserPhoto`. The view again |
 | `DELETE /agent/people/{person_id}/photo` | `clear_person_photo` | `setPersonPhoto()` | with `null`: deletes the picture (`SetUserPhoto` with none). The view again |
+| `POST /agent/csp-report` | `csp_report` | none: the browser, from the policy's `report-uri` | a report of what the page's Content-Security-Policy blocked (CONSOLE.md §5.1). Prints one line to stderr: the directive and what was blocked as a kind (`inline`, `eval`, `trusted-types-sink`) or a scheme and host, the first time a pair is seen and every hundredth after. Never the page's path, a query or a sample. 204; 400 when it is not a report; 413 over 8 KB |
 | `GET /demo` | `demo_root` | none: the address a guest types | 308 to `/demo/` |
 | `GET /demo/{path:path}` | `demo_page` | none: the browser | the demo build (`--static`, ops/DEMO.md §3.1): a file under its folder, `index.html` for `/demo/`. Hashed assets cached a year, the rest `no-cache`. 404 for a dotfile, a path outside the folder, a missing file, or outside the demo |
 

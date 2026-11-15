@@ -256,6 +256,9 @@ Every value in the system is still synthetic (§4.8). No BAA is signed and no re
   names, phone and photo. A user is found by a keyed hash of the email (HMAC-SHA256 under a key
   derived from the sealing key), never by the plain email.
 - **The console (§4.3):** record and call text goes into the page through `textContent`.
+  The strict Content-Security-Policy, with Trusted Types and its partner headers, on this PC
+  and the demo (CONSOLE.md §5.1). The deploy's server, which will send the same file, is not
+  built.
 - **The demo's door (ops/DEMO.md):** Cloudflare Access in front; the agent checks the Access
   token (`agent/deets_agent/access.py`).
 
@@ -270,11 +273,10 @@ Every value in the system is still synthetic (§4.8). No BAA is signed and no re
 
 **Not built**
 - The call back and the random chart question (§4.4).
-- The console's Content-Security-Policy (§4.3).
 - Staff single sign-on, roles and emergency access (§4.10). `users.role` is not read.
 - The audit trail: the `audit` table is in the schema, and nothing writes to it.
 - Retention and deletion (§4.7).
-- A panic hook in `ehr` (§4.5).
+- A panic hook in `ehr` (§4.5). Designed: EHR-SERVICE.md §7a.
 - Recordings: none are kept.
 
 ## 9. Forks

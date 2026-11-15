@@ -148,3 +148,44 @@ def test_the_owner_gets_no_ice_servers(client):
 def test_a_guest_without_the_turn_key_is_told_why(client):
     r = client.get("/agent/ice", headers=GUEST)
     assert r.status_code == 409 and "TURN key" in r.json()["detail"]
+
+
+# The response headers (CONSOLE.md §5.1).
+
+
+def test_the_demo_files_carry_the_pages_policy(client):
+    r = client.get("/demo/", headers=GUEST)
+    csp = r.headers["content-security-policy"]
+    assert "script-src 'self'" in csp and "unsafe" not in csp
+    assert "require-trusted-types-for 'script'" in csp and "trusted-types deets-html" in csp
+    assert csp.endswith("report-uri /demo/agent/csp-report")
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert "strict-transport-security" in r.headers
+
+
+@pytest.mark.parametrize("path", ["/agent/health", "/demo/agent/health"])
+def test_every_other_reply_carries_the_apis_policy(client, path):
+    want = "default-src 'none'; frame-ancestors 'none'"
+    assert client.get(path, headers=GUEST).headers["content-security-policy"] == want
+    assert client.get(path).headers["content-security-policy"] == want  # a refusal too
+
+
+def test_a_report_logs_the_directive_and_a_host_only(client, capsys):
+    report = {"csp-report": {
+        "document-uri": "https://deetshealth.example.com/demo/?q=secret",
+        "effective-directive": "img-src",
+        "blocked-uri": "https://img.example.com/a/path?x=secret",
+    }}
+    r = client.post("/demo/agent/csp-report", headers=GUEST, json=report)
+    assert r.status_code == 204
+    err = capsys.readouterr().err
+    assert "csp: blocked by img-src: https://img.example.com" in err and "secret" not in err
+    sink = {"csp-report": {"effective-directive": "require-trusted-types-for", "blocked-uri": "trusted-types-sink"}}
+    client.post("/agent/csp-report", headers=GUEST, json=sink)
+    assert "require-trusted-types-for: trusted-types-sink" in capsys.readouterr().err
+
+
+def test_a_report_that_is_not_one_is_refused(client):
+    assert client.post("/agent/csp-report", headers=GUEST, content=b"not json").status_code == 400
+    assert client.post("/agent/csp-report", headers=GUEST, content=b"x" * 9000).status_code == 413
+    assert client.post("/agent/csp-report", json={"csp-report": {}}).status_code == 403

@@ -16,8 +16,28 @@ export interface Page {
   picker?(): HTMLElement;
 }
 
+// Trusted Types (CONSOLE.md §5.1): the page's policy refuses a plain string at an HTML sink, and
+// `deets-html` is the one policy that may make HTML. Every string it takes is fixed app markup
+// (a template, an icon), never a value from a call or a record: those go in through
+// textContent. `npm run check` fails on an HTML sink outside this file
+// (scripts/html-sinks.mjs). A browser without Trusted Types takes the string as it is.
+interface HtmlPolicy {
+  createHTML(markup: string): unknown;
+}
+const trustedTypes = (globalThis as {
+  trustedTypes?: { createPolicy(name: string, rules: { createHTML(markup: string): string }): HtmlPolicy };
+}).trustedTypes;
+const policy: HtmlPolicy = trustedTypes?.createPolicy("deets-html", { createHTML: (markup) => markup }) ?? {
+  createHTML: (markup) => markup,
+};
+
+/** Sets an element's content from fixed app markup, through the one policy. */
+export function setHtml(node: Element, markup: string): void {
+  node.innerHTML = policy.createHTML(markup) as string;
+}
+
 export function el(html: string): HTMLElement {
   const t = document.createElement("template");
-  t.innerHTML = html.trim();
+  setHtml(t, html.trim());
   return t.content.firstElementChild as HTMLElement;
 }

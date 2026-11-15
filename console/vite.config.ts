@@ -1,6 +1,25 @@
+import { readFileSync } from "node:fs";
 import type { ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
+
+// The console's response headers (CONSOLE.md §5.1): the one file the dev server and the deploy
+// read too. On this PC the policy takes the file's `dev` changes: Vite adds each CSS file as an
+// inline <style>, and its error overlay sets innerHTML, so no Trusted Types here. Every other
+// directive is the demo's, so an inline script added by mistake fails here first.
+type Directives = Record<string, string[] | null>;
+const security = JSON.parse(readFileSync(new URL("./security-headers.json", import.meta.url), "utf8")) as {
+  csp: Directives;
+  dev: Directives;
+  report: string;
+  page: Record<string, string>;
+};
+const devPolicy = [
+  ...Object.entries({ ...security.csp, ...security.dev })
+    .filter((entry): entry is [string, string[]] => entry[1] !== null)
+    .map(([name, values]) => `${name} ${values.join(" ")}`),
+  `report-uri /${security.report}`,
+].join("; ");
 
 const agentPort = process.env.DEETS_AGENT_PORT;
 const agentToken = process.env.DEETS_AGENT_TOKEN ?? "";
@@ -33,6 +52,8 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: false,
+    // The page's headers. A reply from the agent through the proxy below sets its own.
+    headers: { "Content-Security-Policy": devPolicy, ...security.page },
     // The demo's build (docs/ops/DEMO.md §3.2) is written inside this folder on each save. It
     // is not this page's source: watching it reloaded the open page on every rebuild, which
     // threw away an edit not saved (the owner, 2026-11-14).

@@ -35,7 +35,7 @@ import { TextSeat, VoiceSeat } from "../agent/transport";
 import { holdReload } from "../reload";
 import { revealing } from "../reveal";
 import { compactQuery, narrowQuery, reducedMotion, tokenMs, tokenNumber, tokenString } from "../tokens";
-import { el, type Page } from "./page";
+import { el, setHtml, type Page } from "./page";
 import { placePill } from "./subnav";
 import { picker, type Picker } from "../picker";
 import { growHandle } from "./panel-grow";
@@ -1526,7 +1526,7 @@ class StepLog {
     const icon = document.createElement("span");
     icon.className = "step-icon";
     icon.setAttribute("aria-hidden", "true");
-    if (state === "passed") icon.innerHTML = CHECK;
+    if (state === "passed") setHtml(icon, CHECK);
     const name = document.createElement("span");
     name.className = "step-name";
     name.textContent = worded ? b.name : stepWord(b.name);
@@ -1656,7 +1656,7 @@ class ToolLog {
     arrow.className = "tool-arrow";
     arrow.setAttribute("aria-hidden", "true");
     // Drawn, not the "→" character: the serif's arrow sits low on the line.
-    arrow.innerHTML = SEND_ICON;
+    setHtml(arrow, SEND_ICON);
     const n = document.createElement("p");
     n.className = "tool-name";
     n.textContent = name;
@@ -1915,7 +1915,7 @@ function callRow(c: CallRow): HTMLElement {
   const playOne = document.createElement("button");
   playOne.type = "button";
   playOne.className = "call-play";
-  playOne.innerHTML = PLAY_ICON;
+  setHtml(playOne, PLAY_ICON);
   const name = document.createElement("span");
   name.className = "call-name";
   name.textContent = `${c.keep ? "★ " : ""}${c.label ?? outcomeWords(c.outcome)}`;
@@ -2142,7 +2142,7 @@ function sandboxRows(s: Sandbox): HTMLElement[] {
     toggle.className = "visits-toggle";
     toggle.setAttribute("aria-expanded", "false");
     toggle.setAttribute("aria-controls", listId);
-    toggle.innerHTML = `<span></span>${CHEVRON}`;
+    setHtml(toggle, `<span></span>${CHEVRON}`);
     const count = visits.length + (more[p.id] ?? 0);
     toggle.querySelector("span")!.textContent = count === 1 ? "1 visit" : `${count} visits`;
     const fold = document.createElement("div");

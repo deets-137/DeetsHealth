@@ -47,6 +47,19 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   8 pass. `npm run db:test`: 4 pass.
 - `npm run check`: docs and core pass; its ehr step could not build (the running dev server
   held the ehr exe). The ehr tests then ran in `target/store-test`: 85 pass. Not run: the
+- **Two of the three gaps designed** (the owner: "design both"). The console's CSP and its
+  partner headers: CONSOLE.md §5.1. The panic hook and a guard per request that closes the
+  call's session: EHR-SERVICE.md §7a. Fork test: 0 real forks. Not built; no code changed.
+- **The CSP built** (the owner: "build the CSP"), for this PC and the demo: the one file
+  `console/security-headers.json`; `agent/deets_agent/security_headers.py` and the
+  `response_headers` middleware; `POST /agent/csp-report`; Vite's dev policy; Trusted Types
+  through `setHtml` in `page.ts`; `scripts/html-sinks.mjs` in the web scope. Decided inside
+  the design: CONSOLE.md §5.1 (`report-uri`, the print rule, the Permissions-Policy list,
+  HSTS). The panic hook waits for the booking build, which holds `ehr/src/service.rs`.
+- Checks: the type check, the sink check, a production build (no inline script; one
+  `innerHTML`), 6 new tests in `test_demo_door.py`. `test_the_kept_recordings_match_the_prompt_file`
+  fails because of the booking build's uncommitted prompt edit (a Record and test is due).
+  Not tested in a browser: the desk test is CONSOLE.md §5.1.
   agent's tests, which need a fresh ehr build.
 - Not yet done: the next start of the dev server on this PC and on the Mac, which seals each
   dev database again. Before it, this PC's database was all format 2 (1,652 transcript lines,

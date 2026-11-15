@@ -46,6 +46,9 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
   guest, Cloudflare STUN and TURN (turn.py; docs/ops/DEMO.md §3.7).
 - `GET  /demo`, `GET /demo/{path}` — the demo (`--static`, docs/ops/DEMO.md): the built console.
   `GET /agent/build` — its live reload: the page's entry script, again whenever it changes.
+- `POST /agent/csp-report` — a browser's report of what the page's policy blocked
+  (security_headers.py; CONSOLE.md §5.1). The demo's files carry the page's headers; every
+  other reply carries the API's.
 
 **The wall.** A WebSocket is not covered by CORS: any web page can open one to 127.0.0.1. So
 every request must carry the launch token (only Vite's proxy has it) and come from the
@@ -113,6 +116,7 @@ from deets_agent.flow import tool_scope, tool_steps
 from deets_agent.llm import Mode, build_llm
 from deets_agent.resources import anthropic_cycle, call_use, cartesia_cycle
 from deets_agent.rtvi_json import RtviJsonSerializer
+from deets_agent.security_headers import MAX_REPORT_BYTES, SecurityHeaders
 from deets_agent.turn import TurnError, TurnSettings, for_aiortc, ice_servers
 from deets_agent.voice import Voice
 
@@ -231,6 +235,8 @@ class State:
         # The demo (docs/ops/DEMO.md): the second door, the built console, the TURN key.
         self.access = access
         self.static = static.resolve() if static is not None else None
+        # The response headers (CONSOLE.md §5.1), from the one file the deploy reads too.
+        self.headers = SecurityHeaders.load()
         self.turn = turn
         # The People list's link to Cloudflare's Access group (cloudflare.py; DEMO.md §3.5), and
         # one change at a time to the list and the group.
@@ -333,6 +339,31 @@ def build_app(state: State) -> FastAPI:
             except EhrError:
                 pass  # no store, or no owner yet: nothing to stamp
         return await call_next(request)
+
+    # Added after the wall, so it runs outside it: a refusal carries the headers too.
+    # `DemoPrefix` has already taken `/demo/agent/…` to `/agent/…`, so a path under the demo's
+    # base here is one of the console's files.
+    @app.middleware("http")
+    async def response_headers(request: Request, call_next):
+        response = await call_next(request)
+        if state.static is not None and request.url.path.startswith(f"{DEMO_BASE}/"):
+            response.headers.update(state.headers.page(f"{DEMO_BASE}/", demo=True))
+        else:
+            response.headers.update(state.headers.api())
+        return response
+
+    @app.post("/agent/csp-report")
+    async def csp_report(request: Request):
+        """A browser's report of a blocked load or sink (CONSOLE.md §5.1). The log line names
+        the directive and what was blocked as a kind or a scheme and host; nothing else."""
+        body = b""
+        async for chunk in request.stream():
+            body += chunk
+            if len(body) > MAX_REPORT_BYTES:
+                raise HTTPException(413, "too large")
+        if state.headers.report(body) is None:
+            raise HTTPException(400, "not a report")
+        return Response(status_code=204)
 
     @app.post("/2010-04-01/Accounts/{account}/Messages.json")
     async def twilio_messages(account: str, request: Request):
