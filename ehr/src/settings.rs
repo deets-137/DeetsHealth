@@ -36,6 +36,9 @@ pub enum Kind {
     Prose { placeholders: &'static [&'static str] },
     /// The System variables (SYSTEM-PAGE.md §3.2): a list of `{name, meaning, value}`.
     Variables,
+    /// One of the hospital's lists or numbers (HOSPITAL-CONFIG.md), checked by hospital.rs ›
+    /// `check_key` under its own name.
+    Hospital,
 }
 
 /// The longest section of the agent's words. The role prompt, the longest, is about 3,500.
@@ -225,6 +228,24 @@ pub const PROMPT: &[Setting] = &[
 /// The System variables (SYSTEM-PAGE.md §3): one setting, the list.
 pub const SYSTEM: &[Setting] = &[s("variables", Kind::Variables)];
 
+/// The hospital (HOSPITAL-CONFIG.md): one setting per list or number, as hospital.rs › KEYS.
+pub const HOSPITAL: &[Setting] = &[
+    s("time_zone", Kind::Hospital),
+    s("visit_types", Kind::Hospital),
+    s("visit_groups", Kind::Hospital),
+    s("reasons", Kind::Hospital),
+    s("times_of_day", Kind::Hospital),
+    s("hours", Kind::Hospital),
+    s("closed_days", Kind::Hospital),
+    s("locations", Kind::Hospital),
+    s("specialties", Kind::Hospital),
+    s("slots_offered", Kind::Hospital),
+    s("narrow_over", Kind::Hospital),
+    s("groups_named", Kind::Hospital),
+    s("past_days", Kind::Hospital),
+    s("ahead_windows", Kind::Hospital),
+];
+
 /// The System variables that cannot be removed or renamed: the code's own (SYSTEM-PAGE.md §3.1).
 pub const BUILT_IN: &[&str] = &["clinic"];
 /// The limits of SYSTEM-PAGE.md §3.2. The agent's prompts.py holds the same.
@@ -245,6 +266,7 @@ pub fn service(name: &str) -> Option<(&'static str, &'static [Setting], &'static
         "llm" => Some(("llm", LLM, "settings_llm")),
         "prompt" => Some(("prompt", PROMPT, "settings_prompt")),
         "system" => Some(("system", SYSTEM, "settings_system")),
+        "hospital" => Some(("hospital", HOSPITAL, "settings_hospital")),
         _ => None,
     }
 }
@@ -482,6 +504,9 @@ fn prose_problem(placeholders_wanted: &[&str], value: &Value) -> Option<&'static
 /// off only where the model allows it (Haiku and Sonnet, at effort high or below; Opus never),
 /// and the retry cap is at least the first cap. The error names a setting, never a value.
 pub fn coherent(service: &str, values: &[(&'static str, Value)]) -> Result<(), String> {
+    if service == "hospital" {
+        return crate::hospital::Hospital::from_pairs(values.iter().map(|(k, v)| (*k, v))).map(|_| ());
+    }
     if service != "llm" {
         return Ok(());
     }
@@ -542,6 +567,8 @@ pub fn fits(kind: Kind, value: &Value) -> bool {
         }
         Kind::Prose { placeholders } => prose_problem(placeholders, value).is_none(),
         Kind::Variables => variables(value).is_ok(),
+        // Checked by name in `check`: the kind alone does not say which list.
+        Kind::Hospital => false,
     }
 }
 
@@ -574,6 +601,8 @@ pub fn check(list: &[Setting], values: &[(String, String)]) -> Result<Vec<(&'sta
             }
         } else if let Kind::Variables = setting.kind {
             variables(&value)?;
+        } else if let Kind::Hospital = setting.kind {
+            crate::hospital::check_key(setting.key, &value)?;
         } else if !fits(setting.kind, &value) {
             return Err(format!("{}: out of range or the wrong kind", setting.key));
         }
@@ -906,5 +935,19 @@ mod tests {
         assert!(!fits(Kind::Table { columns: 1, rows: 100, chars: 1200 }, &json!([["   "]])));
         let long: Vec<Value> = (0..30).map(|_| json!(["x".repeat(50)])).collect();
         assert!(!fits(Kind::Table { columns: 1, rows: 100, chars: 1200 }, &Value::Array(long)), "1,500 characters");
+    }
+
+    #[test]
+    fn the_hospital_list_is_hospital_rs_s_list_and_its_file_passes() {
+        let keys: Vec<&str> = HOSPITAL.iter().map(|s| s.key).collect();
+        assert_eq!(keys, crate::hospital::KEYS);
+        let given: Vec<(String, String)> =
+            crate::hospital::file_values().into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        let values = check(HOSPITAL, &given).expect("the file passes");
+        coherent("hospital", &values).expect("the file is whole");
+        let mut bad = given.clone();
+        bad.iter_mut().find(|(k, _)| k == "ahead_windows").unwrap().1 = "[90, 7]".into();
+        let e = check(HOSPITAL, &bad).unwrap_err();
+        assert!(e.starts_with("ahead_windows:"), "{e}");
     }
 }

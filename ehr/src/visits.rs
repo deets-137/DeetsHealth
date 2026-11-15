@@ -2,30 +2,38 @@
 //!
 //! An adapter returns the visits that match the day, month or past the caller asked for. This
 //! module, shared by every EHR, narrows them: by the clinician the caller named, by a visit
-//! group, and when too many are left, by asking which group the caller means. The values that
-//! a hospital will set are FUTURE-SETTINGS.md §13.3; these are their defaults.
+//! group, and when too many are left, by asking which group the caller means. Its numbers, the
+//! groups, how far back and the search windows are the call's hospital (Config › Hospital,
+//! hospital.rs; FUTURE-SETTINGS.md §13.3). The Default windows are 7, then 30, then 90 days
+//! (the owner, 2026-11-15): a small first window keeps the reply small for a patient with many
+//! visits (the sandbox's 7 days take 0.5 s, 90 days 1.3 s; EPIC.md §7.10).
 
 use deetshealth_core::Shielded;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::{scheduler::Slot, scheduler::VisitStatus, visit_about::names_sensitive};
 
-/// More matches than this, and no group asked for: the caller is asked which group.
-pub const NARROW_OVER: usize = 2;
-/// The most groups one question names; the rest are "another visit".
-pub const GROUPS_NAMED: usize = 3;
-/// How far back "when was I last seen?" looks.
-pub const PAST_DAYS: i64 = 400;
-/// The windows the search for the visits to come widens through, in days (the owner,
-/// 2026-11-15: 7, then 30, then 90), then no end at all. A small first window keeps the reply
-/// small for a patient with many visits: the sandbox's 7 days take 0.5 s, 90 days 1.3 s
-/// (EPIC.md §7.10). The others are counted in the window that found the soonest.
-pub const AHEAD_WINDOWS: [i64; 3] = [7, 30, 90];
+/// When the narrowing question is asked, and how many groups it names (the hospital's).
+#[derive(Clone, Copy)]
+pub struct Limits {
+    /// More matches than this, and no group asked for: the caller is asked which group.
+    pub narrow_over: usize,
+    /// The most groups one question names; the rest are "another visit".
+    pub groups_named: usize,
+}
+
+impl Default for Limits {
+    /// The Default version's numbers.
+    fn default() -> Self {
+        Self { narrow_over: 2, groups_named: 3 }
+    }
+}
 
 /// One visit group: a name the caller hears ("primary care"), the words a caller may say for it
 /// ("my checkup"), and its members by visit type, as the record names them. The hospital's own
-/// list (ideas/HOSPITAL-CONFIG.md §2.9): never protected data.
-#[derive(Deserialize, Clone)]
+/// list (HOSPITAL-CONFIG.md): never protected data.
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct VisitGroup {
     pub name: String,
     #[serde(default)]
@@ -108,7 +116,8 @@ pub enum Found {
 
 /// Narrows the adapter's visits, which come in the order they are said (soonest first; newest
 /// first for the past).
-pub fn narrow(mut found: Vec<Slot>, ask: &Narrow, groups: &VisitGroups) -> Found {
+pub fn narrow(mut found: Vec<Slot>, ask: &Narrow, groups: &VisitGroups, limits: Limits) -> Found {
+    let Limits { narrow_over, groups_named } = limits;
     if let Some(who) = ask.clinician {
         found.retain(|v| who.names_clinician(&v.clinician));
     }
@@ -121,15 +130,15 @@ pub fn narrow(mut found: Vec<Slot>, ask: &Narrow, groups: &VisitGroups) -> Found
     if found.is_empty() {
         return Found::None;
     }
-    if ask.group.is_none() && ask.named() && !groups.is_empty() && (found.len() > NARROW_OVER || ask.unknown_group) {
+    if ask.group.is_none() && ask.named() && !groups.is_empty() && (found.len() > narrow_over || ask.unknown_group) {
         let mut named: Vec<Shielded<String>> = Vec::new();
         for g in found.iter().filter_map(|v| v.group.as_ref()) {
             if !named.contains(g) {
                 named.push(g.clone());
             }
         }
-        let other = found.iter().any(|v| v.group.as_ref().is_none_or(|g| !named[..named.len().min(GROUPS_NAMED)].contains(g)));
-        named.truncate(GROUPS_NAMED);
+        let other = found.iter().any(|v| v.group.as_ref().is_none_or(|g| !named[..named.len().min(groups_named)].contains(g)));
+        named.truncate(groups_named);
         // One group only, with nothing else: the question would have one answer.
         if named.len() >= 2 || (named.len() == 1 && other) {
             return Found::Which { groups: named, other };
@@ -186,7 +195,7 @@ mod tests {
     #[test]
     fn few_visits_give_the_soonest_and_a_count() {
         let found = vec![visit(1, "Dr. Lin", Some("primary care"), VisitStatus::Upcoming), visit(2, "Dr. Okafor", Some("imaging"), VisitStatus::Upcoming)];
-        let Found::Visit { visit: v, more } = narrow(found, &ask(), &groups()) else { panic!("a visit") };
+        let Found::Visit { visit: v, more } = narrow(found, &ask(), &groups(), Limits::default()) else { panic!("a visit") };
         assert_eq!(v.id.0, "v1");
         assert_eq!(more, 1);
     }
@@ -200,8 +209,8 @@ mod tests {
             visit(3, "Dr. Okafor", Some("imaging"), VisitStatus::Upcoming),
         ];
         // "My next visit": the soonest, never a question.
-        assert!(matches!(narrow(found(), &ask(), &groups()), Found::Visit { more: 2, .. }));
-        let Found::Which { groups: named, other } = narrow(found(), &month, &groups()) else { panic!("a question") };
+        assert!(matches!(narrow(found(), &ask(), &groups(), Limits::default()), Found::Visit { more: 2, .. }));
+        let Found::Which { groups: named, other } = narrow(found(), &month, &groups(), Limits::default()) else { panic!("a question") };
         assert_eq!(named.len(), 2);
         assert!(named[0] == Shielded::new("primary care".to_string()));
         assert!(!other);
@@ -215,7 +224,7 @@ mod tests {
             visit(3, "Dr. Lin", Some("primary care"), VisitStatus::Upcoming),
         ];
         let month = Narrow { by_day: true, ..ask() };
-        let Found::Which { groups: named, other } = narrow(found, &month, &groups()) else { panic!("a question") };
+        let Found::Which { groups: named, other } = narrow(found, &month, &groups(), Limits::default()) else { panic!("a question") };
         assert_eq!(named.len(), 1);
         assert!(other);
     }
@@ -230,27 +239,27 @@ mod tests {
             ]
         };
         let imaging = Narrow { group: Some(Shielded::new("imaging".into())), ..ask() };
-        let Found::Visit { visit: v, more } = narrow(found(), &imaging, &groups()) else { panic!("a visit") };
+        let Found::Visit { visit: v, more } = narrow(found(), &imaging, &groups(), Limits::default()) else { panic!("a visit") };
         assert_eq!((v.id.0.as_str(), more), ("v3", 0));
         let who = Shielded::new("Dr. Okafor".to_string());
         let by_name = Narrow { clinician: Some(&who), ..ask() };
-        let Found::Visit { visit: v, .. } = narrow(found(), &by_name, &groups()) else { panic!("a visit") };
+        let Found::Visit { visit: v, .. } = narrow(found(), &by_name, &groups(), Limits::default()) else { panic!("a visit") };
         assert_eq!(v.id.0, "v3");
     }
 
     #[test]
     fn no_groups_means_no_question() {
         let found = (1..=5).map(|n| visit(n, "Dr. Lin", None, VisitStatus::Upcoming)).collect();
-        assert!(matches!(narrow(found, &ask(), &VisitGroups::default()), Found::Visit { more: 4, .. }));
+        assert!(matches!(narrow(found, &ask(), &VisitGroups::default(), Limits::default()), Found::Visit { more: 4, .. }));
     }
 
     #[test]
     fn on_a_day_a_cancelled_visit_counts_only_alone() {
         let day = Narrow { by_day: true, ..ask() };
         let found = vec![visit(1, "Dr. Lin", None, VisitStatus::Cancelled), visit(2, "Dr. Lin", None, VisitStatus::Seen)];
-        let Found::Visit { visit: v, more } = narrow(found, &day, &VisitGroups::default()) else { panic!("a visit") };
+        let Found::Visit { visit: v, more } = narrow(found, &day, &VisitGroups::default(), Limits::default()) else { panic!("a visit") };
         assert_eq!((v.id.0.as_str(), more), ("v2", 0));
         let alone = vec![visit(1, "Dr. Lin", None, VisitStatus::Cancelled)];
-        assert!(matches!(narrow(alone, &day, &VisitGroups::default()), Found::Visit { .. }));
+        assert!(matches!(narrow(alone, &day, &VisitGroups::default(), Limits::default()), Found::Visit { .. }));
     }
 }

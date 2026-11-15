@@ -80,15 +80,18 @@ function differing(a: Draft, b: Draft): Set<string> {
   return out;
 }
 
+// The parts below (grow, table, row, chip, heading, field) are shared with Config › Hospital
+// (hospital.ts), so its tables read and edit the same way.
+
 /** A text box as tall as its words. */
-function grow(box: HTMLTextAreaElement) {
+export function grow(box: HTMLTextAreaElement) {
   if (!box.isConnected) return;
   box.style.height = "auto";
   box.style.height = `${box.scrollHeight}px`;
 }
 
 /** A table with a header row. The first column is the rows' "i" and has no header. */
-function table(label: string, columns: string[]): { wrap: HTMLElement; body: HTMLElement } {
+export function table(label: string, columns: string[]): { wrap: HTMLElement; body: HTMLElement } {
   const wrap = el(`<div class="sys-table-wrap"><table class="sys-table"><thead><tr><th class="sys-i" scope="col"></th></tr></thead><tbody></tbody></table></div>`);
   wrap.querySelector("table")!.setAttribute("aria-label", label);
   const head = wrap.querySelector("tr")!;
@@ -103,7 +106,7 @@ function table(label: string, columns: string[]): { wrap: HTMLElement; body: HTM
 
 /** One row with its "i": the cells, then a help row under it that rolls down, as on every
  * Config row (config-kit.ts › row). `facts`: each a label and its text or links. */
-function row(title: string, cells: (string | HTMLElement)[], facts: [string, string | HTMLElement][]): HTMLTableRowElement[] {
+export function row(title: string, cells: (string | HTMLElement)[], facts: [string, string | HTMLElement][]): HTMLTableRowElement[] {
   const tr = el(`<table><tbody><tr class="sys-row"><td class="sys-i"><button class="cfg-info" type="button" aria-expanded="false"><span class="i-glyph" aria-hidden="true">i</span></button></td></tr></tbody></table>`).querySelector("tr")!;
   for (const c of cells) {
     const td = document.createElement("td");
@@ -131,10 +134,45 @@ function row(title: string, cells: (string | HTMLElement)[], facts: [string, str
 }
 
 /** A cell's title: the name as a chip (`{clinic}`, `book`), so it reads as what is typed. */
-function chip(text: string): HTMLElement {
+export function chip(text: string): HTMLElement {
   const c = el(`<span class="prompt-tool"></span>`);
   c.textContent = text;
   return c;
+}
+
+/** A heading with a count, and a note under it. */
+export function heading(text: string, count: number, note: string): HTMLElement[] {
+  const h = el(`<h3 class="prompt-heading"><span></span><span class="prompt-count"></span></h3>`);
+  h.firstElementChild!.textContent = text;
+  h.lastElementChild!.textContent = String(count);
+  const p = el(`<p class="sys-note"></p>`);
+  p.textContent = note;
+  return [h, p];
+}
+
+/** An editable cell: the text (Read) and the box (Edit) in one place, as on Config › Agent,
+ * so nothing moves when Edit fades the box in. One line: Enter does not break it. */
+export function field(label: string, value: string, max: number, on: (v: string) => void): HTMLElement {
+  const wrap = el(`
+    <div class="cfg-control prompt-control">
+      <div class="prompt-words"></div>
+      <textarea class="cfg-field prompt-text" rows="1" spellcheck="true"></textarea>
+    </div>`);
+  const words = wrap.querySelector<HTMLElement>(".prompt-words")!;
+  const box = wrap.querySelector<HTMLTextAreaElement>("textarea")!;
+  box.value = value;
+  box.maxLength = max;
+  box.setAttribute("aria-label", label);
+  words.textContent = value;
+  box.addEventListener("keydown", (e) => e.key === "Enter" && e.preventDefault());
+  box.addEventListener("input", () => {
+    // A pasted line break becomes a space: a value is one line.
+    if (/[\r\n]/.test(box.value)) box.value = box.value.replace(/[\r\n]+/g, " ");
+    words.textContent = box.value;
+    grow(box);
+    on(box.value);
+  });
+  return wrap;
 }
 
 export const systemView = (): View => {
@@ -210,40 +248,6 @@ export const systemView = (): View => {
       // An older version: the Variables tab shows a dot when a variable changed.
       glow: (diff: Set<string>) => bar.button("variables")?.classList.toggle("prompt-tab-changed", diff.size > 0),
     };
-  }
-
-  function heading(text: string, count: number, note: string): HTMLElement[] {
-    const h = el(`<h3 class="prompt-heading"><span></span><span class="prompt-count"></span></h3>`);
-    h.firstElementChild!.textContent = text;
-    h.lastElementChild!.textContent = String(count);
-    const p = el(`<p class="sys-note"></p>`);
-    p.textContent = note;
-    return [h, p];
-  }
-
-  /** An editable cell: the text (Read) and the box (Edit) in one place, as on Config › Agent,
-   * so nothing moves when Edit fades the box in. One line: Enter does not break it. */
-  function field(label: string, value: string, max: number, on: (v: string) => void): HTMLElement {
-    const wrap = el(`
-      <div class="cfg-control prompt-control">
-        <div class="prompt-words"></div>
-        <textarea class="cfg-field prompt-text" rows="1" spellcheck="true"></textarea>
-      </div>`);
-    const words = wrap.querySelector<HTMLElement>(".prompt-words")!;
-    const box = wrap.querySelector<HTMLTextAreaElement>("textarea")!;
-    box.value = value;
-    box.maxLength = max;
-    box.setAttribute("aria-label", label);
-    words.textContent = value;
-    box.addEventListener("keydown", (e) => e.key === "Enter" && e.preventDefault());
-    box.addEventListener("input", () => {
-      // A pasted line break becomes a space: a value is one line.
-      if (/[\r\n]/.test(box.value)) box.value = box.value.replace(/[\r\n]+/g, " ");
-      words.textContent = box.value;
-      grow(box);
-      on(box.value);
-    });
-    return wrap;
   }
 
   function variables(s: SystemSettings, d: Draft, kit: Kit): HTMLElement[] {

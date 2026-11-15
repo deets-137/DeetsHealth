@@ -32,6 +32,8 @@ Each line is one event: `t_ms` (from the call's start; to a tenth of a milliseco
   high-resolution clock and kept to a tenth of a millisecond; `t_ms` is whole ms only.
 - `llm` — one request to Claude: replayed or live, the request key, the tools offered, the
   thinking blocks dropped, time to first event, total time, tokens, or the error in full.
+- `hospital` (schema 13) — the label of the hospital version the call opened with (Config ›
+  Hospital, HOSPITAL-CONFIG.md), as ehr's OpenCall gave it. A label, never a value.
 - `ehr` — one gRPC call to ehr: its name, time and gRPC outcome, and for `CheckCode` and
   `Book` the domain result (`pass` · `fail` · `locked`; `booked` · `slot_taken`). Never its
   values; those are in `tool_call` and `tool_result`. Since schema 5, `left` on `OpenCall`
@@ -75,8 +77,10 @@ CALLS = config.AGENT / "calls"
 # (docs/ops/DEMO.md §3.6). 12: since 2026-11-15, each `llm_request` holds what was sent to
 # Claude, as a delta (the system prompt when it changed, the messages added since the last
 # request), and `epic` events hold ehr's own requests to Epic, from CloseCall (AGENT.md §1).
-# The catalog reads all twelve.
-SCHEMA_VERSION = 12
+# 13: since 2026-11-15, night: a `hospital` event after OpenCall, its `version` the label of the
+# Config › Hospital version the call opened with ("MM-DD | n", "Default", or "file").
+# The catalog reads all thirteen.
+SCHEMA_VERSION = 13
 
 
 def cost_usd(tokens: dict[str, int], model: str, cache_ttl: str = "5m", geo: bool = True) -> float:

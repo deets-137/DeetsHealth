@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [agent/prompts/AGENT-PROMPT.md, agent/deets_agent/prompts.py, agent/deets_agent/flow.py, agent/deets_agent/dev_server.py, agent/deets_agent/llm.py, ehr/src/texts.rs, ehr/src/service.rs, ehr/migrations/0005_settings_prompt.sql, console/src/pages/agent.ts]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # DeetsHealth — Edit the agent's prompt in the console
 

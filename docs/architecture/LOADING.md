@@ -2,7 +2,7 @@
 status: built
 desk_test: passed 2026-11-14
 sources: [console/src/agent/store.ts, console/src/agent/stores.ts, console/src/agent/ledger.ts, console/src/reveal.ts, console/src/reveal-wave.ts, console/vite.config.ts, console/src/agent/api.ts, console/src/main.ts, console/src/nav.ts, console/src/pages/subnav.ts, console/src/pages/auth.ts, console/src/pages/people.ts, console/src/pages/config-kit.ts, console/src/pages/agent.ts, console/src/pages/chat.ts, console/public/prepaint.js, scripts/dev.mjs]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # Loading — the console's reads, and the first-load wave
 
@@ -139,7 +139,7 @@ number of requests to Epic does not grow.
 | Page | Stores | Today |
 |---|---|---|
 | Security › Auth, Teams › People | `people` (shared), `people` writes (add, save, remove, picture) | each reads on its own; `PEOPLE_CHANGED`; the counters added 2026-11-14 |
-| Config › Cartesia, Anthropic, System | `settings.<section>` keyed by version; its Save is the write | `config-kit.ts` loads once |
+| Config › Cartesia, Anthropic, System, Hospital | `settings.<section>` keyed by version; its Save is the write | `config-kit.ts` loads once |
 | Config › Agent | `settings.agent` keyed by version; the Test status is a poll on it while a run is `running` | `agent.ts` `follow()` |
 | Config › Cartesia's credits | `resources` keyed `null` | read once |
 | Chat | `health`, `catalog`, `sandbox` keyed by EHR, `resources` keyed by call (a poll while a call is live); a call's events by `once` (never kept: as built) | each read on its own; `RESOURCES_LIVE_MS` timer |

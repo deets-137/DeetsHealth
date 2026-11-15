@@ -179,7 +179,7 @@ async def test_booked_reason_asked(ehr):
     # The caller's own words, as the model passed them on ("my strawberry water distillation" is
     # theirs too): the code keeps only words the caller said (flow.py `_reason_words`).
     assert "The reason on record is" in asked and "strawberry water distillation." in asked
-    assert "It is listed as Office Visit." in asked
+    assert "It is listed as an office visit." in asked
     # The greeting and the code line also name "a member of our staff": look for the offer and
     # the hand-off's own lines.
     assert text("line.offer_staff") not in replies and text("line.hand_off") not in replies, "no offer or hand-off"

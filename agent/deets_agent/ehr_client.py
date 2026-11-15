@@ -201,6 +201,8 @@ class EhrClient:
         self._stub = pb_grpc.EhrStub(channel)
         # Each open call's clock from ehr, by handle, until its Flow takes it (`call_clock`).
         self._clocks: dict[str, tuple[str, str]] = {}
+        # Each open call's time-of-day names, by its handle; dropped when it closes.
+        self._times: dict[str, tuple[str, ...]] = {}
         # The dev call record (call_record.py), set by the typed harness only. It gets each
         # call's name, time and outcome; never a value.
         self.record = None
@@ -263,7 +265,17 @@ class EhrClient:
             left=lambda r: {"identify": r.identifies_left, "resend": r.resends_left, "code": r.code_tries_left},
         )
         self._clocks[reply.handle] = (reply.local_now, reply.zone)
+        # The call's hospital (HOSPITAL-CONFIG.md): its time-of-day names for `find_slots`, read
+        # once, and its version's label for the record. Not protected data.
+        self._times[reply.handle] = tuple(reply.times_of_day)
+        if self.record is not None:
+            self.record.event("hospital", version=reply.hospital_version)
         return Shielded(reply.handle)
+
+    def call_times(self, handle: Shielded[str]) -> tuple[str, ...] | None:
+        """The names of the call's times of day ("morning"), from the hospital version it
+        opened with; None for a handle this client did not open."""
+        return self._times.get(handle.reveal())
 
     def call_clock(self, handle: Shielded[str]) -> tuple[str, str] | None:
         """The hospital's date and time when the call opened (YYYY-MM-DDTHH:MM) and its zone's
@@ -273,6 +285,7 @@ class EhrClient:
     async def close_call(self, handle: Shielded[str]) -> None:
         """Closes the call in ehr. Its EHR ledger (each request ehr sent the EHR: names, statuses,
         times and counts, never a value; DEBUGGING.md §3) goes into the dev call record."""
+        self._times.pop(handle.reveal(), None)
         reply = await self._call("CloseCall", pb.CloseCallRequest(handle=handle.reveal()))
         if self.record is not None:
             for e in reply.ledger:

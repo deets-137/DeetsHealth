@@ -93,7 +93,9 @@ pub fn check_code(mut req: pb::CheckCodeRequest) -> Result<(Token, Shielded<Stri
 
 /// A new search, or the next slots of the last one.
 pub enum SlotAsk {
-    New(SlotWish),
+    /// The wish, and the time of day's name ("" for none): the service sets the wish's
+    /// `time_of_day` from the call's hospital.
+    New(SlotWish, String),
     More,
 }
 
@@ -117,13 +119,13 @@ pub fn find_slots(mut req: pb::FindSlotsRequest) -> Result<(Token, SlotAsk), Sta
     };
     let earliest_day = day(std::mem::take(&mut req.earliest_day), "earliest_day")?;
     let latest_day = day(std::mem::take(&mut req.latest_day), "latest_day")?;
+    // The time of day's name: the service looks it up in the call's own hospital
+    // (`time_of_day`), so a save during a call never changes what a name means on it.
     let time = std::mem::take(&mut req.time_of_day);
-    let time_of_day = if time.trim().is_empty() {
-        None
-    } else {
-        // Only a name on the hospital's list: the model picks, the hospital decides what it means.
-        Some(crate::hospital::hospital().time_of_day(&time).ok_or_else(|| Status::invalid_argument("time_of_day: not on the hospital's list"))?)
-    };
+    if time.chars().count() > 40 {
+        return Err(Status::invalid_argument("time_of_day: not on the hospital's list"));
+    }
+    let time_of_day = None;
     let mut days = Vec::new();
     for d in &req.days {
         use jiff::civil::Weekday::*;
@@ -156,7 +158,7 @@ pub fn find_slots(mut req: pb::FindSlotsRequest) -> Result<(Token, SlotAsk), Sta
     let note = BookNote::screen(reason.trim().to_string());
     Ok((
         handle,
-        SlotAsk::New(SlotWish { note, earliest_day, latest_day, mode, time_of_day, days, clinician, who: None }),
+        SlotAsk::New(SlotWish { note, earliest_day, latest_day, mode, time_of_day, days, clinician, who: None }, time.trim().to_string()),
     ))
 }
 
@@ -407,7 +409,7 @@ mod tests {
         let req = pb::FindSlotsRequest {
             handle: Token::random().to_hex(),
             reason: "a check-up".into(),
-            time_of_day: "CANARY".into(),
+            time_of_day: "CANARY".repeat(10),
             ..Default::default()
         };
         assert!(!find_slots(req).err().unwrap().message().contains("CANARY"));
@@ -415,7 +417,7 @@ mod tests {
 
     fn wish(ask: SlotAsk) -> SlotWish {
         match ask {
-            SlotAsk::New(w) => w,
+            SlotAsk::New(w, _) => w,
             SlotAsk::More => panic!("a new search"),
         }
     }
@@ -431,9 +433,10 @@ mod tests {
             clinician: " Dr. Lin ".into(),
             ..Default::default()
         };
-        let w = wish(find_slots(req).ok().unwrap().1);
+        let SlotAsk::New(w, time) = find_slots(req).ok().unwrap().1 else { panic!("a new search") };
         assert!(w.latest_day.is_some() && w.clinician.is_some() && w.who.is_none());
-        assert_eq!(w.time_of_day.unwrap().start(), "08:00:00");
+        // The name only: the service reads it in the call's hospital.
+        assert!(w.time_of_day.is_none() && time == "Morning");
         assert_eq!(w.days, [jiff::civil::Weekday::Tuesday, jiff::civil::Weekday::Thursday]);
         let bad = |f: fn(&mut pb::FindSlotsRequest)| {
             let mut r = pb::FindSlotsRequest { handle: Token::random().to_hex(), reason: "x".into(), ..Default::default() };
@@ -441,7 +444,7 @@ mod tests {
             find_slots(r).is_err()
         };
         assert!(bad(|r| r.latest_day = "Friday".into()));
-        assert!(bad(|r| r.time_of_day = "midnight".into()));
+        assert!(bad(|r| r.time_of_day = "m".repeat(41)));
         assert!(bad(|r| r.days = vec!["weekend".into()]));
         // More: no reason needed, nothing else read.
         let more = pb::FindSlotsRequest { handle: Token::random().to_hex(), more: true, ..Default::default() };

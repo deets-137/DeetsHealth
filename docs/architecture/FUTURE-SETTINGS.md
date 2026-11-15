@@ -74,9 +74,10 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
   (in person, online) and the booking's note: §9.2.
 - Which providers and locations are open to booking. Not built (OTHER-EHRS.md).
 - The hospital's lists for `$find`: visit types, hours, time of day, specialties, reasons as
-  codes, locations, and the time zone. On a new page, Config › Hospital — §13.1 (designed;
-  ideas/HOSPITAL-CONFIG.md; the owner, 2026-11-14).
-- How many slots the agent offers at a time (now 3) and how it presents them — §13.2.
+  codes, locations, and the time zone. On Config › Hospital — §13.1 (built 2026-11-15; some
+  lists kept but not used yet; HOSPITAL-CONFIG.md).
+- How many slots the agent offers at a time (Config › Hospital, built) and how it presents
+  them — §13.2.
 - The narrowing question when a caller has several visits: on or off, the visit groups, how
   many matches start it, how many groups it names, their order; past visits; instructions;
   the CSN in flags — §13.3, §13.4.
@@ -513,9 +514,9 @@ to describe by phone.
 | The sensitive list | the draft above | add words; never remove the floor | More words keep more visits private; each one also hides an ordinary visit that holds the word. |
 | Whether the visit type is said | yes | no | Without it, "what is this visit for?" goes to staff more often. |
 | Whether the reason is said | yes | no | The same; the reason helps the caller most. |
-| The spoken name of each visit type | the record's words | a hospital's own words per type ("MyChart Video Visit" → "a video visit") | Plainer words for the caller; a list to keep current. |
-| Which types count as online | the word list above | the hospital's own list of type codes | Codes are exact; words can miss a type. |
-| Which visit types the agent books, for in person and for online (`visit_mode`, 2026-11-14) | the fake's "Office Visit" and "Video Visit" | the hospital's own list per mode, by type code | Epic's `$find` needs one visit type per search (EPIC.md §5.2); without the list, Epic booking cannot start. |
+| The spoken name of each visit type | **Built** on Config › Hospital (2026-11-15): the row's spoken name; the record's words for a type not on the list | a hospital's own words per type ("MyChart Video Visit" → "a video visit") | Plainer words for the caller; a list to keep current. |
+| Which types count as online | **Built** on Config › Hospital: the row's Online mark; the word list above for a type not on the list | the hospital's own list | Exact for a listed type; words can miss a type not listed. |
+| Which visit types the agent books, for in person and for online (`visit_mode`, 2026-11-14) | **Built** on Config › Hospital: Agent may book; Epic searches only rows with a code | the hospital's own list per mode | Epic's `$find` needs one visit type per search (EPIC.md §5.2); without a coded row, Epic booking cannot start. |
 | The note sent with a booking | the caller's reason, in their words | add a fixed prefix ("Booked by the phone agent: …"), or a length limit the site's Cadence build needs | A prefix tells the scheduler where the visit came from; a limit cuts the caller's words. |
 
 ### 9.3 Open
@@ -668,12 +669,14 @@ plan's credits. It is not what a caller should hear.
 ## 13. Booking and visits: the hospital's lists, slots, finding a visit
 > **Part:** designed · 2026-11-14 — the owner's asks of 2026-11-14 (EPIC.md §7.8 to §7.10;
 > forks 1A, 2A, V1A, V2A). The defaults are built in two builds, in order (EPIC.md §7.10). The
-> page for the lists is Config › Hospital (ideas/HOSPITAL-CONFIG.md). **Build 1's defaults are
-> built** (§13.1's time zone and call time, §13.3, §13.4): `ehr/src/visits.rs` holds the
-> numbers, the fixtures hold the time zone and the fake's groups. **Build 2's are built
-> too** (2026-11-15): `ehr/fixtures/hospital.json` holds the times of day and the slots offered
-> at once; `epic-sandbox.json` the visit types per mode. The order and the clinician's name in
-> §13.2 keep their defaults in code; their other choices are not built.
+> page for the lists is Config › Hospital ([HOSPITAL-CONFIG.md](HOSPITAL-CONFIG.md)). **Build 1's
+> defaults are built** (§13.1's time zone and call time, §13.3, §13.4). **Build 2's are built
+> too** (2026-11-15). **Config › Hospital is built** (2026-11-15, late): the time zone, the
+> visit types, the times of day, the visit groups, the slots offered at once and the §13.3
+> numbers (the narrowing question's two numbers, the days back, the search windows) are
+> settings of the `hospital` service, each call taking the active version when it opens;
+> `ehr/fixtures/hospital.json` is the Default. The order and the clinician's name in §13.2 keep
+> their defaults in code; their other choices are not built.
 
 **What it controls:** how the agent finds and offers open slots, how it finds one of the
 caller's visits and what it says about it, and the hospital facts that Epic's `$find` needs.
@@ -688,18 +691,19 @@ caller's visits and what it says about it, and the hospital facts that Epic's `$
 ### 13.1 The hospital's facts
 | Setting | Default in the build | Choices a hospital needs |
 |---|---|---|
-| The time zone | `ehr/fixtures/epic-sandbox.json` › `time_zone` (America/Chicago); the local fake uses the same | one IANA zone per hospital; one per location (HOSPITAL-CONFIG.md §2.7). `ehr` and the agent read the same value. |
+| The time zone | Config › Hospital: America/Chicago, for every EHR source | one IANA zone per hospital (built); one per location (open; HOSPITAL-CONFIG.md §2.4). `ehr` holds it; the agent takes the call's time from `OpenCall`. |
 | The call's date and time | a line the code sends at the start of each call's messages, in that zone (fork 1A); `role` keeps the date | the format of the date and the time |
-| The visit types for each mode | a list in the fixture: the sandbox's types, in person and online | the hospital's codes, spoken names, lengths, new or returning (§2.1) |
-| The time-of-day names | a draft list: morning (8 to 12), afternoon (12 to 5), evening (after 5) | the hospital's names and hours (§2.3) |
-| Hours, specialties, reasons as codes, locations | none | each list (§2.2, §2.4 to §2.6). An empty list sends nothing to `$find`. |
-| Visit groups | none in Epic mode; a draft for the fake: primary care, imaging | the hospital's groups, their words and their members (§2.9) |
+| The visit types | Config › Hospital: the fake's two, Epic sandbox's two coded types, and X-Ray Exam, each with a spoken name, Online and Agent may book | lengths, new or returning (not built; HOSPITAL-CONFIG.md §2.1) |
+| The time-of-day names | Config › Hospital: morning (8 to 12), afternoon (12 to 5), evening (5 to 8) | built (HOSPITAL-CONFIG.md §2.5) |
+| Hours, closed days, specialties, reasons as codes | on Config › Hospital, kept; no call reads them yet | each waits for its feature (HOSPITAL-CONFIG.md §2.3, §2.6, §2.8). An empty list sends nothing to `$find`. |
+| Locations | Config › Hospital: the spoken name for a record's Location, the first row for none | the FHIR id, address and phone: kept, not used yet (HOSPITAL-CONFIG.md §2.7) |
+| Visit groups | Config › Hospital: primary care, imaging; in Epic mode too | built (HOSPITAL-CONFIG.md §2.2) |
 
 ### 13.2 Offering slots
 | Setting | Default | Choices |
 |---|---|---|
 | Slots kept for the call | Epic's page (10), and its `next` link | fixed by Epic |
-| Slots offered at a time | 3 (`MAX_OFFERED`) | 1 to 5 |
+| Slots offered at a time | 3 (Config › Hospital, built) | 1 to 5 |
 | Order | the soonest first | spread over different days |
 | The clinician's name | said with each slot | once, when every slot offered has the same clinician |
 | Times on one day | each said in full | said together ("Tuesday at 9 or at 2:30") |
@@ -709,12 +713,12 @@ caller's visits and what it says about it, and the hospital facts that Epic's `$
 |---|---|---|
 | The question after verification | asked only when the caller has not said what they need (identify's `caller_wants`; the owner, 2026-11-15) | always ask |
 | The narrowing question | on, when visit groups exist, and only when the caller named a day, a month, a clinician or a kind of visit ("my next visit" is always the soonest) | off |
-| Matches that start it | more than 2 | any number |
-| Groups one question names | 3 at most, then "or another visit" | 1 to 5 |
+| Matches that start it | more than 2 (Config › Hospital, built) | 1 to 10 |
+| Groups one question names | 3 at most, then "or another visit" (Config › Hospital, built) | 1 to 5 |
 | Group order | the group with the soonest visit first | the list's own order |
-| How far back a past visit is found | 400 days | any number of days |
+| How far back a past visit is found | 400 days (Config › Hospital, built) | 1 to 3,650 days |
 | Which past statuses are said | seen, missed, cancelled | any of the three |
-| The search windows for the visits to come | 7 days, then 30, then 90, then no end; the others counted in the window that found the soonest | any windows |
+| The search windows for the visits to come | 7 days, then 30, then 90, then no end; the others counted in the window that found the soonest (Config › Hospital, built) | 1 to 5 windows, each longer than the one before |
 
 ### 13.4 Instructions and staff
 | Setting | Default | Choices |

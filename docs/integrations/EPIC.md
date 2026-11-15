@@ -269,8 +269,8 @@ each test call picks one with the Chat page's Epic / Local button (CHAT.md §13)
   (`verify.rs` `Candidate.phone` is now an `Option`). The hospital setting and the rules of
   this default: FUTURE-SETTINGS.md §8.
 - **Times:** Epic sends instants in UTC; `ehr` shows them in the place's time zone
-  (`ehr/fixtures/epic-sandbox.json` › `time_zone`, America/Chicago; the `jiff` crate, which
-  carries its own time zone data).
+  (the call's hospital's `time_zone`, Config › Hospital, HOSPITAL-CONFIG.md §2.4; the Default
+  is America/Chicago; the `jiff` crate, which carries its own time zone data).
 - **What a visit is** (2026-11-13, FUTURE-SETTINGS.md §9): the type from `serviceType`, the
   reason from `reasonCode`, through the sensitive screen in `ehr/src/visit_about.rs`. **Never
   `comment`.** On Camila Lopez's 284 visits: `serviceType` on all (281 "MyChart Video Visit",
@@ -492,7 +492,7 @@ participants, and by following the `next` page when the first 10 hold none.
 | `slot.display` | No: the provider's name again. |
 | `comment` (500 characters at most), `reason` | No: never `comment` (§5.2). The 500 is the likely length limit of our `appointmentNote` (open: confirm on a booking). |
 | `created`, `meta`, the Netherlands fields | No. |
-| The Bundle's `next` link | Yes, new: 10 a page; we offer 3 (`MAX_OFFERED`). When the caller turns all down, read the rest of the page, then `next`. Error 4113 means the page expired: run `$find` again. |
+| The Bundle's `next` link | Yes, new: 10 a page; we offer the hospital's "slots offered at a time" (3 by default; HOSPITAL-CONFIG.md §2.9). When the caller turns all down, read the rest of the page, then `next`. Error 4113 means the page expired: run `$find` again. |
 
 ### 7.3 `Appointment.Search (R4)`: the fields we do not read yet
 We read `id`, `status`, `start`, `minutesDuration` (else `end`), the Practitioner and Location
@@ -562,7 +562,7 @@ A draft for the owner to order; each is a fork when it is built.
 
 - **The hospital's lists** (items 2, 5 and 9): visit types, hours, time of day, specialties,
   reasons as codes, locations and the time zone go on a new page, Config › Hospital
-  ([ideas/HOSPITAL-CONFIG.md](../ideas/HOSPITAL-CONFIG.md)).
+  ([HOSPITAL-CONFIG.md](../architecture/HOSPITAL-CONFIG.md); built 2026-11-15).
 - **`patientInstruction` in NextVisit's output** (item 1).
   - `ehr` reads `Appointment.patientInstruction` in `appointment()` and adds it to `Visit` in
     `ehr.proto` (`instructions`, tagged `phi`).
@@ -583,7 +583,7 @@ A draft for the owner to order; each is a fork when it is built.
   visit's CSN to the flag's notes. The model never sees the CSN and never chooses the visit.
   FLAGS.md §3.3.
 - **A time zone variable, and the time in `{today}`** (item 3).
-  - One time zone per hospital, and later per location (HOSPITAL-CONFIG.md §2.7). `ehr` and the
+  - One time zone per hospital, and later per location (HOSPITAL-CONFIG.md §2.4). `ehr` and the
     agent both read it. Today they do not agree: `ehr` takes "today" in the fixture's
     `time_zone`; the agent takes `date.today()`, the PC's own zone (`call.py`, `flow.py`).
   - `{today}` now holds the date only, in `role`. The code fills `role` at the start of each
@@ -595,7 +595,8 @@ A draft for the owner to order; each is a fork when it is built.
     the shared prefix stays the same for every call that day.
 - **Offering slots** (item 7). Keep Epic's whole page of 10 in `ehr` for the call. Filter it by
   what the caller asked (time of day, the same clinician or place). A hospital setting decides
-  how many the agent offers at a time (now `MAX_OFFERED`, 3) and how it presents them. When
+  how many the agent offers at a time (now Config › Hospital's "slots offered at a time", 3)
+  and how it presents them. When
   the caller turns down all of them, the agent offers the next ones on the page, then asks
   Epic for the `next` page. A draft of the presentation choices, for the owner to edit:
   - how many at a time (1 to 5);
@@ -612,7 +613,7 @@ A draft for the owner to order; each is a fork when it is built.
    "a specific visit" ("my visit with Dr. Lin", "the one in March") needs this list, and so
    does the CSN in a flag when the caller has more than one visit.
 2. **A last day** (`$find`'s `endTime`): "before Friday". The time-of-day list (HOSPITAL-CONFIG.md
-   §2.3) does not cover it.
+   §2.5) does not cover it.
 3. **A safe `$book` retry** (§7.4): search the patient's visits before sending `$book` again.
    Without it a lost reply can book twice.
 4. **Instructions after a booking:** one `Appointment.Read` of the new visit (§7.4).
@@ -660,7 +661,7 @@ is E-4, the real `$find` and `$book`, and carries every item that needs them. Th
   next 90 days.
 - **The narrowing question** (the owner, with V1A: "configurably agent can ask a follow up to
   narrow down (ie surgical type, or primary type, etc)"):
-  - **Visit groups** are a new list on Config › Hospital (HOSPITAL-CONFIG.md §2.9): a name the
+  - **Visit groups** are a new list on Config › Hospital (HOSPITAL-CONFIG.md §2.2): a name the
     caller hears ("surgery", "primary care", "imaging"), and its members by visit type,
     specialty or location.
   - When more visits match than the hospital's limit, and the caller named no group, `ehr`
@@ -693,13 +694,13 @@ is E-4, the real `$find` and `$book`, and carries every item that needs them. Th
 #### Build 2: E-4, `$find` and `$book`
 - **The `$find` request** (`EpicScheduler.find`):
   - `service-type`: the visit types for the caller's mode, from the visit-type list
-    (HOSPITAL-CONFIG.md §2.1). Until Config › Hospital exists: a list in
-    `ehr/fixtures/epic-sandbox.json`.
+    (HOSPITAL-CONFIG.md §2.1): each row the agent may book that has a code. Built on Config ›
+    Hospital (2026-11-15).
   - `startTime`: the start of `earliest_day`, in the hospital's zone.
   - `endTime` (item 2): the end of a new `latest_day`, a `find_slots` argument like
     `earliest_day`. Empty: no end.
   - `time-of-day` (§7.8): `find_slots` gains `times` and `days`. `times` is an enum of the
-    names in the time-of-day list (HOSPITAL-CONFIG.md §2.3), so the model can only pick a name
+    names in the time-of-day list (HOSPITAL-CONFIG.md §2.5), so the model can only pick a name
     the hospital made; `ehr` turns each name into `timeOfDay` and `duration`. `days` is an enum
     of the weekdays.
   - `patient` (item 5): a Patient resource with the FHIR id, the MRN `identifier`, the name and
@@ -807,8 +808,8 @@ Where this differs from the design above, this is the code.
 - **`$find`** (`EpicScheduler::find_one`): the patient's `identifier`, `name` and `birthDate`
   (kept from the patient search in the session, `Candidate::facts`, `Session::facts`; no new
   read), `startTime` (the earliest day's start in the hospital's zone, never before now),
-  `service-type` from the hospital's visit-type list (`epic-sandbox.json` › `visit_types`:
-  New Patient Appointment in person, MyChart Video Visit online), `endTime` from
+  `service-type` from the hospital's visit-type list (Config › Hospital since 2026-11-15; the
+  Default: New Patient Appointment in person, MyChart Video Visit online), `endTime` from
   `latest_day`, and `time-of-day` (`timeOfDay`, `duration`, `dayOfWeek`) from `time_of_day`
   and `days`. "Either" sends one `$find` per type (2 reads) and merges them by time. No
   `location-reference`: the hospital's location list is not built.

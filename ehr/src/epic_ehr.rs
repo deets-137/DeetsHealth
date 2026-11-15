@@ -23,11 +23,11 @@ use serde_json::{json, Value};
 
 use crate::{
     epic::Epic,
+    hospital::{Hospital, VisitTypeRow},
     scheduler::{BookResult, FoundSlots, FoundVisits, Scheduler, SchedulerDown, Slot, SlotId, SlotWish, VisitAsk, VisitStatus},
     session::PatientKey,
     verify::{Candidate, Claimed, Down, Patients},
-    visit_about::{BookNote, VisitAbout},
-    visits::{VisitGroup, VisitGroups, AHEAD_WINDOWS, PAST_DAYS},
+    visit_about::BookNote,
 };
 
 /// The list of Epic's public test patients, built into the binary.
@@ -43,26 +43,13 @@ const RAIL_VISITS: usize = 10;
 /// How far ahead the rail looks for visits, in days.
 const RAIL_DAYS: i64 = 60;
 
+/// The rail's list of Epic's test patients. The hospital's setup (the time zone, the visit
+/// types `$find` searches, the groups) is Config › Hospital (hospital.rs).
 #[derive(Deserialize)]
 pub struct SandboxList {
-    pub time_zone: String,
+    /// The rail's words for a visit that names no place.
     pub place: String,
     pub patients: Vec<ListedPatient>,
-    /// The visit groups for Epic mode (FUTURE-SETTINGS.md §13.1). None by default.
-    #[serde(default)]
-    pub visit_groups: Vec<VisitGroup>,
-    /// The visit types `$find` searches, each in person or online (FUTURE-SETTINGS.md §13.1).
-    #[serde(default)]
-    pub visit_types: Vec<VisitTypeRow>,
-}
-
-/// One of the hospital's visit types: its code as Epic names it, and whether it is online.
-#[derive(Deserialize, Clone)]
-pub struct VisitTypeRow {
-    pub system: String,
-    pub code: String,
-    pub display: String,
-    pub online: bool,
 }
 
 /// The longest `appointmentNote` (EPIC.md §7.2: Epic's `comment` holds 500 characters).
@@ -80,27 +67,17 @@ pub fn sandbox_list_file() -> SandboxList {
 /// Epic's sandbox, as ehr's adapters.
 pub struct EpicEhr {
     epic: Arc<Epic>,
-    tz: TimeZone,
     pub patients: EpicPatients,
     pub scheduler: EpicScheduler,
 }
 
 impl EpicEhr {
     pub fn new(epic: Epic) -> Result<Self, String> {
-        let list = sandbox_list_file();
-        let tz = TimeZone::get(&list.time_zone).map_err(|_| "epic-sandbox.json: unknown time_zone")?;
         let epic = Arc::new(epic);
         Ok(Self {
             patients: EpicPatients { epic: Arc::clone(&epic) },
-            scheduler: EpicScheduler {
-                epic: Arc::clone(&epic),
-                tz: tz.clone(),
-                place: list.place.clone(),
-                groups: VisitGroups::new(&list.visit_groups),
-                visit_types: list.visit_types.clone(),
-            },
+            scheduler: EpicScheduler { epic: Arc::clone(&epic) },
             epic,
-            tz,
         })
     }
 
@@ -168,11 +145,12 @@ impl EpicEhr {
             who: Some(Shielded::new(demographics(&record))),
         };
         let mut out = Vec::new();
-        let found = self.scheduler.find(&key, &wish).await.map_err(|_| "$find: no answer")?;
+        let h = Hospital::file();
+        let found = self.scheduler.find(&h, &key, &wish).await.map_err(|_| "$find: no answer")?;
         out.push(format!("$find: {} slot(s)", found.slots.len()));
         let Some(slot) = found.slots.first() else { return Ok(out) };
-        let before = self.scheduler.visits(&key, &VisitAsk { range: None, past: false }).await.map_err(|_| "search: no answer")?.visits.len();
-        let result = self.scheduler.book(&key, &slot.id, &wish.note).await.map_err(|_| "$book: no answer")?;
+        let before = self.scheduler.visits(&h, &key, &VisitAsk { range: None, past: false }).await.map_err(|_| "search: no answer")?.visits.len();
+        let result = self.scheduler.book(&h, &key, &slot.id, &wish.note).await.map_err(|_| "$book: no answer")?;
         match result {
             BookResult::Booked(v) => {
                 out.push("$book: booked".into());
@@ -189,7 +167,7 @@ impl EpicEhr {
             BookResult::Taken => out.push("$book: refused (taken)".into()),
             BookResult::NotThrough => out.push("$book: no answer, and no booking found".into()),
         }
-        let after = self.scheduler.visits(&key, &VisitAsk { range: None, past: false }).await.map_err(|_| "search: no answer")?.visits.len();
+        let after = self.scheduler.visits(&h, &key, &VisitAsk { range: None, past: false }).await.map_err(|_| "search: no answer")?.visits.len();
         out.push(format!("visits to come in the first window: {before} before, {after} after"));
         Ok(out)
     }
@@ -245,12 +223,12 @@ impl EpicEhr {
                 clinician: None,
                 who: Some(who.clone()),
             };
-            match self.scheduler.find(&key, &wish).await {
+            match self.scheduler.find(&Hospital::file(), &key, &wish).await {
                 Ok(found) => {
                     let online = found.slots.iter().filter(|s| s.about.online).count();
                     out.push(format!("EpicScheduler::find, {label}: {} slot(s), {online} online, {} next link(s)", found.slots.len(), found.next.len()));
                     if !found.next.is_empty() {
-                        out.push(match self.scheduler.find_more(&key, &found.next).await {
+                        out.push(match self.scheduler.find_more(&Hospital::file(), &key, &found.next).await {
                             Ok(more) => format!("  find_more: {} slot(s), {} next link(s)", more.slots.len(), more.next.len()),
                             Err(_) => "  find_more: no answer".into(),
                         });
@@ -262,8 +240,10 @@ impl EpicEhr {
         out
     }
 
+    /// The rail's visits, in the file hospital's time zone: the rail is not a call, and
+    /// `ehr epic-sandbox` runs with no store.
     async fn appointments(&self, patient: &str, from: Timestamp, to: Timestamp) -> Result<Vec<(Timestamp, Visit)>, ()> {
-        appointments(&self.epic, &self.tz, &self.scheduler.place, patient, from, to, UPCOMING).await
+        appointments(&self.epic, Hospital::file().tz(), patient, from, to, UPCOMING).await
     }
 }
 
@@ -300,12 +280,9 @@ impl Patients for EpicPatients {
 
 /// Visits in Epic's sandbox; slots from `$find`, bookings by `$book` (E-4, EPIC.md §7.10). Each
 /// booking writes to Epic's shared sandbox.
+/// The visit types, time zone, places and groups are the call's hospital (hospital.rs).
 pub struct EpicScheduler {
     epic: Arc<Epic>,
-    tz: TimeZone,
-    place: String,
-    groups: VisitGroups,
-    visit_types: Vec<VisitTypeRow>,
 }
 
 impl EpicScheduler {
@@ -316,11 +293,11 @@ impl EpicScheduler {
 
     /// One `$find` (EPIC.md §7.10, the probe's shape of 2026-11-15): the patient's
     /// demographics, the start and the end, one visit type, the time of day and the days.
-    async fn find_one(&self, who: &Value, kind: &VisitTypeRow, wish: &SlotWish, pass: &EhrPass) -> Result<FoundSlots, SchedulerDown> {
+    async fn find_one(&self, h: &Hospital, who: &Value, kind: &VisitTypeRow, wish: &SlotWish, pass: &EhrPass) -> Result<FoundSlots, SchedulerDown> {
         let at = |day: &Shielded<String>, plus: i64| -> Result<Timestamp, SchedulerDown> {
             let d: jiff::civil::Date = day.reveal(pass).parse().map_err(|_| SchedulerDown)?;
             let d = d.checked_add(jiff::Span::new().days(plus)).map_err(|_| SchedulerDown)?;
-            Ok(d.to_zoned(self.tz.clone()).map_err(|_| SchedulerDown)?.timestamp())
+            Ok(d.to_zoned(h.tz().clone()).map_err(|_| SchedulerDown)?.timestamp())
         };
         let now = Timestamp::now().round(jiff::Unit::Second).map_err(|_| SchedulerDown)?;
         let start = match &wish.earliest_day {
@@ -331,7 +308,7 @@ impl EpicScheduler {
             json!({"name": "patient", "resource": who}),
             json!({"name": "startTime", "valueDateTime": start.to_string()}),
             json!({"name": "service-type", "valueCodeableConcept": {"coding": [
-                {"system": kind.system, "code": kind.code, "display": kind.display}
+                {"system": kind.system, "code": kind.code, "display": kind.record}
             ]}}),
         ];
         if let Some(d) = &wish.latest_day {
@@ -354,26 +331,27 @@ impl EpicScheduler {
         if !(200..300).contains(&status) {
             return Err(SchedulerDown);
         }
-        Ok(page(&reply.unwrap_or_default(), &self.tz, &self.place, &self.groups))
+        Ok(page(&reply.unwrap_or_default(), h))
     }
 
     /// After a lost `$book` reply: the patient's booked visit at that start, if Epic has one.
-    async fn booked_at(&self, patient: &str, start: Timestamp) -> Result<Option<Slot>, SchedulerDown> {
-        let found = appointments(&self.epic, &self.tz, &self.place, patient, start, start + SignedDuration::from_mins(1), UPCOMING)
+    async fn booked_at(&self, h: &Hospital, patient: &str, start: Timestamp) -> Result<Option<Slot>, SchedulerDown> {
+        let found = appointments(&self.epic, h.tz(), patient, start, start + SignedDuration::from_mins(1), UPCOMING)
             .await
             .map_err(|_| SchedulerDown)?;
-        Ok(found.into_iter().next().map(|(_, v)| v.into_slot(&self.groups)))
+        Ok(found.into_iter().next().map(|(_, v)| v.into_slot(h)))
     }
 }
 
 impl Scheduler for EpicScheduler {
-    async fn find(&self, _: &PatientKey, wish: &SlotWish) -> Result<FoundSlots, SchedulerDown> {
+    async fn find(&self, h: &Hospital, _: &PatientKey, wish: &SlotWish) -> Result<FoundSlots, SchedulerDown> {
         let pass = EhrPass::issue();
         let who: Value = wish.who.as_ref().and_then(|w| serde_json::from_str(w.reveal(&pass)).ok()).ok_or(SchedulerDown)?;
-        // One `$find` per visit type that fits: in person, online, or both (2 reads).
+        // One `$find` per coded visit type that fits: in person, online, or both (2 reads with
+        // the Default list). A type with no code is the local fake's only.
         let mut found = FoundSlots::default();
-        for kind in self.visit_types.iter().filter(|t| wish.mode.fits(t.online)) {
-            let page = self.find_one(&who, kind, wish, &pass).await?;
+        for kind in h.coded_bookable().filter(|t| wish.mode.fits(t.online)) {
+            let page = self.find_one(h, &who, kind, wish, &pass).await?;
             found.slots.extend(page.slots);
             found.next.extend(page.next);
         }
@@ -385,7 +363,7 @@ impl Scheduler for EpicScheduler {
     /// answers 403; the probe, 2026-11-15). `post` holds it to Epic's own host. An expired page
     /// (error 4113) or any refusal gives none: the caller hears there are no more, and a new
     /// search starts over.
-    async fn find_more(&self, _: &PatientKey, next: &[String]) -> Result<FoundSlots, SchedulerDown> {
+    async fn find_more(&self, h: &Hospital, _: &PatientKey, next: &[String]) -> Result<FoundSlots, SchedulerDown> {
         let Some(first) = next.first() else { return Ok(FoundSlots::default()) };
         let url = reqwest::Url::parse(first).map_err(|_| SchedulerDown)?;
         let bundle = match self.epic.post(url, &json!({"resourceType": "Parameters"})).await {
@@ -393,7 +371,7 @@ impl Scheduler for EpicScheduler {
             Ok(_) => return Ok(FoundSlots::default()),
             Err(_) => return Err(SchedulerDown),
         };
-        let mut page = page(&bundle, &self.tz, &self.place, &self.groups);
+        let mut page = page(&bundle, h);
         page.next.extend(next[1..].iter().cloned());
         Ok(page)
     }
@@ -402,7 +380,7 @@ impl Scheduler for EpicScheduler {
     /// holding its FHIR id, and the caller's reason as `appointmentNote`, revealed here with the
     /// `EhrPass`. Then one `Appointment.Read` of the new visit for its instructions. A lost
     /// reply is never sent again blind: a search at that time decides (the owner's V2A).
-    async fn book(&self, patient: &PatientKey, slot: &SlotId, note: &BookNote) -> Result<BookResult, SchedulerDown> {
+    async fn book(&self, h: &Hospital, patient: &PatientKey, slot: &SlotId, note: &BookNote) -> Result<BookResult, SchedulerDown> {
         let Some((proposed, start)) = slot.0.strip_prefix("epic-proposed-").and_then(|s| s.split_once('@')) else {
             return Ok(BookResult::Taken);
         };
@@ -420,14 +398,14 @@ impl Scheduler for EpicScheduler {
         let booked = match sent {
             Ok((200..=299, Some(reply))) => {
                 let a = if reply["resourceType"] == "Bundle" { entries(&reply, "Appointment").next().cloned() } else { Some(reply) };
-                a.filter(|a| a["status"] == "booked").and_then(|a| appointment(&a, &self.tz, &self.place, now).map(|(_, v)| (a, v)))
+                a.filter(|a| a["status"] == "booked").and_then(|a| appointment(&a, h.tz(), now).map(|(_, v)| (a, v)))
             }
             // Epic said no: the slot is gone, or the booking is refused.
             Ok((400..=499, _)) => return Ok(BookResult::Taken),
             _ => None,
         };
         let Some((resource, visit)) = booked else {
-            return Ok(match self.booked_at(&id, start).await? {
+            return Ok(match self.booked_at(h, &id, start).await? {
                 Some(found) => BookResult::Booked(found),
                 None => BookResult::NotThrough,
             });
@@ -438,20 +416,20 @@ impl Scheduler for EpicScheduler {
             None => None,
         };
         let visit_type = visit.visit_type.clone();
-        let mut slot = visit.into_slot(&self.groups);
-        slot.about = VisitAbout::booked(visit_type.as_deref(), note).with_instructions(instructions.as_deref());
+        let mut slot = visit.into_slot(h);
+        slot.about = h.booked(visit_type.as_deref(), note).with_instructions(instructions.as_deref());
         if slot.about.private {
             slot.group = None;
         }
         Ok(BookResult::Booked(slot))
     }
 
-    async fn visits(&self, patient: &PatientKey, ask: &VisitAsk) -> Result<FoundVisits, SchedulerDown> {
+    async fn visits(&self, h: &Hospital, patient: &PatientKey, ask: &VisitAsk) -> Result<FoundVisits, SchedulerDown> {
         let now = Timestamp::now();
         let pass = EhrPass::issue();
         let id = patient.0.reveal(&pass).clone();
         let search = |from: Timestamp, to: Timestamp, statuses: &'static str| {
-            appointments(&self.epic, &self.tz, &self.place, &id, from, to, statuses)
+            appointments(&self.epic, h.tz(), &id, from, to, statuses)
         };
         let days = |n: i64| SignedDuration::from_hours(24 * n);
         let mut within_days = None;
@@ -460,20 +438,21 @@ impl Scheduler for EpicScheduler {
             Some(r) => {
                 let at = |day: &Shielded<String>| -> Result<Timestamp, SchedulerDown> {
                     let d: jiff::civil::Date = day.reveal(&pass).parse().map_err(|_| SchedulerDown)?;
-                    Ok(d.to_zoned(self.tz.clone()).map_err(|_| SchedulerDown)?.timestamp())
+                    Ok(d.to_zoned(h.tz().clone()).map_err(|_| SchedulerDown)?.timestamp())
                 };
                 search(at(&r.from)?, at(&r.to)?, ANY).await.map_err(|_| SchedulerDown)?
             }
             None if ask.past => {
-                let mut v = search(now - days(PAST_DAYS), now, PAST).await.map_err(|_| SchedulerDown)?;
+                let mut v = search(now - days(h.past_days), now, PAST).await.map_err(|_| SchedulerDown)?;
                 v.retain(|a| a.1.status != VisitStatus::Upcoming);
                 v
             }
-            // The visits to come: 7 days, then 30, then 90, then no end (1 to 4 reads; most
-            // patients with a visit soon cost one small read).
+            // The visits to come: the hospital's windows (7, 30, 90 days by default), then no
+            // end (one read per window, and one more; most patients with a visit soon cost one
+            // small read).
             None => {
                 let mut v = Vec::new();
-                for d in AHEAD_WINDOWS {
+                for &d in &h.ahead_windows {
                     v = search(now, now + days(d), UPCOMING).await.map_err(|_| SchedulerDown)?;
                     if !v.is_empty() {
                         within_days = Some(d as u32);
@@ -489,15 +468,11 @@ impl Scheduler for EpicScheduler {
             }
         };
         found.sort_by_key(|a| a.0);
-        let mut visits: Vec<Slot> = found.into_iter().map(|(_, v)| v.into_slot(&self.groups)).collect();
+        let mut visits: Vec<Slot> = found.into_iter().map(|(_, v)| v.into_slot(h)).collect();
         if ask.past && ask.range.is_none() {
             visits.reverse();
         }
         Ok(FoundVisits { visits, within_days })
-    }
-
-    fn groups(&self) -> &VisitGroups {
-        &self.groups
     }
 }
 
@@ -507,7 +482,8 @@ struct Visit {
     starts_at: String,
     minutes: u32,
     clinician: String,
-    place: String,
+    /// The Location's name, as the record holds it; none when it names no place.
+    place: Option<String>,
     /// `serviceType`: Epic's visit type ("MyChart Video Visit").
     visit_type: Option<String>,
     /// `reasonCode`: the reason for the visit, when the scheduler entered one.
@@ -520,16 +496,17 @@ struct Visit {
 }
 
 impl Visit {
-    fn into_slot(self, groups: &VisitGroups) -> Slot {
-        let about = VisitAbout::from_record(self.visit_type.as_deref(), self.reason.as_deref())
-            .with_instructions(self.instructions.as_deref());
-        let group = if about.private { None } else { groups.of(self.visit_type.as_deref()) };
+    /// The visit in the hospital's words: its type's spoken name and Online mark, its place's
+    /// spoken name, its group.
+    fn into_slot(self, h: &Hospital) -> Slot {
+        let about = h.about(self.visit_type.as_deref(), self.reason.as_deref()).with_instructions(self.instructions.as_deref());
+        let group = h.group_of(&about, self.visit_type.as_deref());
         Slot {
             id: SlotId(format!("epic-appointment-{}", self.id)),
             starts_at: Shielded::new(self.starts_at),
             minutes: self.minutes,
             clinician: Shielded::new(self.clinician),
-            place: Shielded::new(self.place),
+            place: Shielded::new(h.place(self.place.as_deref())),
             about,
             csn: self.csn.map(Shielded::new),
             status: self.status,
@@ -543,7 +520,6 @@ impl Visit {
 async fn appointments(
     epic: &Epic,
     tz: &TimeZone,
-    default_place: &str,
     patient: &str,
     from: Timestamp,
     to: Timestamp,
@@ -562,7 +538,7 @@ async fn appointments(
     }
     let bundle = epic.read(url).await.map_err(|_| ())?;
     Ok(entries(&bundle, "Appointment")
-        .filter_map(|a| appointment(a, tz, default_place, now))
+        .filter_map(|a| appointment(a, tz, now))
         .filter(|(start, _)| *start >= from && *start < to)
         .collect())
 }
@@ -645,7 +621,7 @@ fn e164(s: &str) -> Option<String> {
 
 /// One Appointment as a visit, if its status is one a caller may hear (`VisitStatus::from_epic`:
 /// to come, seen, missed, cancelled). `now` decides whether its time has gone.
-fn appointment(a: &Value, tz: &TimeZone, default_place: &str, now: Timestamp) -> Option<(Timestamp, Visit)> {
+fn appointment(a: &Value, tz: &TimeZone, now: Timestamp) -> Option<(Timestamp, Visit)> {
     let start: Timestamp = a["start"].as_str()?.parse().ok()?;
     let status = VisitStatus::from_epic(a["status"].as_str()?, start < now)?;
     let minutes = a["minutesDuration"].as_u64().map(|m| m as u32).or_else(|| {
@@ -660,7 +636,7 @@ fn appointment(a: &Value, tz: &TimeZone, default_place: &str, now: Timestamp) ->
             starts_at: local.strftime("%Y-%m-%dT%H:%M").to_string(),
             minutes,
             clinician: actor(a, "Practitioner/").unwrap_or_default(),
-            place: actor(a, "Location/").unwrap_or_else(|| default_place.to_string()),
+            place: actor(a, "Location/"),
             // The visit type's words, else the visit's short subject line (EPIC.md §7.3).
             visit_type: concept_words(&a["serviceType"][0])
                 .or_else(|| a["description"].as_str().map(str::to_string)),
@@ -673,8 +649,8 @@ fn appointment(a: &Value, tz: &TimeZone, default_place: &str, now: Timestamp) ->
 }
 
 /// One page of proposed visits from `$find`, and its `next` link.
-fn page(bundle: &Value, tz: &TimeZone, place: &str, groups: &VisitGroups) -> FoundSlots {
-    let slots = entries(bundle, "Appointment").filter_map(|a| proposed(a, tz, place, groups)).collect();
+fn page(bundle: &Value, h: &Hospital) -> FoundSlots {
+    let slots = entries(bundle, "Appointment").filter_map(|a| proposed(a, h)).collect();
     let next = bundle["link"]
         .as_array()
         .into_iter()
@@ -689,7 +665,8 @@ fn page(bundle: &Value, tz: &TimeZone, place: &str, groups: &VisitGroups) -> Fou
 /// A proposed visit from `$find`, in its own department's time zone (the timezone
 /// extension, EPIC.md §7.2), else the hospital's. Its id carries the start, so a lost
 /// `$book` reply can be checked by a search at that time (V2A).
-fn proposed(a: &Value, tz: &TimeZone, place: &str, groups: &VisitGroups) -> Option<Slot> {
+fn proposed(a: &Value, h: &Hospital) -> Option<Slot> {
+    let tz = h.tz();
     if a["status"] != "proposed" {
         return None;
     }
@@ -707,14 +684,14 @@ fn proposed(a: &Value, tz: &TimeZone, place: &str, groups: &VisitGroups) -> Opti
         u32::try_from(end.duration_since(start).as_mins()).ok()
     })?;
     let visit_type = concept_words(&a["serviceType"][0]);
-    let about = VisitAbout::from_record(visit_type.as_deref(), None);
-    let group = if about.private { None } else { groups.of(visit_type.as_deref()) };
+    let about = h.about(visit_type.as_deref(), None);
+    let group = h.group_of(&about, visit_type.as_deref());
     Some(Slot {
         id: SlotId(format!("epic-proposed-{}@{}", a["id"].as_str()?, start)),
         starts_at: Shielded::new(start.to_zoned(zone).strftime("%Y-%m-%dT%H:%M").to_string()),
         minutes,
         clinician: Shielded::new(actor(a, "Practitioner/").unwrap_or_default()),
-        place: Shielded::new(actor(a, "Location/").unwrap_or_else(|| place.to_string())),
+        place: Shielded::new(h.place(actor(a, "Location/").as_deref())),
         about,
         csn: None,
         status: VisitStatus::Upcoming,
@@ -851,10 +828,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_list_parses_and_its_zone_is_known() {
+    fn the_list_parses() {
         let list = sandbox_list_file();
         assert!(!list.patients.is_empty());
-        TimeZone::get(&list.time_zone).unwrap();
     }
 
     /// The shapes Epic's sandbox sent on 2026-11-12 (EPIC.md §5.2), cut to the fields read.
@@ -898,11 +874,11 @@ mod tests {
             ]
         });
         let before = at("2026-11-01T00:00:00Z");
-        let (_, v) = appointment(&a, &tz, "Epic sandbox", before).unwrap();
+        let (_, v) = appointment(&a, &tz, before).unwrap();
         assert_eq!(v.starts_at, "2026-11-12T08:00");
         assert_eq!(v.minutes, 30);
         assert_eq!(v.clinician, "Physician Family Medicine, MD");
-        assert_eq!(v.place, "EMC Family Medicine");
+        assert_eq!(v.place.as_deref(), Some("EMC Family Medicine"));
         // The visit type from serviceType's coding; no reasonCode, so no reason; the
         // scheduler's comment is never read.
         assert_eq!(v.visit_type.as_deref(), Some("MyChart Video Visit"));
@@ -910,9 +886,9 @@ mod tests {
         assert_eq!(v.status, VisitStatus::Upcoming);
         assert_eq!(v.instructions, None);
         let cancelled = json!({"id": "a2", "status": "cancelled", "start": "2026-11-12T14:00:00Z", "minutesDuration": 30});
-        assert_eq!(appointment(&cancelled, &tz, "Epic sandbox", before).unwrap().1.status, VisitStatus::Cancelled);
+        assert_eq!(appointment(&cancelled, &tz, before).unwrap().1.status, VisitStatus::Cancelled);
         let unknown = json!({"id": "a3", "status": "entered-in-error", "start": "2026-11-12T14:00:00Z", "minutesDuration": 30});
-        assert!(appointment(&unknown, &tz, "Epic sandbox", before).is_none());
+        assert!(appointment(&unknown, &tz, before).is_none());
     }
 
     /// The shape of the sandbox's `$find` reply (the probe, 2026-11-15): absolute participant
@@ -936,16 +912,18 @@ mod tests {
                 {"resource": {"resourceType": "OperationOutcome"}}
             ]
         });
-        let tz = TimeZone::get("America/Chicago").unwrap();
-        let page = page(&bundle, &tz, "Epic sandbox", &VisitGroups::default());
+        // The Default hospital: Chicago, and "EMC Family Medicine" said as its spoken name.
+        let page = page(&bundle, &Hospital::file());
         assert_eq!(page.next, ["https://x/next"]);
         assert_eq!(page.slots.len(), 1, "only proposed visits");
         let s = &page.slots[0];
         let is = |v: &Shielded<String>, want: &str| *v == Shielded::new(want.to_string());
         assert!(is(&s.starts_at, "2026-11-16T17:00"), "in the department's zone");
         assert!(is(&s.clinician, "Physician Family Medicine, MD"));
-        assert!(is(&s.place, "EMC Family Medicine"));
+        assert!(is(&s.place, "the family medicine clinic"));
+        // The type on the list in another case: its Online mark and its spoken name.
         assert!(s.about.online && s.minutes == 15);
+        assert!(s.about.visit_type.as_ref().is_some_and(|t| is(t, "a video visit")));
         assert_eq!(s.id.0, "epic-proposed-p1@2026-11-16T22:00:00Z", "the id carries the start for a lost reply");
     }
 
@@ -960,9 +938,7 @@ mod tests {
     }
 
     #[test]
-    fn the_sandbox_list_names_an_in_person_and_an_online_type() {
-        let t = sandbox_list_file().visit_types;
-        assert!(t.iter().any(|t| t.online) && t.iter().any(|t| !t.online));
+    fn a_weekday_is_epic_s_day_code() {
         assert_eq!(day_code(jiff::civil::Weekday::Thursday), "thu");
     }
 
@@ -978,14 +954,14 @@ mod tests {
                            {"type": {"text": "CSN"}, "value": "4000123"}],
         });
         let after = at("2026-11-13T00:00:00Z");
-        let (_, v) = appointment(&a, &tz, "Epic sandbox", after).unwrap();
+        let (_, v) = appointment(&a, &tz, after).unwrap();
         assert_eq!(v.status, VisitStatus::Seen);
         assert_eq!(v.visit_type.as_deref(), Some("Visit for routine care"), "description when no serviceType");
         assert_eq!(v.instructions.as_deref(), Some("Arrive 15 minutes early."));
         assert_eq!(v.csn.as_deref(), Some("4000123"));
         // Still booked after its time: no known outcome, so nothing to say.
         let stale = json!({"id": "a2", "status": "booked", "start": "2026-11-12T14:00:00Z", "minutesDuration": 30});
-        assert!(appointment(&stale, &tz, "Epic sandbox", after).is_none());
+        assert!(appointment(&stale, &tz, after).is_none());
     }
 
     fn with_phones(telecom: Value) -> Value {

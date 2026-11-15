@@ -156,6 +156,38 @@ def test_the_llm_defaults_name_every_setting_ehr_checks():
     assert tuple(re.findall(r'"([a-z]+)"', efforts)) == config.EFFORTS
 
 
+def test_the_hospital_keys_and_limits_are_ehr_s(client):
+    """The agent's list of the hospital's settings is settings.rs › HOSPITAL and hospital.rs ›
+    KEYS, in order; the file holds each; the limits are hospital.rs's."""
+    import re
+
+    from deets_agent import config
+
+    rust = (config.REPO / "ehr" / "src" / "settings.rs").read_text(encoding="utf-8")
+    block = rust.split("pub const HOSPITAL: &[Setting] = &[", 1)[1].split("];", 1)[0]
+    assert tuple(re.findall(r's\("([a-z_]+)"', block)) == config.HOSPITAL_KEYS
+    hospital = (config.REPO / "ehr" / "src" / "hospital.rs").read_text(encoding="utf-8")
+    keys = hospital.split("pub const KEYS: &[&str] = &[", 1)[1].split("];", 1)[0]
+    assert tuple(re.findall(r'"([a-z_]+)"', keys)) == config.HOSPITAL_KEYS
+    for name, rs in (("cell", "CELL_MAX"), ("rows", "ROWS_MAX"), ("words", "WORDS_MAX"), ("times", "TIMES_MAX"), ("windows", "WINDOWS_MAX")):
+        assert re.search(rf"pub const {rs}: usize = {config.HOSPITAL_LIMITS[name]};", hospital), rs
+    assert set(config.hospital_defaults()) == set(config.HOSPITAL_KEYS)
+    # Without a store: the file, and the limits for the page.
+    c = client.get("/agent/hospital", headers=OK).json()
+    assert c["store"] is False and c["keys"] == list(config.HOSPITAL_KEYS)
+    assert c["values"]["time_zone"] == config.hospital_defaults()["time_zone"]
+    assert client.get("/agent/hospital?version=-1", headers=OK).status_code == 400
+
+
+def test_a_hospital_save_needs_every_list_and_waits_for_ehr(client):
+    from deets_agent import config
+
+    assert client.post("/agent/hospital", json={"values": {}}).status_code == 403
+    assert client.post("/agent/hospital", headers=OK, json={"values": {"time_zone": "x"}}).status_code == 400
+    r = client.post("/agent/hospital", headers=OK, json={"values": config.hospital_defaults()})
+    assert r.status_code == 409 and r.json()["detail"] == "ehr is not up yet"
+
+
 def test_the_anthropic_view_shows_the_models_and_never_the_key(client):
     c = client.get("/agent/anthropic", headers=OK).json()
     assert (c["store"], c["versions"], c["version"]) == (False, [], None)

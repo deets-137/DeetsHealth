@@ -1,11 +1,6 @@
 {
   "about": "Epic's public sandbox test patients (fhir.epic.com > Documentation > Test Data). Public fakes, not real people. The rail's Epic list reads each one live (ehr epic-sandbox); a test call in Epic mode finds the caller by name and birth date, not from this list. The names are notes for a reader; ehr reads only the ids. EPIC.md §5.2.",
-  "time_zone": "America/Chicago",
   "place": "Epic sandbox",
-  "visit_types": [
-    { "system": "urn:oid:1.2.840.114350.1.13.0.1.7.2.808267", "code": "1003", "display": "New Patient Appointment", "online": false },
-    { "system": "urn:oid:1.2.840.114350.1.13.0.1.7.2.808267", "code": "1400000001", "display": "MyChart Video Visit", "online": true }
-  ],
   "patients": [
     { "id": "erXuFYUfucBZaryVksYEcMg3", "note": "Camila Lopez: a mobile number, a rolling set of booked visits" },
     { "id": "eq081-VQEgP8drUUqCWzHfw3", "note": "Derrick Lin: a mobile number, no visits ahead" },

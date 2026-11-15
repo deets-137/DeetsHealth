@@ -20,6 +20,9 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
 - `GET  /agent/system`, `POST /agent/system` — Config › System (SYSTEM-PAGE.md): the System
   variables' versions, the code values and the tools; a save makes a new active version for the
   next test call and writes the variables file.
+- `GET  /agent/hospital`, `POST /agent/hospital` — Config › Hospital (HOSPITAL-CONFIG.md): the
+  hospital's lists and numbers, their versions and limits; a save makes a new active version
+  that each call takes when it opens.
 - `GET  /agent/resources?call=` — Cartesia's credits and Claude's dollars this cycle, counted
   from the records and the live calls, and one call's use (resources.py; CHAT.md §17).
 - `POST /agent/voice?ehr=local|epic` — the voice seat: a WebRTC offer in, the answer out; the
@@ -517,6 +520,33 @@ def build_app(state: State) -> FastAPI:
         except prompts.PromptFileError:
             raise HTTPException(500, "saved, but the variables file could not be written") from None
         return await system_view(state, 0)
+
+    @app.get("/agent/hospital")
+    async def hospital_settings(version: int = 0):
+        """Config › Hospital (HOSPITAL-CONFIG.md): the versions and one version's lists and
+        numbers, the active one's, and the limits ehr checks. Facts about the hospital only,
+        never a call's value."""
+        if version < 0:
+            raise HTTPException(400, "version: not a version")
+        try:
+            return await hospital_view(state, version)
+        except LookupError:
+            raise HTTPException(404, "no such version") from None
+
+    @app.post("/agent/hospital")
+    async def save_hospital(request: Request):
+        """Save the hospital as a new, active version: ehr checks every list and number (the
+        error names the list and the row, never a value). The next call opens with it; a call
+        in progress keeps its own."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "not JSON") from None
+        values = body.get("values") if isinstance(body, dict) else None
+        if not isinstance(values, dict) or set(values) != set(config.HOSPITAL_KEYS):
+            raise HTTPException(400, "values: every list and number of the hospital, once")
+        await save_settings(state, "hospital", {k: values[k] for k in config.HOSPITAL_KEYS})
+        return await hospital_view(state, 0)
 
     @app.get("/agent/anthropic")
     async def anthropic_settings(version: int = 0):
@@ -1062,6 +1092,7 @@ DEFAULTS = {
     "llm": config.llm_defaults,
     "prompt": prompts.load,
     "system": lambda: {"variables": prompts.variables_to_store(prompts.load_variables())},
+    "hospital": config.hospital_defaults,
 }
 
 # The kept scripts (AGENT.md §1) and the hash of the words they were last recorded and tested with.
@@ -1471,6 +1502,14 @@ async def save_settings(state: State, service: str, values: dict[str, Any]) -> N
         if e.kind is ErrorKind.NOT_ALLOWED_NOW:
             raise HTTPException(409, "no settings store: start Postgres (npm run db:start)") from None
         raise HTTPException(502, "ehr could not save the settings") from None
+
+
+async def hospital_view(state: State, version: int) -> dict[str, Any]:
+    """The Config page's Hospital view (HOSPITAL-CONFIG.md): the common part and the limits ehr's
+    hospital.rs checks, so the page can say what does not fit before a save."""
+    view = await settings_view(state, "hospital", version)
+    view.update(keys=list(config.HOSPITAL_KEYS), limits=config.HOSPITAL_LIMITS)
+    return view
 
 
 async def anthropic_view(state: State, version: int) -> dict[str, Any]:

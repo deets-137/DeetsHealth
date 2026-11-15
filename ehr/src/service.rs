@@ -11,10 +11,11 @@ use tonic::{Request, Response, Status};
 use crate::{
     edge,
     epic_ehr::{EpicEhr, EpicSandbox},
+    hospital::Hospital,
     proto::v1::{self as pb, ehr_server::Ehr},
     scheduler::{BookResult, FoundSlots, FoundVisits, Scheduler, SchedulerDown, SlotId, SlotWish, VisitAsk},
     visit_about::BookNote,
-    visits::{narrow, Found, Narrow, VisitGroups},
+    visits::{narrow, Found, Narrow},
     session::{Pending, PatientKey, Refusal, Sessions, Source, Stage, Token},
     settings,
     store::Store,
@@ -31,38 +32,31 @@ enum Sched<S> {
 }
 
 impl<S: Scheduler> Sched<S> {
-    async fn find(&self, patient: &PatientKey, wish: &SlotWish) -> Result<FoundSlots, SchedulerDown> {
+    async fn find(&self, h: &Hospital, patient: &PatientKey, wish: &SlotWish) -> Result<FoundSlots, SchedulerDown> {
         match self {
-            Sched::Local(s) => s.find(patient, wish).await,
-            Sched::Epic(e) => e.scheduler.find(patient, wish).await,
+            Sched::Local(s) => s.find(h, patient, wish).await,
+            Sched::Epic(e) => e.scheduler.find(h, patient, wish).await,
         }
     }
 
-    async fn find_more(&self, patient: &PatientKey, next: &[String]) -> Result<FoundSlots, SchedulerDown> {
+    async fn find_more(&self, h: &Hospital, patient: &PatientKey, next: &[String]) -> Result<FoundSlots, SchedulerDown> {
         match self {
-            Sched::Local(s) => s.find_more(patient, next).await,
-            Sched::Epic(e) => e.scheduler.find_more(patient, next).await,
+            Sched::Local(s) => s.find_more(h, patient, next).await,
+            Sched::Epic(e) => e.scheduler.find_more(h, patient, next).await,
         }
     }
 
-    async fn book(&self, patient: &PatientKey, slot: &SlotId, note: &BookNote) -> Result<BookResult, SchedulerDown> {
+    async fn book(&self, h: &Hospital, patient: &PatientKey, slot: &SlotId, note: &BookNote) -> Result<BookResult, SchedulerDown> {
         match self {
-            Sched::Local(s) => s.book(patient, slot, note).await,
-            Sched::Epic(e) => e.scheduler.book(patient, slot, note).await,
+            Sched::Local(s) => s.book(h, patient, slot, note).await,
+            Sched::Epic(e) => e.scheduler.book(h, patient, slot, note).await,
         }
     }
 
-    async fn visits(&self, patient: &PatientKey, ask: &VisitAsk) -> Result<FoundVisits, SchedulerDown> {
+    async fn visits(&self, h: &Hospital, patient: &PatientKey, ask: &VisitAsk) -> Result<FoundVisits, SchedulerDown> {
         match self {
-            Sched::Local(s) => s.visits(patient, ask).await,
-            Sched::Epic(e) => e.scheduler.visits(patient, ask).await,
-        }
-    }
-
-    fn groups(&self) -> &VisitGroups {
-        match self {
-            Sched::Local(s) => s.groups(),
-            Sched::Epic(e) => e.scheduler.groups(),
+            Sched::Local(s) => s.visits(h, patient, ask).await,
+            Sched::Epic(e) => e.scheduler.visits(h, patient, ask).await,
         }
     }
 }
@@ -180,6 +174,37 @@ impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
         settings::variables(&raw).map_err(|_| Status::internal("the System version does not fit"))
     }
 
+    /// The hospital a new call runs with (HOSPITAL-CONFIG.md), and its version's label: the
+    /// active version, as the agent labels it ("MM-DD | n", or "Default"); the file, labelled
+    /// "file", when ehr has no store, the store has no version yet, or it cannot be read. A
+    /// call never fails for want of its hospital.
+    async fn call_hospital(&self) -> (Arc<Hospital>, String) {
+        let file = || (Hospital::file(), "file".to_string());
+        let Some(store) = self.store.as_ref() else { return file() };
+        let Ok((_, _, table)) = setting_service("hospital") else { return file() };
+        let found = match settings::get(store.pool(), "hospital", table, 0).await {
+            Ok(Some(found)) => found,
+            Ok(None) => return file(),
+            Err(_) => {
+                eprintln!("ehr: the hospital version could not be read; this call uses the file");
+                return file();
+            }
+        };
+        let (version, values) = found;
+        let parsed: Vec<(String, serde_json::Value)> =
+            values.into_iter().filter_map(|(k, v)| serde_json::from_str(&v).ok().map(|v| (k, v))).collect();
+        match Hospital::from_pairs(parsed.iter().map(|(k, v)| (k.as_str(), v))) {
+            Ok(h) => {
+                let label = if version.seq == 0 { "Default".to_string() } else { format!("{} | {}", version.day.get(5..).unwrap_or(""), version.seq) };
+                (Arc::new(h), label)
+            }
+            Err(_) => {
+                eprintln!("ehr: the active hospital version does not fit; this call uses the file");
+                file()
+            }
+        }
+    }
+
     fn epic(&self) -> Result<Arc<EpicEhr>, Status> {
         let sandbox =
             self.epic.as_ref().ok_or_else(|| Status::failed_precondition("ehr does not serve Epic's sandbox"))?;
@@ -242,15 +267,15 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                 Some(settings::fill(&words, &|n| vars.get(n).map(|(_, v)| v.clone()), false))
             }
         };
-        let handle = self.sessions.open(source).await.map_err(refused)?;
+        // The call's hospital, read once: the same for every EHR source (the owner's 2A).
+        let (hospital, hospital_version) = self.call_hospital().await;
+        let times_of_day = hospital.time_names();
+        let (local_now, zone) = crate::sandbox::local_now(hospital.time_zone.clone());
+        let handle = self.sessions.open(source, hospital).await.map_err(refused)?;
         if template.is_some() {
             let session = self.sessions.get(&handle).await.map_err(refused)?;
             session.lock().await.text_template = template;
         }
-        let (local_now, zone) = crate::sandbox::local_now(match source {
-            Source::EpicSandbox => crate::epic_ehr::sandbox_list_file().time_zone,
-            _ => crate::sandbox::sandbox().time_zone.clone(),
-        });
         Ok(Response::new(pb::OpenCallReply {
             handle: handle.to_hex(),
             identifies_left: MAX_IDENTIFIES,
@@ -258,6 +283,8 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             code_tries_left: MAX_CODE_FAILURES,
             local_now,
             zone,
+            times_of_day,
+            hospital_version,
         }))
     }
 
@@ -400,22 +427,29 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
     ) -> Result<Response<pb::FindSlotsReply>, Status> {
         let (handle, ask) = edge::find_slots(req.into_inner())?;
         let call = self.sessions.get(&handle).await.map_err(refused)?;
-        let (patient, source, facts) = {
+        let (patient, source, facts, h) = {
             let session = call.lock().await;
-            (session.patient().map_err(refused)?, session.source, session.facts.clone())
+            (session.patient().map_err(refused)?, session.source, session.facts.clone(), Arc::clone(&session.hospital))
         };
         let sched = self.sched(source)?;
-        let offered_at_once = crate::hospital::hospital().slots_offered;
+        let offered_at_once = h.slots_offered;
 
         // The EHR's work runs in its own task (`ledgered`), with the session unlocked, so its
         // ledger is kept even when the agent stops waiting.
         let (mut session, mut found) = match ask {
             // A new search. New tokens: a token from an older search no longer books. The
             // reason asked with these slots is the one Book sends.
-            edge::SlotAsk::New(mut wish) => {
+            edge::SlotAsk::New(mut wish, time) => {
                 wish.who = facts;
+                // Only a name on the call's own list: the model picks, the hospital decides
+                // what it means.
+                if !time.is_empty() {
+                    let t = h.time_of_day(&time).ok_or_else(|| Status::invalid_argument("time_of_day: not on the hospital's list"))?;
+                    wish.time_of_day = Some(t);
+                }
+                let hh = Arc::clone(&h);
                 let (found, wish) = ledgered(&call, "FindSlots", async move {
-                    let found = sched.find(&patient, &wish).await;
+                    let found = sched.find(&hh, &patient, &wish).await;
                     (found, wish)
                 })
                 .await?;
@@ -440,7 +474,8 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                 if rest.is_empty() && !session.next_pages.is_empty() {
                     let next = session.next_pages.clone();
                     drop(session);
-                    let page = ledgered(&call, "FindSlots", async move { sched.find_more(&patient, &next).await })
+                    let hh = Arc::clone(&h);
+                    let page = ledgered(&call, "FindSlots", async move { sched.find_more(&hh, &patient, &next).await })
                         .await?
                         .map_err(scheduler_down)?;
                     let mut session = call.lock().await;
@@ -495,7 +530,8 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                         .clone()
                         .ok_or_else(|| Status::failed_precondition("slot_token: not offered on this call"))?;
                     // In this task already, so the ledger is kept even if the agent stops waiting.
-                    let (result, entries) = crate::ledger::kept(scheduler.book(&patient, &slot_id, &note)).await;
+                    let h = Arc::clone(&session.hospital);
+                    let (result, entries) = crate::ledger::kept(scheduler.book(&h, &patient, &slot_id, &note)).await;
                     session.ledger.extend(entries.into_iter().map(|e| ("Book", e)));
                     let result = result.map_err(scheduler_down)?;
                     // A lost reply is never the key's answer: the caller's yes retries it (V2A).
@@ -533,20 +569,17 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
     ) -> Result<Response<pb::FindVisitReply>, Status> {
         let (handle, question) = edge::find_visit(req.into_inner())?;
         let session = self.sessions.get(&handle).await.map_err(refused)?;
-        let (patient, source) = {
+        let (patient, source, h) = {
             let session = session.lock().await;
-            (session.patient().map_err(refused)?, session.source)
+            (session.patient().map_err(refused)?, session.source, Arc::clone(&session.hospital))
         };
         let sched = self.sched(source)?;
         let by_day = question.ask.range.is_some();
         let ask = question.ask;
-        let (found, sched) = ledgered(&session, "FindVisit", async move {
-            let found = sched.visits(&patient, &ask).await;
-            (found, sched)
-        })
-        .await?;
+        let hh = Arc::clone(&h);
+        let found = ledgered(&session, "FindVisit", async move { sched.visits(&hh, &patient, &ask).await }).await?;
         let FoundVisits { visits: found, within_days } = found.map_err(scheduler_down)?;
-        let groups = sched.groups();
+        let groups = h.groups();
         let group = question.group.as_ref().and_then(|g| groups.named_by(g));
         let ask = Narrow {
             clinician: question.clinician.as_ref(),
@@ -554,7 +587,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             group,
             by_day,
         };
-        let reply = match narrow(found, &ask, groups) {
+        let reply = match narrow(found, &ask, groups, h.limits()) {
             Found::None => pb::FindVisitReply::default(),
             Found::Visit { visit, more } => pb::FindVisitReply {
                 visit: Some(edge::visit(&visit)),
@@ -1183,6 +1216,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_call_opens_with_its_hospital_s_names_and_label() {
+        let s = svc();
+        let reply = s.open_call(Request::new(pb::OpenCallRequest::default())).await.unwrap().into_inner();
+        // No store: the file, labelled so in the call record.
+        assert_eq!(reply.hospital_version, "file");
+        assert_eq!(reply.times_of_day, Hospital::file().time_names());
+        assert_eq!(reply.local_now.len(), 16);
+        // A name the call's list does not hold is refused, by a fixed message.
+        let h = verified(&s).await;
+        let mut req = find_req_with(&h, "", "a check-up", pb::VisitMode::Unspecified);
+        req.get_mut().time_of_day = "brunch".into();
+        let err = s.find_slots(req).await.unwrap_err();
+        assert_eq!(err.code(), Code::InvalidArgument);
+        assert!(!err.message().contains("brunch"));
+    }
+
+    #[tokio::test]
     async fn a_bad_when_is_refused_and_no_match_is_empty() {
         let s = svc();
         let h = verified(&s).await;
@@ -1204,7 +1254,8 @@ mod tests {
         assert!(!slot.online);
         let reply = s.book(book_req(&h, &slot.token, "key-0000000000000001")).await.unwrap().into_inner();
         let visit = reply.visit.unwrap();
-        assert_eq!((visit.reason.as_str(), visit.visit_type.as_str()), (reason, "Office Visit"));
+        // The hospital's spoken name for the fake's "Office Visit" (Config › Hospital's Default).
+        assert_eq!((visit.reason.as_str(), visit.visit_type.as_str()), (reason, "an office visit"));
         assert!(!visit.online && !visit.reason_private);
         let next_visit = next(&s, &h).await.unwrap().unwrap();
         assert_eq!(next_visit.reason, reason);

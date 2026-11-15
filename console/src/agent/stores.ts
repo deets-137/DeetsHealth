@@ -12,6 +12,7 @@ export const people = store("people", () => api.people(), { focus: true });
 export const cartesiaSettings = keyed("settings.cartesia", (v: number) => api.cartesiaSettings(v));
 export const anthropicSettings = keyed("settings.anthropic", (v: number) => api.anthropicSettings(v));
 export const systemSettings = keyed("settings.system", (v: number) => api.systemSettings(v));
+export const hospitalSettings = keyed("settings.hospital", (v: number) => api.hospitalSettings(v));
 export const promptSettings = keyed("settings.agent", (v: number) => api.promptSettings(v));
 
 /** Chat. */

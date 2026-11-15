@@ -303,6 +303,48 @@ export const systemSettings = (version = 0) =>
   get<SystemSettings>(version ? `/agent/system?version=${version}` : "/agent/system");
 export const saveSystem = (values: SystemValues) => saveSettings<SystemSettings>("/agent/system", values);
 
+/** Config › Hospital (HOSPITAL-CONFIG.md): the hospital's lists and numbers, as ehr's
+ * hospital.rs keeps them. Facts about the hospital, never protected data. */
+export type VisitTypeRow = { system: string; code: string; record: string; spoken: string; online: boolean; book: boolean };
+export type VisitGroupRow = { name: string; words: string[]; visit_types: string[] };
+export type ReasonRow = { system: string; code: string; words: string[]; visit_type: string; specialty: string };
+export type TimeOfDayRow = { name: string; from: string; hours: number };
+export type HoursRow = { day: string; opens: string; closes: string };
+export type ClosedDayRow = { date: string; name: string };
+export type LocationRow = { record: string; spoken: string; id: string; address: string; phone: string };
+export type SpecialtyRow = { system: string; code: string; spoken: string; words: string[] };
+export type HospitalValues = {
+  time_zone: string;
+  visit_types: VisitTypeRow[];
+  visit_groups: VisitGroupRow[];
+  reasons: ReasonRow[];
+  times_of_day: TimeOfDayRow[];
+  hours: HoursRow[];
+  closed_days: ClosedDayRow[];
+  locations: LocationRow[];
+  specialties: SpecialtyRow[];
+  slots_offered: number;
+  narrow_over: number;
+  groups_named: number;
+  past_days: number;
+  ahead_windows: number[];
+};
+export type HospitalSettings = {
+  store: boolean;
+  versions: SettingVersion[];
+  version: SettingVersion | null;
+  values: HospitalValues;
+  active: HospitalValues;
+  /** Every list and number, in the page's order. */
+  keys: (keyof HospitalValues)[];
+  /** What ehr's hospital.rs allows: a cell's characters, a list's rows, a cell's words, the
+   * times of day, the search windows. */
+  limits: { cell: number; rows: number; words: number; times: number; windows: number };
+};
+export const hospitalSettings = (version = 0) =>
+  get<HospitalSettings>(version ? `/agent/hospital?version=${version}` : "/agent/hospital");
+export const saveHospital = (values: HospitalValues) => saveSettings<HospitalSettings>("/agent/hospital", values);
+
 /** The last Record and test (dev_server.py › record_and_test): counts and names of kept
  * scripts only. */
 export type Recording = {

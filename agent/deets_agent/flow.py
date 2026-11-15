@@ -77,8 +77,8 @@ MAX_REASON_CHARS = 500
 # FindVisit's day or month (EPIC.md §7.10).
 WHEN = re.compile(r"\d{4}-\d{2}(-\d{2})?")
 DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
-# The hospital's times of day, by name: the only values find_slots's `time_of_day` may take
-# (ehr/fixtures/hospital.json, which ehr reads too; FUTURE-SETTINGS.md §13.1).
+# The file hospital's times of day, by name (ehr/fixtures/hospital.json, the Default version of
+# Config › Hospital): a call takes its own from OpenCall (`CallFlow.times_of_day`).
 TIMES_OF_DAY = tuple(t["name"] for t in json.loads(config.HOSPITAL.read_text(encoding="utf-8"))["times_of_day"])
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 # What a caller may say they want before they are verified (identify's `caller_wants`).
@@ -356,6 +356,9 @@ class CallFlow:
     # The EHR this call reads: `local` (ehr's fakes) or `epic` (Epic's public sandbox, dev only).
     ehr_source: str = "local"
     handle: Shielded[str] | None = None
+    # The names `find_slots` may send as `time_of_day`: the call's own hospital version, from
+    # OpenCall (`start`); the file's until then (HOSPITAL-CONFIG.md).
+    times_of_day: tuple[str, ...] = TIMES_OF_DAY
     # Every option the caller has heard on this call, by its number. A number keeps its time for
     # the whole call, and a new search goes on from the last number, so "option 3" never means
     # two times (the owner, 2026-11-12, after a double booking).
@@ -400,6 +403,7 @@ class CallFlow:
         # The call's prompt version: ehr takes the text message's words from it (CONSOLE.md §9).
         words = prompts.current()
         self.handle = await self.ehr.open_call(self.ehr_source, words.version_id, words.system_id)
+        self.times_of_day = self.ehr.call_times(self.handle) or self.times_of_day
         got = self.ehr.call_clock(self.handle) if self.ehr_source == "epic" else None
         if got and got[0]:
             # ehr holds the hospital's one time zone, so "today" is the hospital's, not this PC's.
@@ -864,7 +868,7 @@ class CallFlow:
                 mode = "either"
             # Only values the hospital's lists hold; anything else is dropped, never sent.
             when = str(args.get("time_of_day", "") or "").strip().lower()
-            when = when if when in TIMES_OF_DAY else ""
+            when = when if when in self.times_of_day else ""
             days = tuple(d for d in (args.get("days") or []) if isinstance(d, str) and d in WEEKDAYS)
             who = str(args.get("clinician", "") or "").strip()
             try:
@@ -918,7 +922,7 @@ class CallFlow:
             types={"more": "boolean"},
             schemas={
                 "visit_mode": {"type": "string", "enum": list(VISIT_MODES)},
-                "time_of_day": {"type": "string", "enum": ["", *TIMES_OF_DAY]},
+                "time_of_day": {"type": "string", "enum": ["", *self.times_of_day]},
                 "days": {"type": "array", "items": {"type": "string", "enum": list(WEEKDAYS)}},
             },
         )

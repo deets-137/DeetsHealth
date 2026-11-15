@@ -179,6 +179,12 @@ is ignored. So nothing past the edge sees a wire type.
   variables into `text.code` when the call opens, and `{code}` when the text goes out
   (`settings.rs › fill`, one pass each); 0 uses the active version, or `agent/prompts/VARIABLES.md`
   compiled into `ehr` when the store has none (SYSTEM-PAGE.md §3.4).
+- **`OpenCall` takes the call's hospital** (2026-11-15, [HOSPITAL-CONFIG.md](HOSPITAL-CONFIG.md)):
+  `ehr` reads the active `hospital` version once (`service.rs › call_hospital`) and keeps it in
+  the session; every adapter call of that call reads it (`Scheduler`'s `h`). The reply adds
+  `times_of_day` (the names `FindSlots` may send) and `hospital_version` (the label, or "file"
+  with no store). `FindSlots` looks the time of day up in the call's own copy, so a save during
+  a call changes nothing in it.
 - **`SaveSettings` checks the two services together** (2026-11-14, SYSTEM-PAGE.md §3.3): a
   `prompt` save is refused when a section holds a `{name}` that is neither its own code value
   nor a System variable of the active `system` version; a `system` save is refused when the

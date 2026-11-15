@@ -1119,9 +1119,13 @@ select.cfg-field {
   padding-bottom: var(--space-3);
 }
 
-/* An editable cell keeps Config › Agent's words and box (.prompt-control) at the cell's edge. */
+/* An editable cell keeps Config › Agent's words and box (.prompt-control) at the cell's edge.
+   The words carry the box's inner padding and edge (.prompt-words, .prompt-text), so the control
+   moves left by that much: the words start where the column's header starts (the owner's
+   screenshot, 2026-11-15). In Edit the box's edge sits just left of them, inside the gap
+   between columns. */
 .sys-table .prompt-control {
-  margin: calc(-1 * var(--space-3)) 0;
+  margin: calc(-1 * var(--space-3)) 0 calc(-1 * var(--space-3)) calc(-1 * (var(--space-4) + var(--edge)));
 }
 
 .sys-cell {

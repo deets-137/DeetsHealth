@@ -2,7 +2,7 @@
 status: idea
 desk_test: none
 sources: []
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # Ideas — not built
 
@@ -58,10 +58,16 @@ hospital or a patient that the agent can do any of these things. The patient app
   account). Each connection names its BAA. Open: which vendors offer anything but a long-lived
   key; who in a hospital may connect one (STAFF-SIGN-IN.md, ACCESS-ROLES.md); where a sealed key
   lives in deploy A2 and in B.
-- **Config › Hospital** (the owner, 2026-11-14): [HOSPITAL-CONFIG.md](HOSPITAL-CONFIG.md). The
-  hospital's own lists that Epic's `$find` needs: visit types, hours, time of day,
-  specialties, reasons as codes, locations, and the time zone; and how many slots the agent
-  offers at a time.
+- **Config › Hospital** (the owner, 2026-11-14): built on 2026-11-15, now
+  [architecture/HOSPITAL-CONFIG.md](../architecture/HOSPITAL-CONFIG.md). Its lists that no
+  call reads yet (reasons as codes, hours, closed days, specialties, a location's id, address
+  and phone) are the work left to build.
+- **Many hospitals, with rules-based routing** (the owner, 2026-11-15: "One hospital for now, i
+  want to implement multiple hospitals and use rules based routing later"). One deploy serves
+  several hospitals; rules route each call to its hospital (by the number called, say), and
+  each hospital has its own Config › Hospital. Today there is one hospital for every EHR
+  source. Needs its own design on paper first: what a rule matches on, whether the other
+  Config pages split per hospital too, and the store's shape.
 - **A local FHIR server in Epic's shapes** (the owner, 2026-11-15: "leave it for another
   time"): [LOCAL-EHR.md](LOCAL-EHR.md). Local mode answers Epic's requests from a database we
   shape and reset, so tests run the real Epic adapter with persistent, rolling data.

@@ -2,7 +2,7 @@
 status: built
 desk_test: passed 2026-11-11
 sources: [console/security-headers.json, agent/deets_agent/security_headers.py, scripts/html-sinks.mjs, docs/architecture/images/chat-compact-toggles-2026-11-14.png, docs/architecture/images/nav-compact-layout-2026-11-14.png, console/src/picker.ts, console/src/pages/page.ts, console/src/styles/subnav.css, console/src/styles/chat.css, docs/architecture/images/config-agent-test-button-2026-11-14.png, console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # DeetsHealth — The console
 
@@ -999,7 +999,18 @@ with a verb. AGENT-PAGE.md §8 has the decision, the as-built record and the des
 
 The variables and the tools: SYSTEM-PAGE.md is the design, the as-built record (§6) and the
 desk test (§5). Code: `console/src/pages/system.ts`, `word-picker.ts`, `tab-bar.ts`; the
-`system` service in the store (`ehr/migrations/0006_settings_system.sql`).
+`system` service in the store (`ehr/migrations/0006_settings_system.sql`). Since 2026-11-15
+`system.ts` exports its table parts (`table`, `row`, `field`, `heading`, `grow`) for Config ›
+Hospital.
+
+### 10.1 Config › Hospital
+> **Part:** built · 2026-11-15
+
+The hospital's lists and numbers, after System in Config's nav (Agent, System, Hospital,
+Cartesia, Anthropic): HOSPITAL-CONFIG.md is the design, the as-built record (§5) and the desk
+test (§6). Code: `console/src/pages/hospital.ts`; the `hospital` service in the store
+(`ehr/migrations/0009_settings_hospital.sql`). Four tabs of tables in System's style, each row
+edited in place; no new CSS.
 
 ## 11. The compact layout: the nav on a narrow screen
 > **Part:** built · 2026-11-14 — desk test open.

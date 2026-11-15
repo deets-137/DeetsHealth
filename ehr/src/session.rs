@@ -15,6 +15,7 @@ use tokio::sync::Mutex;
 use zeroize::Zeroize;
 
 use crate::{
+    hospital::Hospital,
     scheduler::{BookResult, SlotId},
     visit_about::BookNote,
 };
@@ -117,6 +118,9 @@ pub struct Session {
     /// The text message's words for this call, from its prompt version (OpenCall's
     /// `prompt_version`); None: the prompt file compiled into ehr.
     pub text_template: Option<String>,
+    /// The hospital this call runs with (HOSPITAL-CONFIG.md): the active version when the call
+    /// opened, or the file. A save during the call does not change it.
+    pub hospital: Arc<Hospital>,
     /// Each booking's answer, by its idempotency key, with the slot token it was for.
     pub booked: HashMap<String, (Token, BookResult)>,
     /// The EHR ledger (ledger.rs): each request ehr sent the EHR on this call, by the gRPC call
@@ -141,7 +145,7 @@ pub struct Sessions {
 }
 
 impl Sessions {
-    pub async fn open(&self, source: Source) -> Result<Token, Refusal> {
+    pub async fn open(&self, source: Source, hospital: Arc<Hospital>) -> Result<Token, Refusal> {
         let mut map = self.map.lock().await;
         // Wipe sessions the agent never closed. A held lock means the session is in use.
         map.retain(|_, s| s.try_lock().map_or(true, |s| s.opened.elapsed() < MAX_AGE));
@@ -161,6 +165,7 @@ impl Sessions {
             facts: None,
             note: None,
             text_template: None,
+            hospital,
             booked: HashMap::new(),
             ledger: Vec::new(),
             opened: Instant::now(),

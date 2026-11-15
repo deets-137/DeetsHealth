@@ -2,7 +2,7 @@
 status: project
 desk_test: open
 sources: [console/src/picker.ts, console/src/pages/panel-grow.ts, console/src/tokens.ts, console/src/nav.ts, console/src/pages/subnav.ts, console/src/pages/chat.ts, console/src/pages/page.ts, console/index.html, console/src/styles/app.css, console/src/styles/chat.css, console/src/styles/subnav.css, console/src/styles/skin.css, docs/architecture/images/nav-compact-layout-2026-11-14.png, docs/architecture/images/chat-compact-toggles-2026-11-14.png, docs/architecture/images/chat-panel-handle-2026-11-14.png, docs/architecture/images/chat-panel-overlap-2026-11-14.png, docs/architecture/images/chat-panel-no-collapse-2026-11-14.png]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # DeetsHealth — The console on a phone
 
@@ -50,6 +50,7 @@ We never ask "is this a phone?". We ask three things the browser answers well.
 | Chat: the call panel above the stage in Demo and PHI until a pick; it closes in place and opens under the stage (no crossing) | built 2026-11-14, desk test open | CHAT.md §15.1 |
 | Chat: the grow handle at each rail panel's foot (shown only when useful; nothing saved) | built 2026-11-14, desk test open | CHAT.md §15.2 |
 | Chat: the page grows with its rows, so a grown panel pushes the panels after it down | built 2026-11-14 | CHAT.md §15.2 |
+| Config › Hospital: System's tables, each one scrolling on its own (`.sys-table-wrap`); no narrow layout of its own | built 2026-11-15, not looked at on a phone | HOSPITAL-CONFIG.md §4 |
 | Config, Rules, Teams, Analytics, Security, Audit Logs, Settings: their own narrow layouts | not looked at (Config's rows and Security › Auth have container queries at their own widths) | — |
 
 ## 5. Open
@@ -70,3 +71,5 @@ One line per piece built; the full record of each sitting is WORKLOG.md.
   halves; Chat's toggles under the text box; Start / End call in halves; the call panel first in
   Demo and PHI (his fork A); the grow handle (his fork B, hidden when the list fits); the narrow
   page grows with its rows; the pick move closes and opens instead of crossing.
+- 2026-11-15 — Config › Hospital: System's tables, each scrolling on its own; not looked at on a
+  phone yet.

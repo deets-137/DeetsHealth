@@ -2,7 +2,7 @@
 status: project
 desk_test: open
 sources: [scripts/postgres.mjs, scripts/dev.mjs, agent/deets_agent/catalog.py, ehr/src/store.rs, ehr/src/seal_key.rs, core/src/seal.rs, ehr/src/service.rs, ehr/migrations/0001_calls.sql, ehr/migrations/0002_settings.sql, ehr/src/settings.rs, ehr/tests/store.rs, agent/deets_agent/ehr_client.py, agent/deets_agent/ehr_process.py, agent/deets_agent/dev_server.py]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # The database — dev today, shaped for production
 
@@ -118,8 +118,10 @@ Plain columns hold no protected data; sealed columns are bytes under `seal.rs`.
   one key–value table per service (`settings_voice`; `settings_llm` since `0004_settings_llm.sql`,
   CONSOLE.md §8.3; `settings_prompt`, the agent's words, since `0005_settings_prompt.sql`,
   CONSOLE.md §9.3; `settings_system`, the System variables, since `0006_settings_system.sql`,
-  SYSTEM-PAGE.md), and `setting_activations`. `calls.prompt_version` (0005) names the words
-  each call ran with, and `calls.system_version` (0006) its System variables, each by the
+  SYSTEM-PAGE.md; `settings_hospital`, Config › Hospital's lists and numbers, since
+  `0009_settings_hospital.sql`, HOSPITAL-CONFIG.md), and `setting_activations`.
+  `calls.prompt_version` (0005) names the words each call ran with, `calls.system_version`
+  (0006) its System variables, and `calls.hospital_version` (0009) its hospital, each by the
   version's label. All plain and
   insert-only: a trigger refuses every UPDATE, DELETE and TRUNCATE. Written by `ehr`'s
   `SaveSettings` (`ehr/src/settings.rs`), checked there against the list of every setting.

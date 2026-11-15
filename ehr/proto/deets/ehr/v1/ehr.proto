@@ -298,6 +298,11 @@ message OpenCallReply {
   // ehr holds the one time zone, so ehr and the agent agree on "today". Not protected data.
   string local_now = 5;
   string zone = 6;
+  // The call's hospital (HOSPITAL-CONFIG.md), read once as the call opens: the names of its
+  // times of day, the only values `find_slots` may send as `time_of_day`; and its version's
+  // label ("MM-DD | n", "Default", or "file"), for the call record. Not protected data.
+  repeated string times_of_day = 7;
+  string hospital_version = 8;
 }
 
 message CloseCallRequest {

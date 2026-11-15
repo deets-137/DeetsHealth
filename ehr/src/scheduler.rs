@@ -9,11 +9,10 @@ use std::{collections::HashSet, future::Future, sync::Mutex};
 use deetshealth_core::Shielded;
 
 use crate::{
-    hospital::TimeOfDay,
+    hospital::{Hospital, TimeOfDay},
     sandbox::sandbox,
     session::PatientKey,
     visit_about::{BookNote, VisitAbout},
-    visits::VisitGroups,
 };
 
 /// The EHR's own id for a slot. It never leaves this service: the agent gets a token.
@@ -156,10 +155,13 @@ pub enum BookResult {
 /// The EHR did not answer. Never carries text from the EHR.
 pub struct SchedulerDown;
 
+/// Each method takes the call's hospital (HOSPITAL-CONFIG.md): its visit types, time zone,
+/// places, groups and search numbers, as they were when the call opened.
 pub trait Scheduler: Send + Sync + 'static {
     /// Every slot that fits `wish`, soonest first.
     fn find(
         &self,
+        h: &Hospital,
         patient: &PatientKey,
         wish: &SlotWish,
     ) -> impl Future<Output = Result<FoundSlots, SchedulerDown>> + Send;
@@ -167,6 +169,7 @@ pub trait Scheduler: Send + Sync + 'static {
     /// The next page of a search: the first of `next`, which `find` gave.
     fn find_more(
         &self,
+        h: &Hospital,
         patient: &PatientKey,
         next: &[String],
     ) -> impl Future<Output = Result<FoundSlots, SchedulerDown>> + Send;
@@ -175,6 +178,7 @@ pub trait Scheduler: Send + Sync + 'static {
     /// (Epic's `appointmentNote`). The booked slot's `about` holds its type and the reason.
     fn book(
         &self,
+        h: &Hospital,
         patient: &PatientKey,
         slot: &SlotId,
         note: &BookNote,
@@ -184,63 +188,68 @@ pub trait Scheduler: Send + Sync + 'static {
     /// or the newest first for a past one (DESIGN.md S5; EPIC.md §7.10).
     fn visits(
         &self,
+        h: &Hospital,
         patient: &PatientKey,
         ask: &VisitAsk,
     ) -> impl Future<Output = Result<FoundVisits, SchedulerDown>> + Send;
-
-    /// The hospital's visit groups (FUTURE-SETTINGS.md §13.1).
-    fn groups(&self) -> &VisitGroups;
 }
 
-/// The fake's fixed slots: synthetic clinicians at a synthetic clinic, each with a visit type
-/// as Epic names them (2026-11-14). The first three stay in person, so a list for "either"
-/// reads as before; two are online, for `VisitMode::Online`.
-const FAKE_SLOTS: &[(&str, &str, &str, u32, &str, &str)] = &[
-    // (id, day, time, minutes, clinician, visit type)
-    ("slot-01", "2026-11-02", "09:00", 20, "Dr. Avery Lin", "Office Visit"),
-    ("slot-02", "2026-11-02", "14:30", 20, "Dr. Avery Lin", "Office Visit"),
-    ("slot-03", "2026-11-03", "10:00", 30, "Dr. Sam Okafor", "Office Visit"),
-    ("slot-04", "2026-11-04", "08:30", 20, "Dr. Avery Lin", "Video Visit"),
-    ("slot-05", "2026-11-05", "11:00", 30, "Dr. Sam Okafor", "Office Visit"),
-    ("slot-06", "2026-11-06", "15:00", 20, "Dr. Avery Lin", "Video Visit"),
+/// The fake's fixed slots: synthetic clinicians at a synthetic clinic. Each slot is in person
+/// or online; its visit type is the hospital's first type of that kind that the agent may book
+/// (`Hospital::fake_type`; the owner's 2A, 2026-11-15). The first three stay in person, so a
+/// list for "either" reads as before; two are online, for `VisitMode::Online`.
+const FAKE_SLOTS: &[(&str, &str, &str, u32, &str, bool)] = &[
+    // (id, day, time, minutes, clinician, online)
+    ("slot-01", "2026-11-02", "09:00", 20, "Dr. Avery Lin", false),
+    ("slot-02", "2026-11-02", "14:30", 20, "Dr. Avery Lin", false),
+    ("slot-03", "2026-11-03", "10:00", 30, "Dr. Sam Okafor", false),
+    ("slot-04", "2026-11-04", "08:30", 20, "Dr. Avery Lin", true),
+    ("slot-05", "2026-11-05", "11:00", 30, "Dr. Sam Okafor", false),
+    ("slot-06", "2026-11-06", "15:00", 20, "Dr. Avery Lin", true),
 ];
 
 /// The in-memory scheduler for tests and the text harness (VOICE-AGENT.md §9).
 pub struct FakeScheduler {
     /// Each fake slot's day (YYYY-MM-DD), by its place in `FAKE_SLOTS`.
     days: Vec<String>,
-    place: String,
     taken: Mutex<HashSet<String>>,
     /// Bookings made on this run, by patient.
     booked: Mutex<Vec<(PatientKey, Slot)>>,
-    groups: VisitGroups,
 }
 
 impl Default for FakeScheduler {
-    /// The fixed days, at the sandbox's place.
+    /// The fixed days.
     fn default() -> Self {
-        Self::with_days(FAKE_SLOTS.iter().map(|s| s.1.to_string()).collect(), sandbox().place.clone())
+        Self::with_days(FAKE_SLOTS.iter().map(|s| s.1.to_string()).collect())
     }
 }
 
 impl FakeScheduler {
-    fn with_days(days: Vec<String>, place: String) -> Self {
-        Self { days, place, taken: Mutex::default(), booked: Mutex::default(), groups: VisitGroups::new(&sandbox().visit_groups) }
+    fn with_days(days: Vec<String>) -> Self {
+        Self { days, taken: Mutex::default(), booked: Mutex::default() }
+    }
+
+    /// The record's name of slot `i`'s visit type, or None when the hospital has no type of
+    /// that kind to book.
+    fn visit_type(h: &Hospital, i: usize) -> Option<String> {
+        h.fake_type(FAKE_SLOTS[i].5).map(|t| t.record.clone())
     }
 
     /// An open slot: its type is known (and so whether it is online), its reason is not yet.
-    fn slot(&self, i: usize) -> Slot {
-        let (id, _, time, minutes, clinician, visit_type) = FAKE_SLOTS[i];
+    /// Its place is the sandbox's, in the hospital's words for it.
+    fn slot(&self, h: &Hospital, i: usize, visit_type: &str) -> Slot {
+        let (id, _, time, minutes, clinician, _) = FAKE_SLOTS[i];
+        let about = h.about(Some(visit_type), None);
         Slot {
             id: SlotId(id.to_string()),
             starts_at: Shielded::new(format!("{}T{time}", self.days[i])),
             minutes,
             clinician: Shielded::new(clinician.to_string()),
-            place: Shielded::new(self.place.clone()),
-            about: VisitAbout::from_record(Some(visit_type), None),
+            place: Shielded::new(h.place(Some(&sandbox().place))),
+            group: h.group_of(&about, Some(visit_type)),
+            about,
             csn: None,
             status: VisitStatus::Upcoming,
-            group: self.groups.of(Some(visit_type)),
         }
     }
 
@@ -251,11 +260,12 @@ impl FakeScheduler {
 }
 
 impl Scheduler for FakeScheduler {
-    async fn find(&self, _: &PatientKey, wish: &SlotWish) -> Result<FoundSlots, SchedulerDown> {
+    async fn find(&self, h: &Hospital, _: &PatientKey, wish: &SlotWish) -> Result<FoundSlots, SchedulerDown> {
         use jiff::civil::Date;
         let taken = self.taken.lock().unwrap();
         let slots = (0..FAKE_SLOTS.len())
             .filter(|&i| !taken.contains(FAKE_SLOTS[i].0))
+            .filter(|&i| wish.mode.fits(FAKE_SLOTS[i].5))
             // Shielded compares without revealing. The fake's own days and times are not
             // protected: they are the fake's, until a patient books one.
             .filter(|&i| wish.earliest_day.as_ref().is_none_or(|from| Shielded::new(self.days[i].clone()) >= *from))
@@ -265,19 +275,23 @@ impl Scheduler for FakeScheduler {
                 wish.days.is_empty()
                     || self.days[i].parse::<Date>().is_ok_and(|d| wish.days.contains(&d.weekday()))
             })
-            .map(|i| self.slot(i))
-            .filter(|slot| wish.mode.fits(slot.about.online))
+            .filter_map(|i| Some(self.slot(h, i, &Self::visit_type(h, i)?)))
             .collect();
         Ok(FoundSlots { slots, next: Vec::new() })
     }
 
-    async fn find_more(&self, _: &PatientKey, _: &[String]) -> Result<FoundSlots, SchedulerDown> {
+    async fn find_more(&self, _: &Hospital, _: &PatientKey, _: &[String]) -> Result<FoundSlots, SchedulerDown> {
         // The fake's search is one page.
         Ok(FoundSlots::default())
     }
 
-    async fn book(&self, patient: &PatientKey, slot: &SlotId, note: &BookNote) -> Result<BookResult, SchedulerDown> {
+    async fn book(&self, h: &Hospital, patient: &PatientKey, slot: &SlotId, note: &BookNote) -> Result<BookResult, SchedulerDown> {
         let Some(i) = FAKE_SLOTS.iter().position(|s| s.0 == slot.0) else {
+            return Ok(BookResult::Taken);
+        };
+        // A save between the search and the booking cannot reach this call: its hospital is
+        // the one it opened with. None only if the call's own list has no such type.
+        let Some(visit_type) = Self::visit_type(h, i) else {
             return Ok(BookResult::Taken);
         };
         if !self.taken.lock().unwrap().insert(slot.0.clone()) {
@@ -285,8 +299,8 @@ impl Scheduler for FakeScheduler {
         }
         // The visit keeps the caller's reason as its note, as Epic's `$book` will
         // (`appointmentNote`); NextVisit reads it back, through the sensitive screen.
-        let mut booked = self.slot(i);
-        booked.about = VisitAbout::booked(Some(FAKE_SLOTS[i].5), note);
+        let mut booked = self.slot(h, i, &visit_type);
+        booked.about = h.booked(Some(&visit_type), note);
         // A synthetic CSN, the same for the same slot on every run (replay cache).
         booked.csn = Some(Shielded::new(format!("900000{:02}", i + 1)));
         if booked.about.private {
@@ -296,7 +310,7 @@ impl Scheduler for FakeScheduler {
         Ok(BookResult::Booked(booked))
     }
 
-    async fn visits(&self, patient: &PatientKey, ask: &VisitAsk) -> Result<FoundVisits, SchedulerDown> {
+    async fn visits(&self, h: &Hospital, patient: &PatientKey, ask: &VisitAsk) -> Result<FoundVisits, SchedulerDown> {
         // The visits the sandbox patients already have (`ehr/fixtures/sandbox.json`). The fake
         // has no clock: a visit's status says whether it is over.
         let sandbox = sandbox();
@@ -304,15 +318,14 @@ impl Scheduler for FakeScheduler {
             let status = VisitStatus::from_epic(v.status.as_deref().unwrap_or("booked"), false)
                 .or_else(|| VisitStatus::from_epic(v.status.as_deref()?, true))?;
             let key = PatientKey(Shielded::new(v.patient.clone()));
-            let about = VisitAbout::from_record(v.visit_type.as_deref(), v.reason.as_deref())
-                .with_instructions(v.instructions.as_deref());
-            let group = if about.private { None } else { self.groups.of(v.visit_type.as_deref()) };
+            let about = h.about(v.visit_type.as_deref(), v.reason.as_deref()).with_instructions(v.instructions.as_deref());
+            let group = h.group_of(&about, v.visit_type.as_deref());
             let visit = Slot {
                 id: SlotId(format!("visit-{}-{}", v.patient, v.starts_at)),
                 starts_at: Shielded::new(v.starts_at.clone()),
                 minutes: v.minutes,
                 clinician: Shielded::new(v.clinician.clone()),
-                place: Shielded::new(sandbox.place.clone()),
+                place: Shielded::new(h.place(Some(&sandbox.place))),
                 about,
                 csn: v.csn.clone().map(Shielded::new),
                 status,
@@ -338,9 +351,5 @@ impl Scheduler for FakeScheduler {
         }
         // The fake has no clock, so no window: every visit to come counts.
         Ok(FoundVisits { visits: found, within_days: None })
-    }
-
-    fn groups(&self) -> &VisitGroups {
-        &self.groups
     }
 }

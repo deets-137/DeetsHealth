@@ -101,6 +101,45 @@ Nothing ships yet. The deploy is A2: a separate deploy per hospital in our cloud
 interface (VOICE-AGENT.md §7.2).
 
 ## Open now
+**Start here (2026-11-15, end of the booking sitting).** `main` is pushed at `8a4e234` with the
+pre-push check skipped once, on the owner's word: `emergency_reminder` and the recordings'
+stamp test fail on `main`. Fix that first (the "Follow up (Claude, open)" item below), then
+record the kept scripts again and write the stamp (the Test button on Config › Agent, or the
+typed harness plus `dev_server.record_and_test`), so the hook passes again. Then the open desk
+tests: booking builds 1 and 2, the request log, the EHR ledger and the repeat guard
+(EPIC.md §7.10; AGENT.md §1). Restart `npm run dev` first: its `ehr` predates this sitting.
+Ideas left for later: ideas/LOCAL-EHR.md; many hospitals with rules-based routing
+(ideas/README.md); pass^k sampling (AGENT.md §4).
+
+**Built, desk test open: Config › Hospital** (2026-11-15, late; architecture/HOSPITAL-CONFIG.md
+§6). Committed and pushed with the checks skipped, on the owner's word ("commit and push with
+no checks for the night"). Four more kept scripts miss their replays because a booked visit now
+says its spoken name ("an office visit"): `book_a_visit`, `read_back_correction`,
+`booked_reason_asked`, `visit_reason_then_an_offer`. Record and test covers them with the
+others (about a cent each). The lists no call reads yet (reasons as codes, hours, closed days,
+specialties, a location's id, address and phone) are the work left: HOSPITAL-CONFIG.md §7.
+
+**Morning, in this order (the owner, 2026-11-15, night):**
+1. **Research first: Epic's code systems.** Use the open.epic MCP server and Epic's FHIR docs to
+   explain the OIDs on Config › Hospital and find out more: what each part of
+   `urn:oid:1.2.840.114350.1.13.0.1.7.2.808267` means (Epic's root `1.2.840.114350`, the
+   instance, the kind of list); whether an organization has one visit-type list (one OID) or
+   several; what the specialty and location lists' systems look like; which systems
+   `indications` takes (SNOMED CT `2.16.840.1.113883.6.96`, ICD-10-CM `…6.90`, the
+   organization's own diagnosis list, as in Epic's `$find` sample, api:840); and whether any
+   API lists a hospital's visit types or specialties. Write what is found into
+   HOSPITAL-CONFIG.md §2 and EPIC.md, with the document ids. Ask the owner what he knows from
+   his Epic years first.
+2. **Then the owner's fork** (HOSPITAL-CONFIG.md §7), with what the research found:
+   - **A (recommended): one ID list per list, set once.** "Epic visit type list (OID)" above
+     Visit types, each row only a "Visit type ID"; the same for Specialties; Reasons keep one
+     system per row, chosen by name (SNOMED CT, ICD-10-CM, the hospital's own). Cost: a schema
+     change in `hospital.rs` and the Default; no mixing of two visit-type lists.
+   - **B: a system on each row, with plain names.** Columns "ID list" and "ID"; a known OID
+     shown by its name. Cost: the same OID typed on every row.
+3. Reload the console and check the column alignment fix (`config.css › .sys-table
+   .prompt-control`; Config › Hospital and Config › System), then the desk test.
+
 ### The build (BUILD-ORDER.md)
 **Where we stand (2026-11-11): the paper work and the text run are done.** Three tracks remain,
 and the console starts; each next step follows from what the console needs (the owner,

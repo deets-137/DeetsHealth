@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [docs/architecture/images/chat-panel-no-collapse-2026-11-14.png, docs/architecture/images/chat-panel-overlap-2026-11-14.png, console/src/pages/panel-grow.ts, docs/architecture/images/chat-panel-handle-2026-11-14.png, console/src/tokens.ts, docs/architecture/images/chat-resources-tab-2026-11-14.png, agent/deets_agent/resources.py, docs/architecture/images/chat-title-box-move-2026-11-14.png, docs/architecture/images/chat-harness-failed-ehrerror-2026-11-14.webp, ehr/src/epic_ehr.rs, agent/deets_agent/ehr_process.py, console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/voice.py, agent/deets_agent/resources.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 # DeetsHealth — The Chat page
 
@@ -289,6 +289,10 @@ back at its time. The sandbox list is TEXTS.md §8.
   date, number on file) and the visits (patient id, start in the place's local time, minutes,
   clinician). The page loads it once at build (`loadSandbox`), and again when the watch stream
   comes back up if the first load failed. With the dev server down, the panel says so.
+  Since 2026-11-15 the fixtures hold only the records: the time zone, visit types and groups
+  are Config › Hospital's (HOSPITAL-CONFIG.md). An Epic visit's `place` is the record's
+  Location name, or null when it names none; the rail then shows the list's `place`. The rail
+  shows the record's words; a call says the hospital's spoken names.
 - **The `text` event** (`CallView.add` → its `onText` callback): a `CallEvent` with `to` and
   `body`. `CallView` keeps it out of the lines; `addText` takes the first run of six digits in
   the body as the code, as a phone's code autofill does, and drops an event with none.

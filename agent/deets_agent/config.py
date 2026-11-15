@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -11,8 +12,36 @@ AGENT = Path(__file__).resolve().parents[1]
 REPO = AGENT.parent
 CERTS = REPO / "dev-certs"
 REPLAYS = AGENT / "tests" / "replays"
-# The dev hospital's own setup, which ehr reads too (ehr/src/hospital.rs; FUTURE-SETTINGS.md §13).
+# The dev hospital's own setup: the Default version of Config › Hospital, which ehr builds in
+# (ehr/src/hospital.rs; HOSPITAL-CONFIG.md).
 HOSPITAL = REPO / "ehr" / "fixtures" / "hospital.json"
+# Every list and number of the hospital, in the page's order: ehr's hospital.rs › KEYS and
+# settings.rs › HOSPITAL are the same list (test_dev_server.py checks the file holds each).
+HOSPITAL_KEYS = (
+    "time_zone",
+    "visit_types",
+    "visit_groups",
+    "reasons",
+    "times_of_day",
+    "hours",
+    "closed_days",
+    "locations",
+    "specialties",
+    "slots_offered",
+    "narrow_over",
+    "groups_named",
+    "past_days",
+    "ahead_windows",
+)
+# The limits ehr's hospital.rs checks, for the page's own checks before a save. The same numbers
+# as CELL_MAX, ROWS_MAX, WORDS_MAX, TIMES_MAX and WINDOWS_MAX there.
+HOSPITAL_LIMITS = {"cell": 120, "rows": 200, "words": 30, "times": 12, "windows": 5}
+
+
+def hospital_defaults() -> dict:
+    """The hospital's Default version: ehr/fixtures/hospital.json, each list and number."""
+    data = json.loads(HOSPITAL.read_text(encoding="utf-8"))
+    return {k: data[k] for k in HOSPITAL_KEYS}
 # DEETS_EHR_BIN points at another build, for when a running dev server holds this one (Windows
 # locks a running .exe; scripts/postgres.mjs reads the same setting).
 EHR_BINARY = Path(os.environ["DEETS_EHR_BIN"]) if os.environ.get("DEETS_EHR_BIN") else (

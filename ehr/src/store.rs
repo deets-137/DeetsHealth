@@ -84,6 +84,8 @@ pub struct Summary {
     pub prompt_version: Option<String>,
     /// The System version's label (SYSTEM-PAGE.md §3.4), or "file".
     pub system_version: Option<String>,
+    /// The hospital version's label (HOSPITAL-CONFIG.md), or "file".
+    pub hospital_version: Option<String>,
     pub scenario: Option<String>,
     pub outcome: &'static str,
     pub end_reason: Option<String>,
@@ -120,6 +122,9 @@ pub fn summarize(events: &[Value]) -> Summary {
                 s.system_version = text(e, "system_version");
                 s.scenario = text(e, "scenario");
             }
+            // The hospital version the call opened with (schema 13): known only once ehr
+            // answers OpenCall, so its own event.
+            "hospital" => s.hospital_version = text(e, "version"),
             "node" | "step" => {
                 if let Some(name) = text(e, "name") {
                     if s.reached.last() != Some(&name) {
@@ -375,11 +380,11 @@ impl Store {
 
         let mut tx = self.pool.begin().await.map_err(|e| db("begin", e))?;
         sqlx::query(
-            "INSERT INTO calls (id, schema_version, started, source, mode, model, prompt_version, system_version, scenario, outcome, end_reason,
+            "INSERT INTO calls (id, schema_version, started, source, mode, model, prompt_version, system_version, hospital_version, scenario, outcome, end_reason,
                 reached, turns, tool_calls, duration_ms, tokens_in, tokens_out, cost_usd, record_sha256)
-             VALUES ($1, $2, $3::timestamp, $4, $5, $6, $18, $19, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+             VALUES ($1, $2, $3::timestamp, $4, $5, $6, $18, $19, $20, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
              ON CONFLICT (id) DO UPDATE SET schema_version = EXCLUDED.schema_version, started = EXCLUDED.started,
-                source = EXCLUDED.source, mode = EXCLUDED.mode, model = EXCLUDED.model, prompt_version = EXCLUDED.prompt_version, system_version = EXCLUDED.system_version, scenario = EXCLUDED.scenario,
+                source = EXCLUDED.source, mode = EXCLUDED.mode, model = EXCLUDED.model, prompt_version = EXCLUDED.prompt_version, system_version = EXCLUDED.system_version, hospital_version = EXCLUDED.hospital_version, scenario = EXCLUDED.scenario,
                 outcome = EXCLUDED.outcome, end_reason = EXCLUDED.end_reason, reached = EXCLUDED.reached,
                 turns = EXCLUDED.turns, tool_calls = EXCLUDED.tool_calls, duration_ms = EXCLUDED.duration_ms,
                 tokens_in = EXCLUDED.tokens_in, tokens_out = EXCLUDED.tokens_out, cost_usd = EXCLUDED.cost_usd,
@@ -404,6 +409,7 @@ impl Store {
         .bind(&sha)
         .bind(&s.prompt_version)
         .bind(&s.system_version)
+        .bind(&s.hospital_version)
         .execute(&mut *tx)
         .await
         .map_err(|e| db("file a call", e))?;

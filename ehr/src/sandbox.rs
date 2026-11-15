@@ -8,22 +8,20 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
-use crate::visits::VisitGroup;
-
 /// The fixture, built into the binary.
 const SOURCE: &str = include_str!("../fixtures/sandbox.json");
 
+/// The fake EHR's records only. The hospital's setup (its time zone, visit types, groups and
+/// places) is Config › Hospital (hospital.rs), the same for every EHR source.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Sandbox {
+    #[serde(default, rename = "about")]
+    _about: String,
+    /// The fake's Location name, as a record holds it. The hospital's locations say it.
     pub place: String,
-    /// The fake hospital's time zone, an IANA name (FUTURE-SETTINGS.md §13.1).
-    pub time_zone: String,
     pub patients: Vec<Patient>,
     pub visits: Vec<Visit>,
-    /// The fake's visit groups (FUTURE-SETTINGS.md §13.1, a draft): the narrowing question's
-    /// names when a caller has several visits.
-    #[serde(default)]
-    pub visit_groups: Vec<VisitGroup>,
 }
 
 #[derive(Deserialize)]
@@ -89,9 +87,8 @@ mod tests {
     }
 
     #[test]
-    fn the_time_zone_is_known() {
-        assert!(jiff::tz::TimeZone::get(&sandbox().time_zone).is_ok());
-        let (now, zone) = local_now(sandbox().time_zone.clone());
+    fn the_clock_reads_the_hospital_s_zone() {
+        let (now, zone) = local_now(crate::hospital::Hospital::file().time_zone.clone());
         assert_eq!(now.len(), 16);
         assert!(!zone.is_empty());
     }

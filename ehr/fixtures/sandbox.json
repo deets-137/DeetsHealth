@@ -1,7 +1,6 @@
 {
   "about": "The sandbox: every patient and visit here is synthetic. The phone numbers are in 555-0100 to 555-0199, which no real phone uses. ehr's fakes read this file (verify.rs, scheduler.rs); the agent's dev server sends it to the console's Chat page. Never put a real person here.",
   "place": "Main Street Clinic",
-  "time_zone": "America/Chicago",
   "patients": [
     { "id": "fake-patient-1", "given": "Jordan", "family": "Ellis", "birth_date": "1984-03-12", "phone": "+15555550101" },
     { "id": "fake-patient-2", "given": "Priya", "family": "Raman", "birth_date": "1971-11-30", "phone": "+15555550102" },
@@ -14,9 +13,5 @@
     { "patient": "fake-patient-1", "starts_at": "2026-12-03T09:30", "minutes": 20, "clinician": "Dr. Avery Lin", "visit_type": "Office Visit", "csn": "90000103" },
     { "patient": "fake-patient-1", "starts_at": "2026-10-06T11:00", "minutes": 30, "clinician": "Dr. Sam Okafor", "visit_type": "Office Visit", "reason": "Annual physical", "csn": "90000098", "status": "fulfilled" },
     { "patient": "fake-patient-1", "starts_at": "2026-10-20T14:00", "minutes": 20, "clinician": "Dr. Avery Lin", "visit_type": "Office Visit", "csn": "90000099", "status": "noshow" }
-  ],
-  "visit_groups": [
-    { "name": "primary care", "words": ["checkup", "check-up", "regular doctor"], "visit_types": ["Office Visit"] },
-    { "name": "imaging", "words": ["x-ray", "xray", "scan"], "visit_types": ["X-Ray Exam"] }
   ]
 }

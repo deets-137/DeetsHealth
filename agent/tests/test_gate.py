@@ -130,7 +130,8 @@ async def test_a_whole_call_through_the_handlers(ehr):
     assert "Tuesday, November 10, at 10 AM" in result["spoken_to_caller"]
     # What the visit is, from the record (FUTURE-SETTINGS.md §9), how many more are coming, and
     # the offer of its instructions (the owner's 2A, 2026-11-14): the line waits for a yes.
-    assert "It is listed as Office Visit." in result["spoken_to_caller"]
+    # The hospital's spoken name for the record's "Office Visit" (Config › Hospital's Default).
+    assert "It is listed as an office visit." in result["spoken_to_caller"]
     assert "The reason on record is Blood pressure follow-up." in result["spoken_to_caller"]
     assert "You have 2 more visits coming up after that." in result["spoken_to_caller"]
     assert result["spoken_to_caller"].endswith("Would you like to hear them?") and nxt is NO_RESPONSE
@@ -159,7 +160,7 @@ async def test_a_whole_call_through_the_handlers(ehr):
     result, _ = await handler(node, "find_visit")({}, fm)
     assert result["spoken_to_caller"].startswith("That's the visit we just booked.")
     assert "Monday, November 2" not in result["spoken_to_caller"]
-    assert "It is listed as Office Visit." in result["spoken_to_caller"]
+    assert "It is listed as an office visit." in result["spoken_to_caller"]
     assert "The reason on record is a check-up." in result["spoken_to_caller"]
     assert result["reason_for_visit"] == "said"
 
