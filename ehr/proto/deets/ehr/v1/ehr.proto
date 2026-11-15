@@ -47,6 +47,16 @@ service Ehr {
   // long call never meets the message limit. Keyed by the record's call id, not a handle: the
   // session is closed by then. FAILED_PRECONDITION when ehr runs without a store.
   rpc FileCall(stream FileCallLine) returns (FileCallReply);
+  // Files one run of the kept scripts (DATABASE.md §8): the run, each draw, the replies each
+  // script read. Answers with the call ids whose records the store needs (option C, §8.2): send
+  // each over FileCall. Synthetic only. FAILED_PRECONDITION without a store.
+  rpc FileTestRun(FileTestRunRequest) returns (FileTestRunReply);
+  // Files one label, note, star or rating (DATABASE.md §9), in the class of the call it names.
+  // NOT_FOUND for a call the store does not hold; FAILED_PRECONDITION without a store, or for a
+  // real call on an ehr with no real store.
+  rpc AddAnnotation(Annotation) returns (AddAnnotationReply);
+  // Every annotation of the synthetic class, oldest first, for the dev catalog.
+  rpc ListAnnotations(ListAnnotationsRequest) returns (ListAnnotationsReply);
   // The settings store (CONSOLE.md §7.3): versions of one service's settings, insert-only. Every
   // version holds every setting; each save is a new version and becomes the active one. No
   // field is protected data. FAILED_PRECONDITION when ehr runs without a store.
@@ -262,6 +272,108 @@ message FileCallReply {
   bool filed = 1;
 }
 
+// One draw of a kept script in a run (DATABASE.md §8.1). Synthetic callers only.
+message TestRunResult {
+  string script = 1;
+  int32 draw = 2;
+  // `record` or `replay`.
+  string mode = 3;
+  bool passed = 4;
+  // The pytest test's name; empty for a record draw.
+  string test = 5;
+  // The first line of the error; empty when it passed. It may quote the agent's words.
+  string failure = 6 [(phi) = true];
+  // The id of this draw's own record (`kept_…`); empty when it wrote none.
+  string call_id = 7;
+  // The record's shape (call_record.py › shape_digest); empty when it wrote none.
+  string shape_sha256 = 8;
+  double duration_ms = 9;
+  // Each tool's time in ms, as a JSON object.
+  string tool_ms = 10;
+  int32 live_requests = 11;
+  double cost_usd = 12;
+  // The script's tags, as a JSON object (DATABASE.md §8.4).
+  string tags = 13;
+  // The recorded replies the draw read (tests/replays/<key>.json).
+  repeated string reply_keys = 14;
+}
+
+message FileTestRunRequest {
+  // RFC 3339.
+  string started = 1;
+  string finished = 2;
+  // `dev` on a dev machine; a staff id later.
+  string run_by = 3;
+  // The prompt file's digest (tests/RECORDED-PROMPT.sha256).
+  string words_sha256 = 4;
+  // Labels, never words.
+  string prompt_version = 5;
+  string system_version = 6;
+  string hospital_version = 7;
+  string llm_version = 8;
+  string model = 9;
+  string git_commit = 10;
+  // The agent's other tests passed.
+  bool tests_passed = 11;
+  // What the run's new replies cost.
+  double cost_usd = 12;
+  repeated TestRunResult results = 13;
+}
+
+message FileTestRunReply {
+  int64 run_id = 1;
+  // The call ids whose records the store needs, in the request's order.
+  repeated string needed = 2;
+  // Kept records the retention pass deleted (DATABASE.md §8.6).
+  int32 pruned = 3;
+}
+
+// A label, note, star or rating (DATABASE.md §9; CHAT.md §7). The agent's gate checked it
+// (catalog.py › check_annotation).
+message Annotation {
+  string call_id = 1;
+  // `label`, `note`, `keep` or `rating`.
+  string kind = 2;
+  // When it was made, ISO 8601, as the catalog stamped it.
+  string at = 3;
+  // A rating's fields; empty otherwise.
+  string grader_kind = 4;
+  string grader = 5;
+  string dimension = 6;
+  string verdict = 7;
+  // 0 to 5; -1 for none.
+  int32 score = 8;
+  string rubric_version = 9;
+  // A star's value (kind `keep`).
+  bool keep = 10;
+  // A label's or note's text, or a rating's note.
+  string words = 11 [(phi) = true];
+  // Whether `words` is set (an empty note is not no note).
+  bool has_words = 12;
+}
+
+message AddAnnotationReply {
+  // False when the same annotation was already filed.
+  bool filed = 1;
+}
+
+message ListAnnotationsRequest {}
+
+message ListAnnotationsReply {
+  repeated Annotation annotations = 1;
+}
+
+// What a call's data is (DATABASE.md §7): a sandbox's or a simulated caller's, or a real
+// patient's. It decides which EHR the call may reach.
+enum DataClass {
+  // Read as synthetic: the safe side, a sandbox only.
+  DATA_CLASS_UNSPECIFIED = 0;
+  DATA_CLASS_SYNTHETIC = 1;
+  // A real patient's call: the hospital's production EHR only. Refused while every source is a
+  // sandbox.
+  DATA_CLASS_REAL = 2;
+}
+
 // Which EHR a call reads. It names a server, never a patient. A deploy serves its hospital's
 // EHR only and refuses any other; dev serves both (CHAT.md §13).
 enum EhrSource {
@@ -283,6 +395,9 @@ message OpenCallRequest {
   // them into the text message's words when the call opens. 0: the active version, or the
   // variables file compiled into ehr when the store has none. A version id, never values.
   int64 system_version = 3;
+  // The call's data class (DATABASE.md §7.5): a synthetic call may reach only a sandbox, a real
+  // call only a production EHR. FAILED_PRECONDITION when the source does not fit the class.
+  DataClass data_class = 4;
 }
 
 message OpenCallReply {

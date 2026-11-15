@@ -44,7 +44,7 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 |---|---|---|---|
 | `GET /agent/health` | `health` | `health()` | `key` (an Anthropic key is set), `live` (the newest live call's id, or null), `calls` (how many are live), `epic` (`ehr` was given Epic's sandbox) and `voice` (a Cartesia key is set) |
 | `GET /agent/cartesia` | `cartesia_settings` | `cartesiaSettings()` | Config › Cartesia (CONSOLE.md §7): the saved versions (newest first, each with its "MM-DD \| n" label and whether it is active), one version's values (`?version=`; the active one by default; the code's defaults before any save), the active values, and each lever's range. `store`: false when `ehr` has no Postgres. 404 for a version that does not exist. Never the key, only `key` (set or not) |
-| `GET /agent/prompt` | `prompt_settings` | `promptSettings()` | Config › Agent (CONSOLE.md §9): the versions and values as for Cartesia (the `prompt` service: each section's words), the code values each section must hold, what the `{` and " ." lists offer (the active System variables, the code values, the tools, and the tools each section may name: SYSTEM-PAGE.md §3.6), whether the kept recordings match the prompt file (`recordings`), and the last Record and test (`recording`: its state, each kept script's name and result, the tests, the dollars spent). Never the key, only `key` |
+| `GET /agent/prompt` | `prompt_settings` | `promptSettings()` | Config › Agent (CONSOLE.md §9): the versions and values as for Cartesia (the `prompt` service: each section's words), the code values each section must hold, what the `{` and " ." lists offer (the active System variables, the code values, the tools, and the tools each section may name: SYSTEM-PAGE.md §3.6), whether the kept recordings match the prompt file (`recordings`), and the last Record and test (`recording`: its state, each kept script's name and result, the tests, the dollars spent, `failures` (each failed test's name and the first line of its error, for the Test hint; DATABASE.md §8.5), and `filed` (what the call store took: the run's id, the records sent, the records pruned)). Never the key, only `key` |
 | `POST /agent/prompt` | `save_prompt` | `savePrompt()` | `{values}`, every section's words: the agent first checks each tool named in backticks against the section's steps (SYSTEM-PAGE.md §3.5); then saved through `ehr`'s `SaveSettings` as a new, active version (ehr checks each section's code values, and that every other `{name}` is a System variable of the active System version), then written into `agent/prompts/AGENT-PROMPT.md`. The next test call runs with it. 400 names the section that does not fit; 409 when `ehr` is not up or has no store |
 | `GET /agent/system` | `system_settings` | `systemSettings()` | Config › System (SYSTEM-PAGE.md §3.6): the versions and values as for Cartesia (the `system` service: `variables`, a list of `{name, meaning, value}`), the code values (what each is, its source, whether it is protected data, its sections: never a value), the tools (what each does from `agent/prompts/TOOLS.md`; its steps, fields and lines from the code), which sections of the active words use each variable (`used`), the limits and the built-in variables. 404 for a version that does not exist |
 | `POST /agent/system` | `save_system` | `saveSystem()` | `{values: {variables}}`: saved through `ehr`'s `SaveSettings` as a new, active version (ehr checks each variable, and that the active words use none that is gone), then written into `agent/prompts/VARIABLES.md`. The next test call runs with it. 400 names the variable that does not fit; 409 when `ehr` is not up or has no store |
@@ -61,7 +61,7 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 | `GET /agent/catalog` | `catalog` | `catalog()` | every call row with its current ratings, and the rubric (CHAT.md §7) |
 | `GET /agent/calls/{call_id}` | `call_events` | `callEvents()` | one record's events, for Demo; 404 when there is no such call |
 | `GET /agent/latency` | `tool_latency` | none yet | latency per tool; the query and the reply are CHAT.md §10.3 |
-| `POST /agent/annotations` | `annotate` | `annotate()` | `{ok: true}`, or 400 with the gate's reason (§4) |
+| `POST /agent/annotations` | `annotate` | `annotate()` | `{ok: true}`, or 400 with the gate's reason (§4), or 503 when the call store is not running (DATABASE.md §9) |
 | `WS /agent/watch` | `watch` | `watch()` | the watch stream (§5) |
 | `WS /agent/call` | `call` | `TextSeat` | the caller's seat (§6) |
 | `POST /2010-04-01/Accounts/{account}/Messages.json` | `twilio_messages` | none: `ehr` calls it | the fake Twilio (`fake_twilio.py`; TEXTS.md) |
@@ -113,8 +113,10 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
   WebSockets, so the demo build calls the same routes under its base (`at()` in `api.ts`).
 
 ## 4. Annotations
-`POST /agent/annotations` takes one annotation. Each line goes to the committed file
-`agent/calls/annotations.jsonl`, then into the catalog (CHAT.md §7, §12).
+`POST /agent/annotations` takes one annotation. The gate checks it and stamps it, then the call
+store keeps it through `ehr` (`AddAnnotation`, DATABASE.md §9), then the catalog applies it
+(CHAT.md §7, §12). Without a store: 503, and nothing is kept. Since 2026-11-15 nothing writes
+`agent/calls/annotations.jsonl`; a file left from before is still read.
 
 **The body.** One shape per `kind`. The fields of each kind are `FIELDS` in `catalog.py`; the
 console's type is `Annotation` in `api.ts`. Check 14 asks that the two list the same kinds and
@@ -204,7 +206,8 @@ loses lines; it never holds up the call (`State.broadcast`).
    end. The Review panel slides in.
 2. Star the call, type a label, and set a verdict on one dimension. Each time the status says
    "Saved".
-3. Run `git diff agent/calls/annotations.jsonl`: each new line has only its kind's fields,
-   plus `at`, and on the rating `rubric_version`.
+3. Restart `npm run dev` and play the same call: the star, the label and the verdict are still
+   there (the call store keeps them; DATABASE.md §9). `agent/calls/annotations.jsonl` does not
+   change.
 4. Stop the dev server (Ctrl+C) and set another verdict: the status says "Not saved: the
    agent's dev server is not running".

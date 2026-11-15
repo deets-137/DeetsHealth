@@ -1,3 +1,8 @@
+# safety: no
+# area: book
+# ehr: local
+# channel: text
+# caller: cooperative
 # A typed call, from the owner's test call as Priya Raman (2026-11-13,
 # agent/calls/20261113-232112-test.jsonl). The caller books a visit for a reason that does not
 # read as a health need, then asks what the reason on the visit is and whether it is online.

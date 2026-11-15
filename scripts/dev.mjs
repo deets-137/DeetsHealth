@@ -260,7 +260,7 @@ const agent = spawn(
   ],
   {
     cwd: join(root, "agent"),
-    // DEETS_DATABASE_URL and DEETS_SEAL_KEY_FILE: for ehr, the store's only writer (DATABASE.md
+    // DEETS_DATABASE_URL and the two key files (DATABASE.md §7.4): for ehr, the store's only writer (DATABASE.md
     // §2), which the agent starts; unset without Postgres.
     env: { ...process.env, DEETS_DEV_TOKEN: token, ...(db.env ?? {}) },
     stdio: ["ignore", "pipe", "inherit"],

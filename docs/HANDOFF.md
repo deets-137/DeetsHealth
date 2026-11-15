@@ -101,7 +101,21 @@ Nothing ships yet. The deploy is A2: a separate deploy per hospital in our cloud
 interface (VOICE-AGENT.md §7.2).
 
 ## Open now
-**Start here (2026-11-15, morning).** The kept scripts pass again: all 15 recorded, every agent
+**Start here (2026-11-15, late afternoon).** **Built, desk test open, not committed: synthetic
+and real rows apart, the kept scripts' runs in the store, annotations in the store**
+(DATABASE.md §7 to §9; desk test §10). Migration 0010 moves the call tables to the schema
+`synthetic`, adds `real` from the same template, a role and a seal key per class
+(`.pg/seal-test.key`, made at the next `npm run dev`), `origin` and `data_class` on every call,
+and ids that start with their origin (`test_…`). A Test press now files its run, its draws and
+the records the store needs (option C), and the Test hint lists each failed test with its first
+error line. Annotations go to the store only; `agent/calls/annotations.jsonl` is retired.
+Kept-script tests check events now (AGENT.md §4, steps 1 and 3). The tool names in the words
+are in backticks in every section, all 15 scripts recorded again and passing. `task.verify` has
+new words (his B): backticked, the old words failed `read_back_correction` 4 of 4 draws; the new
+words passed 6 of 6 (SYSTEM-PAGE.md §7). The words are working words, his to edit. The script tags and the retention values are drafts for him (§8.4, §8.6).
+Restart `npm run dev` first.
+
+**Earlier (2026-11-15, morning).** The kept scripts pass again: all 15 recorded, every agent
 test passes, and the stamp is written (`tests/RECORDED-PROMPT.sha256`). `emergency_reminder`
 passed 4 of 4 fresh draws this morning; its old failing replies were deleted and it was
 recorded again. The Epic code-system research is done (EPIC.md §7.11, HOSPITAL-CONFIG.md

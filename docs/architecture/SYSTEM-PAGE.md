@@ -268,8 +268,15 @@ Where this disagrees with §3, this is the code.
 - The format of `{today}`. The owner, 2026-11-14: the date and the time, in the hospital's
   time zone (a new setting). The time goes in a line at the start of the call's own messages,
   not in `role`, which is in the shared prompt cache (the owner, 1A): EPIC.md §7.8.
-- Moving the existing plain tool names in the words to backticks. That changes the words,
-  so the kept scripts must be recorded again (about a cent each).
+- **Done 2026-11-15, but one section:** the tool names in the words are in backticks in every
+  section that may name them, and the 15 kept scripts were recorded again and pass. **Not
+  `task.verify`:** backticked, it made the model skip `check_code` in `read_back_correction`
+  (4 of 4 fresh draws failed; plain, 2 of 2 passed; AGENT.md §4). The owner chose B
+  (2026-11-15): a new wording with backticks (digits from the caller are the code; use
+  `check_code` at once, in that same reply) passed 6 of 6 fresh draws. Every section is now
+  backticked. Two sections name a tool their step does not offer, so they stay
+  plain too (the check would refuse a backtick): `note.after_verified` (`find_slots`) and
+  `arg.change_visit.visit` (`find_visit`).
 
 ## 8. The rules engine (idea)
 > **Part:** idea · 2026-11-13

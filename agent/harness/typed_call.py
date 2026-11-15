@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from deets_agent import config, llm, redact
 from deets_agent.call import CallFailed, TypedCall
-from deets_agent.call_record import CallRecord
+from deets_agent.call_record import CALLS, CallRecord
 from deets_agent.ehr_client import EhrClient, EhrError
 from deets_agent.ehr_process import running_ehr
 from deets_agent.flow import FAKE_TODAY
@@ -67,6 +67,18 @@ async def main() -> int:
     parser.add_argument("--log", default="WARNING", help="log level (the logs carry no PHI)")
     parser.add_argument("--no-record", action="store_true", help="write no dev call record")
     parser.add_argument(
+        "--origin",
+        choices=["typed", "kept"],
+        default="typed",
+        help="who starts the call (DATABASE.md §7.1): `kept` for a kept-script draw in a Test run",
+    )
+    parser.add_argument(
+        "--calls",
+        type=Path,
+        default=None,
+        help="the folder for the record (default agent/calls/; a Test run passes a temporary one)",
+    )
+    parser.add_argument(
         "--keys-out", type=Path, help="write the key of each Claude request, as JSON (Record and test's dry run)"
     )
     parser.add_argument(
@@ -81,15 +93,24 @@ async def main() -> int:
     record = (
         None
         if args.no_record
-        else CallRecord(args.mode, config.MODEL, scenario=args.script.stem if args.script else None)
+        else CallRecord(
+            args.mode,
+            config.MODEL,
+            folder=args.calls or CALLS,
+            source=args.origin,
+            scenario=args.script.stem if args.script else None,
+        )
     )
+    # A kept draw is filed by the Test run, which decides whether the store needs it
+    # (DATABASE.md §8.2): its ehr opens no store, and the harness files nothing.
+    files = record is not None and args.origin != "kept"
     if record is not None:
         redact.set_dev_tap(record.log)
     redact.install(args.log)
 
     reason = "hung up"
     code = 0
-    async with running_ehr(store=record is not None) as target:
+    async with running_ehr(store=files) as target:
         ehr = await EhrClient.connect(target, config.CERTS)
         call = TypedCall(ehr, build_llm(Mode(args.mode)), record, today=today)
         try:
@@ -128,11 +149,12 @@ async def main() -> int:
                 print(f"(record: {record.path})")
                 print(f"({record.summary()})")
                 # File the ended call into the call store (DATABASE.md §4a). Never fails the run.
-                try:
-                    filed = await ehr.file_call(record.call_id, record.path)
-                    print({True: "(filed)", False: "(already filed)", None: "(not filed: no store)"}[filed])
-                except EhrError as e:
-                    print(f"(not filed: {e.kind.value}; the next ingest files it)")
+                if files:
+                    try:
+                        filed = await ehr.file_call(record.call_id, record.path)
+                        print({True: "(filed)", False: "(already filed)", None: "(not filed: no store)"}[filed])
+                    except EhrError as e:
+                        print(f"(not filed: {e.kind.value}; the next ingest files it)")
             await ehr.close()
             if args.keys_out is not None:
                 args.keys_out.write_text(json.dumps(llm.SEEN or []), encoding="utf-8")

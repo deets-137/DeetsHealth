@@ -12,7 +12,7 @@ to `CallRecord`. The files in `agent/calls/` are committed to the private repo (
 Each line is one event: `t_ms` (from the call's start; to a tenth of a millisecond since schema
 4, whole before), `kind`, and its fields.
 - `call_start`, `call_end` — the schema version, the call's id (the file's name), the source
-  (`typed`, `test`), the scenario (a script's name, or none), the EHR it read (`ehr`: `local`
+  (the origin: `typed`, `test`, `kept`), `data_class` (schema 14), the scenario (a script's name, or none), the EHR it read (`ehr`: `local`
   for ehr's fakes, `epic` for Epic's public sandbox; schema 6), the seat (`text` or `voice`;
   schema 7), the mode, the model, its `llm` settings and `inference_geo` (schema 8), its
   `prompt_version` (schema 9), its `system_version` (schema 10), the `label` typed beside
@@ -48,6 +48,7 @@ Each line is one event: `t_ms` (from the call's start; to a tenth of a milliseco
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from datetime import datetime
@@ -79,8 +80,33 @@ CALLS = config.AGENT / "calls"
 # request), and `epic` events hold ehr's own requests to Epic, from CloseCall (AGENT.md §1).
 # 13: since 2026-11-15, night: a `hospital` event after OpenCall, its `version` the label of the
 # Config › Hospital version the call opened with ("MM-DD | n", "Default", or "file").
-# The catalog reads all thirteen.
-SCHEMA_VERSION = 13
+# 14: since 2026-11-15, late: `data_class` on `call_start` (always `synthetic` here: a dev record
+# is never a real call; DATABASE.md §7), the origin `kept` for a kept-script draw, and every call
+# id starts with its origin (`test_20261115-201500`; DATABASE.md §7.5).
+# The catalog reads all fourteen.
+SCHEMA_VERSION = 14
+
+# Who starts a call (DATABASE.md §7.1); a call id starts with its origin and `_`.
+ORIGINS = ("typed", "test", "kept", "live")
+
+# What `shape_digest` leaves out: what changes each time the same call is made again.
+_SHAPE_SKIP = {"t_ms", "ms", "started", "call_id", "first_ms", "key"}
+
+
+def _shape(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _shape(v) for k, v in sorted(value.items()) if k not in _SHAPE_SKIP and not k.endswith("_ms")}
+    if isinstance(value, list):
+        return [_shape(v) for v in value]
+    return value
+
+
+def shape_digest(events: list[dict[str, Any]]) -> str:
+    """A record's shape (DATABASE.md §8.2): the SHA-256 of its events without their times, ids and
+    request keys. The same call made again on the same code has the same shape, so a passing
+    replay draw of a kept script that matches the last filed one need not be filed again."""
+    body = json.dumps([_shape(e) for e in events], sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
 def cost_usd(tokens: dict[str, int], model: str, cache_ttl: str = "5m", geo: bool = True) -> float:
@@ -209,15 +235,17 @@ class CallRecord:
         none. Written on `call_start` (schema 8) and used for the cost. `label`: what the person
         typed beside Start; `started_by`: `owner` or `guest` (schema 11; docs/ops/DEMO.md
         §3.6). Never a guest's email: these files are committed."""
+        if source not in ORIGINS:
+            raise ValueError("source: not an origin")
         llm = {**config.llm_defaults(), **(llm or {}), "model": model}
         folder.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        # The file's name is the call's id in the catalog (catalog.py). Two calls in one second
-        # get a suffix.
-        self.path = folder / f"{stamp}-{source}.jsonl"
+        # The file's name is the call's id in the catalog (catalog.py) and the store: its origin
+        # first (DATABASE.md §7.5). Two calls in one second get a suffix.
+        self.path = folder / f"{source}_{stamp}.jsonl"
         n = 2
         while self.path.exists():
-            self.path = folder / f"{stamp}-{source}-{n}.jsonl"
+            self.path = folder / f"{source}_{stamp}-{n}.jsonl"
             n += 1
         self.call_id = self.path.stem
         self._file = self.path.open("x", encoding="utf-8")
@@ -243,6 +271,7 @@ class CallRecord:
             schema_version=SCHEMA_VERSION,
             call_id=self.call_id,
             source=source,
+            data_class="synthetic",
             scenario=scenario,
             ehr=ehr,
             seat=seat,

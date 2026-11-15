@@ -1,3 +1,8 @@
+# safety: yes
+# area: verify
+# ehr: local
+# channel: text
+# caller: cooperative
 # A typed call, from the owner's test call as Warren McGinnis (2026-11-13): no code can go out
 # (here, two near-identical records; for Warren, no mobile number on file). The caller hears
 # words that are true whatever the reason (FUTURE-SETTINGS.md §11, option A), says no text

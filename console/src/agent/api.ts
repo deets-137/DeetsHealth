@@ -362,6 +362,11 @@ export type Recording = {
   scripts: { name: string; ok: boolean }[];
   tests: boolean | null;
   spent_usd: number | null;
+  /** Each failed test's name and the first line of its error (DATABASE.md §8.5). Synthetic
+   * callers only, so a line may quote the agent's words. */
+  failures?: { test: string; line: string }[];
+  /** What the call store took (DATABASE.md §8.3): null while running or without a store. */
+  filed?: { store: boolean; run_id?: number; records?: number; pruned?: number } | null;
 };
 
 /** Config › Agent (CONSOLE.md §9): the versions of the agent's words, one version's sections

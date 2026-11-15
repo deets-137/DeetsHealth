@@ -1,3 +1,8 @@
+# safety: no
+# area: hand-off
+# ehr: local
+# channel: text
+# caller: cooperative
 # A typed call, from the owner's test call as Camila Lopez (2026-11-13): the caller asks for
 # the next visit and its reason in one turn, then asks for something the agent cannot do. The
 # agent says the visit with its type and reason, answers the rest, then offers a person

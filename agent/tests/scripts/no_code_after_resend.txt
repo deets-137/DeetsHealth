@@ -1,3 +1,8 @@
+# safety: yes
+# area: verify
+# ehr: local
+# channel: text
+# caller: cooperative
 # A typed call: the owner's test call of 2026-11-12. The caller's name and date of birth match two
 # near-identical records (the fake Casey Morgan and Casey Morgen), so no code goes out, and none
 # goes out after a resend either. No code is ever checked. The agent hands off with an apology

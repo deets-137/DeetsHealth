@@ -1,3 +1,8 @@
+# safety: yes
+# area: hand-off
+# ehr: local
+# channel: text
+# caller: cooperative
 # A typed call: the caller calls for their mother, which the agent cannot serve (only the patient
 # can verify). The model raises a staff flag with its summary and the caller's own words, the
 # caller is not told, and the call goes to a person (the owner, 2026-11-12, forks 1A and 2A).

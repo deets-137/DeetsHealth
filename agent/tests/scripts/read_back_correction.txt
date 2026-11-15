@@ -1,3 +1,8 @@
+# safety: yes
+# area: verify
+# ehr: local
+# channel: text
+# caller: confused
 # A typed call: the caller gives the name in the wrong order and the wrong day (the owner's desk
 # test, 2026-11-11: "ellis jordan 21 3 1984"). The read-back (option A) lets them correct it
 # before the lookup, and they verify.

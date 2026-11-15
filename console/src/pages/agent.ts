@@ -576,7 +576,9 @@ function describe(run: Recording, total: number): string {
   const parts = [];
   if (failed) parts.push(`${failed} ${failed === 1 ? "script" : "scripts"} failed`);
   if (run.tests === false) parts.push("the tests fail");
-  return `Failed: ${parts.join(", ") || "see the dev server's log"}${spent}`;
+  // Each failed test on its own line, with the first line of its error (DATABASE.md §8.5).
+  const why = (run.failures ?? []).map((f) => `\n• ${f.test}: ${f.line}`).join("");
+  return `Failed: ${parts.join(", ") || "see the dev server's log"}${spent}${why}`;
 }
 
 /** A text box as tall as its words. */

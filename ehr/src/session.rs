@@ -94,6 +94,16 @@ pub enum Source {
     EpicSandbox,
 }
 
+impl Source {
+    /// Whether the source holds only test data (DATABASE.md §7.5). A synthetic call may reach
+    /// only a sandbox, a real call only a production EHR. A new source must answer here.
+    pub fn is_sandbox(self) -> bool {
+        match self {
+            Source::Local | Source::EpicSandbox => true,
+        }
+    }
+}
+
 pub struct Session {
     /// The EHR this call reads.
     pub source: Source,

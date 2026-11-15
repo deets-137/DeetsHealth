@@ -228,9 +228,10 @@ later (Anthropic's "Demystifying evals for AI agents": grade the outcome, one ru
 dimension, an "unknown" answer, calibrate model graders against human ones).
 - **Two sources, one database.** A row is worked out from its record's events every time the
   catalog is built, so it never drifts. What a person or a grader adds (a label, a note, a
-  star, a rating) goes in `agent/calls/annotations.jsonl`, committed and append only, so the
-  PC and the Mac merge cleanly; the last line for a field wins. `agent/calls/catalog.db` is
-  git-ignored and rebuilt from both at each start. The column names and types follow Postgres,
+  star, a rating) is kept in the call store through `ehr` since 2026-11-15 (DATABASE.md §9; it
+  was the committed `agent/calls/annotations.jsonl`, now retired); the last one for a field
+  wins. `agent/calls/catalog.db` is git-ignored and rebuilt from the records and the store's
+  annotations at each start. The column names and types follow Postgres,
   for the store (VOICE-AGENT.md §8.7).
 - **`calls`:** `id` (the record's file name), `schema_version`, `started`, `source` (typed ·
   test), `mode`, `model`, `scenario` (a kept script's name, so repeated runs group for pass^k),
@@ -645,8 +646,8 @@ each build reports its name and tools.
 > should match the design language of DeetsHealth."
 
 **What it writes:** the catalog's own structures (§7), through `POST /agent/annotations`,
-so every choice is one line of the committed `agent/calls/annotations.jsonl`, the newest line
-winning. Nothing new in the store: the call's `keep` (the star), `label` and `note`, and one
+so every choice is one annotation in the call store (DATABASE.md §9; until 2026-11-15, one line
+of the committed `agent/calls/annotations.jsonl`), the newest one winning. Nothing new in the store: the call's `keep` (the star), `label` and `note`, and one
 `rating` per dimension (`grader_kind` human, `grader` "owner" until staff sign-in names each
 tester, the dimension, the verdict, an optional score 0–5, an optional note). It reads the
 call's row and the rubric's dimensions from `GET /agent/catalog`. The panel uses the HTTP API
@@ -730,7 +731,7 @@ rating revealed after yours.
    in with your choices kept.
 6. Demo: play one of the four calls the model graded today (12:58 and the others): after you
    pick a verdict on a dimension, the model's line shows under it.
-7. `agent/calls/annotations.jsonl` has one line per choice.
+7. Restart `npm run dev`: every choice is still there (the call store keeps them, DATABASE.md §9).
 
 ## 13. Epic mode: the Epic / Local button
 > **Part:** built · 2026-11-12 · desk test passed 2026-11-13 (the call as Camila Lopez,

@@ -19,8 +19,9 @@ from typing import Any
 
 from deets_agent import config
 
-# A record's name starts with its start time: 20261113-142233-test.jsonl (call_record.py).
-_STAMP = re.compile(r"^(\d{8})-")
+# A record's name holds its start time: test_20261113-142233.jsonl since schema 14, and
+# 20261113-142233-test.jsonl before it (call_record.py).
+_STAMP = re.compile(r"^(?:[a-z]+_)?(\d{8})-")
 
 
 def cycle_start(today: date, day: int) -> date:

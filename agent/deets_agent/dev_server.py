@@ -33,7 +33,8 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
 - `GET  /agent/latency` — per-tool latency: a summary per tool and model (p50, p90, max of each
   span), and each tool call's row with `rows=true`. Filters: `source`, `model`, `since` (a day
   or a call id), `exact`, `with_replayed` (latency.py).
-- `POST /agent/annotations` — a label, a note, a star or a rating; kept in the committed file.
+- `POST /agent/annotations` — a label, a note, a star or a rating; kept in the call store
+  through ehr (DATABASE.md §9); 503 without a store.
 - `WS   /agent/call` — the caller's seat (Test): RTVI as JSON (rtvi_json.py). Several calls run
   at once, up to `MAX_LIVE_CALLS` (docs/ops/DEMO.md §3.6). `?label=` the words typed beside
   Start; `?tag=` the page's own mark, so it knows which started call is its own.
@@ -73,9 +74,11 @@ import itertools
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import time
+import xml.etree.ElementTree as ET
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -102,7 +105,7 @@ from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams, FastAPI
 from deets_agent import config, prompts, redact
 from deets_agent.access import AccessGate, AccessSettings
 from deets_agent.call import CallFailed, TypedCall
-from deets_agent.call_record import CALLS, CallRecord, replay_cost
+from deets_agent.call_record import CALLS, CallRecord, replay_cost, shape_digest
 from deets_agent.catalog import (
     DIMENSIONS,
     OUTCOMES,
@@ -311,6 +314,8 @@ def build_app(state: State) -> FastAPI:
             state.ehr = await EhrClient.connect(target, config.CERTS)
             # A hand edit to the prompt file becomes a new version (PROMPT-EDITOR.md §6.2).
             await sync_prompt_file(state)
+            # Labels, stars and ratings live in the store (DATABASE.md §9).
+            await load_annotations(state)
             # The People list and Cloudflare's group agree before the first guest arrives.
             await sync_people(state)
             try:
@@ -662,10 +667,7 @@ def build_app(state: State) -> FastAPI:
             raise HTTPException(400, "not JSON") from None
         if not isinstance(body, dict):
             raise HTTPException(400, "not an object")
-        try:
-            state.catalog.annotate(body)
-        except AnnotationError as e:
-            raise HTTPException(400, str(e)) from None
+        await file_annotation(state, body)
         return {"ok": True}
 
     @app.websocket("/agent/watch")
@@ -1363,10 +1365,15 @@ async def _measure_costs() -> None:
     RECORDED_COSTS.write_text(json.dumps(costs, indent=1, sort_keys=True) + "\n", encoding="utf-8")
 
 
-async def _run(args: list[str]) -> bool:
-    """Run one step of Record and test in the agent's folder; True when it passed."""
+async def _run(args: list[str], env: dict[str, str] | None = None) -> bool:
+    """Run one step of Record and test in the agent's folder; True when it passed. Its output is
+    not kept: what a run needs (failures, records) comes back in files."""
     proc = await asyncio.create_subprocess_exec(
-        *args, cwd=config.AGENT, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+        *args,
+        cwd=config.AGENT,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+        env={**os.environ, **env} if env else None,
     )
     try:
         return await asyncio.wait_for(proc.wait(), timeout=RECORD_LIMIT_S) == 0
@@ -1375,25 +1382,189 @@ async def _run(args: list[str]) -> bool:
         return False
 
 
+# The longest failure line the Test hint shows and the store keeps.
+FAILURE_CHARS = 300
+# The most failures the Test hint lists.
+FAILURES_SHOWN = 20
+
+
+def junit_failures(path: Path) -> list[dict[str, str]]:
+    """Each failed test in a pytest `--junitxml` file: its name and the first line of its error
+    (DATABASE.md §8.5). Synthetic callers only, so a line may quote the agent's words."""
+    try:
+        root = ET.parse(path).getroot()
+    except (OSError, ET.ParseError):
+        return []
+    out: list[dict[str, str]] = []
+    for case in root.iter("testcase"):
+        for kind in ("failure", "error"):
+            found = case.find(kind)
+            if found is None:
+                continue
+            message = (found.get("message") or found.text or kind).strip()
+            first = next((line.strip() for line in message.splitlines() if line.strip()), kind)
+            out.append({"test": case.get("name") or "a test", "line": first[:FAILURE_CHARS]})
+            break
+    return out
+
+
+def script_tags(path: Path) -> dict[str, str]:
+    """A kept script's tags, from its `# key: value` header (DATABASE.md §8.4)."""
+    tags: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        m = re.fullmatch(r"#\s*([a-z_]+):\s*(\S.*?)\s*", line)
+        if not line.startswith("#"):
+            break
+        if m and m.group(1) in ("safety", "area", "ehr", "channel", "caller"):
+            tags[m.group(1)] = m.group(2)
+    return tags
+
+
+def draw_numbers(path: Path) -> dict[str, Any]:
+    """What a draw's record says about it: its shape, time, tool times, live requests and cost."""
+    events = read_events(path)
+    end = next((e for e in reversed(events) if e.get("kind") == "call_end"), {})
+    tools: dict[str, float] = {}
+    for e in events:
+        if e.get("kind") == "tool_result" and isinstance(e.get("ms"), (int, float)):
+            tools[e.get("name") or "?"] = round(tools.get(e.get("name") or "?", 0.0) + float(e["ms"]), 1)
+    return {
+        "shape_sha256": shape_digest(events),
+        "duration_ms": float(max((e.get("t_ms") or 0 for e in events), default=0)),
+        "tool_ms": json.dumps(tools),
+        "live_requests": int(((end.get("requests") or {}).get("live")) or 0),
+        "cost_usd": float(end.get("cost_usd") or 0.0),
+        "hospital": next((e.get("version") for e in events if e.get("kind") == "hospital"), None),
+    }
+
+
+def _git_commit() -> str:
+    try:
+        done = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], check=False, cwd=config.AGENT, capture_output=True, text=True, timeout=5
+        )
+        return done.stdout.strip() if done.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+async def file_test_run(state: State, run: dict[str, Any], folder: Path, request: dict[str, Any]) -> None:
+    """Send a finished run to the call store (DATABASE.md §8.3), then the records it asks for.
+    Never fails the run: without a store, nothing is filed and the hint still shows."""
+    if state.ehr is None:
+        return
+    try:
+        filed = await state.ehr.file_test_run(request)
+        if filed is None:
+            run["filed"] = {"store": False}
+            return
+        sent = 0
+        for call_id in filed["needed"]:
+            path = next(folder.rglob(f"{call_id}.jsonl"), None)
+            if path is not None and await state.ehr.file_call(call_id, path) is not None:
+                sent += 1
+        run["filed"] = {"store": True, "run_id": filed["run_id"], "records": sent, "pruned": filed["pruned"]}
+    except (EhrError, OSError, ValueError, TypeError) as e:
+        print(f"prompt: the Test run was not filed ({type(e).__name__})", file=sys.stderr, flush=True)
+        run["filed"] = {"store": False}
+
+
 async def record_and_test(state: State) -> None:
     """Record each kept script with the prompt file's words (the typed harness in record mode:
     a line already recorded costs nothing; a new one calls Claude once), then run the agent's
     tests. When every script ran and the tests pass, the recordings are stamped as made with
-    these words. Synthetic callers only: the scripts' fake patients. Counts only on the page."""
+    these words. Synthetic callers only: the scripts' fake patients.
+
+    Each draw's record goes to a temporary folder, never to agent/calls/; the run, its draws and
+    the records the store needs go to the call store (DATABASE.md §8). The page gets the counts
+    and each failed test's name and first error line (`failures`, the Test hint)."""
     started = time.time()
+    started_at = datetime.now().astimezone().isoformat(timespec="seconds")
     words = prompts.file_digest()
-    run: dict[str, Any] = {"state": "running", "scripts": [], "tests": None, "spent_usd": None}
+    run: dict[str, Any] = {"state": "running", "scripts": [], "tests": None, "spent_usd": None, "failures": [], "filed": None}
     state.recording = run
-    for script in sorted(SCRIPTS.glob("*.txt")):
-        ok = await _run([sys.executable, "harness/typed_call.py", "--script", str(script), "--no-record"])
-        run["scripts"].append({"name": script.stem, "ok": ok})
-    # Every test but the stamp's own: the stamp is written only after the others pass.
-    stamp_test = "tests/test_dev_server.py::test_the_kept_recordings_match_the_prompt_file"
-    run["tests"] = await _run([sys.executable, "-m", "pytest", "-q", "--deselect", stamp_test])
-    run["spent_usd"] = round(
-        sum(replay_cost(p) for p in config.REPLAYS.glob("*.json") if p.stat().st_mtime >= started), 4
-    )
-    passed = run["tests"] and all(s["ok"] for s in run["scripts"])
+    results: list[dict[str, Any]] = []
+    hospital: str | None = None
+    with tempfile.TemporaryDirectory(prefix="deets-test-run-") as tmp:
+        folder = Path(tmp)
+        for script in sorted(SCRIPTS.glob("*.txt")):
+            keys_file = folder / f"{script.stem}.keys.json"
+            draws = folder / "record" / script.stem
+            ok = await _run(
+                [sys.executable, "harness/typed_call.py", "--script", str(script), "--origin", "kept",
+                 "--calls", str(draws), "--keys-out", str(keys_file)]
+            )
+            run["scripts"].append({"name": script.stem, "ok": ok})
+            if not ok:
+                run["failures"].append({"test": script.stem, "line": "the script did not finish recording"})
+            record = next(draws.glob("kept_*.jsonl"), None)
+            if record is None:
+                continue
+            numbers = draw_numbers(record)
+            hospital = hospital or numbers.pop("hospital")
+            numbers.pop("hospital", None)
+            # A record draw that replayed every line is not a fresh draw: its replay draw follows.
+            if numbers["live_requests"] == 0 and ok:
+                continue
+            try:
+                keys = json.loads(keys_file.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                keys = []
+            results.append({
+                "script": script.stem, "draw": 1, "mode": "record", "passed": ok, "test": "",
+                "failure": "" if ok else "the script did not finish recording", "call_id": record.stem,
+                "tags": json.dumps(script_tags(script)), "reply_keys": sorted(set(keys)), **numbers,
+            })
+        # Every test but the stamp's own: the stamp is written only after the others pass.
+        stamp_test = "tests/test_dev_server.py::test_the_kept_recordings_match_the_prompt_file"
+        replays = folder / "replay"
+        replays.mkdir()
+        junit = folder / "junit.xml"
+        run["tests"] = await _run(
+            [sys.executable, "-m", "pytest", "-q", "--deselect", stamp_test, f"--junitxml={junit}"],
+            env={"DEETS_KEPT_DIR": str(replays)},
+        )
+        failed = junit_failures(junit)
+        run["failures"] = (run["failures"] + failed)[:FAILURES_SHOWN]
+        if not run["tests"] and not failed:
+            run["failures"].append({"test": "pytest", "line": "the tests did not finish (a time limit, or a crash before any test)"})
+        lines = folder / "replay" / "kept.jsonl"
+        by_test = {f["test"]: f["line"] for f in failed}
+        for raw in lines.read_text(encoding="utf-8").splitlines() if lines.exists() else []:
+            try:
+                kept = json.loads(raw)
+                record = replays / kept["record"]
+                numbers = draw_numbers(record)
+            except (OSError, ValueError, KeyError):
+                continue
+            numbers.pop("hospital", None)
+            script = SCRIPTS / f"{kept['script']}.txt"
+            line = by_test.get(kept["test"])
+            results.append({
+                "script": kept["script"], "draw": 1, "mode": "replay", "passed": line is None, "test": kept["test"],
+                "failure": line or "", "call_id": record.stem,
+                "tags": json.dumps(script_tags(script) if script.exists() else {}),
+                "reply_keys": [k for k in kept.get("keys", []) if isinstance(k, str)], **numbers,
+            })
+        run["spent_usd"] = round(
+            sum(replay_cost(p) for p in config.REPLAYS.glob("*.json") if p.stat().st_mtime >= started), 4
+        )
+        passed = run["tests"] and all(s["ok"] for s in run["scripts"])
+        await file_test_run(state, run, folder, {
+            "started": started_at,
+            "finished": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "run_by": "dev",
+            "words_sha256": words,
+            "prompt_version": "file",
+            "system_version": "file",
+            "hospital_version": hospital or "",
+            "llm_version": "",
+            "model": config.MODEL,
+            "git_commit": _git_commit(),
+            "tests_passed": bool(run["tests"]),
+            "cost_usd": run["spent_usd"],
+            "results": results,
+        })
     if passed and prompts.file_digest() == words:
         RECORDED_STAMP.write_text(words + "\n", encoding="utf-8")
         await _measure_costs()
@@ -1753,10 +1924,47 @@ async def _run_call(
         # so nobody types it twice. A later label from the Review panel replaces it.
         if live.label:
             try:
-                state.catalog.annotate({"call": record.call_id, "kind": "label", "text": live.label})
-            except AnnotationError:
-                pass
+                await file_annotation(state, {"call": record.call_id, "kind": "label", "text": live.label})
+            except HTTPException:
+                pass  # no store, or the call was not filed: the label is not kept
         state.broadcast({"type": "ended", "call": record.call_id})
+
+
+async def file_annotation(state: State, body: dict[str, Any]) -> None:
+    """One annotation (DATABASE.md §9): the catalog's gate and stamps, then the store through
+    ehr, then the catalog. The store is the only place it is kept: without one, 503 and nothing
+    is written. 400 names the field that does not fit."""
+    try:
+        a = state.catalog.stamp(body)
+    except AnnotationError as e:
+        raise HTTPException(400, str(e)) from None
+    if state.ehr is None:
+        raise HTTPException(503, "the store is not running")
+    try:
+        filed = await state.ehr.add_annotation(a)
+    except EhrError as e:
+        if e.kind is ErrorKind.BAD_INPUT:
+            raise HTTPException(400, "call: not in the store yet") from None
+        raise HTTPException(503, "the store did not answer") from None
+    if filed is None:
+        raise HTTPException(503, "the store is not running")
+    state.catalog.apply(a)
+
+
+async def load_annotations(state: State) -> None:
+    """Build the catalog again with the store's annotations (DATABASE.md §9). Without a store,
+    the catalog has the records only, and says so once."""
+    if state.ehr is None:
+        return
+    try:
+        found = await state.ehr.list_annotations()
+    except EhrError:
+        found = None
+    if found is None:
+        print("catalog: no store, so no labels, stars or ratings", file=sys.stderr, flush=True)
+        return
+    state.catalog.close()
+    state.catalog = Catalog(state.calls).build(found)
 
 
 async def _file(ehr: EhrClient, record: CallRecord) -> None:

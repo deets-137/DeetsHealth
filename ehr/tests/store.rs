@@ -6,7 +6,7 @@ use deetshealth_core::seal::{open_text, Place};
 use deetshealth_ehr::{
     seal_key::{AwsLc, SealKey},
     settings,
-    store::Store,
+    store::{DataClass, Store, StoreKeys},
 };
 use serde_json::json;
 use sqlx::{Connection, PgConnection};
@@ -24,6 +24,15 @@ fn key() -> SealKey {
     SealKey::from_bytes(&[9u8; 32]).unwrap()
 }
 
+/// The test key (DATABASE.md §7.4): seals the synthetic schema.
+fn test_key() -> SealKey {
+    SealKey::from_bytes(&[5u8; 32]).unwrap()
+}
+
+fn keys() -> StoreKeys {
+    StoreKeys { hospital: key(), test: test_key() }
+}
+
 #[tokio::test]
 async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
     let Ok(url) = std::env::var("DEETS_DATABASE_URL") else {
@@ -37,41 +46,41 @@ async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
     let base = url.rsplit_once('/').unwrap().0;
     let test_url = format!("{base}/{name}");
 
-    let store = Store::connect(&test_url, key()).await.unwrap();
-    assert!(store.file_record("call-a", RECORD.as_bytes()).await.unwrap(), "filed");
-    assert!(!store.file_record("call-a", RECORD.as_bytes()).await.unwrap(), "unchanged: skipped");
+    let store = Store::connect(&test_url, keys()).await.unwrap();
+    assert!(store.file_record("typed_a", RECORD.as_bytes()).await.unwrap(), "filed");
+    assert!(!store.file_record("typed_a", RECORD.as_bytes()).await.unwrap(), "unchanged: skipped");
     // The same record with Windows line ends (as Python writes it there) is the same record.
     let crlf = RECORD.replace('\n', "\r\n");
-    assert!(!store.file_record("call-a", crlf.as_bytes()).await.unwrap(), "\\r\\n is the same record");
+    assert!(!store.file_record("typed_a", crlf.as_bytes()).await.unwrap(), "\\r\\n is the same record");
 
-    let (outcome, turns): (String, i32) = sqlx::query_as("SELECT outcome, turns FROM calls WHERE id = 'call-a'")
-        .fetch_one(store.pool())
+    let (outcome, turns): (String, i32) = sqlx::query_as("SELECT outcome, turns FROM calls WHERE id = 'typed_a'")
+        .fetch_one(store.synthetic().pool())
         .await
         .unwrap();
     assert_eq!((outcome.as_str(), turns), ("abandoned", 1));
-    let lines: i64 = sqlx::query_scalar("SELECT count(*) FROM transcript_lines").fetch_one(store.pool()).await.unwrap();
-    let events: i64 = sqlx::query_scalar("SELECT count(*) FROM call_events").fetch_one(store.pool()).await.unwrap();
-    let flags: i64 = sqlx::query_scalar("SELECT count(*) FROM staff_flags").fetch_one(store.pool()).await.unwrap();
-    let reviews: i64 = sqlx::query_scalar("SELECT count(*) FROM review_flags").fetch_one(store.pool()).await.unwrap();
+    let lines: i64 = sqlx::query_scalar("SELECT count(*) FROM transcript_lines").fetch_one(store.synthetic().pool()).await.unwrap();
+    let events: i64 = sqlx::query_scalar("SELECT count(*) FROM call_events").fetch_one(store.synthetic().pool()).await.unwrap();
+    let flags: i64 = sqlx::query_scalar("SELECT count(*) FROM staff_flags").fetch_one(store.synthetic().pool()).await.unwrap();
+    let reviews: i64 = sqlx::query_scalar("SELECT count(*) FROM review_flags").fetch_one(store.synthetic().pool()).await.unwrap();
     assert_eq!((lines, events, flags, reviews), (2, 7, 1, 1));
 
     // The caller's words are sealed: no plaintext in the row, and they open only in their place.
-    let words: Vec<u8> = sqlx::query_scalar("SELECT words FROM transcript_lines WHERE call_id = 'call-a' AND seq = 2")
-        .fetch_one(store.pool())
+    let words: Vec<u8> = sqlx::query_scalar("SELECT words FROM transcript_lines WHERE call_id = 'typed_a' AND seq = 2")
+        .fetch_one(store.synthetic().pool())
         .await
         .unwrap();
     assert!(!words.windows(6).any(|w| w == b"Jordan"));
-    let at = Place { table: "transcript_lines", row: "call-a/2", column: "words" };
-    assert_eq!(&*open_text(&AwsLc, &key(), &at, &words).unwrap(), "Jordan Ellis, March 12, 1984");
+    let at = Place { table: "transcript_lines", row: "typed_a/2", column: "words" };
+    assert_eq!(&*open_text(&AwsLc, &test_key(), &at, &words).unwrap(), "Jordan Ellis, March 12, 1984");
 
     // A changed record is filed again, whole: no rows left over from the old one.
     let shorter: String = RECORD.lines().take(3).collect::<Vec<_>>().join("\n");
-    assert!(store.file_record("call-a", shorter.as_bytes()).await.unwrap());
-    let events: i64 = sqlx::query_scalar("SELECT count(*) FROM call_events").fetch_one(store.pool()).await.unwrap();
+    assert!(store.file_record("typed_a", shorter.as_bytes()).await.unwrap());
+    let events: i64 = sqlx::query_scalar("SELECT count(*) FROM call_events").fetch_one(store.synthetic().pool()).await.unwrap();
     assert_eq!(events, 3);
 
     // Annotations: each line once, by its hash.
-    let notes = "{\"kind\": \"label\", \"call\": \"call-a\", \"text\": \"a label\"}\n{\"kind\": \"keep\", \"call\": \"call-a\", \"value\": true}\n";
+    let notes = "{\"kind\": \"label\", \"call\": \"typed_a\", \"text\": \"a label\"}\n{\"kind\": \"keep\", \"call\": \"typed_a\", \"value\": true}\n";
     assert_eq!(store.file_annotations(notes.as_bytes()).await.unwrap(), 2);
     assert_eq!(store.file_annotations(notes.as_bytes()).await.unwrap(), 0);
 
@@ -133,7 +142,7 @@ async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
         assert!(sqlx::query(sql).execute(pool).await.is_err(), "insert-only: {sql}");
     }
 
-    store.pool().close().await;
+    store.close().await;
     sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
 }
 
@@ -152,7 +161,7 @@ async fn the_people_list_seals_guards_the_owner_and_keeps_removed_rows() {
     sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
     sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
     let base = url.rsplit_once('/').unwrap().0;
-    let store = Store::connect(&format!("{base}/{name}"), key()).await.unwrap();
+    let store = Store::connect(&format!("{base}/{name}"), keys()).await.unwrap();
     let pool = store.pool();
 
     // The first seed with one email: the owner. A second seed adds others, never a second owner.
@@ -195,7 +204,7 @@ async fn the_people_list_seals_guards_the_owner_and_keeps_removed_rows() {
     let back = users::list(&store).await.unwrap().into_iter().find(|u| u.id == id).unwrap();
     assert_eq!((back.name.as_str(), back.added_by.as_str()), ("Priya S.", "dash@example.com"));
 
-    store.pool().close().await;
+    store.close().await;
     sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
 }
 
@@ -211,23 +220,23 @@ fn old_aad(table: &str, row: &str, column: &str) -> Vec<u8> {
 }
 
 /// A value as a store sealed it before 2026-11-14: format 2, padded, under the old domain.
-fn seal_format_2(table: &str, row: &str, column: &str, plain: &[u8]) -> Vec<u8> {
+fn seal_format_2(with: &SealKey, table: &str, row: &str, column: &str, plain: &[u8]) -> Vec<u8> {
     use deetshealth_core::platform::Cipher;
     let mut padded = (plain.len() as u32).to_le_bytes().to_vec();
     padded.extend_from_slice(plain);
     padded.resize(deetshealth_core::seal::padded_len(4 + plain.len()), 0);
     let mut out = vec![2u8];
-    out.extend(AwsLc.seal(&key(), &old_aad(table, row, column), &padded).unwrap());
+    out.extend(AwsLc.seal(with, &old_aad(table, row, column), &padded).unwrap());
     out
 }
 
 /// The format change of 2026-11-14 (core's seal.rs, format 3): a store sealed in format 2 is
 /// sealed again at the next connect, nothing is lost, a value in the wrong place is left alone,
-/// and the list of sealed columns is the schema's.
+/// and the lists of sealed columns are the schemas'.
 #[tokio::test]
 async fn an_older_store_is_sealed_again_in_the_current_format() {
     use deetshealth_core::seal::{is_current, open};
-    use deetshealth_ehr::store::{Resealed, SEALED};
+    use deetshealth_ehr::store::{sealed_in, Resealed};
     use deetshealth_ehr::users;
     use sqlx::Row;
     let Ok(url) = std::env::var("DEETS_DATABASE_URL") else {
@@ -240,28 +249,33 @@ async fn an_older_store_is_sealed_again_in_the_current_format() {
     sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
     let base = url.rsplit_once('/').unwrap().0;
     let test_url = format!("{base}/{name}");
-    let store = Store::connect(&test_url, key()).await.unwrap();
+    let store = Store::connect(&test_url, keys()).await.unwrap();
     let pool = store.pool();
 
-    // The list is the schema's: every `bytea` column is on it, but the keyed hash a user is
-    // found by, which is not a sealed value.
-    let mut schema: Vec<(String, String)> = sqlx::query_as(
-        "SELECT table_name::text, column_name::text FROM information_schema.columns
-         WHERE table_schema = 'public' AND data_type = 'bytea' AND table_name NOT LIKE '\\_sqlx%'
-           AND (table_name, column_name) <> ('users', 'email_hash')",
-    )
-    .fetch_all(pool)
-    .await
-    .unwrap();
-    let mut listed: Vec<(String, String)> =
-        SEALED.iter().flat_map(|t| t.columns.iter().map(|c| (t.table.to_string(), c.to_string()))).collect();
-    schema.sort();
-    listed.sort();
-    assert_eq!(schema, listed, "store.rs › SEALED names every sealed column");
+    // Each schema's list is the schema's: every `bytea` column is on it, but the keyed hash a
+    // user is found by, which is not a sealed value.
+    for schema_name in ["public", "synthetic", "real"] {
+        let mut schema: Vec<(String, String)> = sqlx::query_as(
+            "SELECT table_name::text, column_name::text FROM information_schema.columns
+             WHERE table_schema = $1 AND data_type = 'bytea' AND table_name NOT LIKE '\\_sqlx%'
+               AND (table_name, column_name) <> ('users', 'email_hash')",
+        )
+        .bind(schema_name)
+        .fetch_all(pool)
+        .await
+        .unwrap();
+        let mut listed: Vec<(String, String)> = sealed_in(schema_name)
+            .iter()
+            .flat_map(|t| t.columns.iter().map(|c| (t.table.to_string(), c.to_string())))
+            .collect();
+        schema.sort();
+        listed.sort();
+        assert_eq!(schema, listed, "store.rs names every sealed column of {schema_name}");
+    }
 
     // A value in every sealed column.
-    store.file_record("call-a", RECORD.as_bytes()).await.unwrap();
-    let notes = "{\"kind\": \"label\", \"call\": \"call-a\", \"text\": \"a label\"}\n{\"kind\": \"keep\", \"call\": \"call-a\", \"value\": true}\n";
+    store.file_record("typed_a", RECORD.as_bytes()).await.unwrap();
+    let notes = "{\"kind\": \"label\", \"call\": \"typed_a\", \"text\": \"a label\"}\n{\"kind\": \"keep\", \"call\": \"typed_a\", \"value\": true}\n";
     store.file_annotations(notes.as_bytes()).await.unwrap();
     users::seed(&store, &["owner@example.com".into()]).await.unwrap();
     let id = users::add(&store, "mary@example.com", "Mary Lee", "").await.unwrap();
@@ -271,23 +285,27 @@ async fn an_older_store_is_sealed_again_in_the_current_format() {
     users::set_photo(&store, &id, &webp).await.unwrap();
     assert_eq!(store.reseal().await.unwrap(), Resealed::default(), "a current store: nothing to do");
 
-    // Turn it into a store from before the change: every value in format 2.
+    // Turn it into a store from before the change: every value in format 2, each under its
+    // schema's key. The owner login names the tables with their schema.
     let mut old_values = 0;
-    for t in SEALED {
-        let rows = sqlx::query(&format!("SELECT {} AS k, {} FROM {}", t.row, t.columns.join(", "), t.table)).fetch_all(pool).await.unwrap();
-        for r in rows {
-            let k: String = r.get("k");
-            for column in t.columns {
-                let Some(bytes) = r.get::<Option<Vec<u8>>, _>(*column) else { continue };
-                assert!(is_current(&bytes));
-                let plain = open(&AwsLc, &key(), &Place { table: t.table, row: &k, column }, &bytes).unwrap();
-                sqlx::query(&format!("UPDATE {} SET {column} = $1 WHERE {} = $2", t.table, t.row))
-                    .bind(seal_format_2(t.table, &k, column, &plain))
-                    .bind(&k)
-                    .execute(pool)
-                    .await
-                    .unwrap();
-                old_values += 1;
+    for (schema_name, with) in [("public", key()), ("synthetic", test_key())] {
+        for t in sealed_in(schema_name) {
+            let table = format!("{schema_name}.{}", t.table);
+            let rows = sqlx::query(&format!("SELECT {} AS k, {} FROM {table}", t.row, t.columns.join(", "))).fetch_all(pool).await.unwrap();
+            for r in rows {
+                let k: String = r.get("k");
+                for column in t.columns {
+                    let Some(bytes) = r.get::<Option<Vec<u8>>, _>(*column) else { continue };
+                    assert!(is_current(&bytes));
+                    let plain = open(&AwsLc, &with, &Place { table: t.table, row: &k, column }, &bytes).unwrap();
+                    sqlx::query(&format!("UPDATE {table} SET {column} = $1 WHERE {} = $2", t.row))
+                        .bind(seal_format_2(&with, t.table, &k, column, &plain))
+                        .bind(&k)
+                        .execute(pool)
+                        .await
+                        .unwrap();
+                    old_values += 1;
+                }
             }
         }
     }
@@ -297,34 +315,250 @@ async fn an_older_store_is_sealed_again_in_the_current_format() {
     assert_eq!(users::photo(&store, &id).await.unwrap().unwrap().as_slice(), webp.as_slice());
 
     // One value that belongs to another row: it must not open, and must not be lost.
-    let stray = seal_format_2("transcript_lines", "call-a/9", "words", b"another row's words");
-    sqlx::query("UPDATE transcript_lines SET words = $1 WHERE call_id = 'call-a' AND seq = 1").bind(&stray).execute(pool).await.unwrap();
+    let stray = seal_format_2(&test_key(), "transcript_lines", "typed_a/9", "words", b"another row's words");
+    sqlx::query("UPDATE synthetic.transcript_lines SET words = $1 WHERE call_id = 'typed_a' AND seq = 1").bind(&stray).execute(pool).await.unwrap();
 
     // The next connect seals it all again.
-    store.pool().close().await;
-    let store = Store::connect(&test_url, key()).await.unwrap();
+    store.close().await;
+    let store = Store::connect(&test_url, keys()).await.unwrap();
     let pool = store.pool();
     let mut current = 0;
-    for t in SEALED {
-        for column in t.columns {
-            let values: Vec<Option<Vec<u8>>> = sqlx::query_scalar(&format!("SELECT {column} FROM {}", t.table)).fetch_all(pool).await.unwrap();
-            current += values.iter().flatten().filter(|b| is_current(b)).count();
+    for schema_name in ["public", "synthetic"] {
+        for t in sealed_in(schema_name) {
+            for column in t.columns {
+                let values: Vec<Option<Vec<u8>>> =
+                    sqlx::query_scalar(&format!("SELECT {column} FROM {schema_name}.{}", t.table)).fetch_all(pool).await.unwrap();
+                current += values.iter().flatten().filter(|b| is_current(b)).count();
+            }
         }
     }
     assert_eq!(current, old_values - 1, "every value but the stray one is current");
-    let kept: Vec<u8> = sqlx::query_scalar("SELECT words FROM transcript_lines WHERE call_id = 'call-a' AND seq = 1").fetch_one(pool).await.unwrap();
+    let kept: Vec<u8> =
+        sqlx::query_scalar("SELECT words FROM synthetic.transcript_lines WHERE call_id = 'typed_a' AND seq = 1").fetch_one(pool).await.unwrap();
     assert_eq!(kept, stray, "a value that does not open keeps its bytes");
     assert_eq!(store.reseal().await.unwrap(), Resealed { values: 0, unopened: 1 }, "again: only the stray value is left");
 
     // Nothing lost: the words, the person and the picture read back.
-    let words: Vec<u8> = sqlx::query_scalar("SELECT words FROM transcript_lines WHERE call_id = 'call-a' AND seq = 2").fetch_one(pool).await.unwrap();
-    let at = Place { table: "transcript_lines", row: "call-a/2", column: "words" };
-    assert_eq!(&*open_text(&AwsLc, &key(), &at, &words).unwrap(), "Jordan Ellis, March 12, 1984");
+    let words: Vec<u8> =
+        sqlx::query_scalar("SELECT words FROM synthetic.transcript_lines WHERE call_id = 'typed_a' AND seq = 2").fetch_one(pool).await.unwrap();
+    let at = Place { table: "transcript_lines", row: "typed_a/2", column: "words" };
+    assert_eq!(&*open_text(&AwsLc, &test_key(), &at, &words).unwrap(), "Jordan Ellis, March 12, 1984");
     let mary = users::list(&store).await.unwrap().into_iter().find(|u| u.id == id).unwrap();
     assert_eq!((mary.email.as_str(), mary.name.as_str(), mary.phone.as_str()), ("mary@example.com", "Mary Lee", "+15552345678"));
     assert_eq!(users::photo(&store, &id).await.unwrap().unwrap().as_slice(), webp.as_slice());
 
-    store.pool().close().await;
+    store.close().await;
+    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+}
+
+/// Synthetic and real kept apart (DATABASE.md §7): the class pool sees its schema only, the
+/// checks hold, the two schemas have the same columns, and the rows sealed under the hospital
+/// key before migration 0010 move to the test key once.
+#[tokio::test]
+async fn synthetic_and_real_rows_are_kept_apart() {
+    use deetshealth_core::seal::seal;
+    let Ok(url) = std::env::var("DEETS_DATABASE_URL") else {
+        eprintln!("skipped: DEETS_DATABASE_URL is not set");
+        return;
+    };
+    let mut admin = PgConnection::connect(&url).await.unwrap();
+    let name = format!("deets_class_test_{}", std::process::id());
+    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    let base = url.rsplit_once('/').unwrap().0;
+    let test_url = format!("{base}/{name}");
+    let store = Store::connect(&test_url, keys()).await.unwrap();
+    let synthetic = store.synthetic().pool();
+
+    // The synthetic pool cannot name a real table, nor the people list.
+    for sql in ["SELECT count(*) FROM real.calls", "SELECT count(*) FROM public.users", "SELECT count(*) FROM real.annotations"] {
+        assert!(sqlx::query(sql).execute(synthetic).await.is_err(), "the synthetic role must not read: {sql}");
+    }
+    assert!(store.class(DataClass::Real).is_none(), "a dev machine has no real store");
+    let real = RECORD.replace("\"source\": \"typed\"", "\"source\": \"live\", \"data_class\": \"real\"");
+    assert!(store.file_record("live_a", real.as_bytes()).await.is_err(), "no real store: refused");
+
+    // The id starts with its origin; a real row is only a live one; a synthetic row stays synthetic.
+    assert!(store.file_record("test_a", RECORD.as_bytes()).await.is_err(), "a typed record under a test id");
+    assert!(store.file_record("typed_a", RECORD.as_bytes()).await.unwrap());
+    let owner = store.pool();
+    for sql in [
+        "INSERT INTO real.calls (id, schema_version, origin, outcome, record_sha256) VALUES ('test_x', 1, 'test', 'ended', 'x')",
+        "INSERT INTO synthetic.calls (id, schema_version, origin, outcome, record_sha256, data_class) VALUES ('live_x', 1, 'live', 'ended', 'x', 'real')",
+        "INSERT INTO synthetic.calls (id, schema_version, origin, outcome, record_sha256) VALUES ('kept_x', 1, 'test', 'ended', 'x')",
+        "INSERT INTO synthetic.calls (id, schema_version, origin, outcome, record_sha256) VALUES ('demo_x', 1, 'demo', 'ended', 'x')",
+    ] {
+        assert!(sqlx::query(sql).execute(owner).await.is_err(), "the checks must refuse: {sql}");
+    }
+    sqlx::query("INSERT INTO real.calls (id, schema_version, origin, outcome, record_sha256) VALUES ('live_x', 1, 'live', 'ended', 'x')")
+        .execute(owner)
+        .await
+        .unwrap();
+    let by_class: Vec<(String, String)> = sqlx::query_as("SELECT id, data_class FROM public.calls_by_class ORDER BY id").fetch_all(owner).await.unwrap();
+    assert_eq!(by_class, vec![("live_x".into(), "real".into()), ("typed_a".into(), "synthetic".into())]);
+
+    // One template: the two schemas' call tables have the same columns.
+    let columns = |schema: &'static str| {
+        sqlx::query_as::<_, (String, String, String)>(
+            "SELECT table_name::text, column_name::text, data_type::text FROM information_schema.columns
+             WHERE table_schema = $1 AND table_name NOT LIKE 'test\\_%' ORDER BY 1, 2",
+        )
+        .bind(schema)
+        .fetch_all(owner)
+    };
+    assert_eq!(columns("synthetic").await.unwrap(), columns("real").await.unwrap(), "a change to a call table is made in both schemas");
+
+    // The move to the test key: a store from before 0010 had its call rows under the hospital key.
+    let row = "typed_a/2";
+    let old = seal(&AwsLc, &key(), &Place { table: "transcript_lines", row, column: "words" }, b"under the old key").unwrap();
+    sqlx::query("UPDATE synthetic.transcript_lines SET words = $1 WHERE call_id = 'typed_a' AND seq = 2").bind(&old).execute(owner).await.unwrap();
+    sqlx::query("DELETE FROM store_meta").execute(owner).await.unwrap();
+    store.close().await;
+    let store = Store::connect(&test_url, keys()).await.unwrap();
+    let moved: Vec<u8> =
+        sqlx::query_scalar("SELECT words FROM transcript_lines WHERE call_id = 'typed_a' AND seq = 2").fetch_one(store.synthetic().pool()).await.unwrap();
+    let at = Place { table: "transcript_lines", row, column: "words" };
+    assert_eq!(&*open_text(&AwsLc, &test_key(), &at, &moved).unwrap(), "under the old key", "moved to the test key");
+    assert!(open_text(&AwsLc, &key(), &at, &moved).is_err(), "the hospital key no longer opens it");
+    let marked: i64 = sqlx::query_scalar("SELECT count(*) FROM store_meta WHERE key = 'key.synthetic'").fetch_one(store.pool()).await.unwrap();
+    assert_eq!(marked, 1, "the move is done once");
+
+    store.close().await;
+    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+}
+
+/// The kept scripts' runs (DATABASE.md §8): a run files its draws; a passing replay draw with the
+/// same shape as the last filed draw files no record (option C); a changed or failed draw does;
+/// the failure line is sealed; the retention pass keeps the newest words versions and stars.
+#[tokio::test]
+async fn a_test_run_files_its_draws_and_reuses_a_same_shape_record() {
+    use deetshealth_ehr::store::{Annotation, TestResult, TestRun};
+    use zeroize::Zeroizing;
+    let Ok(url) = std::env::var("DEETS_DATABASE_URL") else {
+        eprintln!("skipped: DEETS_DATABASE_URL is not set");
+        return;
+    };
+    let mut admin = PgConnection::connect(&url).await.unwrap();
+    let name = format!("deets_runs_test_{}", std::process::id());
+    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    let base = url.rsplit_once('/').unwrap().0;
+    let store = Store::connect(&format!("{base}/{name}"), keys()).await.unwrap();
+    let synthetic = store.synthetic();
+    let kept = RECORD.replace("\"source\": \"typed\"", "\"source\": \"kept\"");
+    let words = |n: u8| format!("{n:02x}").repeat(32);
+    let draw = |id: &str, shape: &str, passed: bool| TestResult {
+        script: "book_a_visit".into(),
+        draw: 1,
+        mode: "replay".into(),
+        passed,
+        test: "test_book_a_visit".into(),
+        failure: (!passed).then(|| Zeroizing::new("AssertionError: the visit should be booked".to_string())),
+        call_id: id.into(),
+        shape_sha256: shape.into(),
+        duration_ms: 812.5,
+        tool_ms: "{\"book\": 3.1}".into(),
+        tags: "{\"safety\": \"no\", \"area\": \"book\"}".into(),
+        reply_keys: vec!["0d2fb76ec51e2f9b373536be8e443316".into()],
+        ..Default::default()
+    };
+    let run = |w: u8, results: Vec<TestResult>| TestRun {
+        started: format!("2026-11-15T20:{w:02}:00Z"),
+        run_by: "dev".into(),
+        words_sha256: words(w),
+        tests_passed: true,
+        results,
+        ..Default::default()
+    };
+
+    // The first run: no earlier draw, so the store needs the record.
+    let first = synthetic.file_test_run(&run(1, vec![draw("kept_1", &"a".repeat(64), true)])).await.unwrap();
+    assert_eq!(first.needed, vec!["kept_1".to_string()]);
+    synthetic.file_record("kept_1", kept.as_bytes()).await.unwrap();
+    // The same shape again: reused, no record.
+    let second = synthetic.file_test_run(&run(1, vec![draw("kept_2", &"a".repeat(64), true)])).await.unwrap();
+    assert!(second.needed.is_empty(), "a passing draw of the same shape files no record");
+    let (call, reused): (Option<String>, bool) = sqlx::query_as("SELECT call_id, reused FROM test_results WHERE run_id = $1")
+        .bind(second.run_id)
+        .fetch_one(synthetic.pool())
+        .await
+        .unwrap();
+    assert_eq!((call.as_deref(), reused), (Some("kept_1"), true));
+    // A changed shape, and a failure: both need their records; the failure line is sealed.
+    let third = synthetic.file_test_run(&run(1, vec![draw("kept_3", &"b".repeat(64), true)])).await.unwrap();
+    assert_eq!(third.needed, vec!["kept_3".to_string()]);
+    let fourth = synthetic.file_test_run(&run(1, vec![draw("kept_4", &"a".repeat(64), false)])).await.unwrap();
+    assert_eq!(fourth.needed, vec!["kept_4".to_string()]);
+    let failure: Vec<u8> = sqlx::query_scalar("SELECT failure FROM test_results WHERE run_id = $1").bind(fourth.run_id).fetch_one(synthetic.pool()).await.unwrap();
+    assert!(!String::from_utf8_lossy(&failure).contains("booked"), "the failure line is sealed");
+    let (scripts, failed): (i32, i32) = sqlx::query_as("SELECT scripts, failed FROM test_runs WHERE id = $1").bind(fourth.run_id).fetch_one(synthetic.pool()).await.unwrap();
+    assert_eq!((scripts, failed), (1, 1));
+    // A draw's id must be a kept one.
+    assert!(synthetic.file_test_run(&run(1, vec![draw("test_9", &"c".repeat(64), true)])).await.is_err());
+
+    // Retention: three newer words versions push kept_1 out, unless it is starred.
+    let star = Annotation { call_id: "kept_1".into(), kind: "keep".into(), at: "2026-11-15T20:05:00".into(), keep: Some(true), ..Default::default() };
+    assert!(synthetic.add_annotation(&star).await.unwrap());
+    for w in 2..=4 {
+        synthetic.file_test_run(&run(w, vec![])).await.unwrap();
+    }
+    assert!(synthetic.has_call("kept_1").await.unwrap(), "a starred kept record stays");
+    let unstar = Annotation { at: "2026-11-15T20:06:00".into(), keep: Some(false), ..star.clone() };
+    synthetic.add_annotation(&unstar).await.unwrap();
+    let pruned = synthetic.file_test_run(&run(5, vec![])).await.unwrap().pruned;
+    assert_eq!(pruned, 1, "kept_1 goes once unstarred; kept_3 was never filed");
+    assert!(!synthetic.has_call("kept_1").await.unwrap());
+    let runs: i64 = sqlx::query_scalar("SELECT count(*) FROM test_runs").fetch_one(synthetic.pool()).await.unwrap();
+    assert_eq!(runs, 8, "the runs themselves are kept (the refused one rolled back)");
+
+    store.close().await;
+    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+}
+
+/// Annotations from the console (DATABASE.md §9): filed once in the call's class, sealed, read
+/// back opened; a call the store does not hold is refused.
+#[tokio::test]
+async fn an_annotation_is_filed_once_and_read_back() {
+    use deetshealth_ehr::store::Annotation;
+    use zeroize::Zeroizing;
+    let Ok(url) = std::env::var("DEETS_DATABASE_URL") else {
+        eprintln!("skipped: DEETS_DATABASE_URL is not set");
+        return;
+    };
+    let mut admin = PgConnection::connect(&url).await.unwrap();
+    let name = format!("deets_notes_test_{}", std::process::id());
+    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    let base = url.rsplit_once('/').unwrap().0;
+    let store = Store::connect(&format!("{base}/{name}"), keys()).await.unwrap();
+    store.file_record("typed_a", RECORD.as_bytes()).await.unwrap();
+    let synthetic = store.synthetic();
+    let rating = Annotation {
+        call_id: "typed_a".into(),
+        kind: "rating".into(),
+        at: "2026-11-15T20:00:00".into(),
+        grader_kind: Some("human".into()),
+        grader: Some("owner".into()),
+        dimension: Some("phone_style".into()),
+        verdict: Some("pass".into()),
+        score: Some(4),
+        rubric_version: Some("2026-11-12".into()),
+        words: Some(Zeroizing::new("short and clear".into())),
+        ..Default::default()
+    };
+    assert!(synthetic.add_annotation(&rating).await.unwrap());
+    assert!(!synthetic.add_annotation(&rating).await.unwrap(), "the same annotation is filed once");
+    let sealed: Vec<u8> = sqlx::query_scalar("SELECT words FROM annotations").fetch_one(synthetic.pool()).await.unwrap();
+    assert!(!String::from_utf8_lossy(&sealed).contains("clear"));
+    let back = synthetic.list_annotations().await.unwrap();
+    assert_eq!(back.len(), 1);
+    assert_eq!(back[0], rating, "read back as it went in");
+    let missing = Annotation { call_id: "typed_zzz".into(), ..rating.clone() };
+    assert!(synthetic.add_annotation(&missing).await.is_err(), "no such call");
+    assert!(store.class_of_call("typed_a").await.unwrap().is_some());
+    assert!(store.class_of_call("typed_zzz").await.unwrap().is_none());
+
+    store.close().await;
     sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
 }
 
@@ -343,7 +577,7 @@ async fn a_card_saves_sealed_moves_its_email_and_keeps_a_picture() {
     sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
     sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
     let base = url.rsplit_once('/').unwrap().0;
-    let store = Store::connect(&format!("{base}/{name}"), key()).await.unwrap();
+    let store = Store::connect(&format!("{base}/{name}"), keys()).await.unwrap();
     let pool = store.pool();
 
     users::seed(&store, &["owner@example.com".into()]).await.unwrap();
@@ -445,6 +679,6 @@ async fn a_card_saves_sealed_moves_its_email_and_keeps_a_picture() {
     assert!(users::photo(&store, &id).await.unwrap().is_none());
     assert_eq!(users::photo(&store, &gone).await.err(), Some(UsersError::NotFound));
 
-    store.pool().close().await;
+    store.close().await;
     sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
 }

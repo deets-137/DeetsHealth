@@ -15,7 +15,7 @@ from deets_agent import config
 _LISTENING = re.compile(r"^ehr listening on (\S+)$")
 
 
-_STORE_KEYS = ("DEETS_DATABASE_URL", "DEETS_SEAL_KEY_FILE")
+_STORE_KEYS = ("DEETS_DATABASE_URL", "DEETS_SEAL_KEY_FILE", "DEETS_TEST_SEAL_KEY_FILE")
 
 
 def store_env() -> dict[str, str]:

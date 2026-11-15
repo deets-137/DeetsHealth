@@ -13,9 +13,10 @@
 //!
 //!     ehr ingest [--calls DIR]
 //!
-//! - Files the dev call records and annotations in DIR (default `agent/calls`) into the call
-//!   store (store.rs; DATABASE.md): `DEETS_DATABASE_URL` and the dev sealing key file
-//!   `DEETS_SEAL_KEY_FILE`, both set by scripts/postgres.mjs. Idempotent.
+//! - Files the dev call records in DIR (default `agent/calls`), and the retired annotations file
+//!   if it is there, into the call store (store.rs; DATABASE.md): `DEETS_DATABASE_URL`, and the
+//!   dev key files `DEETS_SEAL_KEY_FILE` (the hospital key) and `DEETS_TEST_SEAL_KEY_FILE` (the
+//!   test key, DATABASE.md §7.4), all set by scripts/postgres.mjs. Idempotent.
 //!
 //!     ehr epic-check
 //!
@@ -53,7 +54,7 @@ use deetshealth_ehr::{
     scheduler::FakeScheduler,
     seal_key::SealKey,
     service::EhrService,
-    store::Store,
+    store::{Store, StoreKeys},
     texts::{TwilioCodes, TwilioConfig},
     transport,
     verify::{Codes, FakeCodes, FakePatients},
@@ -92,15 +93,26 @@ async fn ingest(mut args: impl Iterator<Item = String>) -> Result<(), String> {
         }
     }
     let url = std::env::var("DEETS_DATABASE_URL").map_err(|_| "DEETS_DATABASE_URL is not set (npm run db:ingest sets it)")?;
-    let key_file = std::env::var("DEETS_SEAL_KEY_FILE").map_err(|_| "DEETS_SEAL_KEY_FILE is not set (npm run db:ingest sets it)")?;
-    let key = SealKey::from_dev_file(&PathBuf::from(key_file))?;
-    let store = Store::connect(&url, key).await?;
+    let store = Store::connect(&url, store_keys()?).await?;
     let filed = store.file_dir(&calls).await?;
     println!(
         "ehr ingest: {} calls filed, {} unchanged, {} new annotation lines",
         filed.calls, filed.unchanged, filed.annotations
     );
+    if filed.skipped > 0 {
+        println!("ehr ingest: {} records from before the id prefixes were not filed (DATABASE.md §7.5)", filed.skipped);
+    }
     Ok(())
+}
+
+/// The store's two dev keys (DATABASE.md §7.4): the hospital key and the test key, each a file
+/// that scripts/postgres.mjs makes. A deploy refuses key files.
+fn store_keys() -> Result<StoreKeys, String> {
+    let file = |var: &str| -> Result<SealKey, String> {
+        let path = std::env::var(var).map_err(|_| format!("{var} is not set (scripts/postgres.mjs sets it)"))?;
+        SealKey::from_dev_file(&PathBuf::from(path))
+    };
+    Ok(StoreKeys { hospital: file("DEETS_SEAL_KEY_FILE")?, test: file("DEETS_TEST_SEAL_KEY_FILE")? })
 }
 
 /// `ehr epic-check`: step E-2 against Epic's sandbox (EPIC.md §5). About five requests: the
@@ -480,17 +492,17 @@ async fn open_epic() -> Option<Arc<EpicSandbox>> {
 /// down, ehr serves calls without a store and says so once on stderr: FileCall is refused and
 /// the next `ehr ingest` files the records it missed.
 async fn open_store() -> Option<Arc<Store>> {
-    let (Ok(url), Ok(key_file)) = (std::env::var("DEETS_DATABASE_URL"), std::env::var("DEETS_SEAL_KEY_FILE")) else {
+    let Ok(url) = std::env::var("DEETS_DATABASE_URL") else {
         return None;
     };
-    let key = match SealKey::from_dev_file(&PathBuf::from(key_file)) {
-        Ok(key) => key,
+    let keys = match store_keys() {
+        Ok(keys) => keys,
         Err(e) => {
             eprintln!("ehr: no call store: {e}");
             return None;
         }
     };
-    match Store::connect(&url, key).await {
+    match Store::connect(&url, keys).await {
         Ok(store) => Some(Arc::new(store)),
         Err(e) => {
             eprintln!("ehr: no call store: {e}");

@@ -28,6 +28,9 @@ const data = join(home, "data");
 const passwordFile = join(home, "password");
 // The dev sealing key: 32 random bytes, made once (ehr/src/seal_key.rs). The cloud uses a KMS key.
 const sealKeyFile = join(home, "seal.key");
+// The test key: seals the synthetic schema (DATABASE.md §7.4), so a leak from the test side opens
+// nothing real. Made once, like the other.
+const testSealKeyFile = join(home, "seal-test.key");
 const log = join(home, "log");
 // DEETS_EHR_BIN points at another build, for when a running dev server holds this one.
 const ehrBin =
@@ -121,6 +124,7 @@ export async function ensurePostgres() {
   }
   if (!existsSync(data) || readdirSync(data).length === 0) init(bin);
   if (!existsSync(sealKeyFile)) writeFileSync(sealKeyFile, randomBytes(32), { mode: 0o600 });
+  if (!existsSync(testSealKeyFile)) writeFileSync(testSealKeyFile, randomBytes(32), { mode: 0o600 });
   const password = readFileSync(passwordFile, "utf8").trim();
 
   let port = runningPort(bin);
@@ -147,7 +151,7 @@ export async function ensurePostgres() {
     if (made.status !== 0) return { error: `could not make the database: ${made.stderr.trim()}` };
   }
   const url = `postgresql://${ROLE}:${password}@127.0.0.1:${port}/${DATABASE}`;
-  const storeEnv = { DEETS_DATABASE_URL: url, DEETS_SEAL_KEY_FILE: sealKeyFile };
+  const storeEnv = { DEETS_DATABASE_URL: url, DEETS_SEAL_KEY_FILE: sealKeyFile, DEETS_TEST_SEAL_KEY_FILE: testSealKeyFile };
   // For ehr when it is not started by `npm run dev` (a typed call run by hand): the agent reads
   // this git-ignored file (agent/deets_agent/ehr_process.py `store_env`). Rewritten at each start,
   // so a new port is always in it.

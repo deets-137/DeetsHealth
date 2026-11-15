@@ -18,7 +18,7 @@ use crate::{
     visits::{narrow, Found, Narrow},
     session::{Pending, PatientKey, Refusal, Sessions, Source, Stage, Token},
     settings,
-    store::Store,
+    store::{self, Store},
     users,
     verify::{one_match, Candidate, Codes, Down, Patients},
 };
@@ -247,6 +247,8 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         req: Request<pb::OpenCallRequest>,
     ) -> Result<Response<pb::OpenCallReply>, Status> {
         let source = edge::source(req.get_ref())?;
+        // A synthetic call reaches only a sandbox; a real one only a production EHR.
+        edge::data_class(req.get_ref(), source)?;
         if source == Source::EpicSandbox {
             self.epic()?;
         }
@@ -630,9 +632,47 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             record.push(b'\n');
         }
         let id = id.ok_or_else(|| Status::invalid_argument("an empty record"))?;
+        if store::origin_of(&id).is_none() {
+            return Err(Status::invalid_argument("call_id: does not start with its origin"));
+        }
+        let class = store::record_class(&record).map_err(|_| Status::invalid_argument("the record's data_class"))?;
         let store = self.store.as_ref().ok_or_else(|| Status::failed_precondition("ehr runs without a store"))?;
+        let store = store.class(class).ok_or_else(|| Status::failed_precondition("no real store on this ehr"))?;
         let filed = store.file_record(&id, &record).await.map_err(|_| Status::internal("the store could not file the call"))?;
         Ok(Response::new(pb::FileCallReply { filed }))
+    }
+
+    async fn file_test_run(&self, req: Request<pb::FileTestRunRequest>) -> Result<Response<pb::FileTestRunReply>, Status> {
+        // Checked first, so a bad run is refused the same way with or without a store.
+        let run = edge::test_run(req.into_inner())?;
+        let store = self.settings_store()?;
+        let filed = store.synthetic().file_test_run(&run).await.map_err(|_| Status::internal("the store could not file the run"))?;
+        Ok(Response::new(pb::FileTestRunReply {
+            run_id: filed.run_id,
+            needed: filed.needed,
+            pruned: i32::try_from(filed.pruned).unwrap_or(i32::MAX),
+        }))
+    }
+
+    async fn add_annotation(&self, req: Request<pb::Annotation>) -> Result<Response<pb::AddAnnotationReply>, Status> {
+        let a = edge::annotation(req.into_inner())?;
+        let store = self.settings_store()?;
+        // The class of the call it names: a real call's note is sealed with real rows.
+        let class = match store.class_of_call(&a.call_id).await.map_err(|_| Status::internal("the store could not find the call"))? {
+            Some(class) => class,
+            None if store::origin_of(&a.call_id) == Some("live") && store.class(store::DataClass::Real).is_none() => {
+                return Err(Status::failed_precondition("no real store on this ehr"));
+            }
+            None => return Err(Status::not_found("call_id: no such call")),
+        };
+        let filed = class.add_annotation(&a).await.map_err(|_| Status::internal("the store could not file the annotation"))?;
+        Ok(Response::new(pb::AddAnnotationReply { filed }))
+    }
+
+    async fn list_annotations(&self, _: Request<pb::ListAnnotationsRequest>) -> Result<Response<pb::ListAnnotationsReply>, Status> {
+        let store = self.settings_store()?;
+        let found = store.synthetic().list_annotations().await.map_err(|_| Status::internal("the store could not read the annotations"))?;
+        Ok(Response::new(pb::ListAnnotationsReply { annotations: found.into_iter().map(edge::annotation_out).collect() }))
     }
 
     async fn list_setting_versions(
@@ -1379,6 +1419,9 @@ mod tests {
         // The contract marks these; a change to ehr.proto changes this list on purpose.
         let want = [
             ("FileCallLine", "line"),
+            // A kept-script draw's failure line and an annotation's words (DATABASE.md §8, §9).
+            ("TestRunResult", "failure"),
+            ("Annotation", "words"),
             ("OpenCallReply", "handle"),
             ("CloseCallRequest", "handle"),
             ("IdentifyRequest", "handle"),

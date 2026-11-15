@@ -1,3 +1,8 @@
+# safety: no
+# area: off-topic
+# ehr: local
+# channel: text
+# caller: cooperative
 # A typed call: the caller asks off-topic questions (the owner's desk test, 2026-11-11: "17+6?",
 # "how do I say hello world in python"). The agent answers none of them, gently steers back to
 # visits, and ends the call on goodbye. The invented-value check fails the test if the model

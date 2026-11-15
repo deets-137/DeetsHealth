@@ -18,6 +18,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import grpc
 
@@ -263,7 +264,14 @@ class EhrClient:
         source = {"local": pb.EHR_SOURCE_LOCAL, "epic": pb.EHR_SOURCE_EPIC_SANDBOX}[ehr]
         reply = await self._call(
             "OpenCall",
-            pb.OpenCallRequest(ehr=source, prompt_version=prompt_version, system_version=system_version),
+            # Every call this agent opens today is synthetic (DATABASE.md §7.5): ehr lets it reach
+            # a sandbox only.
+            pb.OpenCallRequest(
+                ehr=source,
+                prompt_version=prompt_version,
+                system_version=system_version,
+                data_class=pb.DATA_CLASS_SYNTHETIC,
+            ),
             left=lambda r: {"identify": r.identifies_left, "resend": r.resends_left, "code": r.code_tries_left},
         )
         self._clocks[reply.handle] = (reply.local_now, reply.zone)
@@ -328,6 +336,73 @@ class EhrClient:
                 return None
             raise EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), "FileCall") from None
         return reply.filed
+
+    # ---- the kept scripts' runs and the annotations (DATABASE.md §8, §9) ----
+
+    async def file_test_run(self, run: dict[str, Any]) -> dict[str, Any] | None:
+        """File one run of the kept scripts. `run` holds FileTestRunRequest's fields, its
+        `results` a list of TestRunResult's. Returns `run_id`, `needed` (the call ids whose
+        records to send with `file_call`) and `pruned`; None when ehr runs without a store."""
+        results = [pb.TestRunResult(**r) for r in run.get("results", [])]
+        request = pb.FileTestRunRequest(**{k: v for k, v in run.items() if k != "results"}, results=results)
+        try:
+            reply = await self._settings_call("FileTestRun", request)
+        except _NoStore:
+            return None
+        return {"run_id": reply.run_id, "needed": list(reply.needed), "pruned": reply.pruned}
+
+    async def add_annotation(self, a: dict[str, Any]) -> bool | None:
+        """File one checked and stamped annotation (catalog.py › check_annotation) in the store.
+        True when filed, False when the same one was filed before, None without a store.
+        EhrError BAD_INPUT for a call the store does not hold."""
+        rating = a["kind"] == "rating"
+        words = a.get("text") if a["kind"] in ("label", "note") else a.get("note") if rating else None
+        request = pb.Annotation(
+            call_id=a["call"],
+            kind=a["kind"],
+            at=a["at"],
+            grader_kind=a.get("grader_kind") or "",
+            grader=a.get("grader") or "",
+            dimension=a.get("dimension") or "",
+            verdict=a.get("verdict") or "",
+            score=a["score"] if rating and isinstance(a.get("score"), int) else -1,
+            rubric_version=(a.get("rubric_version") or "") if rating else "",
+            keep=bool(a.get("value")) if a["kind"] == "keep" else False,
+            words=words or "",
+            has_words=words is not None,
+        )
+        try:
+            reply = await self._stub.AddAnnotation(request, timeout=DEADLINE_S)
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.FAILED_PRECONDITION:
+                return None
+            # NOT_FOUND: the store does not hold the call (not filed yet).
+            kind = ErrorKind.BAD_INPUT if e.code() == grpc.StatusCode.NOT_FOUND else _KINDS.get(e.code(), ErrorKind.OTHER)
+            raise EhrError(kind, "AddAnnotation") from None
+        return reply.filed
+
+    async def list_annotations(self) -> list[dict[str, Any]] | None:
+        """Every annotation of the synthetic class, oldest first, in the catalog's line shape
+        (the shape `check_annotation(..., stamped=True)` takes). None without a store."""
+        try:
+            reply = await self._settings_call("ListAnnotations", pb.ListAnnotationsRequest())
+        except _NoStore:
+            return None
+        out: list[dict[str, Any]] = []
+        for a in reply.annotations:
+            line: dict[str, Any] = {"kind": a.kind, "call": a.call_id, "at": a.at}
+            if a.kind in ("label", "note"):
+                line["text"] = a.words if a.has_words else ""
+            elif a.kind == "keep":
+                line["value"] = a.keep
+            else:
+                line.update(grader_kind=a.grader_kind, grader=a.grader, dimension=a.dimension, verdict=a.verdict)
+                line["score"] = a.score if a.score >= 0 else None
+                line["rubric_version"] = a.rubric_version
+                if a.has_words:
+                    line["note"] = a.words
+            out.append(line)
+        return out
 
     # ---- the settings store (CONSOLE.md §7.3) ----
 

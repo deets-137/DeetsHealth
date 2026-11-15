@@ -1,0 +1,155 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch5VhHh3XgHxjDTeZAnWQ",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 44
+     },
+     "cache_creation_input_tokens": 44,
+     "cache_read_input_tokens": 3521,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 3,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSxgYKEAgTGAI4AUIIdGhpbmtpbmcSDG99hHHpa/iHAdKNFhoMBKli82dUYnQTovMsIjDjeEMqvFVWQd8DX4UHKzT8Uyh6+yVh9wb3eNSe6NoxNrV4fFHh7QYBK5m2UbgCG3Mq4wUyZYExCNWTh4owo6okovLfs4zzyidINOzyCdzCighLt8vur09auUo/ezPNpyDosDHfyb3ag271RdHwbNSBlSNOfUyu1RHcLqxZpvSrKUrf0IsepXC8qODdeYUcQKAw3el6E9muvGP77m+oyFH7AenW40VaZ2h1cIXZ72ZW1Y50u9b0DwtlhoMdaNA6UTFdz9YemlCVrpcgSFn2kooJuHDjaVt+T/n8gELAu0NOcayxWN4OvbCpWJgxGitr+IyCGNn3a7VGL/KokLMhG0bTlsnMsokLZvhvRSnKw7MjdOMheV/OArNPnMNymD9eN5veB36JwSHCFCcE9uef93jD9IipoB9gFBxg/Vk5UZveE6SCyxCvjOyPKOo2ocG/SxOMcFD262xXuJELSSFB/YNV9KAXelOyO1A8VTAr/bwUBYtpx7NmRqYC8vLgd9zgkf3YK/x0ATVyM39HKvPGLPcjfPlrDD2L2KP58llKM/VSdrVxKE7qxi9BFwUESbJhFp87Nf7g78SptvEO5LT5ys4vAQQHGGU6JcwPJ2xdpI7t3s7s2gf+/Uh+feurKCD2IhlY6ivRheLK1ORfKsXdo5eXr1OT3KFc2qPwPsu+JvaNvvnNv8opYG9sWj+geMF9VUYhVJB+dHpMqAHHGSPp/yadObtoWpaMm66DFbruWkbSTxI7f4JKdsCoEo7GZ5c5e7B7NCMyQ+D5Ke+p3q44mhx2S8VGghxlhMgRcKZF1zmqQcCWkbBi6boUxIAKIoSWfZc7iU0xOQrP1/XvdEDJKF6O5B08DoF4o8xmeGebGLpiZS1d+wxCmSq/EcRXKV1PYPchfNAZ700gfZb+0Vnv9GpRlO8iRSsJ+1x4aWjB2NKeo9cK/IsyDFbcBhJKv8eGuWv35YXcEXHigbbIoGC8LHByDiX3Jd6H/0LTlw2C3w4NwQGg1zKlVIa9IrlQkaN5yvXuwcBMCj5khd45IrBFwpcMnm1qCMoMGAE=",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "I can",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " only help with vis",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "its at",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " this clinic. Do you",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " want",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " to book a visit or hear",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " about one you have?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 44,
+    "cache_read_input_tokens": 3521,
+    "input_tokens": 4,
+    "output_tokens": 79,
+    "output_tokens_details": {
+     "thinking_tokens": 47
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

@@ -104,7 +104,8 @@ the branch `archive/patient-app`.
   ledger in EHR-SERVICE.md §3 and the code in step; a new route or RPC needs its row.
 - `DATABASE.md` — the dev database shaped like the production store: native Postgres that
   `npm run dev` starts (`scripts/postgres.mjs`), the writer rule, the Chat page's contract, the
-  draft schema, and the work to be demo ready in the cloud.
+  draft schema, the work to be demo ready in the cloud, synthetic and real rows kept apart
+  (schemas, roles, keys, id prefixes), the kept scripts' runs, and the annotations in the store.
 - `FLAGS.md` — staff flags: the agent marks a call for a nurse, silent to the caller, with the
   model's summary and the caller's own words as evidence (checked by code). Settings:
   FUTURE-SETTINGS.md §5.

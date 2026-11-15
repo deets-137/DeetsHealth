@@ -1,3 +1,8 @@
+# safety: no
+# area: change
+# ehr: local
+# channel: text
+# caller: cooperative
 # A typed call, from the owner's test call of 2026-11-12 (12:58): the caller books option 2,
 # then asks for option 3 instead. The agent cannot change a booking, so the caller hears that
 # the first visit stays booked and goes to a person, with a flag; nothing else is booked.

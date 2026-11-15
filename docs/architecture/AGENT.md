@@ -299,6 +299,19 @@ for something the agent cannot do: the offer of a person, a "no", and the call g
     `ehr` outcomes) are safer; word checks belong to fixed lines.
   - **A failed run says little:** the console shows counts; the reason is in output the dev
     server discards (`_run` sends it to DEVNULL).
+  - **Built 2026-11-15 (the owner: "build … the kept-script … fixes"): steps 1 and 3.** Step
+    1: each failed test's name and first error line reach the Test hint (`junit_failures` in
+    `dev_server.py`, from pytest's `--junitxml`; DATABASE.md §8.5). Step 3: every kept-script
+    test checks events (the tools called, ehr's answers, the staff flags; the `Draw` helper in
+    `test_typed_call.py`); words are checked only on fixed lines. Each draw now writes its
+    record (origin `kept`), and a Test run goes to the call store (DATABASE.md §8).
+  - **Found on 2026-11-15, when the tool names went into backticks:** with `` `check_code` ``
+    and the other names backticked in `task.verify`, `read_back_correction` failed 4 of 4 fresh
+    draws (the model asked for the code again instead of calling `check_code`); with
+    `task.verify` plain it passed 2 of 2. Every other section is backticked and its scripts pass.
+    The owner chose B (a backticked wording, tested): `task.verify` now says that digits from the
+    caller are the code and to use `` `check_code` `` at once, in that same reply. With it,
+    `read_back_correction` passed 6 of 6 fresh draws, and all 15 scripts pass.
   - **The plan, in order (each small; the owner picks the first in the morning):** (1) keep
     each failed test's name and first error line and show them in the Test button's hint
     (synthetic callers only); (2) several samples per script when the words change, say 3, with

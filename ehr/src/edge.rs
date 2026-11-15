@@ -12,23 +12,43 @@ use crate::{
     proto::v1 as pb,
     scheduler::{DayRange, Slot, SlotWish, VisitAsk, VisitMode, VisitStatus},
     session::{Source, Token},
+    store::{Annotation, DataClass, TestResult, TestRun},
     verify::Claimed,
     visit_about::BookNote,
 };
+use zeroize::Zeroizing;
 
 /// The longest reason for a visit the agent may pass on.
 const MAX_REASON: usize = 500;
 /// The longest given or family name.
 const MAX_NAME: usize = 100;
-/// The longest call id (a record's file name): `20261112-143222-test`, with room for a suffix.
+/// The longest call id (a record's file name): `test_20261112-143222`, with room for a suffix.
 const MAX_CALL_ID: usize = 64;
+/// The longest annotation text, grader name and field word (catalog.py's limits, and room).
+const MAX_ANNOTATION_TEXT: usize = 2000;
+const MAX_WORD: usize = 100;
+/// The most draws, replies per draw, and characters in a draw's JSON fields one run may send.
+const MAX_DRAWS: usize = 1000;
+const MAX_REPLY_KEYS: usize = 500;
+const MAX_JSON: usize = 20_000;
+const MAX_FAILURE: usize = 2000;
 
-/// One line of a FileCall stream: the call id, checked (letters, digits and `-` only, so it is a
-/// safe file and row name), and the line, which must be one JSON object. The line holds the
+/// A record id: letters, digits, `-` and `_` only, so it is a safe file and row name.
+fn record_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= MAX_CALL_ID && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// A plain word: a name, a kind, a key. No protected data, so it may be named in an error.
+fn word(s: &str) -> bool {
+    s.len() <= MAX_WORD && s.chars().all(|c| c.is_ascii_alphanumeric() || "-_.:| ".contains(c))
+}
+
+/// One line of a FileCall stream: the call id, checked (letters, digits, `-` and `_` only, so it
+/// is a safe file and row name), and the line, which must be one JSON object. The line holds the
 /// call's words, so it goes no further than the store, which seals it.
 pub fn file_call_line(req: pb::FileCallLine) -> Result<(String, String), Status> {
     let id = req.call_id;
-    if id.is_empty() || id.len() > MAX_CALL_ID || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+    if !record_id(&id) {
         return Err(Status::invalid_argument("call_id: not a record id"));
     }
     let line = req.line;
@@ -45,6 +65,165 @@ pub fn source(req: &pb::OpenCallRequest) -> Result<Source, Status> {
         Ok(pb::EhrSource::EpicSandbox) => Ok(Source::EpicSandbox),
         Err(_) => Err(Status::invalid_argument("ehr: not a known source")),
     }
+}
+
+/// The class a new call's data is (DATABASE.md §7.5), checked against its source: a synthetic
+/// call reaches only a sandbox, a real call only a production EHR. Unspecified is synthetic, the
+/// side that can reach only a sandbox.
+pub fn data_class(req: &pb::OpenCallRequest, source: Source) -> Result<DataClass, Status> {
+    let class = match pb::DataClass::try_from(req.data_class) {
+        Ok(pb::DataClass::Unspecified | pb::DataClass::Synthetic) => DataClass::Synthetic,
+        Ok(pb::DataClass::Real) => DataClass::Real,
+        Err(_) => return Err(Status::invalid_argument("data_class: not a known class")),
+    };
+    match (class, source.is_sandbox()) {
+        (DataClass::Synthetic, true) | (DataClass::Real, false) => Ok(class),
+        (DataClass::Synthetic, false) => Err(Status::failed_precondition("a synthetic call may reach only a sandbox")),
+        (DataClass::Real, true) => Err(Status::failed_precondition("a real call may reach only the hospital's production EHR")),
+    }
+}
+
+/// An annotation from the wire (DATABASE.md §9), its shape checked. The agent's gate checked its
+/// meaning (catalog.py › check_annotation); this keeps a bad sender out of the store.
+pub fn annotation(req: pb::Annotation) -> Result<Annotation, Status> {
+    if !record_id(&req.call_id) {
+        return Err(Status::invalid_argument("call_id: not a record id"));
+    }
+    if !matches!(req.kind.as_str(), "label" | "note" | "keep" | "rating") {
+        return Err(Status::invalid_argument("kind: not label, note, keep or rating"));
+    }
+    if req.at.is_empty() || req.at.len() > 40 || !req.at.chars().all(|c| c.is_ascii_digit() || "-:T.+Z".contains(c)) {
+        return Err(Status::invalid_argument("at: not a time"));
+    }
+    let rating = req.kind == "rating";
+    for (name, value) in [("grader_kind", &req.grader_kind), ("grader", &req.grader), ("dimension", &req.dimension), ("verdict", &req.verdict), ("rubric_version", &req.rubric_version)] {
+        if !word(value) || (rating && value.is_empty()) || (!rating && !value.is_empty()) {
+            return Err(Status::invalid_argument(format!("{name}: not a rating's word")));
+        }
+    }
+    if !(-1..=5).contains(&req.score) || (!rating && req.score != -1) {
+        return Err(Status::invalid_argument("score: not 0 to 5, or -1"));
+    }
+    if req.words.len() > MAX_ANNOTATION_TEXT || (req.has_words && req.kind == "keep") {
+        return Err(Status::invalid_argument("words: too long, or on a star"));
+    }
+    let opt = |s: String| if s.is_empty() { None } else { Some(s) };
+    let keep = (req.kind == "keep").then_some(req.keep);
+    Ok(Annotation {
+        call_id: req.call_id,
+        kind: req.kind,
+        at: req.at,
+        grader_kind: opt(req.grader_kind),
+        grader: opt(req.grader),
+        dimension: opt(req.dimension),
+        verdict: opt(req.verdict),
+        score: (req.score >= 0).then_some(req.score as i16),
+        rubric_version: opt(req.rubric_version),
+        keep,
+        words: req.has_words.then(|| Zeroizing::new(req.words)),
+    })
+}
+
+/// An annotation back to the wire, for the dev catalog (synthetic calls only).
+pub fn annotation_out(a: Annotation) -> pb::Annotation {
+    pb::Annotation {
+        call_id: a.call_id,
+        kind: a.kind,
+        at: a.at,
+        grader_kind: a.grader_kind.unwrap_or_default(),
+        grader: a.grader.unwrap_or_default(),
+        dimension: a.dimension.unwrap_or_default(),
+        verdict: a.verdict.unwrap_or_default(),
+        score: a.score.map_or(-1, i32::from),
+        rubric_version: a.rubric_version.unwrap_or_default(),
+        keep: a.keep.unwrap_or(false),
+        has_words: a.words.is_some(),
+        words: a.words.map(|w| w.as_str().to_owned()).unwrap_or_default(),
+    }
+}
+
+/// A kept-script run from the wire (DATABASE.md §8), its shape checked.
+pub fn test_run(req: pb::FileTestRunRequest) -> Result<TestRun, Status> {
+    let time = |s: &str| s.len() <= 40 && s.chars().all(|c| c.is_ascii_digit() || "-:T.+Z".contains(c));
+    if req.started.is_empty() || !time(&req.started) || !time(&req.finished) {
+        return Err(Status::invalid_argument("started: not a time"));
+    }
+    if req.words_sha256.len() != 64 || !req.words_sha256.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(Status::invalid_argument("words_sha256: not a SHA-256"));
+    }
+    for (name, value) in [("run_by", &req.run_by), ("prompt_version", &req.prompt_version), ("system_version", &req.system_version), ("hospital_version", &req.hospital_version), ("llm_version", &req.llm_version), ("model", &req.model), ("git_commit", &req.git_commit)] {
+        if !word(value) {
+            return Err(Status::invalid_argument(format!("{name}: not a plain word")));
+        }
+    }
+    if req.run_by.is_empty() {
+        return Err(Status::invalid_argument("run_by: missing"));
+    }
+    if req.results.len() > MAX_DRAWS {
+        return Err(Status::invalid_argument("results: too many draws"));
+    }
+    let json = |s: &str| s.is_empty() || (s.len() <= MAX_JSON && serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(s).is_ok());
+    let mut results = Vec::with_capacity(req.results.len());
+    for r in req.results {
+        if r.script.is_empty() || !word(&r.script) || !word(&r.test) {
+            return Err(Status::invalid_argument("script: not a script's name"));
+        }
+        if !matches!(r.mode.as_str(), "record" | "replay") {
+            return Err(Status::invalid_argument("mode: not record or replay"));
+        }
+        if !r.call_id.is_empty() && !record_id(&r.call_id) {
+            return Err(Status::invalid_argument("call_id: not a record id"));
+        }
+        if !r.shape_sha256.is_empty() && (r.shape_sha256.len() != 64 || !r.shape_sha256.chars().all(|c| c.is_ascii_hexdigit())) {
+            return Err(Status::invalid_argument("shape_sha256: not a SHA-256"));
+        }
+        if !json(&r.tool_ms) || !json(&r.tags) {
+            return Err(Status::invalid_argument("tool_ms or tags: not a JSON object"));
+        }
+        if r.reply_keys.len() > MAX_REPLY_KEYS || !r.reply_keys.iter().all(|k| !k.is_empty() && k.len() <= 64 && k.chars().all(|c| c.is_ascii_hexdigit())) {
+            return Err(Status::invalid_argument("reply_keys: not reply keys"));
+        }
+        if r.failure.len() > MAX_FAILURE {
+            return Err(Status::invalid_argument("failure: too long"));
+        }
+        if !r.duration_ms.is_finite() || !r.cost_usd.is_finite() || r.draw < 0 || r.live_requests < 0 {
+            return Err(Status::invalid_argument("a draw's numbers: not numbers"));
+        }
+        results.push(TestResult {
+            script: r.script,
+            draw: r.draw,
+            mode: r.mode,
+            passed: r.passed,
+            test: r.test,
+            failure: (!r.failure.is_empty()).then(|| Zeroizing::new(r.failure)),
+            call_id: r.call_id,
+            shape_sha256: r.shape_sha256,
+            duration_ms: r.duration_ms,
+            tool_ms: r.tool_ms,
+            live_requests: r.live_requests,
+            cost_usd: r.cost_usd,
+            tags: r.tags,
+            reply_keys: r.reply_keys,
+        });
+    }
+    if !req.cost_usd.is_finite() {
+        return Err(Status::invalid_argument("cost_usd: not a number"));
+    }
+    Ok(TestRun {
+        started: req.started,
+        finished: req.finished,
+        run_by: req.run_by,
+        words_sha256: req.words_sha256,
+        prompt_version: req.prompt_version,
+        system_version: req.system_version,
+        hospital_version: req.hospital_version,
+        llm_version: req.llm_version,
+        model: req.model,
+        git_commit: req.git_commit,
+        tests_passed: req.tests_passed,
+        cost_usd: req.cost_usd,
+        results,
+    })
 }
 
 pub fn handle(wire: &str) -> Result<Token, Status> {

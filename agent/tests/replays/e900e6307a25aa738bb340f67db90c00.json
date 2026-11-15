@@ -1,0 +1,163 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch5VfLxh1d1xkQJkqZATA",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 306
+     },
+     "cache_creation_input_tokens": 306,
+     "cache_read_input_tokens": 3099,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 8,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSgwYKEAgTGAI4AUIIdGhpbmtpbmcSDKc0fdYRBBfpf06kahoMWoOccnez7b63nF7YIjBEtzz3dttgqyzJNZkgttkeWCIRdciaDzmIQaUe9ZtQOJsafYNJBkx5K1zAR0kxGIoqoAV48RmGxrYe0RbXBl+XQa+YG7oQUsfkbmNb3I2l7Sv3HXYspqNBzQ6v6m4R+CtBmBIPWBHziiYF6zi9LZVu+/w18MQI23TmMztR0W+O/GfjjM42c0P7sFS77kPwP6D8H8b98O2uZXCGGuCw360h2MY6e53XTRZNmrHDCIrZWiCVBblbx3Zv1O4myGtFSyOwPymDFolYVTAINBIUF+9AfgyC7DEFt/J6Cte16QT0hZo3KM62KUpuexVBgEM5g8Z4SguFlaMLVSUtRcqXXmGduIA21xpXJ44cIxR/Zn/Gwu7y6NFcNRkfM5t2ip0F4bP5KSEKkwBu4VnrffTPOt8HaTB7rzp218eofQWZqeUez6LsYmDBEJrTF7y0kt4imrSDj1/lbngm3gePV2cw2ldjhN+WgCMm4W6aojvJ+zFfg+LN5oZIYt6/hXWMuddXeisxPAbLMg1I26wIW7jDy7Ub2JOlwUtEX3JN+BpH5Bg2WsFL9hQkfGOpvpgL7N2KO7BcMsSu4pwVc1NqTHmQbgvZ8/J0sZ60djtE9tq3+CDv720U6zIUYMQmvL4nxKjpib1MX+LzRbI53ph1oQJqgQ13FRl5Jjm/UW9R1/A5n8FFl/blnTvCqN7WZQnLq9a4gW2VZrcTwIviFno/hF7Gby4CQNtHj5S26v37Oe+asMnEFeuMKU0op2maYv/AEesVRhuZzaQwxfimptrQsYH86G0hc4hcIrB8Dy6ZVCtIPMdN0RIYjTzB/12aY3R8ZEZv2/AkxKvgdTUpQkyu7Geiz7VXk5obvjTRR5LYq+jBHD84Nzt/9MksW4lJ+yD/kS5ktV8oaC+a0z6VYaECeCN/KL/nnRZTaZ/hM1iZ0Z7IMoRq66ex87AEBwcHzldtQjzCurP/V38YAQ==",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "Th",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "an",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "ks, Casey. To book",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " that",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " visit, I need your date of",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " birth,",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " please",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": ".",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 306,
+    "cache_read_input_tokens": 3099,
+    "input_tokens": 4,
+    "output_tokens": 88,
+    "output_tokens_details": {
+     "thinking_tokens": 61
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

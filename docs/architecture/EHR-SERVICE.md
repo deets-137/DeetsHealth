@@ -81,6 +81,9 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `Book` | `book` | `book` |
 | `FindVisit` | `find_visit` | `find_visit` |
 | `FileCall` | `file_call` | `file_call` |
+| `FileTestRun` | `file_test_run` | `file_test_run` |
+| `AddAnnotation` | `add_annotation` | `add_annotation` |
+| `ListAnnotations` | `list_annotations` | `list_annotations` |
 | `ListSettingVersions` | `list_setting_versions` | `list_setting_versions` |
 | `GetSettings` | `get_settings` | `get_settings` |
 | `SaveSettings` | `save_settings` | `save_settings` |
@@ -93,6 +96,12 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `GetUserPhoto` | `get_user_photo` | `user_photo` |
 | `SetUserPhoto` | `set_user_photo` | `set_user_photo` |
 | `SeenOwner` | `seen_owner` | `seen_owner` |
+
+`FileTestRun`, `AddAnnotation` and `ListAnnotations` are the kept scripts' runs and the
+annotations in the call store (DATABASE.md §8, §9): no handle; `FAILED_PRECONDITION` without a
+store. A failure line and an annotation's words are marked `(phi)`. `OpenCall` takes the call's
+`data_class` (DATABASE.md §7.5): a synthetic call reaches only a sandbox, a real call only a
+production EHR, and `FileCall` files a record in the class its `call_start` names.
 
 The three settings RPCs are the settings store (CONSOLE.md §7.3; `ehr/src/settings.rs`): no
 handle, no protected data, `FAILED_PRECONDITION` when `ehr` runs without a store.

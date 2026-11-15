@@ -1,0 +1,136 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch5XmA4243o5TZwQzLdK1",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 1322
+     },
+     "cache_creation_input_tokens": 1322,
+     "cache_read_input_tokens": 5894,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 3,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQS4QkKEAgTGAI4AUIIdGhpbmtpbmcSDCINlZ11PATOt3k34hoMqpdA2kt5olRECciVIjByq/fkq4sW2q5KUr7kxENjbRNSWgx+YxBS++wUf71con6hiDmn7YIvoeLbbEpQ1jQq/gjd7cBStNotVkQKxVLdfxx/d50Pf+zjGReB10NSo3h3NYx8HJuJ5pyEhAs0Zhr8diSTclJurQv1//cZXabBMeqnKIl2YWWc812OApg4YRnBPcAa8pEn0v8pGWgZsC9/mw4QgllvvT5iGxAPpEHr76vwoN7LImqZcebbnBseUnOOgvqw7VwB6TKgbBF06+FXlmrjgeFh8I0t+LaMIoKMeONsqEV6ogyyn0cHZNtVHWoO0R4hcK++r5wwFaf1jzD6eFjib5bYrdZpYCXqyJJTUjjiD/Ox9r7lYME9y0Ma95lOK51xLEu555l8bWavabgZAmMPWeI4xNIOrmpGlWdctGd38olM0wrYai3wm4/KIdok+eXmatY+E5INOnyQSrmkEDwLuFFzjV3Lvy3n4L+TNg1xdDusb9+mylN7n5xxr75OzDWWj9n+Z78vmwPlz5mzBmia7+w1JVEOZx96Y3O9vx+g8Ufq32CFSt0ku0spELVp2kYY3+d25tB783RQONU3QeLoZq/S7xNLNGyAxZEVA+RwXj9kan/VTDX6zLSH2B225pTWqhpO0MJjP2c955nSfj6F/PBaKuPlGoj946PyQlGDR4PoiPgPsISxBnW95j42rMzWALjCcfnPCAFioKe68V/ba+ZHCh9i+tD8S7wC4OBLmmaseTMsgP3nGm1+ARjx5q3ZL3Ot7G35CjILTcpz5IPSORA5fv6sqKUk9u7Q0Xq8fukct+gHygkhPg90lyLhbZNfFMTV3GIwwDHk4Ih8LH93rmRrgfppx3FO6r1yIC0X5ogIsP2PU16gLPIdwkDHJPiRF1DH+8qmyeE3jinbU8UWsU/h4hRainuuFslA93sHo6jUIkDptuEXzAtqUg8PYPOt4B8n2bgVMY98bdjQbDMQ6TTM30rHLjSHeWPeM4uuUwEr52Yqru/c2+LXzUssdYEQjoAB77O5JDG5kFoNZOQby9JmMDj85aZOC+z64KtRH3A657P82NKxF9hBhDVfpiuaZP7ULd1Q3M/MCIXQGRL0v8eQ6wqjOGxj0CJLUNgOxd7hKn6rU9ZRWVauYih7aqn3OVwPEs/O7gpt1Nktpkx7gJHaC2KZW1qnIAWPXta02wOsiDDu7vKyTVFkZQyktFkLos+g0+B/mq1EKYbi0bqZHsIYl4KWND9oqXogGwAFAm+NfCzmC7j6GrPqWQQOJIWONecd/QbxSylD+XYtUEHHZHVBDTpeBkFeCJ2xjfeIMQih+LV6ssn37y7ASzzHNQolaZaYZ5glM2NfN1bmEB1ObpZlTldGFcIm5ObapiSHAHHfuCsZAwKDpXDf9aZpjWfWFUYaparrVD+db/NNPf05QytZjkY7gGvSTOhA+aF6j+Xm7ctc4p4VmZ0ib2Pvmk+7OsXoEzznE7U3uJNuRaNJB2ybbgkXijfkU222e0zjWz56fkRJqBZEXUTyx2hMM2vPkgqNDf3hfmHcpFeaQIpdFYZBuXIJ5mwuLaGXvHhNVUWRReYLfLDF2fJR8LFbKpIp5N4Savyt0PpdaaNuGAE=",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01ACZtiTn4DXBfrCpgdjhpNB",
+    "input": {},
+    "name": "find_visit",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"when\"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ": \"2026",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "-11-03\"}",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 1322,
+    "cache_read_input_tokens": 5894,
+    "input_tokens": 4,
+    "output_tokens": 207,
+    "output_tokens_details": {
+     "thinking_tokens": 153
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

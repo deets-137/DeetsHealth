@@ -1,3 +1,8 @@
+# safety: no
+# area: verify
+# ehr: local
+# channel: text
+# caller: cooperative
 # A typed call: the caller leaves while asked for the text code. The agent says goodbye and ends
 # the call; it does not hand off to staff.
 # Run: uv run python harness/typed_call.py --script tests/scripts/leave_at_code.txt

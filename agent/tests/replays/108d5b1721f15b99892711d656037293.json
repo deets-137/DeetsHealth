@@ -1,0 +1,144 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011Ch5XonGui6rs33BDEP78s",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 1811
+     },
+     "cache_creation_input_tokens": 1811,
+     "cache_read_input_tokens": 3857,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 5,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSqwcKEAgTGAI4AUIIdGhpbmtpbmcSDJnIPvGJonqER+Q7XxoMQjAGkuYNOSpRKQ8SIjCmqMbyjYnBKqpuBtREBejsCBWrUccE0dOKp6223eGAv6RSqZ8gkSrVH1SSiTmlmVQqyAYlMwezYLJPL7Qk2lq0TJEt4lw2uw27MAA1NiNz+76oKTVSNM2TJVKqXqVJWvkx/dyod48zC85eEJcJosa8gWnxMm1ZLN+Jwr/tkz6e4uhq4cXOBJrB5yugca2m1IBhqtlm8SdKs1NBdLtsX/CsLaFrrCh492sZu4wTEHyq/EpXuZBnSOgXnxxzDp/KXK2vdK1mXPtNDoEfik4oFNlkZ1k0Wui3ea3haXZ6edLODzXc6Rc3C5RfqJ2o/TI+vXISvtI2fElTfo3llRbX3GAF2xpeMCFo95Adur1PRjx1CtMh483XjA/pnEjJhPr788eDJi4hznKYMQ+vBqqU7wtiw5c5s4vRGLrCbEq7BdS18Wok/BSiGGV+X36QdOjG0pOt1MwRwCnCXb55jUtxcHmLKOP/9OjpC43ws9nvFaYEFPBS+dmZHg8zpfvBVVX3TTL4en3JQvDOZGb5pIm4oWl3/c81fXffQHsvyhqAUdJw7c7nZk6KAZN5D4J6iV/gyoeueKHfCGv25F9vY7jwOTgJH/eDNrm1UjqbFrL01ngS3xL3JMmyuMcvuu+hOknbYp7eah4CCBwgYjomr55VIXCwn3BDNdAFBphU4OPMe+JicNIQOq5rBoh9iTkBFQRAqn7dwhzP5b5FC3oqQw49LWxPHQ7xXEPbbjWP8Tddp90I2Vo6/d2P5JI5oEFLzna7iiEeMoTYs7uT13Z7t/AuDDgv863dgTUdQ9YLuHgaaMFOetm3pRRXvv+3qpBcwyTCuJgjj7omo3gHiNLBy9ZqxNgKMB//LaGeuIKq13Nxu0jye+x8NyUQc3bXz1beJE25stor77KOVfSXVlRpRYAPKpxJDXRMThct38nV2WaN6kZ8MaybFigMTcJLnhP5/s5jZRfcZhO7B6BhOp8t3TIF67syfixxrRwLdfpb0yl9pQ2iFf1TgD4aS4HK6AyDEZ3KcZmkRs2wlyCXq+5X13H6zTaB2c3zYOXUCL4cLavoAnKB06cM+9+MfUaw8xePB5QOol2fbfudDB4sNveMvbDEjPkCE5D0Ih+Bh5xeDLzJ9jL3OfOQ1yaVfHPi8W8mHs9GrQ2sdKUOmohfE2hreaYYQ0MBlr+23xhzwrc6C+8YAQ==",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01SeAKsFvEBRLXR46FWNBpXk",
+    "input": {},
+    "name": "find_slots",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"reaso",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "n\": \"ch",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "est pai",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ns\"}",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 1811,
+    "cache_read_input_tokens": 3857,
+    "input_tokens": 4,
+    "output_tokens": 145,
+    "output_tokens_details": {
+     "thinking_tokens": 92
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

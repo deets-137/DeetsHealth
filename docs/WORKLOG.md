@@ -8,6 +8,44 @@ updated: 2026-11-15
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-15 (Windows, evening) — `task.verify` with backticks (his B)
+- His B: a backticked wording for `task.verify`, tested. The new words say that digits from the
+  caller are the code, and to use `check_code` with them at once, in the same reply, without
+  asking again. `read_back_correction`: 6 of 6 fresh draws pass (the old backticked words: 0 of
+  4). All 15 scripts recorded again and pass; the stamp and the costs written; unused replies
+  pruned. About 3¢. Not committed.
+
+## 2026-11-15 (Windows, late afternoon) — synthetic and real apart, the kept scripts' runs, annotations in the store
+- The talk first: what is open; how the kept scripts' data is kept (nowhere: a run's results
+  were discarded); where scores live (annotations: the JSONL file, the SQLite catalog, a copy
+  in Postgres). His choices: run history in Postgres through `ehr` (A); a passing replay draw
+  files a record only when its shape changed (C, after the cost talk: B was about 2¢ a month in
+  the cloud); the separation of test rows from real rows; "doc it thoroughly, and build".
+- Built (DATABASE.md §7 to §10): migration 0010 (schemas `synthetic` and `real` from one
+  template, roles `deets_synthetic` and `deets_real`, `calls.origin` and `calls.data_class` with
+  checks, the id prefix, `test_runs`, `test_results`, `test_replies`, the view
+  `calls_by_class`, format-byte indexes for the reseal pass); `store.rs` split into `Store`
+  (public, hospital key) and `ClassStore` (one pool per class as its role; the test key; the
+  one-time move to it); `OpenCall` takes `data_class` and refuses a class that does not fit its
+  EHR; three RPCs (`FileTestRun`, `AddAnnotation`, `ListAnnotations`); the dev server's Test run
+  in a temporary folder, its junit failures in the Test hint, the run filed to the store;
+  annotations written to the store only; call ids `<origin>_<start>`; record schema 14.
+- Kept-script tests, steps 1 and 3 (AGENT.md §4): failures in the Test hint; every test checks
+  events. Each script got the draft tags header (DATABASE.md §8.4: his to edit).
+- The tool names in the words went into backticks, and every script was recorded again. Found:
+  backticks in `task.verify` made `read_back_correction` fail 4 of 4 fresh draws (the model
+  skipped `check_code`); plain, 2 of 2 passed. `task.verify` stays plain: his to decide
+  (SYSTEM-PAGE.md §7). 145 replies no script reads were pruned (91 kept). Recording spent about
+  7¢ in all.
+- Decided inside his choices (listed for review): the origin of a console Test call stays `test`
+  (not `console_test`), and there is no `demo` origin (a demo replay starts no call); an
+  unspecified `data_class` at OpenCall reads as synthetic; the real store opens only in a deploy
+  (not built), so a dev `ehr` refuses every real row; a dev machine switches roles with `SET
+  ROLE` (one login), the cloud gets a login per role; the area tag list gained `medical`; the
+  failure line is sealed in the store.
+- Checks: store tests 7 pass on Postgres (`npm run db:test`); agent 253 pass; docs:check clean;
+  console type check clean. Not committed.
+
 ## 2026-11-15 (Windows, afternoon) — Location probe, import route, fresh call baseline
 - `ehr epic-locations` (new probe, about 11 reads): `Location.Read` of Camila Lopez's 4
   departments; `Location.Search` by address returns all 435 sandbox locations in one page;

@@ -1,3 +1,8 @@
+# safety: no
+# area: book
+# ehr: local
+# channel: text
+# caller: cooperative
 # A typed call: a fake patient books a visit, then asks for the next one.
 # Run: uv run python harness/typed_call.py --script tests/scripts/book_a_visit.txt
 Hi, I'd like to book a check-up.

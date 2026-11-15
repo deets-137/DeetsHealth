@@ -24,11 +24,39 @@ CALL = [
 ]
 
 
+class StoreStub:
+    """ehr's annotation calls, as the store answers them (DATABASE.md §9)."""
+
+    def __init__(self) -> None:
+        self.filed: list[dict] = []
+
+    async def add_annotation(self, a: dict) -> bool:
+        self.filed.append(a)
+        return True
+
+    async def seen_owner(self) -> None:
+        """The wall stamps the owner's last seen on each request from this PC."""
+
+
+@pytest.fixture
+def store() -> StoreStub:
+    return StoreStub()
+
+
 @pytest.fixture
 def client(tmp_path: Path) -> TestClient:
     (tmp_path / "a.jsonl").write_text("\n".join(json.dumps(e) for e in CALL) + "\n", encoding="utf-8")
     state = State(TOKEN, {ORIGIN}, 8790, calls=tmp_path)
     return TestClient(build_app(state))  # not entered: no lifespan, no ehr
+
+
+@pytest.fixture
+def annotating(tmp_path: Path, store: StoreStub) -> TestClient:
+    """The app with the store's annotation calls only (the stub has no other call)."""
+    (tmp_path / "a.jsonl").write_text("\n".join(json.dumps(e) for e in CALL) + "\n", encoding="utf-8")
+    state = State(TOKEN, {ORIGIN}, 8790, calls=tmp_path)
+    state.ehr = store
+    return TestClient(build_app(state))
 
 
 @pytest.mark.parametrize(
@@ -282,16 +310,27 @@ def test_a_missing_call_is_404(client):
     assert client.get("/agent/calls/nope", headers=OK).status_code == 404
 
 
-def test_an_annotation_is_stamped_by_the_catalog(client, tmp_path):
+def test_an_annotation_is_stamped_by_the_catalog_and_kept_in_the_store(annotating, tmp_path, store):
+    client = annotating
     r = client.post("/agent/annotations", headers=OK, json={
         "kind": "rating", "call": "a", "grader_kind": "human", "grader": "owner",
         "dimension": "phone_style", "verdict": "pass", "score": 4,
     })
     assert r.status_code == 200
-    line = json.loads((tmp_path / "annotations.jsonl").read_text(encoding="utf-8"))
+    (line,) = store.filed
     assert line["at"] and line["rubric_version"]
+    assert not (tmp_path / "annotations.jsonl").exists(), "the file is retired (DATABASE.md §9)"
     rating = client.get("/agent/catalog", headers=OK).json()["calls"][0]["ratings"][0]
     assert (rating["verdict"], rating["score"]) == ("pass", 4)
+
+
+def test_an_annotation_without_a_store_is_503_and_kept_nowhere(tmp_path):
+    (tmp_path / "a.jsonl").write_text("\n".join(json.dumps(e) for e in CALL) + "\n", encoding="utf-8")
+    c = TestClient(build_app(State(TOKEN, {ORIGIN}, 8790, calls=tmp_path)))
+    r = c.post("/agent/annotations", headers=OK, json={"kind": "keep", "call": "a", "value": True})
+    assert r.status_code == 503
+    assert c.get("/agent/catalog", headers=OK).json()["calls"][0]["keep"] is False
+    assert not (tmp_path / "annotations.jsonl").exists()
 
 
 @pytest.mark.parametrize(
@@ -306,11 +345,11 @@ def test_an_annotation_is_stamped_by_the_catalog(client, tmp_path):
         ({"kind": "label", "call": "nope", "text": "x"}, "call: no such call"),
     ],
 )
-def test_a_refused_annotation_says_which_field(client, tmp_path, body, reason):
-    r = client.post("/agent/annotations", headers=OK, json=body)
+def test_a_refused_annotation_says_which_field(annotating, store, body, reason):
+    r = annotating.post("/agent/annotations", headers=OK, json=body)
     assert r.status_code == 400
     assert r.json() == {"detail": reason}
-    assert not (tmp_path / "annotations.jsonl").exists()
+    assert not store.filed
 
 
 def test_an_annotation_that_is_not_an_object_is_400(client):
@@ -347,3 +386,32 @@ async def test_a_version_saved_before_a_release_keeps_its_words_and_gets_the_new
     assert words.sections["line.goodbye"] == "Thanks for calling the clinic. Bye now."
     assert words.sections["line.booked_visit_asked"] == prompts.load()["line.booked_visit_asked"]
     assert "line.retired" not in words.sections
+
+
+def test_a_failed_test_names_itself_and_its_first_line(tmp_path):
+    """The Test hint (DATABASE.md §8.5): each failed test's name and its error's first line."""
+    from deets_agent.dev_server import junit_failures
+
+    junit = tmp_path / "junit.xml"
+    junit.write_text(
+        '<testsuites><testsuite><testcase classname="t" name="test_ok"/>'
+        '<testcase classname="t" name="test_book_a_visit"><failure message="AssertionError: exactly one booking&#10;assert 2 == 1">x</failure></testcase>'
+        '<testcase classname="t" name="test_crash"><error message="">Traceback\nboom</error></testcase>'
+        "</testsuite></testsuites>",
+        encoding="utf-8",
+    )
+    assert junit_failures(junit) == [
+        {"test": "test_book_a_visit", "line": "AssertionError: exactly one booking"},
+        {"test": "test_crash", "line": "Traceback"},
+    ]
+    assert junit_failures(tmp_path / "none.xml") == []
+
+
+def test_every_kept_script_has_its_tags():
+    """DATABASE.md §8.4: the header of each kept script, a draft the owner edits."""
+    from deets_agent.dev_server import SCRIPTS, script_tags
+
+    for path in SCRIPTS.glob("*.txt"):
+        tags = script_tags(path)
+        assert set(tags) == {"safety", "area", "ehr", "channel", "caller"}, path.name
+        assert tags["safety"] in ("yes", "no"), path.name

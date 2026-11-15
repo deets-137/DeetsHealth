@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from deets_agent.call_record import CALLS
-from deets_agent.catalog import AnnotationError, Catalog, check_annotation, summarize
+from deets_agent.catalog import AnnotationError, Catalog, check_annotation, read_events, summarize
 
 
 def _write(folder: Path, name: str, events: list[dict]) -> None:
@@ -58,18 +58,26 @@ def test_an_ehr_that_did_not_answer_is_a_crash():
 
 
 def test_annotations_survive_a_rebuild_and_the_latest_rating_wins(tmp_path):
+    """The store keeps them (DATABASE.md §9): a rebuild takes ehr's list, oldest first."""
     _write(tmp_path, "a", BOOKED)
     c = Catalog(tmp_path).build()
-    c.annotate({"kind": "label", "call": "a", "text": "clean booking"})
-    c.annotate({"kind": "keep", "call": "a", "value": True})
-    c.annotate({"kind": "rating", "call": "a", "grader_kind": "human", "grader": "owner",
-                "dimension": "intent_drift", "verdict": "fail", "score": 1})
-    c.annotate({"kind": "rating", "call": "a", "grader_kind": "human", "grader": "owner",
-                "dimension": "intent_drift", "verdict": "pass", "score": 4})
-    c.annotate({"kind": "rating", "call": "a", "grader_kind": "model", "grader": "claude-haiku-5-5",
-                "dimension": "intent_drift", "verdict": "pass"})
+    kept = []
+    for a in (
+        {"kind": "label", "call": "a", "text": "clean booking"},
+        {"kind": "keep", "call": "a", "value": True},
+        {"kind": "rating", "call": "a", "grader_kind": "human", "grader": "owner",
+         "dimension": "intent_drift", "verdict": "fail", "score": 1},
+        {"kind": "rating", "call": "a", "grader_kind": "human", "grader": "owner",
+         "dimension": "intent_drift", "verdict": "pass", "score": 4},
+        {"kind": "rating", "call": "a", "grader_kind": "model", "grader": "claude-haiku-5-5",
+         "dimension": "intent_drift", "verdict": "pass"},
+    ):
+        stamped = c.stamp(a)
+        c.apply(stamped)
+        kept.append(stamped)
     c.close()
-    row = Catalog(tmp_path).build().list_calls()[0]
+    assert not (tmp_path / "annotations.jsonl").exists(), "the file is retired"
+    row = Catalog(tmp_path).build(kept).list_calls()[0]
     assert (row["label"], row["keep"]) == ("clean booking", True)
     drift = {r["grader"]: (r["verdict"], r["score"]) for r in row["ratings"]}
     assert drift == {"owner": ("pass", 4), "claude-haiku-5-5": ("pass", None)}
@@ -91,8 +99,7 @@ def test_the_gate_refuses_what_does_not_fit(tmp_path, bad):
     _write(tmp_path, "a", BOOKED)
     c = Catalog(tmp_path).build()
     with pytest.raises(AnnotationError):
-        c.annotate(bad)
-    assert not (tmp_path / "annotations.jsonl").exists()
+        c.stamp(bad)
 
 
 def test_events_never_reach_outside_the_folder(tmp_path):
@@ -114,9 +121,8 @@ def test_a_sender_never_sets_the_stamps(tmp_path):
     _write(tmp_path, "a", BOOKED)
     c = Catalog(tmp_path).build()
     with pytest.raises(AnnotationError):
-        c.annotate({"kind": "keep", "call": "a", "value": True, "at": "2020-01-01T00:00:00"})
-    c.annotate({"kind": "keep", "call": "a", "value": True})
-    line = json.loads((tmp_path / "annotations.jsonl").read_text(encoding="utf-8"))
+        c.stamp({"kind": "keep", "call": "a", "value": True, "at": "2020-01-01T00:00:00"})
+    line = c.stamp({"kind": "keep", "call": "a", "value": True})
     assert set(line) == {"kind", "call", "value", "at"}
 
 
@@ -127,3 +133,23 @@ def test_every_kept_record_reads(tmp_path):
     rows = Catalog(tmp_path).build().list_calls()
     assert len(rows) == len(list(tmp_path.glob("*.jsonl")))
     assert all(r["outcome"] for r in rows)
+
+
+def test_a_record_id_starts_with_its_origin_and_its_shape_skips_the_times(tmp_path):
+    """DATABASE.md §7.5 and §8.2: `kept_<start>`; two draws of the same call share a shape."""
+    from deets_agent.call_record import CallRecord, shape_digest
+
+    a = CallRecord("replay", "m", folder=tmp_path, source="kept", scenario="s")
+    b = CallRecord("replay", "m", folder=tmp_path, source="kept", scenario="s")
+    for r in (a, b):
+        r.caller("hello")
+        r.agent("hi there")
+        r.close("the agent ended it")
+    assert a.call_id.startswith("kept_") and b.call_id.startswith("kept_") and a.call_id != b.call_id
+    ea, eb = read_events(a.path), read_events(b.path)
+    assert ea[0]["data_class"] == "synthetic"
+    assert shape_digest(ea) == shape_digest(eb), "the same call: the same shape"
+    eb[1]["text"] = "goodbye"
+    assert shape_digest(ea) != shape_digest(eb), "another word: another shape"
+    with pytest.raises(ValueError):
+        CallRecord("replay", "m", folder=tmp_path, source="demo")

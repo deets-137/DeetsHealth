@@ -4,9 +4,10 @@ per dimension with an optional 0–5 score). Demo picks a call from it; evals re
 Two sources, one database:
 - **What a record says** (`agent/calls/*.jsonl`): each call's row in `calls` is worked out from
   its events every time the catalog is built. Nothing about it is typed by hand.
-- **What a person or a grader adds** (`agent/calls/annotations.jsonl`, committed): a label, a
-  note, a star, a rating. One JSON line per edit, append only, so the PC and the Mac merge
-  cleanly. The last line for a field wins.
+- **What a person or a grader adds**: a label, a note, a star, a rating. The call store holds
+  them (DATABASE.md §9, since 2026-11-15): the dev server sends each one to ehr
+  (`AddAnnotation`) and builds the catalog with ehr's list (`ListAnnotations`). The last one for
+  a field wins. The retired `agent/calls/annotations.jsonl` is still read if it is there.
 
 `agent/calls/catalog.db` is git-ignored (`*.db`) and rebuilt from both on every start. The
 columns and types follow Postgres, so the store (VOICE-AGENT.md §8.7) can take the same shape.
@@ -304,8 +305,9 @@ class Catalog:
         self.annotations_path = folder / ANNOTATIONS
         self.db: sqlite3.Connection | None = None
 
-    def build(self) -> Catalog:
-        """Rebuild the database from the records and the annotations."""
+    def build(self, annotations: list[dict[str, Any]] | None = None) -> Catalog:
+        """Rebuild the database from the records and the annotations: the store's (`annotations`,
+        oldest first, as ehr's ListAnnotations gives them), after the retired file's."""
         self.folder.mkdir(parents=True, exist_ok=True)
         if self.db is not None:
             self.db.close()
@@ -328,6 +330,11 @@ class Catalog:
                     self._apply(check_annotation(line_data, stamped=True))
                 except (json.JSONDecodeError, AnnotationError):
                     continue  # a bad line never stops the catalog; the file keeps it for a person
+        for a in annotations or []:
+            try:
+                self._apply(check_annotation(a, stamped=True))
+            except AnnotationError:
+                continue  # the store checked its shape; a gate change never stops the catalog
         self.db.commit()
         return self
 
@@ -355,18 +362,21 @@ class Catalog:
             )
         self.db.commit()
 
-    def annotate(self, annotation: dict[str, Any]) -> None:
-        """Check, stamp, append to the committed file, then apply. The stamps are the catalog's
-        own: a sender's `at` or `rubric_version` is refused by the gate."""
+    def stamp(self, annotation: dict[str, Any]) -> dict[str, Any]:
+        """Check and stamp an annotation, for the store (DATABASE.md §9). The stamps are the
+        catalog's own: a sender's `at` or `rubric_version` is refused by the gate."""
         a = check_annotation(annotation)
         a["at"] = datetime.now().isoformat(timespec="seconds")
         if a["kind"] == "rating":
             a["rubric_version"] = RUBRIC_VERSION
         if self.db is None or self.db.execute("SELECT 1 FROM calls WHERE id = ?", (a["call"],)).fetchone() is None:
             raise AnnotationError("call: no such call")
-        with self.annotations_path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(a, ensure_ascii=False) + "\n")
+        return a
+
+    def apply(self, a: dict[str, Any]) -> None:
+        """Apply a stamped annotation the store has filed."""
         self._apply(a)
+        assert self.db is not None
         self.db.commit()
 
     def list_calls(self) -> list[dict[str, Any]]:
@@ -406,10 +416,15 @@ class Catalog:
             where.append("c.model = ?")
             args.append(model)
         if since:
-            # A day "2026-11-12" becomes "20261112", the start of every id made that day.
+            # A day "2026-11-12", or a call id: from that call's start. The id starts with its
+            # origin since schema 14, so the start time is compared, not the id.
             day = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", since)
-            where.append("c.id >= ?")
-            args.append("".join(day.groups()) if day else since)
+            if day:
+                where.append("c.started >= ?")
+                args.append(since)
+            else:
+                where.append("c.started >= (SELECT started FROM calls WHERE id = ?)")
+                args.append(since)
         if exact:
             where.append("t.exact = 1")
         found = [
