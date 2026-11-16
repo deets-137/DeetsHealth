@@ -65,6 +65,7 @@ from deets_agent.ehr_client import (
     EhrClient,
     EhrError,
     ErrorKind,
+    FoundSlots,
     FoundVisit,
     Slot,
     Visit,
@@ -74,6 +75,8 @@ from deets_agent.shielded import Shielded
 
 # The longest reason ehr takes (edge.rs › MAX_REASON).
 MAX_REASON_CHARS = 500
+# The longest place or kind of care sent to ehr (ehr's edge.rs › MAX_NAME).
+MAX_PLACE_CHARS = 100
 # FindVisit's day or month (EPIC.md §7.10).
 WHEN = re.compile(r"\d{4}-\d{2}(-\d{2})?")
 DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -114,6 +117,39 @@ def spoken_date(d: date) -> str:
 def spoken_clock(hour: int, minute: int) -> str:
     """14, 30 -> '2:30 PM'; 9, 0 -> '9 AM'."""
     return f"{hour % 12 or 12}{'' if minute == 0 else f':{minute:02d}'} {'AM' if hour < 12 else 'PM'}"
+
+
+_DAY_NAMES = {
+    "mon": "Monday",
+    "tue": "Tuesday",
+    "wed": "Wednesday",
+    "thu": "Thursday",
+    "fri": "Friday",
+    "sat": "Saturday",
+    "sun": "Sunday",
+}
+
+
+def _hours_words(hours: tuple[tuple[str, str, str], ...]) -> str:
+    """(day, opens, closes) rows, Monday first -> 'Monday to Friday, 8 AM to 5 PM, and Saturday,
+    8 AM to 12 PM'. Days in a row with the same hours are said together (BOOKING-RULES.md §3.7)."""
+
+    def clock(hh_mm: str) -> str:
+        h, m = hh_mm.split(":")
+        return spoken_clock(int(h), int(m))
+
+    runs: list[list[str]] = []  # [first day, last day, opens, closes]
+    for day, opens, closes in hours:
+        last = runs[-1] if runs else None
+        follows = last is not None and WEEKDAYS.index(day) == WEEKDAYS.index(last[1]) + 1
+        if follows and last[2:] == [opens, closes]:
+            last[1] = day
+        else:
+            runs.append([day, day, opens, closes])
+    parts = [
+        f"{_DAY_NAMES[a]}{'' if a == b else f' to {_DAY_NAMES[b]}'}, {clock(o)} to {clock(c)}" for a, b, o, c in runs
+    ]
+    return parts[0] if len(parts) == 1 else f"{', '.join(parts[:-1])}, and {parts[-1]}"
 
 
 def spoken_time(starts_at: str) -> str:
@@ -198,6 +234,10 @@ FLAG_KINDS = (
     # A reason that does not read as a health need: booked as said, for clinical staff to
     # review and call back (the owner's 1A, 2026-11-14, FLAGS.md §3.1).
     "visit_reason_review",
+    # The Booking rules (BOOKING-RULES.md §3.5), raised by code: a visit booked under Book and
+    # flag, and a caller a rule sends to a person. Drafts for the owner to name.
+    "referral_check",
+    "booking_rule_hand_off",
     "other",
 )
 
@@ -352,6 +392,12 @@ NOTE_TOOL = {
     "note.after_ask_reason": "find_slots",
     "note.question_with_choice": "choose_option",
     "note.after_ask_preference": "find_slots",
+    # The place questions (BOOKING-RULES.md §3.1, §3.2). The unknown place's note is also sent by
+    # find_slots and find_visit; place_info is in every step, so its scope holds theirs.
+    "note.after_ask_place": "find_slots",
+    "note.after_referral_needed": "find_slots",
+    "note.after_place_unknown": "place_info",
+    "note.after_place_info": "place_info",
     # Also sent back by hand_off; both are global tools, so the scope is the same.
     "note.summary_pronoun": "flag_for_staff",
 }
@@ -426,6 +472,9 @@ class CallFlow:
     # question and the first search (the owner, 2026-11-16: "ask for a reason before presenting
     # options (gives time for 911 flags, specialty care, etc)").
     reason_asked: bool = False
+    # Whether the caller was asked where (BOOKING-RULES.md §3.2, 1B): once a call. A search after
+    # it that names no place looks anywhere, so the question is never asked twice.
+    place_asked: bool = False
     # The caller line and option of a choice that came with a question: noted once, so the
     # next choose_option reads back (the owner's 1A, 2026-11-16).
     questioned_choice: tuple[int, int] | None = None
@@ -623,7 +672,55 @@ class CallFlow:
             self.safety_reminder_fn(),
             self.medical_question_fn(),
             self.flag_for_staff_fn(),
+            self.place_info_fn(),
         ]
+
+    def place_info_fn(self) -> FlowsFunctionSchema:
+        # Where to go (BOOKING-RULES.md §3.7): the address, phone and hours of a place, from the
+        # hospital's lists only, so it works before verification. With no place named, the place
+        # of the visit the caller just heard or booked (only a verified caller has heard one).
+        async def handler(args, flow_manager: FlowManager):
+            place = str(args.get("place", "") or "").strip()[:MAX_PLACE_CHARS]
+            if not place:
+                heard = self.last_booked or self.last_visit
+                place = heard.place.reveal() if heard is not None else ""
+            if not place:
+                return await self._say(flow_manager, text("line.place_info_which"))
+            try:
+                found = await self._once_more(lambda: self.ehr.place_info(self.handle, Shielded(place)), "place_info")
+            except EhrError as e:
+                return await self._ehr_trouble(flow_manager, e, "place_info")
+            logger.info("place_info: {}", found.outcome)
+            if found.outcome == "unknown":
+                return await self._say(
+                    flow_manager, text("line.unknown_place"), next_step=text("note.after_place_unknown")
+                )
+            if found.outcome == "which":
+                items = [p.reveal() for p in found.places]
+                if found.other_places:
+                    items.append(text("line.another_place"))
+                return await self._say(
+                    flow_manager, text("line.which_place", places=f" {text('line.choice_or')} ".join(items))
+                )
+            name = found.name.reveal()
+            words = [
+                text("line.place_address", place=name, address=found.address.reveal())
+                if found.address.reveal()
+                else text("line.place_no_address", place=name),
+                text("line.place_phone", phone=found.phone.reveal())
+                if found.phone.reveal()
+                else text("line.place_no_phone", place=name),
+            ]
+            if found.hours:
+                words.append(text("line.place_hours", hours=_hours_words(found.hours)))
+            return await self._say(
+                flow_manager,
+                " ".join(words),
+                closed_days=[{"date": d, "name": n} for d, n in found.closed_days],
+                next_step=text("note.after_place_info"),
+            )
+
+        return _tool("place_info", handler, {"place": ""}, required=[])
 
     # ---- staff flags (FLAGS.md) ----
 
@@ -967,9 +1064,36 @@ class CallFlow:
             days = tuple(d for d in (args.get("days") or []) if isinstance(d, str) and d in WEEKDAYS)
             who = str(args.get("clinician", "") or "").strip()
             any_time = args.get("any_time") is True or str(args.get("any_time", "")).lower() == "true"
+            any_place = args.get("any_place") is True or str(args.get("any_place", "")).lower() == "true"
+            # The place and the kind of care, in the caller's words (BOOKING-RULES.md §3.1, the
+            # owner's 2A: a specialty only from the caller's words); ehr matches them.
+            place = str(args.get("place", "") or "").strip()[:MAX_PLACE_CHARS]
+            specialty = str(args.get("specialty", "") or "").strip()[:MAX_PLACE_CHARS]
+            # Asked where once: a search that still names no place looks anywhere.
+            if self.place_asked and not place:
+                any_place = True
+
+            def search(plan_only: bool = False):
+                return self.ehr.find_slots(
+                    self.handle,
+                    reason,
+                    Shielded(day) if DAY.fullmatch(day) else None,
+                    mode,
+                    latest_day=Shielded(last) if DAY.fullmatch(last) else None,
+                    time_of_day=when,
+                    days=days,
+                    clinician=Shielded(who) if who else None,
+                    more=more,
+                    any_place=any_place,
+                    place=Shielded(place) if place else None,
+                    specialty=Shielded(specialty) if specialty else None,
+                    plan_only=plan_only,
+                )
+
             # The preference question (the owner's 1A, 2026-11-15): once a call, before the first
             # search, the caller is asked what they have not said: in person or online (only when
-            # the hospital books both), and a day or time. No search runs until they answer.
+            # the hospital books both), and a day or time. No search runs until they answer. When
+            # ehr would ask where (1B), the same question asks it too.
             if not more and not self.preference_asked:
                 ask_mode = self.books_both_modes and not said_mode
                 ask_when = not (any_time or DAY.fullmatch(day) or DAY.fullmatch(last) or when or days)
@@ -977,29 +1101,40 @@ class CallFlow:
                     self.preference_asked = True
                     key = "both" if ask_mode and ask_when else "mode" if ask_mode else "when"
                     logger.info("find_slots: preference asked ({})", key)
-                    return await self._say(
-                        flow_manager, text(f"line.ask_preference_{key}"), next_step=text("note.after_ask_preference")
-                    )
+                    words, note = text(f"line.ask_preference_{key}"), text("note.after_ask_preference")
+                    try:
+                        plan = await search(plan_only=True)
+                    except EhrError:
+                        plan = None
+                    # A Booking rule that offers no time answers now: no preference to ask.
+                    if plan is not None and plan.rule:
+                        self.preference_asked = False
+                        return await self._rule_answer(flow_manager, plan.rule, reason)
+                    if plan is not None and plan.place_ask in ("where", "which"):
+                        self.place_asked = True
+                        words = f"{words} {self._place_question(plan)}"
+                        note = f"{note} {text('note.after_ask_place')}"
+                    return await self._say(flow_manager, words, next_step=note)
                 self.preference_asked = True
-            any_place = args.get("any_place") is True or str(args.get("any_place", "")).lower() == "true"
             try:
-                slots, waiting, usual = await self._once_more(
-                    lambda: self.ehr.find_slots(
-                        self.handle,
-                        reason,
-                        Shielded(day) if DAY.fullmatch(day) else None,
-                        mode,
-                        latest_day=Shielded(last) if DAY.fullmatch(last) else None,
-                        time_of_day=when,
-                        days=days,
-                        clinician=Shielded(who) if who else None,
-                        more=more,
-                        any_place=any_place,
-                    ),
-                    "find_slots",
-                )
+                found = await self._once_more(search, "find_slots")
             except EhrError as e:
                 return await self._ehr_trouble(flow_manager, e, "find_slots")
+            # A Booking rule held back every time (§3.5): its outcome is the answer.
+            if found.rule:
+                return await self._rule_answer(flow_manager, found.rule, reason)
+            # No search ran: a question about the place or the kind of care (§3.1).
+            if found.place_ask:
+                logger.info("find_slots: place asked ({})", found.place_ask)
+                if found.place_ask in ("where", "which"):
+                    self.place_asked = True
+                    return await self._say(
+                        flow_manager, self._place_question(found), next_step=text("note.after_ask_place")
+                    )
+                return await self._say(
+                    flow_manager, text(f"line.{found.place_ask}"), next_step=text("note.after_place_unknown")
+                )
+            slots, waiting, usual = found.slots, found.more, found.usual
             logger.info("find_slots: {} found", len(slots))
             self.chosen = None
             if not slots:
@@ -1038,6 +1173,8 @@ class CallFlow:
                 "any_time": "",
                 "more": "",
                 "any_place": "",
+                "place": "",
+                "specialty": "",
             },
             required=["reason"],
             types={"more": "boolean", "any_time": "boolean", "any_place": "boolean"},
@@ -1110,6 +1247,10 @@ class CallFlow:
                 return await self._say(flow_manager, text("line.slot_taken"))
             logger.info("book: booked")
             self.last_booked = booked
+            # Book and flag (BOOKING-RULES.md §3.5): staff check the referral before the visit.
+            # Silent to the caller; the flag names the kind and carries the visit's CSN.
+            if booked.check_referral:
+                self.raise_flag("referral_check", "code", csn=booked.csn)
             # The caller hears the visit as booked, "online" in it when it is (2026-11-14). For the
             # model only: how the visit takes place and whether its reason went with it, so a
             # question about this visit is answered, not handed to a person (the Priya Raman
@@ -1166,6 +1307,7 @@ class CallFlow:
                 when = ""
             who = str(args.get("clinician", "") or "").strip()
             group = str(args.get("group", "") or "").strip()
+            place = str(args.get("place", "") or "").strip()[:MAX_PLACE_CHARS]
             past = args.get("past") is True or str(args.get("past", "")).lower() == "true"
             try:
                 found = await self._once_more(
@@ -1175,12 +1317,15 @@ class CallFlow:
                         Shielded(who) if who else None,
                         past,
                         Shielded(group) if group else None,
+                        Shielded(place) if place else None,
                     ),
                     "find_visit",
                 )
             except EhrError as e:
                 return await self._ehr_trouble(flow_manager, e, "find_visit")
-            asked = bool(when or who or group)
+            if found.unknown_place:
+                return await self._say(flow_manager, text("line.unknown_place"), next_step=text("note.after_place_unknown"))
+            asked = bool(when or who or group or place)
             if found.groups:
                 return await self._say(
                     flow_manager, self._which_visit(found), next_step=text("note.after_which_visit")
@@ -1234,10 +1379,33 @@ class CallFlow:
         return _tool(
             "find_visit",
             handler,
-            {"when": "", "clinician": "", "past": "", "group": ""},
+            {"when": "", "clinician": "", "past": "", "group": "", "place": ""},
             required=[],
             types={"past": "boolean"},
         )
+
+    async def _rule_answer(self, flow_manager: FlowManager, rule: str, reason: Shielded[str]):
+        """A Booking rule that offers no time (BOOKING-RULES.md §3.5). Referral needed: the caller
+        hears why and is offered a primary care visit or a person. Hand off: a person books it;
+        staff get a flag with the caller's own words for the reason."""
+        logger.info("find_slots: booking rule ({})", rule)
+        if rule == "referral_needed":
+            return await self._say(
+                flow_manager, text("line.referral_needed"), next_step=text("note.after_referral_needed")
+            )
+        self.raise_flag("booking_rule_hand_off", "code", quotes=[reason.reveal()])
+        return await self._say(flow_manager, text("line.rule_hand_off"), self.handed_off())
+
+    def _place_question(self, found: FoundSlots) -> str:
+        """Where the caller would like the visit (BOOKING-RULES.md §3.2, 1B): the places by name
+        when one question can name them, with "another place" for the rest; else the open
+        question."""
+        if found.place_ask != "which" or not found.places:
+            return text("line.ask_place")
+        items = [p.reveal() for p in found.places]
+        if found.other_places:
+            items.append(text("line.another_place"))
+        return text("line.which_place", places=f" {text('line.choice_or')} ".join(items))
 
     def _which_visit(self, found: FoundVisit) -> str:
         """The narrowing question: the groups by name, and "another visit" for the rest."""

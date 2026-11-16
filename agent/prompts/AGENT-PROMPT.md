@@ -221,6 +221,14 @@ then not read. Otherwise false.
 true when the caller wants a place other than the one the times were found at, or any place.
 Otherwise false.
 
+## arg.find_slots.place
+The place the caller asked for, in their words: a clinic, a building or a town ("the north
+clinic", "Verona"). Leave empty if they named none.
+
+## arg.find_slots.specialty
+The kind of care or doctor the caller asked for, in their words ("a skin doctor", "cardiology").
+Leave empty if they named none. Never choose one from the reason for the visit.
+
 ## tool.choose_option
 Read the chosen time back to the caller and ask them to confirm it. Books nothing.
 
@@ -254,6 +262,10 @@ true for a visit that is over ("my last visit", "when was I seen"). Otherwise fa
 ## arg.find_visit.group
 The kind of visit the caller named ("my x-ray", "my checkup"), in their words. Leave empty if
 they named none.
+
+## arg.find_visit.place
+The place the caller named for the visit ("my visit at the north clinic"), in their words. Leave
+empty if they named none.
 
 ## tool.read_instructions
 Read the caller the instructions for the visit they just heard: how to prepare for it.
@@ -304,6 +316,14 @@ The caller's own words that support the summary, each copied exactly as they sai
 ## tool.emergency
 Tell the caller to hang up and call 911. Use at once when they describe an emergency or may be
 in danger, at any step.
+
+## tool.place_info
+Tell the caller where a place is, its phone number and when it is open, from the hospital's
+lists. Use it when they ask where to go, for an address or a phone number, or whether a place is
+open. It works before the caller is verified.
+
+## arg.place_info.place
+The place in the caller's words. Leave it empty for the visit the caller just heard or booked.
 
 ## tool.medical_question
 Tell the caller you cannot answer medical questions. Use when they ask what is wrong with them,
@@ -387,6 +407,69 @@ Is there a day or time that works best for you?
 The caller was asked how and when they would like the visit. When they answer, use `find_slots`
 again with the same reason and what they said. If they say any day or time is fine, set any_time
 to true; if they say either way is fine, set visit_mode to either.
+
+## line.ask_place
+Which clinic or town would be best for you?
+
+## line.which_place
+Would you like {places}?
+
+## line.another_place
+another place
+
+## note.after_ask_place
+The caller was asked where they would like the visit. When they answer, use `find_slots` again
+with the same reason, what they said before, and their answer in place. If they say any place is
+fine, set any_place to true.
+
+## line.unknown_place
+I'm sorry, I don't know that place. Could you tell me the name of the clinic, or the town?
+
+## line.unknown_specialty
+I'm sorry, I don't see that kind of care here. Could you say it another way?
+
+## line.not_at_place
+I don't see that kind of care at that place. Would another place work?
+
+## note.after_place_unknown
+The caller was told the place or the kind of care was not found. When they answer, use the same
+tool again with what they say now. If they name the same thing again, use `offer_staff`.
+
+## line.referral_needed
+This kind of visit needs a referral from your primary care doctor first. Would you like to book a
+visit with primary care, or talk with a member of our staff?
+
+## note.after_referral_needed
+The caller heard that this visit needs a referral from primary care. If they want a primary care
+visit, use `find_slots` again with the same reason and no specialty, place or clinician. If they
+want a person, or say they already have a referral, use `hand_off`.
+
+## line.rule_hand_off
+Our staff book this kind of visit themselves, so I'm connecting you with a member of our staff
+now.
+
+## line.place_address
+{place} is at {address}.
+
+## line.place_no_address
+I don't have the address for {place} here.
+
+## line.place_phone
+The phone number is {phone}.
+
+## line.place_no_phone
+I don't have a phone number for {place} here.
+
+## line.place_hours
+It's open {hours}.
+
+## line.place_info_which
+Which place would you like to know about?
+
+## note.after_place_info
+The caller heard what the hospital's lists say of the place. closed_days lists the days the
+hospital is closed soon: use it only if they ask about a day. If they need an address or a phone
+number that is not on file, use `offer_staff`.
 
 ## line.no_slots
 I don't see any open times then. Would another day work?

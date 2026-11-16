@@ -16,7 +16,7 @@ import base64
 import enum
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -142,6 +142,9 @@ class Visit:
     csn: Shielded[str] = field(default_factory=lambda: Shielded(""))
     # "upcoming", "seen", "missed" or "cancelled".
     status: str = "upcoming"
+    # A visit this call just booked whose Booking rule says Book and flag: staff check the
+    # referral (BOOKING-RULES.md §3.5). False for every other visit.
+    check_referral: bool = False
 
 
 class BookNotThrough(Exception):
@@ -162,6 +165,59 @@ class FoundVisit:
     other_visits: bool = False
     # `more` counts the visits in the next this many days; 0: with no limit.
     more_within_days: int = 0
+    # The place the caller named is on no list (BOOKING-RULES.md §3.1).
+    unknown_place: bool = False
+
+
+@dataclass(frozen=True)
+class FoundSlots:
+    """FindSlots's answer: the slots to offer now, whether more of the same search wait, the
+    caller's usual place when the search was held to it ("" otherwise; BOOKING-RULES.md §3.2),
+    and, when no search ran, the question to ask about the place or the kind of care (§3.1)."""
+
+    slots: list[Slot]
+    more: bool = False
+    usual: Shielded[str] = field(default_factory=lambda: Shielded(""))
+    # "", "where", "which", "unknown_place", "unknown_specialty" or "not_at_place".
+    place_ask: str = ""
+    # With "which": the places to name, in the hospital's words; tied to this caller's ask.
+    places: tuple[Shielded[str], ...] = ()
+    other_places: bool = False
+    # A Booking rule held back every time (BOOKING-RULES.md §3.5): "referral_needed" or
+    # "hand_off"; "" otherwise.
+    rule: str = ""
+
+
+@dataclass(frozen=True)
+class PlaceInfo:
+    """PlaceInfo's answer (BOOKING-RULES.md §3.7): the hospital's own facts about one place, or
+    the places to ask about. An empty address or phone is not on file."""
+
+    outcome: str  # "found", "unknown" or "which"
+    name: Shielded[str] = field(default_factory=lambda: Shielded(""))
+    address: Shielded[str] = field(default_factory=lambda: Shielded(""))
+    phone: Shielded[str] = field(default_factory=lambda: Shielded(""))
+    # (day "mon".."sun", opens HH:MM, closes HH:MM), Monday first.
+    hours: tuple[tuple[str, str, str], ...] = ()
+    # (YYYY-MM-DD, name): the hospital's next closed days.
+    closed_days: tuple[tuple[str, str], ...] = ()
+    places: tuple[Shielded[str], ...] = ()
+    other_places: bool = False
+
+
+RULE_ASKS = {
+    pb.RULE_ASK_REFERRAL_NEEDED: "referral_needed",
+    pb.RULE_ASK_HAND_OFF: "hand_off",
+}
+
+
+PLACE_ASKS = {
+    pb.PLACE_ASK_WHERE: "where",
+    pb.PLACE_ASK_WHICH: "which",
+    pb.PLACE_ASK_UNKNOWN_PLACE: "unknown_place",
+    pb.PLACE_ASK_UNKNOWN_SPECIALTY: "unknown_specialty",
+    pb.PLACE_ASK_NOT_AT_PLACE: "not_at_place",
+}
 
 
 STATUSES = {
@@ -624,13 +680,16 @@ class EhrClient:
         clinician: Shielded[str] | None = None,
         more: bool = False,
         any_place: bool = False,
-    ) -> tuple[list[Slot], bool, Shielded[str]]:
-        """The slots to offer now, whether more of the same search wait, and the caller's usual
-        place when the search was held to it ("" otherwise; BOOKING-RULES.md §3.2). `reason`: the
+        place: Shielded[str] | None = None,
+        specialty: Shielded[str] | None = None,
+        plan_only: bool = False,
+    ) -> FoundSlots:
+        """The slots to offer now, or the question to ask first (`FoundSlots`). `reason`: the
         caller's own words (flow.py checks them); ehr keeps them for this call and Book sends
         them to the scheduler as the visit's note. `more`: the next slots of the last search;
         every other argument is ignored. `any_place`: the caller wants any place, not their
-        usual one."""
+        usual one. `place`, `specialty`: the caller's words, matched in ehr (BOOKING-RULES.md
+        §3.1). `plan_only`: where the search would look, and no search."""
         reply = await self._call(
             "FindSlots",
             pb.FindSlotsRequest(
@@ -644,9 +703,41 @@ class EhrClient:
                 clinician=clinician.reveal() if clinician else "",
                 more=more,
                 any_place=any_place,
+                place=place.reveal() if place else "",
+                specialty=specialty.reveal() if specialty else "",
+                plan_only=plan_only,
             ),
+            result=lambda r: RULE_ASKS.get(r.rule) or PLACE_ASKS.get(r.place_ask, "slots"),
         )
-        return [_slot(s) for s in reply.slots], reply.more, Shielded(reply.place_default)
+        return FoundSlots(
+            slots=[_slot(s) for s in reply.slots],
+            more=reply.more,
+            usual=Shielded(reply.place_default),
+            place_ask=PLACE_ASKS.get(reply.place_ask, ""),
+            places=tuple(Shielded(p) for p in reply.places),
+            other_places=reply.other_places,
+            rule=RULE_ASKS.get(reply.rule, ""),
+        )
+
+    async def place_info(self, handle: Shielded[str], place: Shielded[str]) -> PlaceInfo:
+        """Where a place is, its phone and its hours, from the hospital's lists; open before
+        verification (BOOKING-RULES.md §3.7)."""
+        outcomes = {pb.PLACE_INFO_OUTCOME_FOUND: "found", pb.PLACE_INFO_OUTCOME_WHICH: "which"}
+        reply = await self._call(
+            "PlaceInfo",
+            pb.PlaceInfoRequest(handle=handle.reveal(), place=place.reveal()),
+            result=lambda r: outcomes.get(r.outcome, "unknown"),
+        )
+        return PlaceInfo(
+            outcome=outcomes.get(reply.outcome, "unknown"),
+            name=Shielded(reply.name),
+            address=Shielded(reply.address),
+            phone=Shielded(reply.phone),
+            hours=tuple((h.day, h.opens, h.closes) for h in reply.hours),
+            closed_days=tuple((d.date, d.name) for d in reply.closed_days),
+            places=tuple(Shielded(p) for p in reply.places),
+            other_places=reply.other_places,
+        )
 
     async def book(
         self, handle: Shielded[str], slot_token: Shielded[str], idempotency_key: str
@@ -666,7 +757,7 @@ class EhrClient:
             ),
         )
         if reply.outcome == pb.BOOK_OUTCOME_BOOKED and reply.HasField("visit"):
-            return _visit(reply.visit)
+            return replace(_visit(reply.visit), check_referral=reply.check_referral)
         if reply.outcome == pb.BOOK_OUTCOME_NOT_THROUGH:
             raise BookNotThrough()
         return None
@@ -678,10 +769,11 @@ class EhrClient:
         clinician: Shielded[str] | None = None,
         past: bool = False,
         group: Shielded[str] | None = None,
+        place: Shielded[str] | None = None,
     ) -> FoundVisit:
         """One of the verified caller's visits: the soonest to come with no argument, else the
         one the caller named (a day or month YYYY-MM-DD / YYYY-MM, a clinician, the past, a
-        visit group)."""
+        visit group, a place)."""
         reply = await self._call(
             "FindVisit",
             pb.FindVisitRequest(
@@ -690,8 +782,11 @@ class EhrClient:
                 clinician=clinician.reveal() if clinician else "",
                 past=past,
                 group=group.reveal() if group else "",
+                place=place.reveal() if place else "",
             ),
-            result=lambda r: "visit" if r.HasField("visit") else ("which" if r.groups else "none"),
+            result=lambda r: "visit"
+            if r.HasField("visit")
+            else ("which" if r.groups else ("unknown_place" if r.unknown_place else "none")),
         )
         return FoundVisit(
             visit=_visit(reply.visit) if reply.HasField("visit") else None,
@@ -699,4 +794,5 @@ class EhrClient:
             groups=tuple(Shielded(g) for g in reply.groups),
             other_visits=reply.other_visits,
             more_within_days=reply.more_within_days,
+            unknown_place=reply.unknown_place,
         )

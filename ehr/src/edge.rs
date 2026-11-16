@@ -274,11 +274,23 @@ pub fn check_code(mut req: pb::CheckCodeRequest) -> Result<(Token, Shielded<Stri
 /// the size of the wish does not matter.
 #[allow(clippy::large_enum_variant)]
 pub enum SlotAsk {
-    /// The wish, the time of day's name ("" for none): the service sets the wish's
-    /// `time_of_day` from the call's hospital; and whether the caller asked for any place, not
-    /// their usual one (BOOKING-RULES.md §3.2).
-    New(SlotWish, String, bool),
+    /// The wish, and what the service reads from the call's own hospital (`NewSearch`).
+    New(SlotWish, NewSearch),
     More,
+}
+
+/// The parts of a new search the service decides by the call's hospital (BOOKING-RULES.md
+/// §3.1, §3.2).
+pub struct NewSearch {
+    /// The time of day's name ("" for none): the service sets the wish's `time_of_day`.
+    pub time: String,
+    /// Any place, not the caller's usual one, and no question about the place.
+    pub any_place: bool,
+    /// The caller's words for a place and for a kind of care, wrapped.
+    pub place: Option<Shielded<String>>,
+    pub specialty: Option<Shielded<String>>,
+    /// Say where the search would look; search nothing.
+    pub plan_only: bool,
 }
 
 pub fn find_slots(mut req: pb::FindSlotsRequest) -> Result<(Token, SlotAsk), Status> {
@@ -330,6 +342,15 @@ pub fn find_slots(mut req: pb::FindSlotsRequest) -> Result<(Token, SlotAsk), Sta
         return Err(Status::invalid_argument("clinician: too long"));
     }
     let clinician = (!who.is_empty()).then(|| Shielded::new(who));
+    let words = |s: String, what: &str| -> Result<Option<Shielded<String>>, Status> {
+        let s = s.trim().to_string();
+        if s.chars().count() > MAX_NAME {
+            return Err(Status::invalid_argument(format!("{what}: too long")));
+        }
+        Ok((!s.is_empty()).then(|| Shielded::new(s)))
+    };
+    let place = words(std::mem::take(&mut req.place), "place")?;
+    let specialty = words(std::mem::take(&mut req.specialty), "specialty")?;
     let mode = match pb::VisitMode::try_from(req.visit_mode) {
         Ok(pb::VisitMode::Unspecified) => VisitMode::Either,
         Ok(pb::VisitMode::InPerson) => VisitMode::InPerson,
@@ -341,9 +362,20 @@ pub fn find_slots(mut req: pb::FindSlotsRequest) -> Result<(Token, SlotAsk), Sta
     Ok((
         handle,
         SlotAsk::New(
-            SlotWish { note, earliest_day, latest_day, mode, time_of_day, days, clinician, who: None, seen: Vec::new(), place: None },
-            time.trim().to_string(),
-            req.any_place,
+            SlotWish {
+                note,
+                earliest_day,
+                latest_day,
+                mode,
+                time_of_day,
+                days,
+                clinician,
+                who: None,
+                seen: Vec::new(),
+                place: None,
+                specialty: None,
+            },
+            NewSearch { time: time.trim().to_string(), any_place: req.any_place, place, specialty, plan_only: req.plan_only },
         ),
     ))
 }
@@ -389,6 +421,7 @@ pub struct VisitQuestion {
     pub ask: VisitAsk,
     pub clinician: Option<Shielded<String>>,
     pub group: Option<Shielded<String>>,
+    pub place: Option<Shielded<String>>,
 }
 
 pub fn find_visit(mut req: pb::FindVisitRequest) -> Result<(Token, VisitQuestion), Status> {
@@ -408,7 +441,18 @@ pub fn find_visit(mut req: pb::FindVisitRequest) -> Result<(Token, VisitQuestion
     };
     let clinician = words(std::mem::take(&mut req.clinician), "clinician")?;
     let group = words(std::mem::take(&mut req.group), "group")?;
-    Ok((handle, VisitQuestion { ask: VisitAsk { range, past: req.past }, clinician, group }))
+    let place = words(std::mem::take(&mut req.place), "place")?;
+    Ok((handle, VisitQuestion { ask: VisitAsk { range, past: req.past }, clinician, group, place }))
+}
+
+/// PlaceInfo: the handle and the caller's words for a place, wrapped (BOOKING-RULES.md §3.7).
+pub fn place_info(mut req: pb::PlaceInfoRequest) -> Result<(Token, Shielded<String>), Status> {
+    let handle = handle(&req.handle)?;
+    let place = std::mem::take(&mut req.place).trim().to_string();
+    if place.is_empty() || place.chars().count() > MAX_NAME {
+        return Err(Status::invalid_argument("place: empty or too long"));
+    }
+    Ok((handle, Shielded::new(place)))
 }
 
 /// "2026-11-10" -> that day; "2026-11" -> that month. Each as [from, to).
@@ -612,7 +656,7 @@ mod tests {
 
     fn wish(ask: SlotAsk) -> SlotWish {
         match ask {
-            SlotAsk::New(w, _, _) => w,
+            SlotAsk::New(w, _) => w,
             SlotAsk::More => panic!("a new search"),
         }
     }
@@ -628,7 +672,7 @@ mod tests {
             clinician: " Dr. Lin ".into(),
             ..Default::default()
         };
-        let SlotAsk::New(w, time, _) = find_slots(req).ok().unwrap().1 else { panic!("a new search") };
+        let SlotAsk::New(w, NewSearch { time, .. }) = find_slots(req).ok().unwrap().1 else { panic!("a new search") };
         assert!(w.latest_day.is_some() && w.clinician.is_some() && w.who.is_none());
         // The name only: the service reads it in the call's hospital.
         assert!(w.time_of_day.is_none() && time == "Morning");

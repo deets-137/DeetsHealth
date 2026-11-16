@@ -134,6 +134,8 @@ pub const PROMPT: &[Setting] = &[
     p("arg.find_slots.any_time", &[]),
     p("arg.find_slots.more", &[]),
     p("arg.find_slots.any_place", &[]),
+    p("arg.find_slots.place", &[]),
+    p("arg.find_slots.specialty", &[]),
     p("tool.choose_option", &[]),
     p("arg.choose_option.option", &[]),
     p("tool.book", &[]),
@@ -144,6 +146,7 @@ pub const PROMPT: &[Setting] = &[
     p("arg.find_visit.clinician", &[]),
     p("arg.find_visit.past", &[]),
     p("arg.find_visit.group", &[]),
+    p("arg.find_visit.place", &[]),
     p("tool.read_instructions", &[]),
     p("tool.end_call", &[]),
     p("tool.hand_off", &[]),
@@ -180,6 +183,26 @@ pub const PROMPT: &[Setting] = &[
     p("line.ask_preference_mode", &[]),
     p("line.ask_preference_when", &[]),
     p("note.after_ask_preference", &[]),
+    p("line.ask_place", &[]),
+    p("line.which_place", &["places"]),
+    p("line.another_place", &[]),
+    p("note.after_ask_place", &[]),
+    p("line.unknown_place", &[]),
+    p("line.unknown_specialty", &[]),
+    p("line.not_at_place", &[]),
+    p("note.after_place_unknown", &[]),
+    p("line.referral_needed", &[]),
+    p("note.after_referral_needed", &[]),
+    p("line.rule_hand_off", &[]),
+    p("tool.place_info", &[]),
+    p("arg.place_info.place", &[]),
+    p("line.place_address", &["address", "place"]),
+    p("line.place_no_address", &["place"]),
+    p("line.place_phone", &["phone"]),
+    p("line.place_no_phone", &["place"]),
+    p("line.place_hours", &["hours"]),
+    p("line.place_info_which", &[]),
+    p("note.after_place_info", &[]),
     p("line.no_slots", &[]),
     p("line.no_more_slots", &[]),
     p("line.slots", &["options"]),
@@ -265,6 +288,7 @@ pub const HOSPITAL: &[Setting] = &[
     s("sooner_with_others", Kind::Hospital),
     s("ahead_windows", Kind::Hospital),
     s("booking_note_label", Kind::Hospital),
+    s("booking_rules", Kind::Hospital),
 ];
 
 /// The System variables that cannot be removed or renamed: the code's own (SYSTEM-PAGE.md §3.1).
@@ -892,7 +916,7 @@ mod tests {
                 (s.key.to_string(), json!(format!("Words {words}.")).to_string())
             })
             .collect();
-        assert_eq!(check(PROMPT, &set).unwrap().len(), 130);
+        assert_eq!(check(PROMPT, &set).unwrap().len(), 153);
 
         let with = |key: &str, text: &str| {
             let mut s = set.clone();

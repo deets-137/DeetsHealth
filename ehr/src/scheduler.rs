@@ -47,6 +47,9 @@ pub struct Slot {
     pub place_ref: PlaceRef,
     /// Which patients the slot's visit type is for (the Visit types list).
     pub kind: PatientKind,
+    /// The visit type as the record names it, trimmed and in lower case, for a booking rule's
+    /// condition (BOOKING-RULES.md §3.5). None when the record names none.
+    pub visit_type_ref: Option<Shielded<String>>,
     /// The clinician as the record names them (FHIR id and name), to find the caller's PCP
     /// (BOOKING-RULES.md §3.2). `clinician` is the words said.
     pub clinician_ref: ClinicianRef,
@@ -157,10 +160,15 @@ pub struct SlotWish {
     /// reads it once a call when a visit type is for new or established patients only, and
     /// keeps only the slots that fit (BOOKING-RULES.md §3.4). The fake picks its types by it.
     pub seen: Vec<PlaceRef>,
-    /// The place to search (BOOKING-RULES.md §3.2: the caller's last place of this kind of
-    /// care). Epic's `$find` gets its FHIR id as `location-reference`; the service keeps only
-    /// the slots there either way. None: any place.
+    /// The one place to search (BOOKING-RULES.md §3.1, §3.2: the place the caller named, or
+    /// their last place of this kind of care). Epic's `$find` gets its FHIR id as
+    /// `location-reference`; the service keeps only the slots of the search's places either way.
+    /// None: several places, or any.
     pub place: Option<PlaceRef>,
+    /// The specialty the caller named, its ID in the hospital's specialty list: Epic's `$find`
+    /// gets it as `specialties` (step 0: the sandbox ignores it; the service filters by the
+    /// Places list either way). None: none named, or several.
+    pub specialty: Option<Shielded<String>>,
 }
 
 /// One search's slots, all of them, in order (the service offers a few at a time), and the
@@ -225,18 +233,24 @@ pub trait Scheduler: Send + Sync + 'static {
     ) -> impl Future<Output = Result<FoundVisits, SchedulerDown>> + Send;
 }
 
-/// The fake's fixed slots: synthetic clinicians at a synthetic clinic. Each slot is in person
+/// The fake's fixed slots: synthetic clinicians at synthetic clinics. Each slot is in person
 /// or online; its visit type is the hospital's first type of that kind that the agent may book
 /// (`Hospital::fake_type`; the owner's 2A, 2026-11-15). The first three stay in person, so a
-/// list for "either" reads as before; two are online, for `VisitMode::Online`.
-const FAKE_SLOTS: &[(&str, &str, &str, u32, &str, bool)] = &[
-    // (id, day, time, minutes, clinician, online)
-    ("slot-01", "2026-11-02", "09:00", 20, "Dr. Avery Lin", false),
-    ("slot-02", "2026-11-02", "14:30", 20, "Dr. Avery Lin", false),
-    ("slot-03", "2026-11-03", "10:00", 30, "Dr. Sam Okafor", false),
-    ("slot-04", "2026-11-04", "08:30", 20, "Dr. Avery Lin", true),
-    ("slot-05", "2026-11-05", "11:00", 30, "Dr. Sam Okafor", false),
-    ("slot-06", "2026-11-06", "15:00", 20, "Dr. Avery Lin", true),
+/// list for "either" reads as before; two are online, for `VisitMode::Online`. The first six are
+/// at the sandbox's own clinic; the last three at departments of the Default's Places list, so a
+/// search by place and specialty can be tried (BOOKING-RULES.md §3.1).
+type FakeSlot = (&'static str, &'static str, &'static str, u32, &'static str, bool, Option<&'static str>);
+const FAKE_SLOTS: &[FakeSlot] = &[
+    // (id, day, time, minutes, clinician, online, place: None for the sandbox's)
+    ("slot-01", "2026-11-02", "09:00", 20, "Dr. Avery Lin", false, None),
+    ("slot-02", "2026-11-02", "14:30", 20, "Dr. Avery Lin", false, None),
+    ("slot-03", "2026-11-03", "10:00", 30, "Dr. Sam Okafor", false, None),
+    ("slot-04", "2026-11-04", "08:30", 20, "Dr. Avery Lin", true, None),
+    ("slot-05", "2026-11-05", "11:00", 30, "Dr. Sam Okafor", false, None),
+    ("slot-06", "2026-11-06", "15:00", 20, "Dr. Avery Lin", true, None),
+    ("slot-07", "2026-11-03", "13:00", 30, "Dr. Rosa Patel", false, Some("EMC Cardiology")),
+    ("slot-08", "2026-11-05", "09:30", 30, "Dr. Rosa Patel", false, Some("EMC Cardiology")),
+    ("slot-09", "2026-11-04", "10:30", 20, "Dr. Lee Moreno", false, Some("EMC Family Medicine")),
 ];
 
 /// The in-memory scheduler for tests and the text harness (VOICE-AGENT.md §9).
@@ -263,9 +277,14 @@ impl FakeScheduler {
         Self { days, taken: Mutex::default(), booked: Mutex::default(), offered_as: Mutex::default() }
     }
 
-    /// The fake's one place, as a record names it.
+    /// The fake's own place, as a record names it.
     fn place_ref() -> PlaceRef {
         PlaceRef::new(None, Some(&sandbox().place))
+    }
+
+    /// Slot `i`'s place, as the record names it.
+    fn record_place(i: usize) -> String {
+        FAKE_SLOTS[i].6.map(str::to_string).unwrap_or_else(|| sandbox().place.clone())
     }
 
     /// The record's name of slot `i`'s visit type for a caller who is (or is not) established,
@@ -277,20 +296,22 @@ impl FakeScheduler {
     /// An open slot: its type is known (and so whether it is online), its reason is not yet.
     /// Its place is the sandbox's, in the hospital's words for it.
     fn slot(&self, h: &Hospital, i: usize, visit_type: &str) -> Slot {
-        let (id, _, time, minutes, clinician, _) = FAKE_SLOTS[i];
+        let (id, _, time, minutes, clinician, _, _) = FAKE_SLOTS[i];
         let about = h.about(Some(visit_type), None);
+        let place = Self::record_place(i);
         Slot {
             id: SlotId(id.to_string()),
             starts_at: Shielded::new(format!("{}T{time}", self.days[i])),
             minutes,
             clinician: Shielded::new(clinician.to_string()),
-            place: Shielded::new(h.place(None, Some(&sandbox().place))),
+            place: Shielded::new(h.place(None, Some(&place))),
             group: h.group_of(&about, Some(visit_type)),
             about,
             csn: None,
             status: VisitStatus::Upcoming,
-            place_ref: Self::place_ref(),
+            place_ref: PlaceRef::new(None, Some(&place)),
             kind: h.patients_of(Some(visit_type)),
+            visit_type_ref: crate::hospital::type_ref(Some(visit_type)),
             clinician_ref: ClinicianRef::new(None, Some(clinician)),
         }
     }
@@ -305,8 +326,8 @@ impl Scheduler for FakeScheduler {
     async fn find(&self, h: &Hospital, _: &PatientKey, wish: &SlotWish) -> Result<FoundSlots, SchedulerDown> {
         use jiff::civil::Date;
         let taken = self.taken.lock().unwrap();
-        // New or established at the fake's one place: its types follow (BOOKING-RULES.md §3.4).
-        let established = h.established(&wish.seen, &Self::place_ref());
+        // New or established at each slot's place: its type follows (BOOKING-RULES.md §3.4).
+        let established = |i: usize| h.established(&wish.seen, &PlaceRef::new(None, Some(&Self::record_place(i))));
         let slots: Vec<Slot> = (0..FAKE_SLOTS.len())
             .filter(|&i| !taken.contains(FAKE_SLOTS[i].0))
             .filter(|&i| wish.mode.fits(FAKE_SLOTS[i].5))
@@ -319,11 +340,11 @@ impl Scheduler for FakeScheduler {
                 wish.days.is_empty()
                     || self.days[i].parse::<Date>().is_ok_and(|d| wish.days.contains(&d.weekday()))
             })
-            .filter_map(|i| Some(self.slot(h, i, &Self::visit_type(h, i, established)?)))
+            .filter_map(|i| Some(self.slot(h, i, &Self::visit_type(h, i, established(i))?)))
             .collect();
         let mut offered_as = self.offered_as.lock().unwrap();
         for (i, s) in FAKE_SLOTS.iter().enumerate() {
-            if let Some(t) = Self::visit_type(h, i, established) {
+            if let Some(t) = Self::visit_type(h, i, established(i)) {
                 offered_as.insert(s.0.to_string(), t);
             }
         }
@@ -384,6 +405,7 @@ impl Scheduler for FakeScheduler {
                 group,
                 place_ref: Self::place_ref(),
                 kind: h.patients_of(v.visit_type.as_deref()),
+                visit_type_ref: crate::hospital::type_ref(v.visit_type.as_deref()),
                 clinician_ref: ClinicianRef::new(None, Some(&v.clinician)),
             };
             Some((key, visit))

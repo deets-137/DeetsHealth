@@ -170,6 +170,7 @@ mod tests {
             group: group.map(|g| Shielded::new(g.to_string())),
             place_ref: Default::default(),
             kind: Default::default(),
+            visit_type_ref: None,
             clinician_ref: Default::default(),
         }
     }

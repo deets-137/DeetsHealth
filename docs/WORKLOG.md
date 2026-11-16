@@ -8,6 +8,24 @@ updated: 2026-11-16
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-16 (Windows, late) — booking steps 2, 4 and 5 built
+- His word: "Let's finish building out the booking rules / steps." Every fork was closed in
+  BOOKING-RULES.md, so the build went step by step with no new fork; what was decided inside
+  his choices is in each step's "Decided inside" (§5.3 to §5.5).
+- Step 2 (§5.3): `Shielded::names_terms` (core), `Hospital::pick`, the place and the specialty on
+  `FindSlots` and the place on `FindVisit`; the where question (1B) joined to the preference
+  question through `plan_only`; `$find` sends `specialties`. The Default gained a facility,
+  addresses, phones, specialties on its departments and hours on the X-ray department; the
+  fake gained three slots at two more places.
+- Step 5 (§5.4): the `PlaceInfo` RPC and the `place_info` tool, in every step, before
+  verification too.
+- Step 4 (§5.5): `booking_rules` (hospital key), the rules before and after the search, `Book`'s
+  `check_referral`, two code flags (FLAGS.md §3.4), Config › Hospital › Rules.
+- Checks: ehr 133 tests and core pass; the agent's 245 pass outside the kept scripts; the 15 kept
+  scripts and `test_the_kept_recordings_match_the_prompt_file` miss their replays, as before
+  (record them again). The console type-checks.
+- Not committed.
+
 ## 2026-11-16 (Windows) — what is unwired; booking by place, specialty and rule designed
 - He asked what remains unwired to the agent. Checked in the code: no call reads the
   specialty, a place in the search, the address, the phone, the hours, the closed days, the

@@ -33,7 +33,7 @@ doctor". Each needs a list that only the hospital can fill. Until 2026-11-15 eac
 value in one of three fixtures or a constant in the code.
 
 ## 2. The sections
-Four tabs: **Visits**, **Times**, **Places**, **Booking**. "Used now" means a call reads it
+Six tabs: **Visits**, **Times**, **Places**, **Specialties**, **Booking**, **Rules**. "Used now" means a call reads it
 today. "Not used yet" means the page keeps it and no call reads it; its note on the page says
 so.
 
@@ -87,8 +87,11 @@ so.
   from the call's own version, `OpenCallReply.times_of_day`); Epic's `$find` gets
   `Timing.repeat.timeOfDay`, `duration` and `durationUnit`. The days of the week need no list.
 
-### 2.6 Hours and closed days — Times tab, not used yet
+### 2.6 Hours and closed days — Times tab, used now
 - Hours: day of the week, opens, closes. Closed days: the date and a name.
+- Used since 2026-11-16 by "where to go" (`place_info`, BOOKING-RULES.md §5.4): a place with no
+  hours of its own says the hospital's; the next three closed days go to the model, said only
+  when the caller asks about that day.
 - For later: what the agent says when no person can take a hand-off now (FUTURE-SETTINGS.md
   §10), and when a nurse may join a call on a staff flag (FLAGS.md §5). `$find` returns open
   slots only, so the hours never filter slots.
@@ -100,17 +103,21 @@ so.
   id, the address, the phone, the hours.
 - Used now: a visit at a department on the list says the spoken name, found by the Location's
   FHIR id first, then by name; the first department is said when a record names no place
-  (`Hospital::place`). Not used yet: the FHIR id in `$find` (`location-reference`, "the same
-  place as last time"), the address and phone ("where to go"), the specialty, the hours, and
-  every facility field.
+  (`Hospital::place`). Since 2026-11-16 (BOOKING-RULES.md §5.2 to §5.5): the FHIR id in `$find`
+  (`location-reference`), the specialty (the search by kind of care and the Booking rules), the
+  spoken and record names, the facility's names and the city (a place the caller names), the
+  address, the phone and the hours ("where to go"). Not used yet: the DEP ID and the facility's
+  EAF ID.
 
-### 2.8 Specialties (Epic's `specialties`) — Specialties tab, not used yet
+### 2.8 Specialties (Epic's `specialties`) — Specialties tab, used now
 - **Its own tab since 2026-11-15** (the owner, TABLES.md §6.3, W1 A): before, it sat under
   Locations on Places, which after an import put it about 400 rows down. A specialty is a kind
   of care, not a place: each department names one by its ID, and many share it.
 - Above the table: the **Specialty list**, one OID (§5.1). Columns: the spoken name, the
   caller's words, the ID, and **Primary care** (since 2026-11-16: read by calls for the usual
-  place, BOOKING-RULES.md §5.2; the names and words are not read yet). Epic gives no list of a hospital's specialty codes by API.
+  place, BOOKING-RULES.md §5.2). Since 2026-11-16 the spoken name and the caller's words are
+  matched to a caller's words for a kind of care, and the ID goes to `$find` as `specialties`
+  (§5.3). A specialty with no ID matches no department. Epic gives no list of a hospital's specialty codes by API.
 - **What the sandbox can give (2026-11-15).** A department's specialty, one at a time:
   `Location.Read` (registered) returns it as an extension, with its code and system (EPIC.md
   §7.11). The departments come from the Location references on the test patients' visits and on
@@ -141,6 +148,14 @@ so.
   label is kept whole and the words are cut to fit Epic's 500 characters
   (`Hospital::booking_note`). Empty: the words alone. Epic mode only: the local fake keeps the
   words, so a read-back never says the label.
+
+### 2.9a Booking rules — Rules tab, used now (2026-11-16)
+- The rules engine's start (the owner's E-A; BOOKING-RULES.md §3.5, as built §5.5). Columns:
+  Specialty, Department, Visit type, Provider, Patients (Any, New, Established), Outcome (Book;
+  Book and flag for a referral check; Book with the PCP only; Referral needed; Hand off). Each
+  condition empty is Any; the first row that matches wins; ↑ ↓ ✕ keep the order.
+- A rule must name rows that are on the other lists; the page and ehr refuse it by row number.
+  The Default has no rules.
 
 ### 2.10 What a code and its system mean (Epic's docs, 2026-11-15)
 > **Part:** research · 2026-11-15. The whole record, with Epic's document ids: EPIC.md §7.11.
@@ -181,7 +196,7 @@ so.
 ## 4. Every place it runs
 - **The call:** the same on any phone. The model sees only the spoken names it may offer and
   the time-of-day names, never a code.
-- **The console:** one page, five tabs of tables (Visits, Times, Places, Specialties, Booking),
+- **The console:** one page, six tabs of tables (Visits, Times, Places, Specialties, Booking, Rules),
   each row edited in place; a search box on the tab bar's line and long lists windowed
   (TABLES.md §6). Who may edit waits on
   the roles (ACCESS-ROLES.md). On a phone each table scrolls on its own (`.dt-wrap`, TABLES.md).

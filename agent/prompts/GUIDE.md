@@ -260,6 +260,12 @@ name: The kind of visit
 under: find_visit
 plays: Filled when the caller names a kind of visit (an x-ray, a checkup).
 
+## arg.find_visit.place
+tab: Menu
+name: The place of the visit
+under: find_visit
+plays: Filled when the caller names the visit's place; ehr matches it to Config › Hospital › Places.
+
 ## line.no_visits
 tab: Menu
 name: Say no visit is coming
@@ -488,6 +494,18 @@ name: Any place
 under: find_slots
 plays: Set when the caller wants a place other than their usual one.
 
+## arg.find_slots.place
+tab: Menu
+name: The place
+under: find_slots
+plays: Filled when the caller names a clinic, a building or a town; ehr matches it to Config › Hospital › Places.
+
+## arg.find_slots.specialty
+tab: Menu
+name: The kind of care
+under: find_slots
+plays: Filled only when the caller names a kind of care or doctor (the owner's 2A); ehr matches it to Config › Hospital › Specialties. Empty is primary care.
+
 ## line.slots
 tab: Menu
 name: Offer the open times
@@ -547,6 +565,66 @@ tab: Menu
 name: Note after asking how and when
 under: find_slots
 plays: Sent to the model with a preference question. Never heard.
+
+## line.ask_place
+tab: Menu
+name: Ask where
+under: find_slots
+plays: The caller named no place and has no usual place, and the kind of care is at more places than one question names. Asked once a call; after the preference question when that is asked too. No search yet.
+
+## line.which_place
+tab: Menu
+name: Ask which place
+under: find_slots
+plays: The caller's words name several places, or the kind of care is at a few places and they have no usual one. Holds each place's spoken name, and Another place for the rest. No search yet.
+
+## line.another_place
+tab: Menu
+name: Another place
+under: find_slots
+plays: Inside Ask which place, last, when more places fit than one question names.
+
+## note.after_ask_place
+tab: Menu
+name: Note after asking where
+under: find_slots
+plays: Sent to the model with Ask where or Ask which place. Never heard.
+
+## line.unknown_place
+tab: Menu
+name: Say the place is not known
+under: find_slots
+plays: The caller's words for a place match no department on Config › Hospital › Places (also for a visit asked about by its place). No search.
+
+## line.unknown_specialty
+tab: Menu
+name: Say the kind of care is not known
+under: find_slots
+plays: The caller's words for a kind of care match no specialty on Config › Hospital › Specialties, or no department has it. No search.
+
+## line.not_at_place
+tab: Menu
+name: Say that care is not at that place
+under: find_slots
+plays: The place the caller named has no department of the kind of care they named. No search.
+
+## line.referral_needed
+tab: Menu
+name: Say a referral is needed
+under: find_slots
+plays: A Booking rule (Config › Hospital › Rules) says Referral needed for every time the search could offer. No time is offered.
+
+## note.after_referral_needed
+tab: Menu
+name: Note after a referral is needed
+under: find_slots
+plays: Sent to the model with Say a referral is needed. Never heard.
+
+## line.rule_hand_off
+tab: Menu
+name: Say staff book this visit
+under: find_slots
+plays: A Booking rule says Hand off for every time the search could offer. The call goes to a person, with a staff flag.
 
 ## line.no_slots
 tab: Menu
@@ -733,6 +811,66 @@ tab: Anytime
 name: Say it cannot give medical advice
 under: medical_question
 plays: Every time the tool is called.
+
+## tool.place_info
+tab: Anytime
+name: Tell where a place is
+under: place_info
+plays: The model calls it when the caller asks where to go, for an address or a phone number, or whether a place is open. Works before verification.
+
+## arg.place_info.place
+tab: Anytime
+name: The place asked about
+under: place_info
+plays: Filled with the caller's words for the place; empty for the visit they just heard or booked.
+
+## line.place_address
+tab: Anytime
+name: Say the address
+under: place_info
+plays: The place is found and has an address on Config › Hospital › Places (its own, else its facility's).
+
+## line.place_no_address
+tab: Anytime
+name: Say the address is not on file
+under: place_info
+plays: The place is found and neither it nor its facility has an address.
+
+## line.place_phone
+tab: Anytime
+name: Say the phone number
+under: place_info
+plays: After the address, when the place or its facility has a phone.
+
+## line.place_no_phone
+tab: Anytime
+name: Say the phone is not on file
+under: place_info
+plays: After the address, when neither the place nor its facility has a phone.
+
+## line.place_hours
+tab: Anytime
+name: Say the hours
+under: place_info
+plays: Last: the place's own hours, else the hospital's (Config › Hospital › Times).
+
+## line.place_info_which
+tab: Anytime
+name: Ask which place to tell about
+under: place_info
+plays: The caller asked where to go, named no place, and has heard no visit on this call.
+
+## note.after_place_info
+tab: Anytime
+name: Note after telling where a place is
+under: place_info
+plays: Sent to the model with the place's facts, with the hospital's next closed days. Never heard.
+
+## note.after_place_unknown
+tab: Anytime
+name: Note after a place or care not found
+under: place_info
+plays: Sent to the model with Say the place is not known, Say the kind of care is not known or Say that care is not at that place (from this tool, Find open times or the visit search). Never heard.
 
 ## tool.flag_for_staff
 tab: Anytime

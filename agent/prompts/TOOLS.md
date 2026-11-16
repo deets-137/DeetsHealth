@@ -53,9 +53,14 @@ the caller's own words: the code keeps the model's words only if the caller said
 sends the caller's latest line. ehr keeps it for the booking. The caller may also name a last
 day, a time of day from the hospital's list, days of the week and a clinician. A few times are
 offered at a time (the hospital's setting); "more" offers the next ones of the same search. An
-online time says the hospital's time zone.
+online time says the hospital's time zone. The caller may name a place (a clinic, a building or
+a town) and a kind of care ("a skin doctor"); ehr matches both against the hospital's Places and
+Specialties lists, never the model. No kind of care named is primary care. With no place named
+and no usual place, and the care at several places, it asks once where (naming the places when
+one question can), with the preference question when that is asked too. Words that name no
+place or kind of care on the lists are said so, and nothing is searched.
 record: reads
-lines: line.no_slots, line.no_more_slots, line.slots, line.slot_option
+lines: line.no_slots, line.no_more_slots, line.slots, line.slot_option, line.ask_place, line.referral_needed, line.rule_hand_off, line.which_place, line.another_place, line.unknown_place, line.unknown_specialty, line.not_at_place
 
 ## choose_option
 Takes the option number the caller chose and reads that time back for a yes. Nothing is booked
@@ -82,14 +87,14 @@ lines: line.change_booked, line.change_visit
 
 ## find_visit
 Reads one of the verified caller's visits: the next one, or the one they name by a day, a
-month, a clinician, a kind of visit or the past. Says its time, then what it is (online, its
+month, a clinician, a kind of visit, a place or the past. A place on no list is said so. Says its time, then what it is (online, its
 type, its reason), as the record says, and for a past visit whether the caller was seen. When
 too many visits match, asks which kind of visit the caller means (the hospital's visit groups).
 Offers the visit's instructions, or reads them at once when the caller named the visit. A
 private visit's type, reason and instructions are never spoken. If it is the visit booked on
 this call, its time is not said again.
 record: reads
-lines: line.no_visits, line.no_visit_match, line.no_past_visits, line.which_visit, line.visit_group, line.another_visit, line.choice_or, line.next_visit, line.visit_found, line.past_seen, line.past_missed, line.past_cancelled, line.booked_visit_asked, line.visit_online, line.visit_type, line.visit_reason, line.one_more_visit, line.more_visits, line.one_more_visit_within, line.more_visits_within, line.visit_instructions, line.offer_instructions
+lines: line.no_visits, line.no_visit_match, line.unknown_place, line.no_past_visits, line.which_visit, line.visit_group, line.another_visit, line.choice_or, line.next_visit, line.visit_found, line.past_seen, line.past_missed, line.past_cancelled, line.booked_visit_asked, line.visit_online, line.visit_type, line.visit_reason, line.one_more_visit, line.more_visits, line.one_more_visit_within, line.more_visits_within, line.visit_instructions, line.offer_instructions
 
 ## read_instructions
 Reads the instructions of the visit the caller just heard: how to prepare for it. Asks the
@@ -132,6 +137,17 @@ lines: line.emergency, line.emergency_reminder
 Tells the caller that the agent cannot answer medical questions, and what to do.
 record: none
 lines: line.medical_question
+
+## place_info
+Tells the caller where a place is, its phone number and its hours, from the hospital's lists on
+Config › Hospital only: a department's own address, phone and hours, else its facility's address
+and phone and the hospital's hours. A building or a town that holds several departments answers
+as the facility. Reads no record, so it works before verification; with no place named, the
+place of the visit the caller just heard or booked. The hospital's next closed days go to the
+model, said only when the caller asks about a day. A place on no list is said so; several ask
+which.
+record: none
+lines: line.place_address, line.place_no_address, line.place_phone, line.place_no_phone, line.place_hours, line.place_info_which, line.unknown_place, line.which_place, line.another_place
 
 ## flag_for_staff
 Marks the call for staff, silent to the caller, with the model's summary and the caller's own

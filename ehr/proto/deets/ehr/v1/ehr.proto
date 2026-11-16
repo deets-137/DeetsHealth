@@ -43,6 +43,9 @@ service Ehr {
   // one the caller names by day, month, clinician, group or past. When too many match, the
   // groups to ask about. Refused before both factors pass.
   rpc FindVisit(FindVisitRequest) returns (FindVisitReply);
+  // Where a place is, its phone and its hours, from the hospital's lists only (BOOKING-RULES.md
+  // §3.7). Reads no record, so it is open before verification: an open call's handle is enough.
+  rpc PlaceInfo(PlaceInfoRequest) returns (PlaceInfoReply);
   // Files one ended call's record into the call store (DATABASE.md), one line per message, so a
   // long call never meets the message limit. Keyed by the record's call id, not a handle: the
   // session is closed by then. FAILED_PRECONDITION when ehr runs without a store.
@@ -535,8 +538,36 @@ message FindSlotsRequest {
   string clinician = 8 [(phi) = true];
   // The next slots of the last search, not a new search: every other field is ignored.
   bool more = 9;
-  // The caller wants any place, not their usual one (BOOKING-RULES.md §3.2): no default place.
+  // The caller wants any place, not their usual one (BOOKING-RULES.md §3.2): no default place,
+  // and no question about the place.
   bool any_place = 10;
+  // The caller's words for a place ("the north clinic", "Verona"); "" for none. ehr matches
+  // them against the hospital's Places list (BOOKING-RULES.md §3.1).
+  string place = 11 [(phi) = true];
+  // The caller's words for a kind of care ("a skin doctor", "cardiology"); "" for none, which is
+  // primary care. ehr matches them against the Specialties list.
+  string specialty = 12 [(phi) = true];
+  // Only say where the search would look (`place_ask`, `place_default`): no search runs, no
+  // slot is offered. The agent asks this before its preference question, so one question asks
+  // both (BOOKING-RULES.md §3.2, 1B).
+  bool plan_only = 13;
+}
+
+// What a search's place and specialty came to (BOOKING-RULES.md §3.1).
+enum PlaceAsk {
+  // Searched; the slots are the answer.
+  PLACE_ASK_NONE = 0;
+  // No place named, no usual place, and more places fit than one question names: ask for a
+  // clinic or a town (1B). No search ran.
+  PLACE_ASK_WHERE = 1;
+  // Several places fit: ask which, naming `places`. No search ran.
+  PLACE_ASK_WHICH = 2;
+  // The caller's words name no place on the list. No search ran.
+  PLACE_ASK_UNKNOWN_PLACE = 3;
+  // The caller's words name no kind of care on the list. No search ran.
+  PLACE_ASK_UNKNOWN_SPECIALTY = 4;
+  // The place named has no department of the kind of care named. No search ran.
+  PLACE_ASK_NOT_AT_PLACE = 5;
 }
 
 enum VisitMode {
@@ -552,6 +583,25 @@ message FindSlotsReply {
   // A new search held to the caller's usual place (BOOKING-RULES.md §3.2): its words, as the
   // caller hears a place; "" when the search was not held to one.
   string place_default = 3 [(phi) = true];
+  // Set when no search ran: the question to ask about the place or the kind of care.
+  PlaceAsk place_ask = 4;
+  // With PLACE_ASK_WHICH: the places to name, in the hospital's words, at most the Booking tab's
+  // "groups one question names". Tied to this caller's ask.
+  repeated string places = 5 [(phi) = true];
+  // With `places`: more places fit than are named ("or another place").
+  bool other_places = 6;
+  // Set when a Booking rule held back every time this search could offer (BOOKING-RULES.md
+  // §3.5): no slot, and the rule's outcome is the answer.
+  RuleAsk rule = 7;
+}
+
+// A Booking rule's outcome that offers no time (BOOKING-RULES.md §3.5).
+enum RuleAsk {
+  RULE_ASK_NONE = 0;
+  // The visit needs a referral from primary care: offer a primary care visit or a person.
+  RULE_ASK_REFERRAL_NEEDED = 1;
+  // A person books this visit.
+  RULE_ASK_HAND_OFF = 2;
 }
 
 message Slot {
@@ -595,6 +645,9 @@ message BookReply {
   // and the caller's reason that went to the scheduler as the visit's note (the last
   // FindSlots's reason; Epic's `appointmentNote`), after the sensitive screen.
   Visit visit = 3;
+  // Set when the outcome is BOOKED and the time's Booking rule says Book and flag
+  // (BOOKING-RULES.md §3.5): the agent files a staff flag to check the referral.
+  bool check_referral = 4;
 }
 
 message FindVisitRequest {
@@ -607,6 +660,9 @@ message FindVisitRequest {
   bool past = 4;
   // The caller's words for a visit group ("my imaging"); "" for none.
   string group = 5 [(phi) = true];
+  // The caller's words for a place ("my visit at the north clinic"); "" for none. Matched
+  // against the Places list (BOOKING-RULES.md §3.1).
+  string place = 6 [(phi) = true];
 }
 
 enum VisitStatus {
@@ -656,4 +712,53 @@ message FindVisitReply {
   // `more` counts the visits in the next this many days (the window the search found the
   // visit in: 7, 30 or 90); 0: with no limit.
   uint32 more_within_days = 5;
+  // The place the caller named is on no list: no visit was looked for there.
+  bool unknown_place = 6;
+}
+
+message PlaceInfoRequest {
+  string handle = 1 [(secret) = true];
+  // The caller's words for a place, or the place of the visit they just heard, as it was said.
+  string place = 2 [(phi) = true];
+}
+
+enum PlaceInfoOutcome {
+  PLACE_INFO_OUTCOME_UNSPECIFIED = 0;
+  // `name`, `address`, `phone`, `hours` and `closed_days` are set (an empty one is not on file).
+  PLACE_INFO_OUTCOME_FOUND = 1;
+  // The words name no place on the list.
+  PLACE_INFO_OUTCOME_UNKNOWN = 2;
+  // The words name several places: ask which, naming `places`.
+  PLACE_INFO_OUTCOME_WHICH = 3;
+}
+
+message PlaceInfoReply {
+  PlaceInfoOutcome outcome = 1;
+  // The place as the caller hears it. The hospital's words; tied to this caller's question.
+  string name = 2 [(phi) = true];
+  string address = 3 [(phi) = true];
+  string phone = 4 [(phi) = true];
+  // The place's own hours, else the hospital's, one row a day it is open, Monday first.
+  repeated OpenHours hours = 5;
+  // The hospital's closed days from today, soonest first, at most three.
+  repeated ClosedDay closed_days = 6;
+  // With WHICH: the places to name, at most the Booking tab's "groups one question names".
+  repeated string places = 7 [(phi) = true];
+  // With `places`: more places fit than are named.
+  bool other_places = 8;
+}
+
+message OpenHours {
+  // "mon" to "sun".
+  string day = 1;
+  // HH:MM, local time at the place.
+  string opens = 2;
+  string closes = 3;
+}
+
+message ClosedDay {
+  // YYYY-MM-DD.
+  string date = 1;
+  // The day's name ("Thanksgiving"); "" for none.
+  string name = 2;
 }

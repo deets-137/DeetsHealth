@@ -11,7 +11,7 @@ use tonic::{Request, Response, Status};
 use crate::{
     edge,
     epic_ehr::{EpicEhr, EpicSandbox},
-    hospital::{ClinicianRef, Hospital, PlaceRef, PlaceSearch},
+    hospital::{ClinicianRef, Hospital, Pick, PickOutcome, PlaceAnswer, PlaceRef, PlaceSearch, RuleOutcome},
     proto::v1::{self as pb, ehr_server::Ehr},
     scheduler::{
         BookResult, DayRange, FoundSlots, FoundVisits, Scheduler, SchedulerDown, SeenVisit, Slot, SlotId, SlotWish, VisitAsk, VisitStatus,
@@ -258,14 +258,89 @@ impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
     }
 }
 
-/// The caller's usual place for this search (BOOKING-RULES.md §3.2), and the PCP seen there: the
-/// last seen visit with a PCP on file (when there are two, the one seen last: case 4b), else
-/// the last at a department of a primary care specialty. None: no such visit (cases 2 and 5).
-fn usual_place(h: &Hospital, seen: &[SeenVisit], pcp: &[ClinicianRef]) -> Option<(SeenVisit, Option<ClinicianRef>)> {
+/// The caller's usual place for this search (BOOKING-RULES.md §3.2), and the PCP seen there. For
+/// primary care: the last seen visit with a PCP on file (when there are two, the one seen last:
+/// case 4b), else the last at a department of a primary care specialty. For a specialty: the
+/// last at one of its departments. None: no such visit (cases 2 and 5).
+fn usual_place(h: &Hospital, seen: &[SeenVisit], pcp: &[ClinicianRef], pick: &Pick) -> Option<(SeenVisit, Option<ClinicianRef>)> {
+    if !pick.primary_care {
+        return seen.iter().find(|v| Hospital::among(&pick.departments, &v.place)).map(|v| (v.clone(), None));
+    }
     if let Some((v, p)) = seen.iter().find_map(|v| pcp.iter().find(|p| v.clinician.same(p)).map(|p| (v, p))) {
         return Some((v.clone(), Some(p.clone())));
     }
     seen.iter().find(|v| h.primary_care_at(&v.place)).map(|v| (v.clone(), None))
+}
+
+/// The Booking rules before a search (BOOKING-RULES.md §3.5): the outcome when every place the
+/// search would look at holds the visit back for this caller (Referral needed, Hand off), known
+/// from the place alone. None: some place may offer a time, a rule depends on each time, or there
+/// is no rule or no place to check.
+fn held_back_everywhere(h: &Hospital, places: &[PlaceRef], seen: &[PlaceRef]) -> Option<RuleOutcome> {
+    if h.booking_rules.is_empty() || places.is_empty() {
+        return None;
+    }
+    let mut first = None;
+    for p in places {
+        let o = h.rule_before_search(p, h.established(seen, p))?;
+        if !o.holds_back() {
+            return None;
+        }
+        first.get_or_insert(o);
+    }
+    first
+}
+
+/// The Booking rules per time (§3.5): drops each time its rule holds back, and each time with
+/// another clinician under "Book with the PCP only" (when the caller has a PCP on file); marks
+/// each time whose rule says Book and flag. Returns the first held-back outcome, for when no
+/// time is left.
+fn keep_by_rules(
+    h: &Hospital,
+    seen: &[PlaceRef],
+    pcp: Option<&ClinicianRef>,
+    slots: &mut Vec<Slot>,
+    flag_on_book: &mut std::collections::HashSet<SlotId>,
+) -> Option<RuleOutcome> {
+    if h.booking_rules.is_empty() {
+        return None;
+    }
+    let mut held = None;
+    slots.retain(|s| {
+        let o = h.rule_for(s, h.established(seen, &s.place_ref));
+        if o.holds_back() {
+            held.get_or_insert(o);
+            return false;
+        }
+        if o == RuleOutcome::PcpOnly && pcp.is_some_and(|p| !s.clinician_ref.same(p)) {
+            return false;
+        }
+        if o == RuleOutcome::BookAndFlag {
+            flag_on_book.insert(s.id.clone());
+        }
+        true
+    });
+    held
+}
+
+fn rule_ask(o: RuleOutcome) -> pb::RuleAsk {
+    match o {
+        RuleOutcome::ReferralNeeded => pb::RuleAsk::ReferralNeeded,
+        RuleOutcome::HandOff => pb::RuleAsk::HandOff,
+        _ => pb::RuleAsk::None,
+    }
+}
+
+/// A reply that asks about the place or the kind of care, and searched nothing (§3.1): the
+/// places to name, at most the hospital's "groups one question names".
+fn place_question(h: &Hospital, ask: pb::PlaceAsk, names: &[String]) -> pb::FindSlotsReply {
+    let named = if ask == pb::PlaceAsk::Which { names.iter().take(h.groups_named).cloned().collect() } else { Vec::new() };
+    pb::FindSlotsReply {
+        place_ask: ask.into(),
+        other_places: ask == pb::PlaceAsk::Which && names.len() > h.groups_named,
+        places: named,
+        ..Default::default()
+    }
 }
 
 /// The PCP's times first (BOOKING-RULES.md §3.3), in their own order, then the others. With the
@@ -538,28 +613,72 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let (mut session, mut found) = match ask {
             // A new search. New tokens: a token from an older search no longer books. The
             // reason asked with these slots is the one Book sends.
-            edge::SlotAsk::New(mut wish, time, any_place) => {
+            edge::SlotAsk::New(mut wish, ask) => {
                 wish.who = facts;
                 // Only a name on the call's own list: the model picks, the hospital decides
                 // what it means.
-                if !time.is_empty() {
-                    let t = h.time_of_day(&time).ok_or_else(|| Status::invalid_argument("time_of_day: not on the hospital's list"))?;
+                if !ask.time.is_empty() {
+                    let t = h.time_of_day(&ask.time).ok_or_else(|| Status::invalid_argument("time_of_day: not on the hospital's list"))?;
                     wish.time_of_day = Some(t);
                 }
+                // The place and the kind of care, matched in Rust against the lists (§3.1). Words
+                // that name nothing on them, or several places, are a question, and no search runs.
+                let pick = h.pick(ask.place.as_ref(), ask.specialty.as_ref());
+                let question = match pick.outcome {
+                    PickOutcome::Search => None,
+                    PickOutcome::WhichPlace => Some(pb::PlaceAsk::Which),
+                    PickOutcome::UnknownPlace => Some(pb::PlaceAsk::UnknownPlace),
+                    PickOutcome::UnknownSpecialty => Some(pb::PlaceAsk::UnknownSpecialty),
+                    PickOutcome::NotAtPlace => Some(pb::PlaceAsk::NotAtPlace),
+                };
+                if let Some(q) = question {
+                    return Ok(Response::new(place_question(&h, q, &pick.names)));
+                }
                 // The caller's seen visits in the hospital's window, read once a call, only when
-                // they can matter: new or established (BOOKING-RULES.md §3.4), or a default place
-                // (§3.2: the caller has a PCP, or the hospital marks a primary care specialty).
+                // they can matter: new or established (BOOKING-RULES.md §3.4), or a usual place
+                // (§3.2: for primary care, the caller has a PCP or the hospital marks a primary
+                // care specialty; for a specialty, their last visit at one of its departments).
                 let pcp = call.lock().await.pcp.clone();
-                let wants_place = !any_place && (!pcp.is_empty() || h.specialties.iter().any(|s| s.primary_care));
-                let seen = if h.sorts_patients() || wants_place { self.seen(&call, &h, &patient, source).await? } else { Vec::new() };
+                let wants_usual = !ask.any_place
+                    && !pick.place_named
+                    && (pick.named_specialty || !pcp.is_empty() || h.marks_primary_care());
+                let seen = if h.sorts_patients() || h.rules_sort_patients() || wants_usual {
+                    self.seen(&call, &h, &patient, source).await?
+                } else {
+                    Vec::new()
+                };
                 wish.seen = seen.iter().map(|v| v.place.clone()).collect();
-                // The default place and the PCP (§3.2): the last visit with a PCP on file, else
-                // the last at a primary care department. A caller who asked for anywhere gets
-                // none. The PCP's times come first either way.
-                let usual = if wants_place { usual_place(&h, &seen, &pcp) } else { None };
-                let search_pcp = usual.as_ref().and_then(|u| u.1.clone()).or_else(|| pcp.first().cloned());
-                wish.place = usual.as_ref().map(|u| u.0.place.clone());
-                let place_words = usual.map(|u| u.0.place_words);
+                // The usual place and the PCP (§3.2): for primary care, the last visit with a PCP
+                // on file, else the last at a primary care department; for a specialty, the last
+                // at one of its departments. A caller who asked for anywhere gets none.
+                let usual = if wants_usual { usual_place(&h, &seen, &pcp, &pick) } else { None };
+                let places = match &usual {
+                    Some(u) => vec![u.0.place.clone()],
+                    None => pick.departments.clone(),
+                };
+                // The Booking rules before any search (§3.5): when every place the search would
+                // look at holds the visit back (Referral needed, Hand off) by its specialty,
+                // department and new or established, nothing is searched and the rule answers.
+                if let Some(rule) = held_back_everywhere(&h, &places, &wish.seen) {
+                    return Ok(Response::new(pb::FindSlotsReply { rule: rule_ask(rule).into(), ..Default::default() }));
+                }
+                // No place named and no usual place, and the kind of care is at several places:
+                // the caller is asked where (1B), naming them when one question can.
+                if usual.is_none() && !ask.any_place && !pick.place_named && pick.departments.len() > 1 && pick.names.len() > 1 {
+                    let q = if pick.names.len() <= h.groups_named { pb::PlaceAsk::Which } else { pb::PlaceAsk::Where };
+                    return Ok(Response::new(place_question(&h, q, &pick.names)));
+                }
+                let place_words = usual.as_ref().map(|u| u.0.place_words.clone());
+                if ask.plan_only {
+                    // Where the search would look, and nothing searched.
+                    return Ok(Response::new(pb::FindSlotsReply { place_default: edge::place_words(place_words.as_ref()), ..Default::default() }));
+                }
+                // The PCP's times come first, for primary care only.
+                let search_pcp =
+                    if pick.primary_care { usual.as_ref().and_then(|u| u.1.clone()).or_else(|| pcp.first().cloned()) } else { None };
+                let strict = usual.is_some() || pick.strict;
+                wish.place = (places.len() == 1).then(|| places[0].clone());
+                wish.specialty = pick.specialty_code.clone();
                 let hh = Arc::clone(&h);
                 let (found, wish) = ledgered(&call, "FindSlots", async move {
                     let found = sched.find(&hh, &patient, &wish).await;
@@ -583,11 +702,24 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                 session.mode = wish.mode;
                 slots.retain(|s| wish.mode.fits(s.about.online));
                 keep_fitting(&h, &wish.seen, &mut slots);
-                // The usual place only, whether or not the EHR took `location-reference`.
-                session.search_place = wish.place.clone();
-                if let Some(p) = &wish.place {
-                    slots.retain(|s| s.place_ref.same(p));
+                // The search's places only, whether or not the EHR took `location-reference` or
+                // `specialties` (step 0: the sandbox ignores `specialties`).
+                slots.retain(|s| h.keeps(&places, strict, &s.place_ref));
+                // The Booking rules per time (§3.5): its visit type and provider are known now.
+                let any = !slots.is_empty();
+                session.flag_on_book.clear();
+                let held = keep_by_rules(&h, &wish.seen, search_pcp.as_ref(), &mut slots, &mut session.flag_on_book);
+                if any && slots.is_empty() {
+                    if let Some(rule) = held {
+                        session.search_places = places;
+                        session.search_strict = strict;
+                        session.rest.clear();
+                        session.next_pages.clear();
+                        return Ok(Response::new(pb::FindSlotsReply { rule: rule_ask(rule).into(), ..Default::default() }));
+                    }
                 }
+                session.search_places = places;
+                session.search_strict = strict;
                 session.sooner = pcp_first(&h, search_pcp.as_ref(), &mut slots, offered_at_once);
                 session.search_pcp = search_pcp;
                 session.place_words = place_words;
@@ -612,9 +744,11 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                     slots.retain(|s| mode.fits(s.about.online));
                     let places: Vec<PlaceRef> = session.seen.iter().flatten().map(|v| v.place.clone()).collect();
                     keep_fitting(&h, &places, &mut slots);
-                    if let Some(p) = &session.search_place {
-                        slots.retain(|s| s.place_ref.same(p));
-                    }
+                    slots.retain(|s| h.keeps(&session.search_places, session.search_strict, &s.place_ref));
+                    let pcp = session.search_pcp.clone();
+                    let mut flags = std::mem::take(&mut session.flag_on_book);
+                    keep_by_rules(&h, &places, pcp.as_ref(), &mut slots, &mut flags);
+                    session.flag_on_book = flags;
                     (session, slots)
                 } else {
                     (session, rest)
@@ -636,7 +770,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let more = !session.rest.is_empty() || !session.next_pages.is_empty();
         // The usual place is named with a new search's times only (§3.2).
         let place_default = if new_search { edge::place_words(session.place_words.as_ref()) } else { String::new() };
-        Ok(Response::new(pb::FindSlotsReply { slots, more, place_default }))
+        Ok(Response::new(pb::FindSlotsReply { slots, more, place_default, ..Default::default() }))
     }
 
     async fn book(
@@ -654,6 +788,9 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let task = tokio::spawn(async move {
             let mut session = session.lock_owned().await;
             let patient = session.patient().map_err(refused)?;
+            // Book and flag (BOOKING-RULES.md §3.5): the rule was checked for this time when it
+            // was offered, with the call's own hospital, which no save changes.
+            let check_referral = session.offered.get(&slot_token).is_some_and(|id| session.flag_on_book.contains(id));
             let result = match session.booked.get(&key) {
                 Some((first_token, _)) if *first_token != slot_token => {
                     return Err(Status::failed_precondition(
@@ -687,17 +824,10 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                     outcome: pb::BookOutcome::Booked.into(),
                     booked: Some(edge::slot(&slot_token, &slot, false, false)),
                     visit: Some(edge::visit(&slot)),
+                    check_referral,
                 },
-                BookResult::Taken => pb::BookReply {
-                    outcome: pb::BookOutcome::SlotTaken.into(),
-                    booked: None,
-                    visit: None,
-                },
-                BookResult::NotThrough => pb::BookReply {
-                    outcome: pb::BookOutcome::NotThrough.into(),
-                    booked: None,
-                    visit: None,
-                },
+                BookResult::Taken => pb::BookReply { outcome: pb::BookOutcome::SlotTaken.into(), ..Default::default() },
+                BookResult::NotThrough => pb::BookReply { outcome: pb::BookOutcome::NotThrough.into(), ..Default::default() },
             })
         });
         let reply = task.await.map_err(|_| Status::internal("the booking stopped"))??;
@@ -715,11 +845,21 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             (session.patient().map_err(refused)?, session.source, Arc::clone(&session.hospital))
         };
         let sched = self.sched(source)?;
+        // A place the caller named (BOOKING-RULES.md §3.1): its departments, matched in Rust. A
+        // place on no list is said so, and no visit is looked for.
+        // Every place the words name counts: the visit says which one it is at.
+        let at = question.place.as_ref().filter(|w| w.names_anything()).map(|words| h.places_named(words));
+        if at.as_ref().is_some_and(Vec::is_empty) {
+            return Ok(Response::new(pb::FindVisitReply { unknown_place: true, ..Default::default() }));
+        }
         let by_day = question.ask.range.is_some();
         let ask = question.ask;
         let hh = Arc::clone(&h);
         let found = ledgered(&session, "FindVisit", async move { sched.visits(&hh, &patient, &ask).await }).await?;
-        let FoundVisits { visits: found, within_days } = found.map_err(scheduler_down)?;
+        let FoundVisits { visits: mut found, within_days } = found.map_err(scheduler_down)?;
+        if let Some(at) = &at {
+            found.retain(|v| Hospital::among(at, &v.place_ref));
+        }
         let groups = h.groups();
         let group = question.group.as_ref().and_then(|g| groups.named_by(g));
         let ask = Narrow {
@@ -741,6 +881,32 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             }
         };
         Ok(Response::new(reply))
+    }
+
+    async fn place_info(&self, req: Request<pb::PlaceInfoRequest>) -> Result<Response<pb::PlaceInfoReply>, Status> {
+        let (handle, place) = edge::place_info(req.into_inner())?;
+        // An open call is enough: the lists hold no protected data (BOOKING-RULES.md §3.7).
+        let call = self.sessions.get(&handle).await.map_err(refused)?;
+        let h = Arc::clone(&call.lock().await.hospital);
+        let today = jiff::Timestamp::now().to_zoned_datetime(h.tz().clone()).date().to_string();
+        Ok(Response::new(match h.place_info(&place, &today) {
+            PlaceAnswer::Unknown => pb::PlaceInfoReply { outcome: pb::PlaceInfoOutcome::Unknown.into(), ..Default::default() },
+            PlaceAnswer::Which(names) => pb::PlaceInfoReply {
+                outcome: pb::PlaceInfoOutcome::Which.into(),
+                other_places: names.len() > h.groups_named,
+                places: names.into_iter().take(h.groups_named).collect(),
+                ..Default::default()
+            },
+            PlaceAnswer::Found(f) => pb::PlaceInfoReply {
+                outcome: pb::PlaceInfoOutcome::Found.into(),
+                name: f.name,
+                address: f.address,
+                phone: f.phone,
+                hours: f.hours.into_iter().map(|r| pb::OpenHours { day: r.day, opens: r.opens, closes: r.closes }).collect(),
+                closed_days: f.closed_days.into_iter().map(|d| pb::ClosedDay { date: d.date, name: d.name }).collect(),
+                ..Default::default()
+            },
+        }))
     }
 
     async fn file_call(
@@ -1382,7 +1548,7 @@ mod tests {
     }
 
     fn visit_req(h: &str, when: &str, clinician: &str, past: bool, group: &str) -> pb::FindVisitRequest {
-        pb::FindVisitRequest { handle: h.into(), when: when.into(), clinician: clinician.into(), past, group: group.into() }
+        pb::FindVisitRequest { handle: h.into(), when: when.into(), clinician: clinician.into(), past, group: group.into(), ..Default::default() }
     }
 
     #[tokio::test]
@@ -1482,6 +1648,7 @@ mod tests {
             {"record": "Heart Clinic", "id": "d3", "specialty": "4"}
         ]);
         let h = Hospital::from_pairs([("specialty_list", &list), ("specialties", &specialties), ("locations", &locations)]).unwrap();
+        let primary = h.pick(None, None);
         let visit = |place: &str, who: &str, at: &str| SeenVisit {
             place: PlaceRef::new(Some(place), None),
             place_words: Shielded::new(place.to_string()),
@@ -1493,25 +1660,39 @@ mod tests {
         let pcp = |ids: &[&str]| ids.iter().map(|i| ClinicianRef::new(Some(i), None)).collect::<Vec<_>>();
         let place_of = |u: Option<(SeenVisit, Option<ClinicianRef>)>| u.map(|(v, p)| (v.place, p));
         // Case 1: the last visit with the PCP, not the later cardiology visit.
-        assert!(place_of(usual_place(&h, &seen, &pcp(&["pcp-a"]))) == Some((PlaceRef::new(Some("d1"), None), Some(ClinicianRef::new(Some("pcp-a"), None)))));
+        assert!(place_of(usual_place(&h, &seen, &pcp(&["pcp-a"]), &primary)) == Some((PlaceRef::new(Some("d1"), None), Some(ClinicianRef::new(Some("pcp-a"), None)))));
         // Case 4b: two PCPs, the one seen last.
-        assert!(place_of(usual_place(&h, &seen, &pcp(&["pcp-a", "pcp-b"]))).is_some_and(|(p, _)| p == PlaceRef::new(Some("d2"), None)));
+        assert!(place_of(usual_place(&h, &seen, &pcp(&["pcp-a", "pcp-b"]), &primary)).is_some_and(|(p, _)| p == PlaceRef::new(Some("d2"), None)));
         // No PCP visit: the last primary care place; cardiology is not one.
-        assert!(place_of(usual_place(&h, &seen, &pcp(&["nobody"]))) == Some((PlaceRef::new(Some("d2"), None), None)));
-        assert!(usual_place(&h, &seen[..1], &[]).is_none(), "cardiology only: no usual place");
+        assert!(place_of(usual_place(&h, &seen, &pcp(&["nobody"]), &primary)) == Some((PlaceRef::new(Some("d2"), None), None)));
+        assert!(usual_place(&h, &seen[..1], &[], &primary).is_none(), "cardiology only: no usual place");
+    }
+
+    /// Priya Raman, verified: PCP Dr. Okafor, never seen.
+    async fn priya(s: &Svc) -> String {
+        let h = open(s).await;
+        identify(s, &h, "Priya", "Raman", "1971-11-30").await;
+        assert_eq!(check(s, &h, FAKE_CODE).await.outcome, pb::CheckOutcome::Pass as i32);
+        h
+    }
+
+    /// An in-person search with the caller's words for a place and a kind of care.
+    fn find_at(handle: &str, place: &str, specialty: &str) -> Request<pb::FindSlotsRequest> {
+        let mut r = find_req_with(handle, "", "a check-up", pb::VisitMode::InPerson).into_inner();
+        r.place = place.into();
+        r.specialty = specialty.into();
+        Request::new(r)
     }
 
     /// BOOKING-RULES.md §3.3: Priya Raman's PCP is Dr. Okafor (the fake's file), whom she has not
-    /// seen yet, so no usual place; his times come first, and Dr. Lin's on an earlier day is the
-    /// one sooner time, the last of the first offer (P-A). Jordan Ellis has no PCP on file: his
-    /// times keep their order.
+    /// seen yet, so no usual place; at Main Street Clinic his times come first, and Dr. Lin's on
+    /// an earlier day is the one sooner time, the last of the first offer (P-A). Jordan Ellis has
+    /// no PCP on file: his times keep their order.
     #[tokio::test]
     async fn the_pcp_s_times_come_first_with_one_sooner_time_from_another_clinician() {
         let s = svc();
-        let priya = open(&s).await;
-        identify(&s, &priya, "Priya", "Raman", "1971-11-30").await;
-        assert_eq!(check(&s, &priya, FAKE_CODE).await.outcome, pb::CheckOutcome::Pass as i32);
-        let reply = s.find_slots(find_req_with(&priya, "", "a check-up", pb::VisitMode::InPerson)).await.unwrap().into_inner();
+        let priya = priya(&s).await;
+        let reply = s.find_slots(find_at(&priya, "Main Street", "")).await.unwrap().into_inner();
         let got: Vec<(&str, &str, bool, bool)> =
             reply.slots.iter().map(|x| (x.starts_at.as_str(), x.clinician.as_str(), x.with_pcp, x.sooner)).collect();
         assert_eq!(
@@ -1535,14 +1716,157 @@ mod tests {
         assert!(reply.slots.iter().all(|x| !x.with_pcp && !x.sooner));
     }
 
+    /// BOOKING-RULES.md §3.1, §3.2 (1B): Priya has no usual place, so with nothing named she is
+    /// asked where, and the two primary care places are named; a plan says the same and searches
+    /// nothing. Jordan's usual place is Main Street Clinic: a plan names it.
+    #[tokio::test]
+    async fn with_no_usual_place_the_caller_is_asked_where_and_a_plan_searches_nothing() {
+        let s = svc();
+        let priya = priya(&s).await;
+        let reply = s.find_slots(find_at(&priya, "", "")).await.unwrap().into_inner();
+        assert_eq!(reply.place_ask, pb::PlaceAsk::Which as i32);
+        assert_eq!(reply.places, ["Main Street Clinic", "the family medicine clinic"]);
+        assert!(reply.slots.is_empty() && !reply.other_places);
+        // Anywhere: both places, Dr. Okafor first; Dr. Moreno is at the family medicine clinic.
+        let mut any = find_at(&priya, "", "").into_inner();
+        any.any_place = true;
+        let reply = s.find_slots(Request::new(any)).await.unwrap().into_inner();
+        assert_eq!(reply.place_ask, pb::PlaceAsk::None as i32);
+        assert!(reply.more, "three of five offered");
+        let more = s.find_slots(Request::new(pb::FindSlotsRequest { handle: priya.clone(), more: true, ..Default::default() })).await;
+        let all: Vec<String> = more.unwrap().into_inner().slots.iter().map(|x| x.clinician.clone()).collect();
+        assert!(all.iter().any(|c| c == "Dr. Lee Moreno"), "{all:?}");
+
+        let mut plan = find_at(&priya, "", "").into_inner();
+        plan.plan_only = true;
+        assert_eq!(s.find_slots(Request::new(plan)).await.unwrap().into_inner().place_ask, pb::PlaceAsk::Which as i32);
+        let jordan = verified(&s).await;
+        let mut plan = find_at(&jordan, "", "").into_inner();
+        plan.plan_only = true;
+        let reply = s.find_slots(Request::new(plan)).await.unwrap().into_inner();
+        assert_eq!((reply.place_ask, reply.place_default.as_str(), reply.slots.len()), (pb::PlaceAsk::None as i32, "Main Street Clinic", 0));
+    }
+
+    /// BOOKING-RULES.md §3.1: a place and a specialty in the caller's words, matched in Rust.
+    #[tokio::test]
+    async fn a_place_and_a_specialty_narrow_the_search_or_ask() {
+        let s = svc();
+        let h = verified(&s).await;
+        let ask = |reply: &pb::FindSlotsReply| (reply.place_ask, reply.places.clone());
+        let who = |reply: &pb::FindSlotsReply| reply.slots.iter().map(|x| x.clinician.clone()).collect::<Vec<_>>();
+        // Cardiology: two departments, no visit at either: which one?
+        let r = s.find_slots(find_at(&h, "", "a heart doctor")).await.unwrap().into_inner();
+        assert_eq!(ask(&r), (pb::PlaceAsk::Which as i32, vec!["EMC Cardiology".to_string(), "EMC Cardiology Procedures".to_string()]));
+        // The place and the specialty: Dr. Patel's times only, at EMC Cardiology (a full match).
+        let r = s.find_slots(find_at(&h, "EMC cardiology", "cardiology")).await.unwrap().into_inner();
+        assert_eq!(who(&r), ["Dr. Rosa Patel", "Dr. Rosa Patel"]);
+        assert!(r.slots.iter().all(|x| x.place == "EMC Cardiology"));
+        // The facility, no specialty: its primary care department only.
+        let r = s.find_slots(find_at(&h, "the medical center", "")).await.unwrap().into_inner();
+        assert_eq!(who(&r), ["Dr. Lee Moreno"]);
+        // A town: the department there.
+        let r = s.find_slots(find_at(&h, "Verona", "")).await.unwrap().into_inner();
+        assert!(!r.slots.is_empty() && r.slots.iter().all(|x| x.place == "Main Street Clinic"));
+        // Words the lists do not hold, and a place without that kind of care.
+        assert_eq!(s.find_slots(find_at(&h, "Chicago", "")).await.unwrap().into_inner().place_ask, pb::PlaceAsk::UnknownPlace as i32);
+        assert_eq!(s.find_slots(find_at(&h, "", "a dentist")).await.unwrap().into_inner().place_ask, pb::PlaceAsk::UnknownSpecialty as i32);
+        assert_eq!(s.find_slots(find_at(&h, "", "a skin doctor")).await.unwrap().into_inner().place_ask, pb::PlaceAsk::UnknownSpecialty as i32, "no department has it");
+        assert_eq!(s.find_slots(find_at(&h, "Main Street", "cardiology")).await.unwrap().into_inner().place_ask, pb::PlaceAsk::NotAtPlace as i32);
+        // Words that name nothing are left out: Jordan's usual place.
+        let r = s.find_slots(find_at(&h, "the clinic", "a doctor")).await.unwrap().into_inner();
+        assert_eq!(r.place_default, "Main Street Clinic");
+    }
+
+    /// BOOKING-RULES.md §3.7: where a place is, before verification; its own hours, else the
+    /// hospital's; the facility for a building that holds several; a place with no phone.
+    #[tokio::test]
+    async fn place_info_answers_from_the_lists_before_verification() {
+        let s = svc();
+        let h = open(&s).await;
+        let ask = |words: &str| Request::new(pb::PlaceInfoRequest { handle: h.clone(), place: words.into() });
+        let r = s.place_info(ask("Main Street")).await.unwrap().into_inner();
+        assert_eq!(r.outcome, pb::PlaceInfoOutcome::Found as i32);
+        assert_eq!((r.name.as_str(), r.address.as_str(), r.phone.as_str()), ("Main Street Clinic", "100 Main Street, Verona, WI 53593", "608-555-0100"));
+        assert_eq!(r.hours.len(), 5, "the hospital's hours: Monday to Friday");
+        let x = s.place_info(ask("the x-ray place")).await.unwrap().into_inner();
+        assert_eq!(x.hours.last().map(|d| d.day.as_str()), Some("sat"), "its own hours");
+        let c = s.place_info(ask("the medical center")).await.unwrap().into_inner();
+        assert_eq!((c.name.as_str(), c.address.as_str()), ("the medical center", "200 Elm Avenue, Madison, WI 53703"));
+        // EMC Cardiology Procedures has no phone and no address: the facility's.
+        let p = s.place_info(ask("cardiology procedures")).await.unwrap().into_inner();
+        assert_eq!((p.phone.as_str(), p.address.as_str()), ("608-555-0120", "200 Elm Avenue, Madison, WI 53703"));
+        let w = s.place_info(ask("cardiology")).await.unwrap().into_inner();
+        assert_eq!((w.outcome, w.places.len()), (pb::PlaceInfoOutcome::Which as i32, 2));
+        assert_eq!(s.place_info(ask("Chicago")).await.unwrap().into_inner().outcome, pb::PlaceInfoOutcome::Unknown as i32);
+        assert_eq!(s.place_info(Request::new(pb::PlaceInfoRequest { handle: "no".into(), place: "x".into() })).await.unwrap_err().code(), Code::InvalidArgument);
+    }
+
+    /// The Default hospital with these Booking rules, given to an open call.
+    async fn with_rules(s: &Svc, handle: &str, rules: serde_json::Value) {
+        let h = Hospital::from_pairs([("booking_rules", &rules)]).unwrap();
+        let call = s.sessions.get(&Token::parse(handle).unwrap()).await.ok().unwrap();
+        call.lock().await.hospital = Arc::new(h);
+    }
+
+    /// BOOKING-RULES.md §3.5: the first rule that matches wins; one known from the place alone
+    /// answers before any search, one on a provider per time.
+    #[tokio::test]
+    async fn booking_rules_hold_back_hand_off_refer_flag_and_keep_to_the_pcp() {
+        let s = svc();
+        let h = verified(&s).await;
+        // A new cardiology patient is handed off; Jordan has no cardiology visit.
+        with_rules(&s, &h, serde_json::json!([{"specialty": "4", "patients": "new", "outcome": "hand_off"}])).await;
+        let r = s.find_slots(find_at(&h, "EMC Cardiology", "cardiology")).await.unwrap().into_inner();
+        assert_eq!((r.rule, r.slots.len()), (pb::RuleAsk::HandOff as i32, 0));
+        // Primary care is not touched by it.
+        assert!(!s.find_slots(find_at(&h, "", "")).await.unwrap().into_inner().slots.is_empty());
+
+        // Per time: Dr. Patel's visits need a referral; the rule before it does not match.
+        let rules = serde_json::json!([
+            {"specialty": "9", "outcome": "hand_off", "patients": "new"},
+            {"provider": "Dr. Rosa Patel", "outcome": "referral_needed"}
+        ]);
+        with_rules(&s, &h, rules).await;
+        let r = s.find_slots(find_at(&h, "EMC Cardiology", "")).await.unwrap().into_inner();
+        assert_eq!((r.rule, r.slots.len()), (pb::RuleAsk::ReferralNeeded as i32, 0));
+
+        // Book and flag: the booking says so; another time does not.
+        with_rules(&s, &h, serde_json::json!([{"visit_type": "Office Visit", "outcome": "book_and_flag"}])).await;
+        let slots = s.find_slots(find_at(&h, "", "")).await.unwrap().into_inner().slots;
+        let booked = s.book(book_req(&h, &slots[0].token, "key-0000000000000021")).await.unwrap().into_inner();
+        assert!(booked.check_referral);
+        let online = s.find_slots(find_req_with(&h, "", "a check-up", pb::VisitMode::Online)).await.unwrap().into_inner().slots;
+        let booked = s.book(book_req(&h, &online[0].token, "key-0000000000000022")).await.unwrap().into_inner();
+        assert!(!booked.check_referral, "a video visit is not an office visit");
+
+        // Book with the PCP only: Priya hears Dr. Okafor's times and no sooner one.
+        let p = priya(&s).await;
+        with_rules(&s, &p, serde_json::json!([{"department": "Main Street Clinic", "outcome": "pcp_only"}])).await;
+        let r = s.find_slots(find_at(&p, "Main Street", "")).await.unwrap().into_inner();
+        assert!(!r.slots.is_empty() && r.slots.iter().all(|x| x.clinician == "Dr. Sam Okafor" && !x.sooner));
+    }
+
+    /// A visit asked about by its place (BOOKING-RULES.md §3.1).
+    #[tokio::test]
+    async fn a_visit_is_found_by_its_place_and_an_unknown_place_says_so() {
+        let s = svc();
+        let h = verified(&s).await;
+        let mut req = visit_req(&h, "", "", false, "");
+        req.place = "Main Street".into();
+        let reply = ask_visit(&s, req.clone()).await.unwrap();
+        assert!(reply.visit.is_some_and(|v| v.place == "Main Street Clinic"));
+        req.place = "Chicago".into();
+        let reply = ask_visit(&s, req).await.unwrap();
+        assert!(reply.unknown_place && reply.visit.is_none());
+    }
+
     /// BOOKING-RULES.md §3.4: Jordan Ellis was seen at Main Street Clinic in October, so his
     /// in-person visit is the established type; Priya Raman has no visit there, so hers is the
     /// new-patient type. One past-visit read a call, kept in the session.
     #[tokio::test]
     async fn a_new_patient_books_the_new_patient_type_and_an_established_one_does_not() {
         async fn book_in_person(s: &Svc, h: &str, key: &str) -> String {
-            let req = find_req_with(h, "", "a check-up", pb::VisitMode::InPerson);
-            let slot = s.find_slots(req).await.unwrap().into_inner().slots.remove(0);
+            let slot = s.find_slots(find_at(h, "Main Street Clinic", "")).await.unwrap().into_inner().slots.remove(0);
             s.book(book_req(h, &slot.token, key)).await.unwrap().into_inner().visit.unwrap().visit_type
         }
         let s = svc();
@@ -1692,7 +2016,10 @@ mod tests {
             ("FindSlotsRequest", "latest_day"),
             ("FindSlotsRequest", "time_of_day"),
             ("FindSlotsRequest", "clinician"),
+            ("FindSlotsRequest", "place"),
+            ("FindSlotsRequest", "specialty"),
             ("FindSlotsReply", "place_default"),
+            ("FindSlotsReply", "places"),
             ("Slot", "token"),
             ("Slot", "starts_at"),
             ("Slot", "clinician"),
@@ -1703,6 +2030,7 @@ mod tests {
             ("FindVisitRequest", "when"),
             ("FindVisitRequest", "clinician"),
             ("FindVisitRequest", "group"),
+            ("FindVisitRequest", "place"),
             ("Visit", "starts_at"),
             ("Visit", "clinician"),
             ("Visit", "place"),
@@ -1711,6 +2039,12 @@ mod tests {
             ("Visit", "instructions"),
             ("Visit", "csn"),
             ("FindVisitReply", "groups"),
+            ("PlaceInfoRequest", "handle"),
+            ("PlaceInfoRequest", "place"),
+            ("PlaceInfoReply", "name"),
+            ("PlaceInfoReply", "address"),
+            ("PlaceInfoReply", "phone"),
+            ("PlaceInfoReply", "places"),
         ];
         // The People list's messages come first in the file (ehr.proto, after the settings).
         let people = [

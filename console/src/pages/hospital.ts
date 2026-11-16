@@ -18,6 +18,8 @@ import {
   type LocationRow,
   type PatientKind,
   type ReasonSystem,
+  type BookingRule,
+  type RuleOutcome,
   type SpecialtyRow,
   type VisitTypeRow,
 } from "../agent/api";
@@ -55,7 +57,8 @@ type ListKey = "visit_type_list" | "diagnosis_list" | "specialty_list";
 type Limits = HospitalSettings["limits"];
 // Specialties has a tab of its own (the owner, W1 A, 2026-11-15): a long list never sits under
 // another one (TABLES.md §6.3).
-const TABS = ["visits", "times", "places", "specialties", "booking"] as const;
+// Rules after Booking (BOOKING-RULES.md §4: a placement, the owner's to move).
+const TABS = ["visits", "times", "places", "specialties", "booking", "rules"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_KEY = "deets.console.hospital.tab";
 /** Each tab's lists, in the page's order. */
@@ -65,6 +68,7 @@ const TAB_KEYS: Record<Tab, Key[]> = {
   places: ["facilities", "locations"],
   specialties: ["specialty_list", "specialties"],
   booking: ["slots_offered", "narrow_over", "groups_named", "past_days", "established_years", "sooner_with_others", "ahead_windows", "booking_note_label"],
+  rules: ["booking_rules"],
 };
 
 // ---- The search box (TABLES.md §6.3: W2 A filter, W3 B the shown tab, W4 A Ctrl+F)
@@ -186,6 +190,29 @@ const PATIENT_KINDS: [PatientKind, string][] = [
   ["new", "New"],
   ["established", "Established"],
 ];
+/** A Booking rule's outcomes (BOOKING-RULES.md §3.5; a draft for the owner to edit), and what
+ * each does. */
+const RULE_OUTCOMES: [RuleOutcome, string][] = [
+  ["book", "Book"],
+  ["book_and_flag", "Book and flag for a referral check"],
+  ["pcp_only", "Book with the PCP only"],
+  ["referral_needed", "Referral needed"],
+  ["hand_off", "Hand off"],
+];
+const RULE_HELP: Record<RuleOutcome, string> = {
+  book: "The caller is offered times now.",
+  book_and_flag: "The caller is offered times now. A booking files a staff flag (referral_check), with the visit's number, so staff check the referral before the visit. The caller hears nothing of it.",
+  pcp_only: "Only the times with the caller's PCP are offered; no sooner time with another clinician. A caller with no PCP on file is offered every time.",
+  referral_needed: "No time is offered. The agent says the visit needs a referral from primary care, and offers a primary care visit or a member of staff; a caller who says they have a referral goes to staff.",
+  hand_off: "No time is offered. The caller goes to a member of staff, with a staff flag (booking_rule_hand_off) that holds the caller's words for the reason.",
+};
+/** A rule's Patients column: "either" reads as Any here. */
+const RULE_PATIENTS: [PatientKind, string][] = [
+  ["either", "Any"],
+  ["new", "New"],
+  ["established", "Established"],
+];
+
 const PATIENT_HELP: Record<PatientKind, string> = {
   either: "Any caller. No search of the caller's visits for this type.",
   new: "Only a caller new to the specialty of the slot's department: not seen by it within Booking › Years for an established patient.",
@@ -242,7 +269,8 @@ const SUGGESTIONS = 6;
  * page's checks read a missing field and the page never draws. A number saved before it
  * existed takes the Default's, as ehr's `from_pairs` takes the file's. */
 function withRowDefaults(v: HospitalValues): HospitalValues {
-  const stored = v as Omit<HospitalValues, "facilities" | "locations" | "visit_types" | "specialties" | "established_years" | "sooner_with_others"> & {
+  const stored = v as Omit<HospitalValues, "facilities" | "locations" | "visit_types" | "specialties" | "established_years" | "sooner_with_others" | "booking_rules"> & {
+    booking_rules?: Partial<BookingRule>[];
     facilities?: Partial<FacilityRow>[];
     locations?: Partial<LocationRow>[];
     visit_types?: Partial<VisitTypeRow>[];
@@ -254,6 +282,8 @@ function withRowDefaults(v: HospitalValues): HospitalValues {
   v.specialties = (stored.specialties ?? []).map((s) => ({ code: "", spoken: "", words: [], primary_care: false, ...s }));
   v.established_years = stored.established_years ?? 3;
   v.sooner_with_others = stored.sooner_with_others ?? true;
+  // A version saved before the Booking rules (2026-11-16) has none: every visit is Book.
+  v.booking_rules = (stored.booking_rules ?? []).map((r) => ({ specialty: "", department: "", visit_type: "", provider: "", patients: "either", outcome: "book", ...r }));
   v.facilities = (stored.facilities ?? []).map((f) => ({ record: "", spoken: "", id: "", code: "", address: "", phone: "", ...f }));
   v.locations = (stored.locations ?? []).map((l) => ({
     record: "",
@@ -476,6 +506,16 @@ function problem(d: Draft, l: Limits): string | null {
       each("Specialties", d.specialties, (s) =>
         one(s.spoken, true) ? "the spoken name is empty or too long" : many(s.words) ? "too many words, or one too long" : one(s.code, false) ? "a cell is too long" : null,
       ),
+    // A rule names rows on the other lists (ehr's hospital.rs › from_pairs).
+    () =>
+      each("Booking rules", d.booking_rules, (r) => {
+        if ([r.specialty, r.department, r.visit_type, r.provider].some((x) => one(x, false))) return "a cell is too long";
+        if (r.specialty && !d.specialties.some((s) => s.code.trim() === r.specialty.trim())) return "its specialty is not on the Specialties list";
+        const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+        if (r.department && !d.locations.some((x) => same(x.record, r.department))) return "its department is not on the Places list";
+        if (r.visit_type && !d.visit_types.some((x) => same(x.record, r.visit_type))) return "its visit type is not on the Visit types list";
+        return null;
+      }),
     () => {
       const w = d.ahead_windows;
       if (!w.length || w.length > l.windows) return `Search windows: 1 to ${l.windows}`;
@@ -673,6 +713,7 @@ export const hospitalView = (): View => {
         ["places", "Places"],
         ["specialties", "Specialties"],
         ["booking", "Booking"],
+        ["rules", "Rules"],
       ],
       tab,
       (v) => {
@@ -711,6 +752,7 @@ export const hospitalView = (): View => {
       else if (tab === "times") body.replaceChildren(...p.timeZone(), ...p.timesOfDay(), ...p.hours(), ...p.closedDays());
       else if (tab === "places") body.replaceChildren(...p.places());
       else if (tab === "specialties") body.replaceChildren(...p.specialties());
+      else if (tab === "rules") body.replaceChildren(...p.rules());
       else body.replaceChildren(...p.booking());
       ui.markSoon();
     };
@@ -1049,7 +1091,7 @@ class Parts {
     const out = titleLine(
       "Hours",
       this.count(rows.length, d.hours.length),
-      `When the hospital is open, by day of the week. ${NOT_USED} Epic's $find returns open slots only.`,
+      "When the hospital is open, by day of the week. The agent says them when a caller asks when a place is open and the place has no hours of its own (where to go). Epic's $find returns open slots only.",
       this.add("a day", d.hours, () => ({ day: "mon", opens: "08:00", closes: "17:00" })),
     );
     const t = table("Hours", [{ head: "Day", kind: "choice" }, { head: "Opens (HH:MM)", kind: "short" }, { head: "Closes (HH:MM)", kind: "short" }], LIST);
@@ -1076,7 +1118,7 @@ class Parts {
     const out = titleLine(
       "Closed days",
       this.count(rows.length, d.closed_days.length),
-      `Holidays and other days the hospital is closed. ${NOT_USED}`,
+      "Holidays and other days the hospital is closed. The next three from today go to the agent with a place's hours; it says one only when the caller asks about that day.",
       this.add("a closed day", d.closed_days, () => ({ date: "", name: "" })),
     );
     const t = table("Closed days", [{ head: "Date (YYYY-MM-DD)", kind: "short" }, "Name"], LIST);
@@ -1249,7 +1291,7 @@ class Parts {
         ["Spoken name:", "What the caller hears. Empty: the record's own words."],
         ["DEP ID:", "The department's record ID in Epic (DEP)."],
         ["FHIR id:", "Epic's id for the Location: a visit's place is found by it first. Later: $find's location-reference."],
-        ["Hours:", `From Epic's directory. ${NOT_USED}`],
+        ["Hours:", "From Epic's directory. The agent says them when a caller asks when this department is open; with none, the hospital's hours."],
       ],
       this.departmentMoves(r),
     );
@@ -1377,7 +1419,7 @@ class Parts {
         ],
         [
           ["The record's name:", "The facility's name in Epic (EAF): a building or campus that holds departments."],
-          ["Spoken name:", `What the caller would hear for the facility. ${NOT_USED}`],
+          ["Spoken name:", "What the caller hears for the facility when they ask where it is, and words a caller may use for it when they name a place."],
           ["FHIR id:", "Epic's id for the Location. Its departments name it as their facility."],
           ["Remove (✕):", "Takes out the facility and every department in it. Nothing is saved until Save."],
         ],
@@ -1705,7 +1747,7 @@ class Parts {
     const out = titleLine(
       "Specialties",
       this.count(rows.length, d.specialties.length),
-      `Epic's specialties: a kind of care, such as Cardiology. Each department on Places names one by its ID; here each ID gets the name the caller hears and the caller's words for it, such as "a skin doctor". Primary care: a caller with no visit with their PCP has their times searched at their last department of a primary care specialty. The names and words are not used by calls yet.`,
+      `Epic's specialties: a kind of care, such as Cardiology. Each department on Places names one by its ID; here each ID gets the name the caller hears and the caller's words for it, such as "a skin doctor". Primary care: a caller with no visit with their PCP has their times searched at their last department of a primary care specialty, and a call that names no specialty searches the primary care departments. A caller's words for a kind of care are matched to the spoken name and the caller's words here; a specialty with no ID matches no department.`,
       this.add("a specialty", d.specialties, () => ({ code: "", spoken: "", words: [], primary_care: false })),
     );
     out.push(this.listBlock("Specialty list", "specialty_list", "The list every specialty's ID belongs to. Epic gives no list of a hospital's specialties by API."));
@@ -1767,6 +1809,58 @@ class Parts {
       if (this.ui.search.on && !this.ui.search.matches(`${name}\n${help}`)) continue;
       t.body.append(...row(null, name, [name, control], [["What it does:", help]]));
     }
+    out.push(t.wrap);
+    return out;
+  }
+
+  /** The Booking rules (BOOKING-RULES.md §3.5; the owner's E-A, the rules engine's start). The
+   * first row that matches wins, so the order is kept and ↑ ↓ move a row. */
+  rules(): HTMLElement[] {
+    const d = this.d;
+    const rows = this.visible(d.booking_rules, (r) => textOf(r, RULE_OUTCOMES.find(([o]) => o === r.outcome)?.[1] ?? ""));
+    const out = titleLine(
+      "Booking rules",
+      this.count(rows.length, d.booking_rules.length),
+      "What the agent does with a visit, by its specialty, department, visit type, provider, and whether the caller is new or established there. Each condition left empty is Any. The first row that matches wins; a visit no row matches is booked. Specialty, department and new or established are known before the search, so a rule on them alone can answer with no search; a visit type or a provider is checked on each time. The agent never checks whether a caller has a referral: the rule says what happens.",
+      this.add("a rule", d.booking_rules, () => ({ specialty: "", department: "", visit_type: "", provider: "", patients: "either", outcome: "book" })),
+    );
+    const specialties: [string, string][] = [["", "Any"], ...d.specialties.filter((s) => s.code.trim()).map((s): [string, string] => [s.code, s.spoken || s.code])];
+    const types: [string, string][] = [["", "Any"], ...d.visit_types.filter((v) => v.record.trim()).map((v): [string, string] => [v.record, v.record])];
+    const keep = (options: [string, string][], value: string): [string, string][] =>
+      value && !options.some(([c]) => c === value) ? [...options, [value, `${value} (not on the list)`]] : options;
+    const t = table(
+      "Booking rules",
+      [
+        { head: "Specialty", kind: "choice" },
+        "Department",
+        { head: "Visit type", kind: "choice" },
+        "Provider",
+        { head: "Patients", kind: "choice" },
+        { head: "Outcome", kind: "choice" },
+      ],
+      LIST,
+    );
+    this.fill(t, "booking-rules", rows, (r) =>
+      row(
+        r,
+        `Rule ${d.booking_rules.indexOf(r) + 1}`,
+        [
+          this.choose(keep(specialties, r.specialty), r.specialty, (v) => (r.specialty = v)),
+          this.text("Department", r.department, (v) => (r.department = v.trim())),
+          this.choose(keep(types, r.visit_type), r.visit_type, (v) => (r.visit_type = v)),
+          this.text("Provider", r.provider, (v) => (r.provider = v.trim())),
+          this.choose(RULE_PATIENTS, r.patients, (v) => (r.patients = v as PatientKind)),
+          this.choose(RULE_OUTCOMES, r.outcome, (v) => (r.outcome = v as RuleOutcome)),
+        ],
+        [
+          ["Department:", "A department's record name, as on Places (any case). Empty: any department."],
+          ["Provider:", "The provider's name as the record shows it, such as Dr. Rosa Patel; a title is left out when it is compared. Empty: any provider."],
+          ["Patients:", "New: not seen by the department's specialty within Booking › Years for an established patient. Established: seen by it. Any: either."],
+          ["Outcome:", RULE_HELP[r.outcome]],
+        ],
+        this.moves(d.booking_rules, r, "this rule"),
+      ),
+    );
     out.push(t.wrap);
     return out;
   }

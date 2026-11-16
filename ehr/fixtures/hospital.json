@@ -34,13 +34,22 @@
     { "date": "2026-12-25", "name": "Christmas Day" },
     { "date": "2027-01-01", "name": "New Year's Day" }
   ],
-  "facilities": [],
+  "facilities": [
+    { "record": "Example Medical Center", "spoken": "the medical center", "id": "emc", "code": "", "address": "200 Elm Avenue, Madison, WI 53703", "phone": "608-555-0120" }
+  ],
   "locations": [
-    { "record": "Main Street Clinic", "spoken": "", "id": "", "address": "", "phone": "" },
-    { "record": "EMC Family Medicine", "spoken": "the family medicine clinic", "id": "", "address": "", "phone": "" },
-    { "record": "EMC Cardiology", "spoken": "", "id": "", "address": "", "phone": "" },
-    { "record": "EMC Cardiology Procedures", "spoken": "", "id": "", "address": "", "phone": "" },
-    { "record": "EMH X-Ray Imaging", "spoken": "", "id": "", "address": "", "phone": "" }
+    { "record": "Main Street Clinic", "spoken": "", "id": "", "address": "100 Main Street, Verona, WI 53593", "phone": "608-555-0100", "specialty": "9" },
+    { "record": "EMC Family Medicine", "spoken": "the family medicine clinic", "id": "", "address": "", "phone": "608-555-0121", "facility": "emc", "specialty": "9" },
+    { "record": "EMC Cardiology", "spoken": "", "id": "", "address": "", "phone": "608-555-0124", "facility": "emc", "specialty": "4" },
+    { "record": "EMC Cardiology Procedures", "spoken": "", "id": "", "address": "", "phone": "", "facility": "emc", "specialty": "4" },
+    { "record": "EMH X-Ray Imaging", "spoken": "", "id": "", "address": "300 Lake Road, Fitchburg, WI 53711", "phone": "608-555-0140", "specialty": "40", "hours": [
+      { "day": "mon", "opens": "07:00", "closes": "19:00" },
+      { "day": "tue", "opens": "07:00", "closes": "19:00" },
+      { "day": "wed", "opens": "07:00", "closes": "19:00" },
+      { "day": "thu", "opens": "07:00", "closes": "19:00" },
+      { "day": "fri", "opens": "07:00", "closes": "19:00" },
+      { "day": "sat", "opens": "08:00", "closes": "12:00" }
+    ] }
   ],
   "specialty_list": "urn:oid:1.2.840.114350.1.13.0.1.7.10.686980.110",
   "specialties": [
@@ -56,5 +65,6 @@
   "established_years": 3,
   "sooner_with_others": true,
   "ahead_windows": [7, 30, 90],
-  "booking_note_label": "(automated transcription from patient)"
+  "booking_note_label": "(automated transcription from patient)",
+  "booking_rules": []
 }

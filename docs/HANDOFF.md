@@ -126,17 +126,18 @@ read-back (his 1A), and the hand-off on the reply to an offer saying a person wi
 (his 2C) (CALL-FLOW.md). **All 15 kept scripts must be recorded again** (the tools' words
 changed). Open, his choice: the spoken list of times (say a shared clinician and place once).
 
-**Booking by place, specialty and rule (2026-11-16): steps 1 and 3 built**
-(architecture/BOOKING-RULES.md). To pick up: (1) his desk tests of steps 1 and 3 (§5.1, §5.2;
-restart `npm run dev` first); (2) record all 15 kept scripts again (Test on Config › Agent); (3)
-the next step: 2, 4 or 5. The usual place named with the times is kept (his word, §5.2). Nothing of steps 0, 1 and 3 is committed. His forks: 1A refined (the last visit of the same kind of care;
-the PCP for primary care), 2A, P-A, E-A (the Booking rules table, the rules engine's start).
-The build is §6: step 0 the sandbox look (done, EPIC.md §7.12), then 1 new or established
-(**built 2026-11-16, desk test open: BOOKING-RULES.md §5.1**; restart `npm run dev` first;
-the kept script `booked_reason_asked` needs recording again: Priya is now a new patient), 2
-the place and the specialty, 3 the default place, the PCP and P-A, 4 the Booking rules, 5 where
-to go. A caller's referrals
-cannot be read from Epic, and we do not read orders for them: the line he drew (§2, §3.6). What was decided inside his choices: §4.
+**Booking by place, specialty and rule (2026-11-16): every step built** (architecture/BOOKING-RULES.md;
+steps 0, 1 and 3 committed in 88a2e2e; steps 2, 4 and 5 not committed). To pick up: (1) his desk
+tests, §5.1 to §5.5 (restart `npm run dev` first: a new `ehr`, agent and console); (2) record
+all 15 kept scripts again (Test on Config › Agent): every one misses its replay; (3) his words
+for the new lines (drafts in AGENT-PROMPT.md) and the two flag kinds (FLAGS.md §3.4). Built
+2026-11-16: step 2, a place and a kind of care in the caller's words, matched in Rust, with one
+question that also asks where when the caller has no usual place (§5.3); step 5, `place_info`,
+where a place is, before verification too (§5.4); step 4, Config › Hospital › Rules, the rules
+engine's start (§5.5). The Default now has a facility, addresses, phones and specialties on its
+departments, and the fake has slots at three places. What was decided inside his choices: §4
+and each step's "Decided inside". A caller's referrals are never read: the line he drew (§2,
+§3.6).
 
 **Dependencies (2026-11-16; committed `c62816a`).** The list, its verdicts and the trust review
 are DEPENDENCIES.md; the watch list is SECURITY.md §7.1. Open:

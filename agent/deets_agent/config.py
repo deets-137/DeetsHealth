@@ -39,6 +39,8 @@ HOSPITAL_KEYS = (
     "sooner_with_others",
     "ahead_windows",
     "booking_note_label",
+    # The Booking rules (BOOKING-RULES.md §3.5).
+    "booking_rules",
 )
 # The limits ehr's hospital.rs checks, for the page's own checks before a save. The same numbers
 # as CELL_MAX, ROWS_MAX, PLACES_MAX (facilities and departments), WORDS_MAX, TIMES_MAX and

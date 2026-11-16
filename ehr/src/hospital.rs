@@ -11,7 +11,8 @@
 //!   row number, never a value.
 //!
 //! Some lists are kept but read by no call yet (the owner's 1B: "what we have left to build"):
-//! `specialties`, `reasons`, `hours`, `closed_days`, and a location's id, address and phone.
+//! `reasons` and a facility's EAF ID. The places, the specialties, the hours, the closed days and
+//! the Booking rules are read by the search and by "where to go" (BOOKING-RULES.md).
 //!
 //! **One Epic list per list** (the owner's A, 2026-11-15): `visit_type_list`,
 //! `specialty_list` and `diagnosis_list` each hold one OID, set once; a row holds only its ID
@@ -56,6 +57,7 @@ pub const KEYS: &[&str] = &[
     "sooner_with_others",
     "ahead_windows",
     "booking_note_label",
+    "booking_rules",
 ];
 
 /// The longest cell: a name, a code, an address.
@@ -279,7 +281,141 @@ pub struct Places {
     pub reads: usize,
 }
 
-/// One specialty (Epic's `specialties`), its ID in `specialty_list`. Kept; no call reads it yet.
+/// What the caller's words for a place and a specialty came to (BOOKING-RULES.md §3.1).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum PickOutcome {
+    /// Search the pick's departments.
+    #[default]
+    Search,
+    /// The words name no place on the list.
+    UnknownPlace,
+    /// The words name no specialty on the list, or no department has it.
+    UnknownSpecialty,
+    /// The place the caller named has no department of the specialty they named.
+    NotAtPlace,
+    /// The words name several places: the caller is asked which (`Pick::names`).
+    WhichPlace,
+}
+
+/// Where a search looks (`Hospital::pick`). The hospital's own rows: no protected data until it
+/// is tied to a caller, so the service keeps it in the call's session only.
+#[derive(Clone, Default)]
+pub struct Pick {
+    pub outcome: PickOutcome,
+    /// The departments to search; empty with no Places list (any place).
+    pub departments: Vec<PlaceRef>,
+    /// Their distinct spoken names, in list order: the narrowing question's choices.
+    pub names: Vec<String>,
+    /// Keep only slots at `departments`. Not strict (primary care with no place named): a slot
+    /// at a department not on the list is kept too.
+    pub strict: bool,
+    pub place_named: bool,
+    pub named_specialty: bool,
+    /// No specialty named, or a primary care one: the PCP and the usual place count (§3.2).
+    pub primary_care: bool,
+    /// The one specialty's ID, for Epic's `specialties`; none for several or none.
+    pub specialty_code: Option<Shielded<String>>,
+}
+
+impl Pick {
+    fn outcome(outcome: PickOutcome) -> Self {
+        Self { outcome, ..Self::default() }
+    }
+}
+
+/// A visit type as a record names it, trimmed and in lower case, wrapped: on a patient's visit it
+/// says what the visit is. None for none.
+pub fn type_ref(record: Option<&str>) -> Option<Shielded<String>> {
+    record.map(str::trim).filter(|t| !t.is_empty()).map(|t| Shielded::new(t.to_lowercase()))
+}
+
+/// What a booking rule does with the visits it matches (BOOKING-RULES.md §3.5, the owner's E-A).
+/// The list is a draft for the owner to edit.
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RuleOutcome {
+    /// Times now.
+    #[default]
+    Book,
+    /// Times now; staff check the referral before the visit (a staff flag at Book).
+    BookAndFlag,
+    /// The PCP's times only; no sooner time with another clinician.
+    PcpOnly,
+    /// The agent says the visit needs a referral from primary care and offers a primary care
+    /// visit or a person. No time is offered.
+    ReferralNeeded,
+    /// A person books it. No time is offered.
+    HandOff,
+}
+
+impl RuleOutcome {
+    /// No time it matches is offered.
+    pub fn holds_back(self) -> bool {
+        matches!(self, RuleOutcome::ReferralNeeded | RuleOutcome::HandOff)
+    }
+}
+
+/// One booking rule: conditions, each empty for "any", and one outcome. The first row that
+/// matches wins; with none, Book. The hospital's own row: no protected data.
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct BookingRule {
+    /// A specialty's ID on the Specialties list.
+    #[serde(default)]
+    pub specialty: String,
+    /// A department's record name on the Places list.
+    #[serde(default)]
+    pub department: String,
+    /// A visit type's record name on the Visit types list.
+    #[serde(default)]
+    pub visit_type: String,
+    /// A provider's name as the record shows it ("Dr. Rosa Patel").
+    #[serde(default)]
+    pub provider: String,
+    /// New or established in the slot's specialty; "either" for any.
+    #[serde(default)]
+    pub patients: PatientKind,
+    pub outcome: RuleOutcome,
+}
+
+impl BookingRule {
+    /// The conditions known before a search: the department's specialty, the department, and
+    /// new or established there.
+    fn fits_place(&self, h: &Hospital, at: &PlaceRef, established: bool) -> bool {
+        let dept = h.department(at);
+        (self.specialty.trim().is_empty() || dept.is_some_and(|l| l.specialty.trim() == self.specialty.trim()))
+            && (self.department.trim().is_empty() || dept.is_some_and(|l| l.record.trim().eq_ignore_ascii_case(self.department.trim())))
+            && self.patients.fits(established)
+    }
+
+    /// The conditions known only per time: its visit type and its provider.
+    fn per_time(&self) -> bool {
+        !self.visit_type.trim().is_empty() || !self.provider.trim().is_empty()
+    }
+}
+
+/// What the hospital's lists say of one place (BOOKING-RULES.md §3.7). No protected data: a row
+/// is a fact about the hospital. An empty address or phone is not on file.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlaceFacts {
+    pub name: String,
+    pub address: String,
+    pub phone: String,
+    /// The place's own hours, else the hospital's, Monday first.
+    pub hours: Vec<HoursRow>,
+    /// The hospital's closed days from today, at most three.
+    pub closed_days: Vec<ClosedDayRow>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum PlaceAnswer {
+    Found(PlaceFacts),
+    Unknown,
+    /// Several places: their spoken names.
+    Which(Vec<String>),
+}
+
+/// One specialty (Epic's `specialties`), its ID in `specialty_list`.
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct SpecialtyRow {
@@ -398,6 +534,8 @@ pub struct Hospital {
     /// Put after the caller's words in the note a booking files in Epic (the owner's N2,
     /// 2026-11-15), so staff know the reason is the caller's own. Empty: the words alone.
     pub booking_note_label: String,
+    /// The Booking rules (BOOKING-RULES.md §3.5), in order: the first that matches wins.
+    pub booking_rules: Vec<BookingRule>,
     tz: TimeZone,
     groups: VisitGroups,
 }
@@ -651,6 +789,20 @@ pub fn check_key(key: &str, value: &Value) -> Result<(), String> {
             let text = value.as_str().ok_or_else(|| format!("{key}: text"))?;
             cell(text, false).map_err(|e| format!("{key}: the label {e}"))
         }
+        "booking_rules" => {
+            let list: Vec<BookingRule> = field(key, value)?;
+            rows(key, &list, |r| {
+                for (what, text) in [
+                    ("the specialty", &r.specialty),
+                    ("the department", &r.department),
+                    ("the visit type", &r.visit_type),
+                    ("the provider", &r.provider),
+                ] {
+                    cell(text, false).map_err(|e| format!("{what} {e}"))?;
+                }
+                Ok(())
+            })
+        }
         "slots_offered" => whole(key, value, 1, 5).map(|_| ()),
         "narrow_over" => whole(key, value, 1, 10).map(|_| ()),
         "groups_named" => whole(key, value, 1, 5).map(|_| ()),
@@ -727,6 +879,20 @@ impl Hospital {
                 return Err(format!("locations: row {}: a specialty ID needs the specialty list's OID", i + 1));
             }
         }
+        // A rule names rows on the other lists: each must be there (BOOKING-RULES.md §3.5).
+        let booking_rules: Vec<BookingRule> = field("booking_rules", get("booking_rules"))?;
+        for (i, r) in booking_rules.iter().enumerate() {
+            let (s, d, t) = (r.specialty.trim(), r.department.trim(), r.visit_type.trim());
+            if !s.is_empty() && !specialties.iter().any(|x| x.code.trim() == s) {
+                return Err(format!("booking_rules: row {}: its specialty is not on the Specialties list", i + 1));
+            }
+            if !d.is_empty() && !locations.iter().any(|x| x.record.trim().eq_ignore_ascii_case(d)) {
+                return Err(format!("booking_rules: row {}: its department is not on the Places list", i + 1));
+            }
+            if !t.is_empty() && !visit_types.iter().any(|x| x.record.trim().eq_ignore_ascii_case(t)) {
+                return Err(format!("booking_rules: row {}: its visit type is not on the Visit types list", i + 1));
+            }
+        }
         Ok(Self {
             groups: VisitGroups::new(&visit_groups),
             visit_groups,
@@ -751,6 +917,7 @@ impl Hospital {
             sooner_with_others: get("sooner_with_others").as_bool().unwrap_or(true),
             ahead_windows: field("ahead_windows", get("ahead_windows"))?,
             booking_note_label: field("booking_note_label", get("booking_note_label"))?,
+            booking_rules,
         })
     }
 
@@ -864,6 +1031,269 @@ impl Hospital {
             Some(s) => self.department(v).is_some_and(|l| l.specialty.trim() == s),
             None => v.same(at),
         })
+    }
+
+    /// A department as a slot's or a visit's place names it: its FHIR id and the record's name.
+    fn place_ref(l: &LocationRow) -> PlaceRef {
+        PlaceRef::new(Some(l.id.as_str()), Some(l.record.as_str()))
+    }
+
+    /// A department's words for the caller: the spoken name, else the record's.
+    fn spoken(l: &LocationRow) -> &str {
+        if l.spoken.trim().is_empty() { l.record.trim() } else { l.spoken.trim() }
+    }
+
+    /// The department's city, from its address or its facility's ("1 Main St, Verona, WI
+    /// 53593": Verona; the import's form, epic_ehr.rs › address_text).
+    fn city(&self, l: &LocationRow) -> Option<String> {
+        let of = |address: &str| -> Option<String> {
+            let parts: Vec<&str> = address.split(',').map(str::trim).collect();
+            let last = parts.last()?;
+            let state = last.split_whitespace().next()?;
+            (parts.len() >= 2 && US_STATES.contains(&state)).then(|| parts[parts.len() - 2].to_string()).filter(|c| !c.is_empty())
+        };
+        of(&l.address).or_else(|| self.facility_of(l).and_then(|f| of(&f.address)))
+    }
+
+    fn facility_of(&self, l: &LocationRow) -> Option<&FacilityRow> {
+        let f = l.facility.trim();
+        (!f.is_empty()).then(|| self.facilities.iter().find(|x| x.id.trim() == f)).flatten()
+    }
+
+    /// Whether any specialty on the list is marked primary care.
+    pub fn marks_primary_care(&self) -> bool {
+        self.specialties.iter().any(|s| s.primary_care)
+    }
+
+    /// Where a search looks, from the caller's words for a place and a specialty (BOOKING-RULES.md
+    /// §3.1), matched in Rust against the lists: a department by its spoken name, the record's
+    /// name, its facility's names and its city; a specialty by its spoken name and the caller's
+    /// words. No specialty named is primary care (§4). The model never sees a code or an id.
+    pub fn pick(&self, place: Option<&Shielded<String>>, specialty: Option<&Shielded<String>>) -> Pick {
+        let place = place.filter(|p| p.names_anything());
+        let specialty = specialty.filter(|s| s.names_anything());
+        // The specialties the caller named, by row.
+        let mut named: Vec<usize> = Vec::new();
+        if let Some(said) = specialty {
+            let terms: Vec<(&str, usize)> = self
+                .specialties
+                .iter()
+                .enumerate()
+                .flat_map(|(i, s)| std::iter::once((s.spoken.as_str(), i)).chain(s.words.iter().map(move |w| (w.as_str(), i))))
+                .collect();
+            let words: Vec<&str> = terms.iter().map(|t| t.0).collect();
+            for k in said.names_terms(&words) {
+                if !named.contains(&terms[k].1) {
+                    named.push(terms[k].1);
+                }
+            }
+            if named.is_empty() {
+                return Pick::outcome(PickOutcome::UnknownSpecialty);
+            }
+        }
+        let primary_care = named.is_empty() || named.iter().any(|&i| self.specialties[i].primary_care);
+        let codes: Vec<&str> = named.iter().map(|&i| self.specialties[i].code.trim()).filter(|c| !c.is_empty()).collect();
+        let marks = self.marks_primary_care();
+        // A department fits the kind of care: one of the named specialties; with none named, a
+        // primary care one, or one with no specialty on the list.
+        let fits = |l: &LocationRow| -> bool {
+            let s = l.specialty.trim();
+            if !named.is_empty() {
+                return codes.contains(&s);
+            }
+            !marks || s.is_empty() || self.specialties.iter().any(|x| x.primary_care && x.code.trim() == s)
+        };
+        let specialty_code = (codes.len() == 1).then(|| Shielded::new(codes[0].to_string()));
+        let mut pick = Pick { primary_care, specialty_code, named_specialty: !named.is_empty(), ..Pick::default() };
+        if self.locations.is_empty() {
+            // No list: no place can be known, and nothing is kept back.
+            if place.is_some() {
+                return Pick::outcome(PickOutcome::UnknownPlace);
+            }
+            return pick;
+        }
+        let Some(said) = place else {
+            pick.departments = self.locations.iter().filter(|l| fits(l)).map(Self::place_ref).collect();
+            pick.strict = !named.is_empty();
+            if pick.departments.is_empty() && !named.is_empty() {
+                pick.outcome = PickOutcome::UnknownSpecialty;
+            }
+            pick.names = self.names_of(self.locations.iter().filter(|l| fits(l)));
+            return pick;
+        };
+        pick.place_named = true;
+        pick.strict = true;
+        let matched = self.matched_places(said);
+        if matched.is_empty() {
+            return Pick::outcome(PickOutcome::UnknownPlace);
+        }
+        let mut fitting: Vec<(usize, bool)> = matched.iter().copied().filter(|&(i, _)| fits(&self.locations[i])).collect();
+        if fitting.is_empty() {
+            if !named.is_empty() {
+                return Pick::outcome(PickOutcome::NotAtPlace);
+            }
+            // A place the caller named that is not primary care says the kind of care itself.
+            fitting = matched;
+        }
+        let rows: Vec<&LocationRow> = fitting.iter().map(|&(i, _)| &self.locations[i]).collect();
+        pick.departments = rows.iter().map(|l| Self::place_ref(l)).collect();
+        pick.names = self.names_of(rows.iter().copied());
+        // Several departments: a facility or a town the caller named holds them all, or they share
+        // one spoken name; else the caller is asked which.
+        let one_facility = fitting.iter().all(|m| m.1) && rows.windows(2).all(|w| w[0].facility == w[1].facility);
+        if rows.len() > 1 && !one_facility && pick.names.len() > 1 {
+            pick.outcome = PickOutcome::WhichPlace;
+        }
+        pick
+    }
+
+    /// The departments the caller's words name, by row, each with whether only its facility's
+    /// words or its city named it (a place that holds others). Matched against each
+    /// department's spoken name and record's name, its facility's names and its city.
+    fn matched_places(&self, said: &Shielded<String>) -> Vec<(usize, bool)> {
+        let mut terms: Vec<(String, usize, bool)> = Vec::new();
+        for (i, l) in self.locations.iter().enumerate() {
+            terms.push((l.spoken.clone(), i, false));
+            terms.push((l.record.clone(), i, false));
+            if let Some(f) = self.facility_of(l) {
+                terms.push((f.spoken.clone(), i, true));
+                terms.push((f.record.clone(), i, true));
+            }
+            if let Some(c) = self.city(l) {
+                terms.push((c, i, true));
+            }
+        }
+        let words: Vec<&str> = terms.iter().map(|t| t.0.as_str()).collect();
+        let mut matched: Vec<(usize, bool)> = Vec::new();
+        for k in said.names_terms(&words) {
+            let (i, wide) = (terms[k].1, terms[k].2);
+            match matched.iter_mut().find(|m| m.0 == i) {
+                Some(m) => m.1 &= wide,
+                None => matched.push((i, wide)),
+            }
+        }
+        matched
+    }
+
+    /// Every department the caller's words name, for a visit they ask about ("my visit at the
+    /// north clinic"). Empty: none, or words that name nothing.
+    pub fn places_named(&self, said: &Shielded<String>) -> Vec<PlaceRef> {
+        if !said.names_anything() {
+            return Vec::new();
+        }
+        self.matched_places(said).into_iter().map(|(i, _)| Self::place_ref(&self.locations[i])).collect()
+    }
+
+    /// Where a place is, its phone and hours (BOOKING-RULES.md §3.7), from the lists only. A
+    /// facility or a town that holds every place the words name answers as the facility; else
+    /// one department, or the places to ask about. `today` (YYYY-MM-DD, the hospital's day)
+    /// starts the closed days.
+    pub fn place_info(&self, said: &Shielded<String>, today: &str) -> PlaceAnswer {
+        if !said.names_anything() {
+            return PlaceAnswer::Unknown;
+        }
+        let matched = self.matched_places(said);
+        if matched.is_empty() {
+            return PlaceAnswer::Unknown;
+        }
+        let rows: Vec<&LocationRow> = matched.iter().map(|&(i, _)| &self.locations[i]).collect();
+        let facility = self.facility_of(rows[0]).filter(|_| matched.iter().all(|m| m.1) && rows.windows(2).all(|w| w[0].facility == w[1].facility));
+        let closed: Vec<ClosedDayRow> = {
+            let mut c: Vec<ClosedDayRow> = self.closed_days.iter().filter(|d| d.date.as_str() >= today).cloned().collect();
+            c.sort_by(|a, b| a.date.cmp(&b.date));
+            c.truncate(3);
+            c
+        };
+        let week = |hours: &[HoursRow]| -> Vec<HoursRow> {
+            const ORDER: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+            let mut h = hours.to_vec();
+            h.sort_by_key(|r| ORDER.iter().position(|d| *d == r.day).unwrap_or(7));
+            h
+        };
+        if let Some(f) = facility.filter(|_| rows.len() > 1) {
+            let name = if f.spoken.trim().is_empty() { f.record.trim() } else { f.spoken.trim() };
+            return PlaceAnswer::Found(PlaceFacts {
+                name: name.to_string(),
+                address: f.address.trim().to_string(),
+                phone: f.phone.trim().to_string(),
+                hours: week(&self.hours),
+                closed_days: closed,
+            });
+        }
+        let names = self.names_of(rows.iter().copied());
+        if names.len() > 1 {
+            return PlaceAnswer::Which(names);
+        }
+        let l = rows[0];
+        let f = self.facility_of(l);
+        let or_facility = |own: &str, of: fn(&FacilityRow) -> &str| -> String {
+            let own = own.trim();
+            if own.is_empty() { f.map(|f| of(f).trim().to_string()).unwrap_or_default() } else { own.to_string() }
+        };
+        PlaceAnswer::Found(PlaceFacts {
+            name: Self::spoken(l).to_string(),
+            address: or_facility(&l.address, |f| &f.address),
+            phone: or_facility(&l.phone, |f| &f.phone),
+            hours: week(if l.hours.is_empty() { &self.hours } else { &l.hours }),
+            closed_days: closed,
+        })
+    }
+
+    /// The distinct spoken names of departments, in list order.
+    fn names_of<'a>(&self, rows: impl Iterator<Item = &'a LocationRow>) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for l in rows {
+            let n = Self::spoken(l).to_string();
+            if !out.iter().any(|o| o.eq_ignore_ascii_case(&n)) {
+                out.push(n);
+            }
+        }
+        out
+    }
+
+    /// Whether any booking rule asks new or established: then a search needs the caller's past
+    /// visits (BOOKING-RULES.md §3.4, §3.5).
+    pub fn rules_sort_patients(&self) -> bool {
+        self.booking_rules.iter().any(|r| r.patients != PatientKind::Either)
+    }
+
+    /// The booking rule's outcome for one time (BOOKING-RULES.md §3.5): the first row whose every
+    /// condition matches; Book with none. `established`: the caller at the time's place.
+    pub fn rule_for(&self, slot: &crate::scheduler::Slot, established: bool) -> RuleOutcome {
+        self.booking_rules
+            .iter()
+            .find(|r| {
+                r.fits_place(self, &slot.place_ref, established)
+                    && (r.visit_type.trim().is_empty()
+                        || slot.visit_type_ref.as_ref() == Some(&Shielded::new(r.visit_type.trim().to_lowercase())))
+                    && (r.provider.trim().is_empty() || Shielded::new(r.provider.trim().to_string()).names_clinician(&slot.clinician))
+            })
+            .map(|r| r.outcome)
+            .unwrap_or_default()
+    }
+
+    /// The outcome at a department before any search: known when the first row whose place
+    /// conditions match names no visit type or provider. None: it depends on each time.
+    pub fn rule_before_search(&self, at: &PlaceRef, established: bool) -> Option<RuleOutcome> {
+        for r in &self.booking_rules {
+            if !r.fits_place(self, at, established) {
+                continue;
+            }
+            return if r.per_time() { None } else { Some(r.outcome) };
+        }
+        Some(RuleOutcome::Book)
+    }
+
+    /// Whether a slot's place may be offered for a pick's departments: one of them; or, when the
+    /// pick is not strict (primary care, no place named), a department not on the list.
+    pub fn keeps(&self, departments: &[PlaceRef], strict: bool, at: &PlaceRef) -> bool {
+        (departments.is_empty() && !strict) || departments.iter().any(|d| d.same(at)) || (!strict && self.department(at).is_none())
+    }
+
+    /// Whether a place is one of a pick's departments: for the caller's last visit of that kind
+    /// of care (BOOKING-RULES.md §3.2).
+    pub fn among(departments: &[PlaceRef], at: &PlaceRef) -> bool {
+        departments.iter().any(|d| d.same(at))
     }
 
     /// The row of a visit type, by the record's name, in any case.
@@ -1280,6 +1710,21 @@ mod tests {
         assert_eq!(h.reasons[1].system, "hospital");
         // No row named a specialty list: the file's value stays.
         assert_eq!(h.specialty_list, Hospital::file().specialty_list);
+    }
+
+    #[test]
+    fn a_booking_rule_must_name_rows_on_the_lists() {
+        let ok = json!([{"specialty": "4", "department": "EMC Cardiology", "visit_type": "Office Visit", "outcome": "hand_off"}]);
+        assert!(Hospital::from_pairs([("booking_rules", &ok)]).is_ok());
+        for (bad, says) in [
+            (json!([{"specialty": "999", "outcome": "book"}]), "row 1: its specialty"),
+            (json!([{"outcome": "book"}, {"department": "Nowhere", "outcome": "book"}]), "row 2: its department"),
+            (json!([{"visit_type": "Teleport", "outcome": "book"}]), "row 1: its visit type"),
+        ] {
+            let e = Hospital::from_pairs([("booking_rules", &bad)]).err().unwrap();
+            assert!(e.contains(says), "{e}");
+        }
+        assert!(check_key("booking_rules", &json!([{"outcome": "maybe"}])).is_err(), "an outcome not on the list");
     }
 
     #[test]

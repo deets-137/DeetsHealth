@@ -87,6 +87,15 @@ becomes `other`. A hospital will add its own (FUTURE-SETTINGS.md §5).
 - **Needs:** `ehr` reads `Appointment.identifier` and sends it with the visit (EPIC.md §7.3).
   The fake gives each visit a synthetic CSN.
 
+### 3.4 The Booking rules' flags (built 2026-11-16)
+> **Part:** built · 2026-11-16 · desk test open — BOOKING-RULES.md §5.5. Both kind names are
+> drafts for the owner to edit.
+- **`referral_check`**, by code, when the caller books a time whose Booking rule says Book and
+  flag: staff check the referral before the visit. It carries the visit's CSN (§3.3); no
+  summary, no evidence. The caller hears nothing.
+- **`booking_rule_hand_off`**, by code, when a Booking rule says Hand off: the call goes to a
+  person. Its evidence is the caller's reason, kept only if the caller said it (§2).
+
 ## 4. Protected data
 - **The kind leaves the wall; the notes do not.** An alert, a toast, a log line or a catalog
   label names the kind only ("a possible emergency on line 3"). The summary and the evidence

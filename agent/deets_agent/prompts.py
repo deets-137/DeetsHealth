@@ -68,6 +68,9 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "arg.find_slots.more": set(),
     # Any place, not the usual one (BOOKING-RULES.md §3.2).
     "arg.find_slots.any_place": set(),
+    # The place and the kind of care, in the caller's words (BOOKING-RULES.md §3.1).
+    "arg.find_slots.place": set(),
+    "arg.find_slots.specialty": set(),
     "tool.choose_option": set(),
     "arg.choose_option.option": set(),
     "tool.book": set(),
@@ -79,6 +82,7 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "arg.find_visit.clinician": set(),
     "arg.find_visit.past": set(),
     "arg.find_visit.group": set(),
+    "arg.find_visit.place": set(),
     "tool.read_instructions": set(),
     "tool.end_call": set(),
     "tool.hand_off": set(),
@@ -117,6 +121,30 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "line.ask_preference_mode": set(),
     "line.ask_preference_when": set(),
     "note.after_ask_preference": set(),
+    # Where the caller would like the visit (1B), and words that name no place or kind of care
+    # (BOOKING-RULES.md §3.1, §3.2).
+    "line.ask_place": set(),
+    "line.which_place": {"places"},
+    "line.another_place": set(),
+    "note.after_ask_place": set(),
+    "line.unknown_place": set(),
+    "line.unknown_specialty": set(),
+    "line.not_at_place": set(),
+    "note.after_place_unknown": set(),
+    # A Booking rule that offers no time (BOOKING-RULES.md §3.5).
+    "line.referral_needed": set(),
+    "note.after_referral_needed": set(),
+    "line.rule_hand_off": set(),
+    # Where to go: a place's address, phone and hours (BOOKING-RULES.md §3.7).
+    "tool.place_info": set(),
+    "arg.place_info.place": set(),
+    "line.place_address": {"place", "address"},
+    "line.place_no_address": {"place"},
+    "line.place_phone": {"phone"},
+    "line.place_no_phone": {"place"},
+    "line.place_hours": {"hours"},
+    "line.place_info_which": set(),
+    "note.after_place_info": set(),
     "line.no_slots": set(),
     "line.no_more_slots": set(),
     "line.slots": {"options"},

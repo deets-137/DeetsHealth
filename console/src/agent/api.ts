@@ -334,6 +334,19 @@ export type LocationRow = {
 };
 /** `code`: the specialty's ID in the hospital's specialty list (`specialty_list`). */
 export type SpecialtyRow = { code: string; spoken: string; words: string[]; primary_care: boolean };
+/** What a Booking rule does with the visits it matches (BOOKING-RULES.md §3.5). */
+export type RuleOutcome = "book" | "book_and_flag" | "pcp_only" | "referral_needed" | "hand_off";
+/** One Booking rule: each condition empty for "any" (`patients` "either"); the first row that
+ * matches wins. `specialty` a specialty's ID, `department` and `visit_type` the record's names,
+ * `provider` the name as the record shows it. */
+export type BookingRule = {
+  specialty: string;
+  department: string;
+  visit_type: string;
+  provider: string;
+  patients: PatientKind;
+  outcome: RuleOutcome;
+};
 export type HospitalValues = {
   time_zone: string;
   /** Each list's OID, set once ("urn:oid:…", or empty): the owner's A, 2026-11-15. */
@@ -360,6 +373,8 @@ export type HospitalValues = {
   ahead_windows: number[];
   /** Put after the caller's words in the note a booking files in Epic (the owner's N2). */
   booking_note_label: string;
+  /** The Booking rules, in order (BOOKING-RULES.md §3.5; the owner's E-A). */
+  booking_rules: BookingRule[];
 };
 export type HospitalSettings = {
   store: boolean;

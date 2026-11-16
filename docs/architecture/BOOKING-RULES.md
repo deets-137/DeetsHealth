@@ -1,13 +1,14 @@
 ---
-status: project
+status: built
 desk_test: open
-sources: [ehr/src/hospital.rs, ehr/src/epic_ehr.rs, ehr/src/scheduler.rs, ehr/src/service.rs, ehr/proto/deets/ehr/v1/ehr.proto, agent/deets_agent/flow.py, agent/prompts/AGENT-PROMPT.md, agent/prompts/TOOLS.md, docs/integrations/EPIC.md, docs/architecture/HOSPITAL-CONFIG.md]
+sources: [ehr/src/hospital.rs, ehr/src/epic_ehr.rs, ehr/src/scheduler.rs, ehr/src/service.rs, ehr/proto/deets/ehr/v1/ehr.proto, core/src/shielded.rs, ehr/fixtures/hospital.json, agent/deets_agent/flow.py, agent/deets_agent/ehr_client.py, agent/prompts/AGENT-PROMPT.md, agent/prompts/TOOLS.md, console/src/pages/hospital.ts, docs/integrations/EPIC.md, docs/architecture/HOSPITAL-CONFIG.md]
 updated: 2026-11-16
 ---
 # DeetsHealth — Booking by place, specialty and the hospital's rules
 
-> **Part:** designed · 2026-11-16. Every fork below is closed. The build is §6; step 0 is done,
-> steps 1 and 3 are built (§5.1, §5.2).
+> **Part:** built · 2026-11-16 · desk test open. Every fork below is closed. The build is §6;
+> step 0 is done, and steps 1 to 5 are built (§5.1 to §5.5). Each step's as-built part is the
+> code where it and the design above disagree.
 > The owner asked what is left unwired after the work on Config › Hospital (Places, Specialties),
 > then: "Let's chat how we want to expand existing tools or add to the tools here." His forks:
 > **1A** (the default place), refined by his question on the PCP; **2A** (a specialty only from
@@ -339,22 +340,190 @@ usual place named with the times, and her PCP's times first.
 **Desk test** (restart `npm run dev` first: a new `ehr`).
 1. Config › Hospital › Specialties: a **Primary care** column, on for Family Medicine. Booking:
    **Offer a sooner time with another clinician**, on.
-2. Chat, Local, Test: call as **Priya Raman**; give a reason; ask for in person, any time. The
+2. Chat, Local, Test: call as **Priya Raman**; give a reason. Since step 2 she is asked where
+   too (she has no usual place, §5.3): ask for in person, any time, at **Main Street**. The
    first times are Dr. Okafor's (Nov 3, Nov 5), then Dr. Lin's Nov 2, and the agent says that
    option is sooner, with another clinician.
 3. Turn the Booking switch off and save; call as Priya again: Dr. Okafor's times, then Dr. Lin's,
    with no "sooner". Turn it back on.
-4. Call as **Jordan Ellis** (no PCP on file): the times in date order, as before.
+4. Call as **Jordan Ellis** (no PCP on file): the times in date order, as before. Since step 2
+   the Default marks Main Street Clinic as family medicine, so his times start by naming it
+   ("where you were seen last").
 5. Chat, Epic, as **Camila Lopez**; ask for online or either: the times start by naming her
    usual place. Say "somewhere else": the next search names none.
 
-### 5.3 The later steps
-Written with each step (§6).
+### 5.3 Step 2: the place and the specialty in the search (built 2026-11-16)
+> **Part:** built · 2026-11-16 · desk test open. Where this part and §3.1, §3.2 disagree, this
+> part is the code.
+
+- **The matcher (core › `shielded.rs`):** `Shielded::names_terms`. The words that name no one
+  place are left out ("the", "clinic", "doctor", "care" and the like). A term whose every word
+  the caller said is a full match; when there is one, only full matches count ("EMC cardiology"
+  names EMC Cardiology, not EMC Cardiology Procedures). Else a term that holds every word the
+  caller said ("cardiology" names both). It answers with positions only.
+- **The pick (ehr › `hospital.rs`):** `Hospital::pick(place, specialty)`. A specialty by its
+  spoken name and the caller's words. A department by its spoken name, its record's name, its
+  facility's names and its city (from the address: "…, Verona, WI 53593"). No specialty named
+  is primary care: the departments of a primary care specialty, and those with no specialty
+  on the list. A place named with no specialty that is not primary care keeps its own kind of
+  care ("EMC Cardiology" searches cardiology). Several departments: a facility or a town that
+  holds them all is searched whole; else the caller is asked which. Outcomes: search, unknown
+  place, unknown specialty (also: no department has it), not at that place, which place.
+- **The search (`service.rs › find_slots`):** the pick, then the usual place (§3.2, now also
+  for a specialty: the last seen visit at one of its departments), then the question 1B: no
+  place named, no usual place, and the care at more than one place. It names the places when
+  they are no more than Booking › Groups one question names, else asks for a clinic or a town.
+  The search keeps only the slots at its places (`Hospital::keeps`; for primary care with no
+  place named, a slot at a department on no list is kept too). Epic's `$find` gets
+  `location-reference` when one place is searched and `specialties` when one specialty with an
+  ID was named. `FindVisit` keeps the visits at every place the words name.
+- **One question, not two:** before the preference question (1A) the agent asks ehr where a
+  search would look (`plan_only`: no `$find`). When ehr would ask where, the same turn asks it
+  after the preference question. Asked once a call: a later search that names no place looks
+  anywhere.
+- **The wire:** `FindSlotsRequest.place`, `.specialty` (phi), `.plan_only`;
+  `FindSlotsReply.place_ask`, `.places` (phi), `.other_places`; `FindVisitRequest.place` (phi);
+  `FindVisitReply.unknown_place`.
+- **The agent:** `find_slots` takes `place` and `specialty` (2A: `arg.find_slots.specialty` says
+  never to choose one from the reason); `find_visit` takes `place`. New lines, drafts, his to
+  edit: `line.ask_place`, `line.which_place`, `line.another_place`, `line.unknown_place`,
+  `line.unknown_specialty`, `line.not_at_place`, `note.after_ask_place`,
+  `note.after_place_unknown`.
+- **The Default** (`ehr/fixtures/hospital.json`): a facility, Example Medical Center (Madison),
+  holding EMC Family Medicine, EMC Cardiology and EMC Cardiology Procedures; Main Street Clinic
+  (Verona) and EMC Family Medicine are family medicine; the X-ray department is radiology, with
+  hours of its own (Saturday morning). Addresses and phone numbers are synthetic (555-01xx).
+- **The fake:** three more slots, at EMC Cardiology (Dr. Rosa Patel, Nov 3 and Nov 5) and EMC
+  Family Medicine (Dr. Lee Moreno, Nov 4). Each slot has its place.
+- **Tests:** `shielded.rs › names_terms_prefers_a_full_match…`; `service.rs ›
+  with_no_usual_place_the_caller_is_asked_where…`, `a_place_and_a_specialty_narrow_the_search_or_ask`,
+  `a_visit_is_found_by_its_place…`; `test_gate.py ›
+  test_with_no_usual_place_the_preference_question_also_asks_where`.
+
+**Decided inside the design (for the owner's review):**
+- **No "caller's words" column on Places.** §3.1 named one. Built instead: a department is
+  matched by its spoken name, its record's name, its facility's names and its city; a facility's
+  spoken name is a second name for every department in it. A Words column on a list of up to
+  2,000 rows waits until a hospital needs it.
+- **The where question lists the places** when they fit one question, as the visit groups do,
+  and asks for "a clinic or a town" past that.
+- **A town searches every department in it** (no question), as a facility does.
+- **Several specialties named** ("heart" in two names): the union is searched.
+- **A place named, no list:** "I don't know that place". A specialty named, no list: no filter.
+
+**What the sandbox can show.** Epic's sandbox returns one department whatever is asked (step 0),
+so a search across places shows only in Local. In Epic mode, with Places imported, a caller with
+no usual place is asked where.
+
+**Desk test** (restart `npm run dev` first: a new `ehr` and agent).
+1. Chat, Local, Test, as **Priya Raman**: ask to book, give a reason. The agent asks in person
+   or online, a day or time, and "Would you like Main Street Clinic or the family medicine
+   clinic?" in one turn. Say "the family medicine clinic, in person, any time": Dr. Moreno's Nov
+   4 time only.
+2. As **Jordan Ellis**: "I'd like to see a heart doctor". He is asked EMC Cardiology or EMC
+   Cardiology Procedures; say "EMC Cardiology": Dr. Patel's two times.
+3. As Jordan: "an appointment in Verona": Main Street Clinic times. "at the medical center":
+   Dr. Moreno's time (its primary care department).
+4. As Jordan: "a skin doctor": the agent says it does not see that kind of care (dermatology has
+   no ID). "an appointment in Chicago": it does not know that place.
+5. As Jordan: "cardiology at Main Street": that care is not at that place.
+6. As Jordan: "when is my visit at Main Street?": his next visit there.
+
+### 5.4 Step 5: where to go (built 2026-11-16)
+> **Part:** built · 2026-11-16 · desk test open. Where this part and §3.7 disagree, this part is
+> the code.
+
+- **ehr:** `PlaceInfo(handle, place)` (`service.rs › place_info`, `hospital.rs ›
+  Hospital::place_info`). An open handle is enough. The words are matched as in §5.3. A
+  facility or a town that holds every department named answers as the facility (its name,
+  address and phone, the hospital's hours). One department: its spoken name; its address and
+  phone, else its facility's; its own hours, else the hospital's. Several: which one. With every
+  answer, the hospital's next three closed days.
+- **The agent:** `place_info` is in every step (`global_functions`). With no place named, the
+  place of the visit the caller just booked or heard; with none, it asks which place. It says
+  the address (or that it has none), the phone (or that it has none) and the hours, days in a
+  row with the same hours said together. The closed days go to the model only
+  (`note.after_place_info`: say one only when asked about that day). New lines, drafts:
+  `tool.place_info`, `arg.place_info.place`, `line.place_address`, `line.place_no_address`,
+  `line.place_phone`, `line.place_no_phone`, `line.place_hours`, `line.place_info_which`.
+- **Tests:** `service.rs › place_info_answers_from_the_lists_before_verification`;
+  `test_gate.py › test_where_to_go_is_open_before_verification_and_reads_the_lists`.
+
+**Decided inside the design (for the owner's review):**
+- The address, phone and hours are said together in one turn; the closed days only when asked.
+- A department with no address or phone takes its facility's before the agent says it has none.
+- The model is told to use `offer_staff` when the caller needs an address or phone not on file
+  (§3.7 says "offers a person").
+
+**Desk test** (restart `npm run dev` first).
+1. Chat, Local, Test, before verifying: "Where is the X-ray place?" The agent says EMH X-Ray
+   Imaging's address and phone, and "Monday to Friday, 7 AM to 7 PM, and Saturday, 8 AM to 12
+   PM".
+2. "Are you open Saturday?" about Main Street Clinic: Monday to Friday only.
+3. "What's the phone number for EMC Cardiology Procedures?": the medical center's number (it has
+   none of its own).
+4. Verify as Jordan, book a visit, then "Where do I go?": Main Street Clinic's address.
+
+### 5.5 Step 4: the Booking rules (built 2026-11-16)
+> **Part:** built · 2026-11-16 · desk test open. Where this part and §3.5 disagree, this part is
+> the code.
+
+- **ehr › `hospital.rs`:** `BookingRule` (specialty ID, department record name, visit type
+  record name, provider name, patients, outcome; each condition empty for any) and
+  `RuleOutcome` (book, book_and_flag, pcp_only, referral_needed, hand_off). The key
+  `booking_rules` (in `KEYS` and `settings.rs › HOSPITAL`); a rule that names a row not on its
+  list is refused, by row number. `rule_for` (a time: the first row whose every condition
+  matches), `rule_before_search` (a department: known when the first row whose place conditions
+  match names no visit type or provider).
+- **ehr › `service.rs`:** before the search, when every place it would look at holds the visit
+  back, nothing is searched and `FindSlotsReply.rule` says why (`held_back_everywhere`). After
+  the search, each time is checked (`keep_by_rules`): Referral needed and Hand off drop it;
+  Book with the PCP only drops another clinician's time; Book and flag marks it
+  (`Session.flag_on_book`). When the rules dropped every time, the first one's outcome is the
+  answer. "More" checks each new page the same way. `Book` says `check_referral` for a marked
+  time. Each slot now carries its visit type as the record names it (`Slot::visit_type_ref`).
+- **The agent:** Referral needed says `line.referral_needed` and the model offers a primary care
+  visit or a person (`note.after_referral_needed`; a caller who has a referral goes to a person).
+  Hand off says `line.rule_hand_off` and hands off, with a code flag `booking_rule_hand_off`
+  whose evidence is the caller's reason, checked as theirs. A booking with `check_referral`
+  files a code flag `referral_check` with the visit's CSN; the caller hears nothing. The flag
+  kinds are drafts (FLAGS.md §3).
+- **The console:** Config › Hospital › **Rules** (after Booking): the one table, with Specialty,
+  Department, Visit type, Provider, Patients and Outcome; ↑ ↓ ✕ (the order matters); each
+  outcome's "i" says what it does. The page checks a rule's rows as ehr does.
+- **The Default:** no rules (every visit is Book).
+- **Tests:** `hospital.rs › a_booking_rule_must_name_rows_on_the_lists`; `service.rs ›
+  booking_rules_hold_back_hand_off_refer_flag_and_keep_to_the_pcp`.
+
+**Decided inside the design (for the owner's review):**
+- **Department and Provider are typed, not chosen.** Places holds up to 2,000 departments: a
+  select of every one in each rule row breaks the speed rules (CONSOLE.md §12). The page refuses
+  a department that is not on Places; a provider is compared as a clinician the caller names is.
+- **Book with the PCP only, for a caller with no PCP on file:** every time is offered.
+- **Patients "Any"** on the Rules tab is the Visit types column's "Either".
+- **Flag kinds:** `referral_check` and `booking_rule_hand_off` (drafts, FLAGS.md §3).
+
+**Desk test** (restart `npm run dev` first).
+1. Config › Hospital › **Rules**, Edit. Add three rules and Save:
+   1. Specialty Cardiology, Patients New, Outcome Hand off.
+   2. Provider "Dr. Rosa Patel", Outcome Referral needed.
+   3. Visit type Office Visit, Outcome Book and flag for a referral check.
+2. Chat, Local, Test, as **Jordan Ellis**: "a heart doctor at EMC Cardiology". Rule 1 (he is new
+   to cardiology): the agent says staff book this visit and hands off; the call has a
+   `booking_rule_hand_off` flag. No search runs (the request log shows none).
+3. Move rule 2 above rule 1 (↑) and Save. Call again: rule 2 matches each of Dr. Patel's times:
+   the agent says a referral is needed and offers primary care or a person.
+4. As Jordan, book an in-person visit at his usual place: the booking reads back as usual, and
+   the call has a `referral_check` flag (rule 3). An online visit has none.
+5. Type a department that is not on Places in a rule: the page names the row and does not save.
+
+### 5.6 The later steps
+None: steps 0 to 5 are built. §7 holds what is open.
 
 ## 6. The build
-> **Resumed 2026-11-16** (the owner: "Start step 3"): step 3 built before step 2. Open: his desk
-> tests of steps 1 and 3 (§5.1, §5.2), all kept scripts to record again after them, then step 2,
-> 4 or 5.
+> **Every step built, 2026-11-16** (the owner: "Let's finish building out the booking rules /
+> steps"): step 3 before step 2, then 2, 5 and 4. Open: his desk tests of steps 1 to 5 (§5.1 to
+> §5.5), then every kept script recorded again (the Test button on Config › Agent).
 
 One load-bearing step at a time; each ends with the owner's desk test. Each step changes the
 words in AGENT-PROMPT.md and TOOLS.md where a tool changes, records the kept scripts again
@@ -379,7 +548,8 @@ test open: §5.1.** It fixes a gap that books today.
 - Tests: `ehr` unit tests for the status and the visit-type choice; the fake marks its slots.
 - Desk test: on Epic, an established sandbox patient is not offered new-patient times.
 
-**Step 2 — the place and the specialty in the search** (§3.1).
+**Step 2 — the place and the specialty in the search** (§3.1). **Built 2026-11-16, desk test
+open: §5.3.**
 - Proto: `FindSlotsRequest.place`, `.specialty`; `FindVisitRequest.place` (all tagged `phi`).
 - `hospital.rs`: the place and specialty matchers. `epic_ehr.rs`: `location-reference` and
   `specialties` in `$find`. `scheduler.rs`: the fake's slots carry a place and a specialty.
@@ -398,7 +568,7 @@ open: §5.2.** Taken before step 2, with step 2's `location-reference` only.
   a caller with no visits.
 - Desk test: the cases in §3.2 that the sandbox can show (1, 5, and 4 if step 0 finds one).
 
-**Step 4 — the Booking rules** (§3.5).
+**Step 4 — the Booking rules** (§3.5). **Built 2026-11-16, desk test open: §5.5.**
 - `hospital.rs`: the rule rows, their check, the first match; the key in `KEYS` and
   `settings.rs › HOSPITAL`. `service.rs`: the rules before the search, per proposed time, and
   at Book; the flag on Book and flag.
@@ -407,8 +577,8 @@ open: §5.2.** Taken before step 2, with step 2's `location-reference` only.
   PCP only.
 - Desk test: write three rules on the page, Save, and call each case on Local.
 
-**Step 5 — where to go** (§3.7). Small; may run beside step 3 or 4 (it touches no shared
-primitive).
+**Step 5 — where to go** (§3.7). **Built 2026-11-16, desk test open: §5.4.** Small; may run
+beside step 3 or 4 (it touches no shared primitive).
 - A new RPC (the name is a draft: `PlaceInfo`), open before verification, that returns the
   spoken address, phone and hours of a matched place, or of the visit just heard after
   verification. `flow.py`: the tool, in every step. The hours read the department's, then the
@@ -419,7 +589,14 @@ primitive).
 
 ## 7. Open
 - The words of every new line (AGENT-PROMPT.md): the owner's, after each step's desk test.
-- The outcome list (§3.5) is a draft.
+- The outcome list (§3.5) and the two flag kinds (§5.5) are drafts.
+- Every kept script misses its replay (new tools and words in every step): record them again
+  after the desk tests. New kept scripts the build list names (a caller who names a clinic, one
+  who names a specialty, two clinics that match; the three rules; "Where do I go?" before
+  verification) are not written yet.
+- The Places "caller's words" column (§5.3) waits for a hospital that needs it.
+- "How much sooner" for P-A, and a staff flag for a PCP who has left (case 3): when a hospital
+  asks.
 - Case 2 without a past visit needs `PractitionerRole` (not registered): when a hospital needs it.
 - A referral feed from the hospital (§3.6): later, with the rule on keeping records.
 - Who may edit the rules: waits on the roles (ACCESS-ROLES.md).

@@ -83,6 +83,7 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `FindSlots` | `find_slots` | `find_slots` |
 | `Book` | `book` | `book` |
 | `FindVisit` | `find_visit` | `find_visit` |
+| `PlaceInfo` | `place_info` | `place_info` |
 | `FileCall` | `file_call` | `file_call` |
 | `FileTestRun` | `file_test_run` | `file_test_run` |
 | `AddAnnotation` | `add_annotation` | `add_annotation` |
@@ -281,6 +282,17 @@ is ignored. So nothing past the edge sees a wire type.
   The usual place, the PCP and P-A (2026-11-16; BOOKING-RULES.md §5.2): `FindSlotsRequest.any_place`
   turns the usual place off; a new search held to it says so in `FindSlotsReply.place_default`
   (phi); each `Slot` says `with_pcp` and `sooner`. The PCP comes from verification (`Session.pcp`).
+  The place and the specialty (2026-11-16; BOOKING-RULES.md §5.3): `FindSlotsRequest.place` and
+  `.specialty` (phi), the caller's words, matched in Rust (`Hospital::pick`); `plan_only` says
+  where a search would look and searches nothing. When no search ran, `FindSlotsReply.place_ask`
+  says which question to ask (`places`, phi, names the places). `FindVisitRequest.place` (phi)
+  narrows a visit by its place; `FindVisitReply.unknown_place` says the words name none.
+  The Booking rules (2026-11-16; §5.5): `FindSlotsReply.rule` when a rule held back every time;
+  `BookReply.check_referral` when the booked time's rule says Book and flag.
+- **Where to go (2026-11-16; BOOKING-RULES.md §5.4):** `PlaceInfo(handle, place)` answers from
+  the call's hospital only: a place's name, address and phone (phi: tied to the caller's
+  question), its hours and the hospital's next closed days. An open handle is enough: it reads
+  no record, so it works before verification.
 - **The reason becomes the booking's note (2026-11-14).** `FindSlots`'s reason (the caller's
   own words: the agent checks them, CALL-FLOW.md §5) is screened at the edge
   (`BookNote::screen`, `visit_about.rs`), before it is wrapped, and kept in the session one call

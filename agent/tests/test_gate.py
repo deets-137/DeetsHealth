@@ -558,3 +558,49 @@ async def test_the_preference_is_asked_once_before_the_first_search(ehr):
     )
     assert node["name"] == "schedule" and result["options"]
     await flow.close()
+
+
+async def test_with_no_usual_place_the_preference_question_also_asks_where(ehr):
+    """BOOKING-RULES.md §3.2, 1B: Priya Raman has no usual place, so the preference question also
+    names the two primary care places; her answer searches there, and a later search that names
+    no place is never asked again. Words that name no place are said so."""
+    flow = CallFlow(ehr, today=FAKE_TODAY)
+    flow.heard("Priya Raman, November 30, 1971")
+    fm = manager()
+    await flow.start()
+    priya = {"given_name": "Priya", "family_name": "Raman", "birth_date": "1971-11-30"}
+    await identify(flow, priya, fm)
+    await handler(flow.verify(), "check_code")(CODE, fm)
+    flow.heard("I'd like a check-up")
+    result, _ = await handler(flow.menu(), "find_slots")({"reason": "a check-up"}, fm)
+    where = text("line.which_place", places=f"Main Street Clinic {text('line.choice_or')} the family medicine clinic")
+    assert result["spoken_to_caller"] == f"{text('line.ask_preference_both')} {where}"
+    assert text("note.after_ask_place") in result["next_step"]
+    result, node = await handler(flow.menu(), "find_slots")(
+        {"reason": "a check-up", "visit_mode": "in_person", "any_time": True, "place": "the family medicine clinic"}, fm
+    )
+    assert node["name"] == "schedule" and "Moreno" in result["spoken_to_caller"]
+    result, _ = await handler(flow.menu(), "find_slots")({"reason": "a check-up", "place": "Chicago"}, fm)
+    assert result["spoken_to_caller"] == text("line.unknown_place")
+    await flow.close()
+
+
+async def test_where_to_go_is_open_before_verification_and_reads_the_lists(ehr):
+    """BOOKING-RULES.md §3.7: place_info is in every step and needs no verified caller. Its own
+    hours are said with days in a row together; with no place and no visit heard, it asks which."""
+    flow = CallFlow(ehr, today=FAKE_TODAY)
+    fm = manager()
+    await flow.start()
+    place_info = next(fn for fn in flow.global_functions() if fn.name == "place_info").handler
+    result, _ = await place_info({"place": "the x-ray place"}, fm)
+    assert result["spoken_to_caller"] == " ".join(
+        [
+            text("line.place_address", place="EMH X-Ray Imaging", address="300 Lake Road, Fitchburg, WI 53711"),
+            text("line.place_phone", phone="608-555-0140"),
+            text("line.place_hours", hours="Monday to Friday, 7 AM to 7 PM, and Saturday, 8 AM to 12 PM"),
+        ]
+    )
+    assert result["closed_days"][0]["name"] == "Thanksgiving" or result["closed_days"] == []
+    result, _ = await place_info({}, fm)
+    assert result["spoken_to_caller"] == text("line.place_info_which")
+    await flow.close()

@@ -188,6 +188,7 @@ impl EpicEhr {
             who: Some(Shielded::new(demographics(&record))),
             seen: Vec::new(),
             place: None,
+            specialty: None,
         };
         let mut out = Vec::new();
         let h = Hospital::file();
@@ -269,6 +270,7 @@ impl EpicEhr {
                 who: Some(who.clone()),
                 seen: Vec::new(),
                 place: None,
+                specialty: None,
             };
             match self.scheduler.find(&Hospital::file(), &key, &wish).await {
                 Ok(found) => {
@@ -386,6 +388,12 @@ impl EpicScheduler {
         // service keeps only that place's slots either way.
         if let Some(id) = wish.place.as_ref().and_then(|p| p.id.as_ref()) {
             parameter.push(json!({"name": "location-reference", "valueReference": {"reference": format!("Location/{}", id.reveal(pass))}}));
+        }
+        // The specialty the caller named (BOOKING-RULES.md §3.1), under the specialty list's OID.
+        if let Some(code) = wish.specialty.as_ref().filter(|_| !h.specialty_list.is_empty()) {
+            parameter.push(json!({"name": "specialties", "valueCodeableConcept": {"coding": [
+                {"system": h.specialty_list, "code": code.reveal(pass)}
+            ]}}));
         }
         if wish.time_of_day.is_some() || !wish.days.is_empty() {
             let mut repeat = json!({});
@@ -592,6 +600,7 @@ impl Visit {
             group,
             place_ref: PlaceRef::new(self.place_id.as_deref(), self.place.as_deref()),
             kind: h.patients_of(self.visit_type.as_deref()),
+            visit_type_ref: crate::hospital::type_ref(self.visit_type.as_deref()),
         }
     }
 }
@@ -784,6 +793,7 @@ fn proposed(a: &Value, h: &Hospital) -> Option<Slot> {
         group,
         place_ref: PlaceRef::new(place_id.as_deref(), place.as_deref()),
         kind: h.patients_of(visit_type.as_deref()),
+        visit_type_ref: crate::hospital::type_ref(visit_type.as_deref()),
     })
 }
 

@@ -150,9 +150,16 @@ pub struct Session {
     /// sooner with another clinician (P-A): each slot of that search, on any page, says so.
     pub search_pcp: Option<crate::hospital::ClinicianRef>,
     pub sooner: Option<crate::scheduler::SlotId>,
-    /// The last search's usual place (§3.2), and its words for the caller: "more" keeps to it.
-    pub search_place: Option<crate::hospital::PlaceRef>,
+    /// The last search's places (§3.1, §3.2: the place named, the usual place, or the
+    /// departments of the kind of care) and whether only they count (`Pick::strict`): "more"
+    /// keeps to them. Each place is wrapped (`PlaceRef`).
+    pub search_places: Vec<crate::hospital::PlaceRef>,
+    pub search_strict: bool,
+    /// The usual place's words for the caller, when the search was held to it.
     pub place_words: Option<Shielded<String>>,
+    /// The times offered whose Booking rule says Book and flag (BOOKING-RULES.md §3.5): a
+    /// booking of one asks staff to check the referral.
+    pub flag_on_book: std::collections::HashSet<crate::scheduler::SlotId>,
     opened: Instant,
 }
 
@@ -200,8 +207,10 @@ impl Sessions {
             pcp: Vec::new(),
             search_pcp: None,
             sooner: None,
-            search_place: None,
+            search_places: Vec::new(),
+            search_strict: false,
             place_words: None,
+            flag_on_book: Default::default(),
             opened: Instant::now(),
         };
         map.insert(handle.clone(), Arc::new(Mutex::new(session)));

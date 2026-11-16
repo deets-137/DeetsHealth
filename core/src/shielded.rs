@@ -154,6 +154,46 @@ impl Shielded<String> {
             t.trim() != "" && said.contains(&t)
         })
     }
+
+    /// Every one of `terms` that the caller's words name, for a place or a specialty on the
+    /// hospital's lists (BOOKING-RULES.md §3.1). The words that name no one place are left out
+    /// ("the", "clinic", "doctor"). A term whose every word the caller said ("my heart doctor"
+    /// names "heart doctor") is a full match; when there is one, only full matches count. Else a
+    /// term that holds every word the caller said ("north" names "EMC North Family Medicine").
+    /// The terms are the hospital's, not protected data. Answers with positions only and never
+    /// reveals the caller's words.
+    pub fn names_terms(&self, terms: &[&str]) -> Vec<usize> {
+        const GENERIC: &[&str] = &[
+            "a", "an", "the", "my", "our", "your", "at", "in", "on", "of", "to", "for", "near", "by", "with", "and", "or", "one",
+            "please", "clinic", "clinics", "office", "center", "centre", "hospital", "department", "location", "building", "campus",
+            "doctor", "doctors", "dr", "specialist", "physician", "provider", "care", "visit", "appointment", "place", "site", "s",
+        ];
+        let words = |s: &str| -> Vec<String> {
+            s.split(|c: char| !c.is_alphanumeric())
+                .map(str::to_lowercase)
+                .filter(|w| !w.is_empty() && !GENERIC.contains(&w.as_str()))
+                .collect()
+        };
+        let said = words(&self.0);
+        if said.is_empty() {
+            return Vec::new();
+        }
+        let terms: Vec<Vec<String>> = terms.iter().map(|t| words(t)).collect();
+        let pick = |fits: &dyn Fn(&[String]) -> bool| -> Vec<usize> {
+            terms.iter().enumerate().filter(|(_, t)| !t.is_empty() && fits(t)).map(|(i, _)| i).collect()
+        };
+        let full = pick(&|t| t.iter().all(|w| said.contains(w)));
+        if !full.is_empty() {
+            return full;
+        }
+        pick(&|t| said.iter().all(|w| t.contains(w)))
+    }
+
+    /// Whether the caller's words hold any word that could name a place or a specialty (not only
+    /// "the clinic" or "a doctor"): with none, the words name nothing and are left out.
+    pub fn names_anything(&self) -> bool {
+        !self.names_terms(&[self.0.as_str()]).is_empty()
+    }
 }
 
 /// True when one insertion, deletion or substitution turns `a` into `b`.
@@ -249,6 +289,19 @@ mod tests {
         assert_eq!(n("the X-ray one").first_named(&terms), Some(2));
         assert_eq!(n("primary").first_named(&terms), None);
         assert_eq!(n("imagingx").first_named(&terms), None);
+    }
+
+    #[test]
+    fn names_terms_prefers_a_full_match_and_skips_words_that_name_nothing() {
+        let n = |s: &str| Shielded::new(s.to_string());
+        let places = ["EMC Cardiology", "EMC Cardiology Procedures", "Main Street Clinic"];
+        assert_eq!(n("EMC cardiology").names_terms(&places), [0], "a full match only");
+        assert_eq!(n("the cardiology clinic").names_terms(&places), [0, 1], "a word in both");
+        assert_eq!(n("main street").names_terms(&places), [2]);
+        assert_eq!(n("my heart doctor").names_terms(&["heart doctor", "skin doctor"]), [0]);
+        assert!(n("the clinic").names_terms(&places).is_empty(), "no word left");
+        assert!(!n("a doctor").names_anything());
+        assert!(n("Verona").names_anything());
     }
 
     #[test]
