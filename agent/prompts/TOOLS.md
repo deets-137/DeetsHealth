@@ -43,7 +43,11 @@ lines: line.code_resent, line.no_more_codes
 
 ## find_slots
 Finds open times for a visit, for the verified caller only, from the day the caller asks, in
-person, online or either, as the caller said. Each time gets an option number that stays the
+person, online or either, as the caller said. Before the first search it asks, once each, what
+the visit is for (when the caller has given no reason; "book an appointment" is none), then how
+and when. The search is held to the caller's usual place (their last visit with their PCP, or
+at a primary care clinic) and names it; "somewhere else" searches any place. The PCP's times come
+first, and one sooner time with another clinician at the same place may be offered. Each time gets an option number that stays the
 same for the whole call, and an online time says "online". The reason goes with the search in
 the caller's own words: the code keeps the model's words only if the caller said them, or else
 sends the caller's latest line. ehr keeps it for the booking. The caller may also name a last
@@ -55,7 +59,8 @@ lines: line.no_slots, line.no_more_slots, line.slots, line.slot_option
 
 ## choose_option
 Takes the option number the caller chose and reads that time back for a yes. Nothing is booked
-yet.
+yet. When the caller's choice came with a question, the read-back waits once: the agent answers
+the question first (or says it cannot see that), then reads the time back.
 record: none
 lines: line.which_option, line.confirm_slot
 
@@ -97,11 +102,12 @@ Ends the call with a hand-off to a person, with the model's reason and summary f
 After a code that did not work, the caller hears an apology. A summary that uses a pronoun for
 the caller goes back to the model once, to name the caller instead.
 record: none
-lines: line.hand_off, line.hand_off_code
+lines: line.hand_off, line.hand_off_code, line.hand_off_answer
 
 ## offer_staff
 When the agent cannot do or see what the caller asks, it says so and offers a person. The
-caller chooses: a yes is `hand_off`; a no, the call goes on.
+caller chooses: a yes is `hand_off`; a no, the call goes on. The same question asked again is
+`hand_off` too, and the caller hears that a person will answer it (the owner, 2026-11-16).
 record: none
 lines: line.offer_staff, line.offer_staff_private
 

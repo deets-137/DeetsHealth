@@ -115,6 +115,29 @@ Nothing ships yet. The deploy is A2: a separate deploy per hospital in our cloud
 interface (VOICE-AGENT.md §7.2).
 
 ## Open now
+**The calls of 2026-11-15, 22:30 to 22:38: fixes built 2026-11-16, not committed** (WORKLOG of
+that day). **His step first:** choose a new voice on Config › Cartesia: the active version names
+"Emma", whom Cartesia no longer has, so a voice call now refuses to start. Fixed: the voice check
+and the dead-voice end (AGENT.md, FLAGS.md §8), spelled names (AGENT.md), in person or online
+kept on every returned time (EHR-SERVICE.md; the Epic sandbox now has no in-person times), the
+idle end's reason, and the reason question before the first search (his word; CALL-FLOW.md;
+the words `line.ask_reason` are a draft), a question asked with a choice answered before the
+read-back (his 1A), and the hand-off on the reply to an offer saying a person will answer it
+(his 2C) (CALL-FLOW.md). **All 15 kept scripts must be recorded again** (the tools' words
+changed). Open, his choice: the spoken list of times (say a shared clinician and place once).
+
+**Booking by place, specialty and rule (2026-11-16): steps 1 and 3 built**
+(architecture/BOOKING-RULES.md). To pick up: (1) his desk tests of steps 1 and 3 (§5.1, §5.2;
+restart `npm run dev` first); (2) record all 15 kept scripts again (Test on Config › Agent); (3)
+the next step: 2, 4 or 5. The usual place named with the times is kept (his word, §5.2). Nothing of steps 0, 1 and 3 is committed. His forks: 1A refined (the last visit of the same kind of care;
+the PCP for primary care), 2A, P-A, E-A (the Booking rules table, the rules engine's start).
+The build is §6: step 0 the sandbox look (done, EPIC.md §7.12), then 1 new or established
+(**built 2026-11-16, desk test open: BOOKING-RULES.md §5.1**; restart `npm run dev` first;
+the kept script `booked_reason_asked` needs recording again: Priya is now a new patient), 2
+the place and the specialty, 3 the default place, the PCP and P-A, 4 the Booking rules, 5 where
+to go. A caller's referrals
+cannot be read from Epic, and we do not read orders for them: the line he drew (§2, §3.6). What was decided inside his choices: §4.
+
 **Dependencies (2026-11-16; committed `c62816a`).** The list, its verdicts and the trust review
 are DEPENDENCIES.md; the watch list is SECURITY.md §7.1. Open:
 - Done: his desk tests of the Rust batch and of sqlx 0.9 (2026-11-16).

@@ -2,7 +2,7 @@
 status: built
 desk_test: passed 2026-11-14
 sources: [console/src/agent/store.ts, console/src/agent/stores.ts, console/src/agent/ledger.ts, console/src/reveal.ts, console/src/reveal-wave.ts, console/vite.config.ts, console/src/agent/api.ts, console/src/main.ts, console/src/nav.ts, console/src/pages/subnav.ts, console/src/pages/auth.ts, console/src/pages/people.ts, console/src/pages/config-kit.ts, console/src/pages/agent.ts, console/src/pages/chat.ts, console/public/prepaint.js, scripts/dev.mjs]
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # Loading — the console's reads, and the first-load wave
 

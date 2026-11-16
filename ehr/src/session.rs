@@ -80,6 +80,8 @@ pub struct Pending {
     pub patient: PatientKey,
     /// The patient's demographics for a slot search (verify.rs `Candidate::facts`).
     pub facts: Option<Shielded<String>>,
+    /// The patient's PCPs on file (verify.rs `Candidate::pcp`).
+    pub pcp: Vec<crate::hospital::ClinicianRef>,
     pub phone: Shielded<String>,
     pub code: Shielded<String>,
     pub issued: Instant,
@@ -136,6 +138,21 @@ pub struct Session {
     /// The EHR ledger (ledger.rs): each request ehr sent the EHR on this call, by the gRPC call
     /// that sent it. Names and counts only. CloseCall hands it to the agent.
     pub ledger: Vec<(&'static str, crate::ledger::Entry)>,
+    /// Where the verified caller was seen in the hospital's window (`established_years`), read
+    /// once, at the first FindSlots that needs it (BOOKING-RULES.md §3.4). None: not read yet.
+    /// Lives one call long, like the rest of the session.
+    pub seen: Option<Vec<crate::scheduler::SeenVisit>>,
+    /// In person, online or either, as the last FindSlots asked: its next pages keep to it.
+    pub mode: crate::scheduler::VisitMode,
+    /// The verified patient's PCPs on file (BOOKING-RULES.md §3.2). Set when the code passes.
+    pub pcp: Vec<crate::hospital::ClinicianRef>,
+    /// The last search's PCP (the one the caller saw last), its place, and the slot offered as
+    /// sooner with another clinician (P-A): each slot of that search, on any page, says so.
+    pub search_pcp: Option<crate::hospital::ClinicianRef>,
+    pub sooner: Option<crate::scheduler::SlotId>,
+    /// The last search's usual place (§3.2), and its words for the caller: "more" keeps to it.
+    pub search_place: Option<crate::hospital::PlaceRef>,
+    pub place_words: Option<Shielded<String>>,
     opened: Instant,
 }
 
@@ -178,6 +195,13 @@ impl Sessions {
             hospital,
             booked: HashMap::new(),
             ledger: Vec::new(),
+            seen: None,
+            mode: Default::default(),
+            pcp: Vec::new(),
+            search_pcp: None,
+            sooner: None,
+            search_place: None,
+            place_words: None,
             opened: Instant::now(),
         };
         map.insert(handle.clone(), Arc::new(Mutex::new(session)));

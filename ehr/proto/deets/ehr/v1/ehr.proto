@@ -535,6 +535,8 @@ message FindSlotsRequest {
   string clinician = 8 [(phi) = true];
   // The next slots of the last search, not a new search: every other field is ignored.
   bool more = 9;
+  // The caller wants any place, not their usual one (BOOKING-RULES.md §3.2): no default place.
+  bool any_place = 10;
 }
 
 enum VisitMode {
@@ -547,6 +549,9 @@ message FindSlotsReply {
   repeated Slot slots = 1;
   // More slots of the same search wait (FindSlots with `more`).
   bool more = 2;
+  // A new search held to the caller's usual place (BOOKING-RULES.md §3.2): its words, as the
+  // caller hears a place; "" when the search was not held to one.
+  string place_default = 3 [(phi) = true];
 }
 
 message Slot {
@@ -559,6 +564,10 @@ message Slot {
   string place = 5 [(phi) = true];
   // An online visit (video or phone), from its visit type. The place is still the record's.
   bool online = 6;
+  // With the caller's primary care provider (BOOKING-RULES.md §3.3).
+  bool with_pcp = 7;
+  // The one time with another clinician, sooner than the PCP's first (the owner's P-A).
+  bool sooner = 8;
 }
 
 message BookRequest {

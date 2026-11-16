@@ -305,8 +305,11 @@ export const saveSystem = (values: SystemValues) => saveSettings<SystemSettings>
 
 /** Config › Hospital (HOSPITAL-CONFIG.md): the hospital's lists and numbers, as ehr's
  * hospital.rs keeps them. Facts about the hospital, never protected data. */
+/** Which patients a visit type is for (BOOKING-RULES.md §3.4): new to the department's
+ * specialty, established in it, or either. */
+export type PatientKind = "either" | "new" | "established";
 /** `code`: the type's ID in the hospital's visit type list (`visit_type_list`). */
-export type VisitTypeRow = { code: string; record: string; spoken: string; online: boolean; book: boolean };
+export type VisitTypeRow = { code: string; record: string; spoken: string; online: boolean; book: boolean; patients: PatientKind };
 export type VisitGroupRow = { name: string; words: string[]; visit_types: string[] };
 /** A reason's code system, by name: "hospital" is the hospital's own list (`diagnosis_list`). */
 export type ReasonSystem = "" | "snomed" | "icd10cm" | "hospital";
@@ -330,7 +333,7 @@ export type LocationRow = {
   hours: HoursRow[];
 };
 /** `code`: the specialty's ID in the hospital's specialty list (`specialty_list`). */
-export type SpecialtyRow = { code: string; spoken: string; words: string[] };
+export type SpecialtyRow = { code: string; spoken: string; words: string[]; primary_care: boolean };
 export type HospitalValues = {
   time_zone: string;
   /** Each list's OID, set once ("urn:oid:…", or empty): the owner's A, 2026-11-15. */
@@ -350,6 +353,10 @@ export type HospitalValues = {
   narrow_over: number;
   groups_named: number;
   past_days: number;
+  /** A caller seen by a specialty within this many years is established in it (1 to 10). */
+  established_years: number;
+  /** The owner's P-A (BOOKING-RULES.md §3.3): offer one sooner time with another clinician. */
+  sooner_with_others: boolean;
   ahead_windows: number[];
   /** Put after the caller's words in the note a booking files in Epic (the owner's N2). */
   booking_note_label: string;

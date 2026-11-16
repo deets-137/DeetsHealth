@@ -482,17 +482,47 @@ name: More of the same search
 under: find_slots
 plays: Set when none of the times suit the caller and more are waiting.
 
+## arg.find_slots.any_place
+tab: Menu
+name: Any place
+under: find_slots
+plays: Set when the caller wants a place other than their usual one.
+
 ## line.slots
 tab: Menu
 name: Offer the open times
 under: find_slots
 plays: Open times were found. Holds each One open time (in the list).
 
+## line.slots_usual_place
+tab: Menu
+name: Name the usual place
+under: find_slots
+plays: Inside Offer the open times, first, when a new search was held to the caller's usual place (their last visit with their PCP, or at a primary care clinic).
+
+## line.slot_sooner
+tab: Menu
+name: Say one time is sooner
+under: find_slots
+plays: Inside Offer the open times, last, when one time is with another clinician at the same place and sooner than the PCP's first (the hospital's setting).
+
 ## line.slot_option
 tab: Menu
 name: One open time (in the list)
 under: find_slots
 plays: One time, inside Offer the open times.
+
+## line.ask_reason
+tab: Menu
+name: Ask what the visit is for
+under: find_slots
+plays: The first search of the call, when the caller has not said what the visit is for. Asked once, before how and when; no search yet.
+
+## note.after_ask_reason
+tab: Menu
+name: Note after asking the reason
+under: find_slots
+plays: Sent to the model with the reason question. Never heard.
 
 ## line.ask_preference_both
 tab: Menu
@@ -584,6 +614,12 @@ name: Ask to book the chosen time
 under: choose_option
 plays: The chosen time is read back for a yes.
 
+## note.question_with_choice
+tab: Schedule
+name: Note to answer a question asked with a choice
+under: choose_option
+plays: Sent to the model when the caller's choice came with a question, before the read-back. Never heard.
+
 ## tool.book
 tab: Schedule
 name: Book the time
@@ -655,6 +691,12 @@ tab: Anytime
 name: Say a person will help with the code
 under: hand_off
 plays: A hand-off because the code did not work.
+
+## line.hand_off_answer
+tab: Anytime
+name: Say a person will answer it
+under: hand_off
+plays: A hand-off on the caller's reply to the offer of a person: a yes, or the question asked again.
 
 ## tool.offer_staff
 tab: Anytime

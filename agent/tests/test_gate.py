@@ -145,6 +145,12 @@ async def test_a_whole_call_through_the_handlers(ehr):
     assert node["name"] == "schedule" and result["options"] == [1, 2, 3]
     assert "Option 1: Monday, November 2, at 9 AM" in result["spoken_to_caller"]
 
+    # A question with the choice (the owner's 1A, 2026-11-16): no read-back yet; the model is
+    # told to answer, then to choose again. The second choose_option reads back.
+    flow.heard("Option 1. Is that with Dr. Lin?")
+    result, nxt = await handler(node, "choose_option")({"option": 1}, fm)
+    assert nxt is None and "spoken_to_caller" not in result
+    assert result["next_step"] == text("note.question_with_choice", number="1")
     # Confirm before booking (the owner's choice A, 2026-11-12): the choice is read back first.
     result, nxt = await handler(node, "choose_option")({"option": 1}, fm)
     assert nxt is NO_RESPONSE and result["spoken_to_caller"].endswith("?")
@@ -246,6 +252,44 @@ async def test_offer_staff_asks_and_the_call_goes_on(ehr):
     private, _ = await offer({"why": "private"}, fm)
     assert private["spoken_to_caller"] != result["spoken_to_caller"]
     assert menu["name"] == "menu"
+
+
+async def test_a_hand_off_on_the_reply_to_an_offer_says_a_person_will_answer(ehr):
+    """The owner's 2C (2026-11-16): the caller asks again what the agent cannot answer; the
+    hand-off goes on, and the caller hears that a person will answer it. A later hand-off, after
+    more of the call, has the plain line."""
+    flow = new_flow(ehr)
+    fm = manager()
+    offer, hand_off = (next(f for f in flow_globals(flow) if f.name == n).handler for n in ("offer_staff", "hand_off"))
+    flow.heard("Is this with my primary care doctor?")
+    await offer({"why": "cannot_help"}, fm)
+    flow.heard("Is this with my primary care doctor?")
+    result, _ = await hand_off({"kind": "other", "summary": "The caller asked about their doctor."}, fm)
+    assert result["spoken_to_caller"] == text("line.hand_off_answer")
+
+    flow = new_flow(ehr)
+    offer, hand_off = (next(f for f in flow_globals(flow) if f.name == n).handler for n in ("offer_staff", "hand_off"))
+    await offer({"why": "cannot_help"}, fm)
+    for line in ("No thanks.", "Can I book a visit?", "Actually, get me a person."):
+        flow.heard(line)
+    result, _ = await hand_off({"kind": "other", "summary": "The caller asked for a person."}, fm)
+    assert result["spoken_to_caller"] == text("line.hand_off")
+
+
+def test_a_question_in_the_caller_s_line_is_found():
+    from deets_agent.flow import _asks_question
+
+    for asked in [
+        "I'll take option 2. Do you need a reason for the appointment? Is this with my primary care doctor?",
+        "Option 2, is that with Dr. Lin?",
+        "Two. what time do I arrive",
+    ]:
+        assert _asks_question(asked), asked
+    # Known limit: with no mark and no sentence break, a question inside the line is not found
+    # ("option 2 is this with doctor lin"); the task's words still ask the model to answer it.
+    assert not _asks_question("option 2 is this with doctor lin")
+    for plain in ["I'll take option 2.", "Option three please", "The second one, thanks!"]:
+        assert not _asks_question(plain), plain
 
 
 def flow_globals(flow: CallFlow):
@@ -433,10 +477,43 @@ async def test_an_online_wish_offers_online_times_and_says_so(ehr):
     )
     assert node["name"] == "schedule" and len(result["options"]) == 2
     assert result["spoken_to_caller"].count(", online, for") == 2
+    flow.heard("The first one, please.")
     await handler(node, "choose_option")({"option": result["options"][0]}, fm)
     result, _ = await handler(node, "book")({}, fm)
     assert ", online, for" in result["spoken_to_caller"] and result["visit_is"] == "online"
     await flow.close()
+
+
+async def test_the_reason_is_asked_once_before_the_preference(ehr):
+    """The owner, 2026-11-16: ask for a reason before presenting options. A reason made only of
+    words that ask for a visit ("book an appointment", the call of 2026-11-15, 22:36) is none.
+    Asked once; then the preference question; then the search."""
+    flow = CallFlow(ehr, today=FAKE_TODAY)
+    flow.heard("Jordan Ellis, March 12, 1984")
+    fm = manager()
+    await flow.start()
+    await identify(flow, JORDAN, fm)
+    await handler(flow.verify(), "check_code")(CODE, fm)
+    flow.heard("I'd like to book an appointment")
+    result, node = await handler(flow.menu(), "find_slots")({"reason": "book an appointment"}, fm)
+    assert result["spoken_to_caller"] == text("line.ask_reason")
+    assert result["next_step"] == text("note.after_ask_reason") and "options" not in result
+    flow.heard("My knee hurts when I run")
+    result, _ = await handler(flow.menu(), "find_slots")({"reason": "my knee hurts when I run"}, fm)
+    assert result["spoken_to_caller"] == text("line.ask_preference_both")
+    # Asked once: an empty reason after that searches, with "a visit" as before.
+    result, node = await handler(flow.menu(), "find_slots")({"reason": "", "any_time": True, "visit_mode": "either"}, fm)
+    assert node["name"] == "schedule" and result["options"]
+    await flow.close()
+
+
+def test_a_reason_of_booking_words_only_is_no_reason():
+    from deets_agent.flow import _no_reason
+
+    for none in ["", "  ", "book an appointment", "I'd like to see the doctor", "schedule a visit please"]:
+        assert _no_reason(none), none
+    for some in ["a check-up", "my knee", "strawberry water distillation", "follow-up visit"]:
+        assert not _no_reason(some), some
 
 
 async def test_the_preference_is_asked_once_before_the_first_search(ehr):

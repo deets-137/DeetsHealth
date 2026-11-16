@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/screen.py, agent/deets_agent/config.py, agent/prompts/AGENT-PROMPT.md, ehr/src/service.rs, ehr/src/session.rs, ehr/src/texts.rs]
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # The default call flow — where each piece lives
 
@@ -54,13 +54,17 @@ The shape, as a drawing: the docstring at the top of `agent/deets_agent/flow.py`
 | The greeting, with the disclosures | `CallFlow.greet` (its `pre_actions`), `greeting()` | `line.greeting` | FUTURE-SETTINGS.md §4 |
 | The goodbye (the disconnect) | `end_call_fn` → `goodbye()` | `line.goodbye` | not yet listed |
 | The hand-off (it may carry a staff flag) | `hand_off_fn` → `handed_off()` | `line.hand_off`; its flag fields: `arg.hand_off.*` | the transfer number: FUTURE-SETTINGS.md › Booking |
-| The offer of a person when the agent cannot help (a yes is `hand_off`, a no goes on) | `offer_staff_fn`, `OFFER_REASONS` | `tool.offer_staff`, `arg.offer_staff.why`, `line.offer_staff`, `line.offer_staff_private`; the rule: `role`, `task.menu` | FUTURE-SETTINGS.md §10 |
+| The offer of a person when the agent cannot help (a yes is `hand_off`, a no goes on; the same question asked again is `hand_off` too, the owner's 2C, 2026-11-16) | `offer_staff_fn`, `OFFER_REASONS`, `CallFlow.staff_offered_at`; the line on the reply: `hand_off_fn` | `tool.offer_staff`, `arg.offer_staff.why`, `line.offer_staff`, `line.offer_staff_private`, `line.hand_off_answer`, `tool.hand_off`; the rule: `role`, `task.menu` | FUTURE-SETTINGS.md §10 |
+| A question asked with a choice is answered before the read-back (the owner's 1A, 2026-11-16) | `_choose_option_fn`, `_asks_question`, `_QUESTION_STARTS`, `CallFlow.questioned_choice` | `note.question_with_choice`; `task.schedule` | — |
 | What a visit is: its type, reason, online | `_find_visit_fn`, `_visit_lines`; the screen in `ehr/src/visit_about.rs` | `line.visit_online`, `line.visit_type`, `line.visit_reason`; the model's next step: `note.after_find_visit` | FUTURE-SETTINGS.md §9 |
 | The visit is the one just booked: its time is not said again | `_visit_lines`, `_same_visit`, `CallFlow.last_booked` | `line.booked_visit_asked` | — |
 | Which visit: the next, one named, or a past one; the narrowing question | `_find_visit_fn`, `_which_visit`; in ehr `visits.rs` › `narrow` (`Limits`, from the call's hospital: `hospital.rs` › `limits`) | `line.next_visit`, `line.visit_found`, `line.past_seen`, `line.past_missed`, `line.past_cancelled`, `line.one_more_visit`, `line.more_visits`, `line.no_visit_match`, `line.no_past_visits`, `line.which_visit`; `note.after_which_visit` | FUTURE-SETTINGS.md §13.3 |
 | A visit's instructions: offered, or read at once when the caller named the visit | `_find_visit_fn`, `_read_instructions_fn` | `line.offer_instructions`, `line.visit_instructions`, `line.no_instructions`; `note.after_offer_instructions` | FUTURE-SETTINGS.md §13.4 |
 | The hospital's time at the call's start | `CallFlow.start`, `clock_note`; ehr's `OpenCallReply.local_now` | `note.call_start` | FUTURE-SETTINGS.md §13.1 |
-| In person, online or either (the caller's words) | `_find_slots_fn`, `VISIT_MODES` (`ehr_client.py`); the filter: `VisitMode` (`ehr/src/scheduler.rs`) | `arg.find_slots.visit_mode` | a hospital's visit types: FUTURE-SETTINGS.md › Booking |
+| In person, online or either (the caller's words) | `_find_slots_fn`, `VISIT_MODES` (`ehr_client.py`); the filter: `VisitMode` (`ehr/src/scheduler.rs`), applied again to every returned time in `service.rs` › `find_slots` (`Session.mode` for the next pages; 2026-11-16) | `arg.find_slots.visit_mode` | a hospital's visit types: FUTURE-SETTINGS.md › Booking |
+| New or established: a slot whose visit type is for one kind of patient is kept only for a caller who fits at the slot's department (BOOKING-RULES.md §3.4); the caller's seen visits in the window are read once a call | in ehr `service.rs` › `seen`, `keep_fitting`; `hospital.rs` › `established`, `sorts_patients`; the fake's types: `hospital.rs` › `fake_type` | — | Config › Hospital: Visit types › Patients, Booking › Years for an established patient |
+| The usual place named with the times; the PCP's times first; one sooner time with another clinician (BOOKING-RULES.md §5.2) | `_find_slots_fn` (`any_place`); in ehr `service.rs` › `usual_place`, `pcp_first`; the setting `hospital.rs` › `sooner_with_others` | `line.slots_usual_place`, `line.slot_sooner`, `arg.find_slots.any_place` | Config › Hospital: Specialties › Primary care, Booking › Offer a sooner time |
+| What the visit is for: asked once, before the preference question and the first search, when the reason is empty or only asks for a visit (the owner, 2026-11-16) | `_find_slots_fn` (`CallFlow.reason_asked`), `_no_reason`, `_BOOKING_WORDS` | `line.ask_reason`; `note.after_ask_reason`; `arg.find_slots.reason` | — |
 | How and when: asked once, before the first search, for what the caller has not said; "in person or online?" only when the call books both (the owner's 1A, 2026-11-15) | `_find_slots_fn` (`CallFlow.preference_asked`, `books_both_modes`); ehr's `OpenCallReply.books_both_modes` from `hospital.rs` › `books_both_modes` | `line.ask_preference_both`, `line.ask_preference_mode`, `line.ask_preference_when`; `note.after_ask_preference`; `arg.find_slots.any_time` | FUTURE-SETTINGS.md §13.2 |
 | An odd reason: booked as said, flagged for clinical review | `FLAG_KINDS` › `visit_reason_review` | the rule: `task.menu` | FLAGS.md §3.1 |
 | A staff summary never guesses a pronoun | `CallFlow._summary_back`, `guesses_a_pronoun` | the rule: `role`; `note.summary_pronoun` | FLAGS.md §3.2 |

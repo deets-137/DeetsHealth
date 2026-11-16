@@ -38,6 +38,12 @@
 //!   departments on a public test patient's visits by `Location.Read`, then `Location.Search`
 //!   tries. Prints statuses, counts, systems and the hospital's department and specialty names.
 //!
+//!     ehr epic-booking
+//!
+//! - Step 0 of BOOKING-RULES.md: whether the sandbox's test patients carry a PCP
+//!   (`generalPractitioner`) that is ours and on their visits, and whether `$find` takes and
+//!   honors `specialties`. Prints statuses, counts and forms; books nothing.
+//!
 //!     ehr epic-sandbox
 //!
 //! - Prints the Chat page's Epic list as JSON (epic_ehr.rs `sandbox_list`): Epic's public test
@@ -269,6 +275,208 @@ async fn epic_locations() -> Result<(), String> {
     Ok(())
 }
 
+/// `ehr epic-booking`: step 0 of BOOKING-RULES.md (§6). Two questions for the sandbox:
+/// 1. Does Patient.Read return `generalPractitioner` (the PCP), in what form, and is it a
+///    Practitioner of this organization (a `Practitioner.Read` answers)? Does the PCP appear
+///    on the patient's visits (so the PCP's clinic can come from the last visit with them)?
+///    For each of Epic's public test patients (`ehr/fixtures/epic-sandbox.json`).
+/// 2. Does `$find` take `specialties`, and does it narrow the reply? Tries with Camila Lopez's
+///    visit type and department: the department's own specialty with and without the
+///    department, and another specialty.
+///
+/// Prints statuses, counts, forms and Epic's own issue words; the specialty codes and names are
+/// the hospital's setup. Never a patient's value, an id or a provider's name. About 20 reads
+/// and 4 `$find`s; books nothing.
+async fn epic_booking() -> Result<(), String> {
+    use serde_json::{json, Value};
+    let config = EpicConfig::sandbox(&PathBuf::from(EPIC_CLIENT), &PathBuf::from(EPIC_KEY))?;
+    let epic = Epic::connect(config).await.map_err(|e| e.to_string())?;
+    let token = epic.token().await.map_err(|e| e.to_string())?;
+    let fixture: Value = serde_json::from_str(include_str!("../fixtures/epic-sandbox.json")).map_err(|e| e.to_string())?;
+    let issues = |b: &Value| -> Vec<String> {
+        let outcomes = std::iter::once(b).chain(b["entry"].as_array().into_iter().flatten().map(|e| &e["resource"]));
+        outcomes
+            .filter(|r| r["resourceType"] == "OperationOutcome")
+            .flat_map(|r| r["issue"].as_array().cloned().unwrap_or_default())
+            .map(|i| format!("{}: {}", i["severity"].as_str().unwrap_or("-"), i["details"]["text"].as_str().or(i["diagnostics"].as_str()).unwrap_or("-")))
+            .fold(Vec::new(), |mut v, s| {
+                if !v.contains(&s) {
+                    v.push(s);
+                }
+                v
+            })
+    };
+    let kind_of = |r: &str| -> String {
+        let kind = ["Practitioner/", "PractitionerRole/", "Organization/"].iter().find(|k| r.contains(*k)).copied().unwrap_or("other");
+        format!("{}{kind}", if r.starts_with("http") { "absolute " } else { "relative " })
+    };
+    let last_id = |r: &str| r.rsplit('/').next().unwrap_or("").to_string();
+
+    // 1. The PCP on each public test patient.
+    println!("1. generalPractitioner on Epic's public test patients");
+    for (n, p) in fixture["patients"].as_array().into_iter().flatten().enumerate() {
+        let id = p["id"].as_str().unwrap_or("");
+        let (status, body) = epic.get(&token, &format!("Patient/{id}")).await.map_err(|e| e.to_string())?;
+        let Some(patient) = body.filter(|b| b["resourceType"] == "Patient") else {
+            println!("  patient {}: Patient.Read HTTP {status}", n + 1);
+            continue;
+        };
+        let pcps = patient["generalPractitioner"].as_array().cloned().unwrap_or_default();
+        let forms: Vec<String> = pcps.iter().filter_map(|g| g["reference"].as_str()).map(kind_of).collect();
+        let displays = pcps.iter().filter(|g| g["display"].is_string()).count();
+        let other_keys: Vec<String> = pcps
+            .iter()
+            .flat_map(|g| g.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>()).unwrap_or_default())
+            .filter(|k| k != "reference" && k != "display")
+            .collect();
+        println!(
+            "  patient {}: Patient.Read HTTP {status}; generalPractitioner {} (forms {forms:?}, {displays} with a display, other keys {other_keys:?})",
+            n + 1,
+            pcps.len()
+        );
+        // The kind of each PCP (`type`): the hospital's setup, not the patient's.
+        for g in &pcps {
+            if !g["type"].is_null() {
+                let codings: Vec<String> = g["type"]["coding"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|c| format!("{} {} \"{}\"", c["system"].as_str().unwrap_or("-"), c["code"].as_str().unwrap_or("-"), c["display"].as_str().unwrap_or("-")))
+                    .collect();
+                println!("    type: {codings:?} text \"{}\"", g["type"]["text"].as_str().unwrap_or("-"));
+            }
+        }
+        // Is it ours, and is the PCP on the patient's visits?
+        let pcp_ids: Vec<String> = pcps
+            .iter()
+            .filter_map(|g| g["reference"].as_str())
+            .filter(|r| r.contains("Practitioner/") && !r.contains("PractitionerRole/"))
+            .map(last_id)
+            .collect();
+        for pid in &pcp_ids {
+            let (status, body) = epic.get(&token, &format!("Practitioner/{pid}")).await.map_err(|e| e.to_string())?;
+            let ok = body.as_ref().is_some_and(|b| b["resourceType"] == "Practitioner");
+            println!("    Practitioner.Read: HTTP {status}, a Practitioner: {ok}{}", if ok { String::new() } else { format!(" {:?}", body.as_ref().map(&issues).unwrap_or_default()) });
+        }
+        if !pcp_ids.is_empty() {
+            let (status, bundle) =
+                epic.get(&token, &format!("Appointment?patient={id}&service-category=appointment")).await.map_err(|e| e.to_string())?;
+            let visits: Vec<&Value> = bundle
+                .as_ref()
+                .and_then(|b| b["entry"].as_array())
+                .map(|e| e.iter().map(|x| &x["resource"]).filter(|r| r["resourceType"] == "Appointment").collect())
+                .unwrap_or_default();
+            let with_pcp = visits
+                .iter()
+                .filter(|v| {
+                    v["participant"].as_array().into_iter().flatten().any(|x| {
+                        x["actor"]["reference"].as_str().is_some_and(|r| r.contains("Practitioner/") && pcp_ids.contains(&last_id(r)))
+                    })
+                })
+                .count();
+            println!("    Appointment.Search: HTTP {status}, {} visits, {with_pcp} with the PCP", visits.len());
+        }
+    }
+
+    // 2. `$find` with `specialties`.
+    println!("\n2. $find with specialties (Camila Lopez's visit type and department)");
+    let patient = "erXuFYUfucBZaryVksYEcMg3";
+    let (_, bundle) = epic.get(&token, &format!("Appointment?patient={patient}&service-category=appointment")).await.map_err(|e| e.to_string())?;
+    let bundle = bundle.ok_or("Appointment.Search: no body")?;
+    let visit = bundle["entry"]
+        .as_array()
+        .and_then(|e| e.iter().map(|x| &x["resource"]).find(|r| r["resourceType"] == "Appointment"))
+        .ok_or("no Appointment to learn a visit type from")?
+        .clone();
+    let location = visit["participant"]
+        .as_array()
+        .and_then(|p| p.iter().find_map(|x| x["actor"]["reference"].as_str().filter(|r| r.contains("Location/"))))
+        .map(str::to_string)
+        .ok_or("no Location participant")?;
+    let (status, place) = epic.get(&token, &format!("Location/{}", last_id(&location))).await.map_err(|e| e.to_string())?;
+    let place = place.ok_or("Location.Read: no body")?;
+    let specialty = place["extension"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|e| e["url"].as_str().is_some_and(|u| u.ends_with("/specialty")))
+        .and_then(|e| e["valueCodeableConcept"]["coding"][0].as_object().cloned())
+        .map(Value::Object);
+    let Some(own) = specialty else {
+        println!("  Location.Read: HTTP {status}; the department names no specialty, so no try");
+        return Ok(());
+    };
+    let system = own["system"].as_str().unwrap_or("").to_string();
+    let own_code = own["code"].as_str().unwrap_or("").to_string();
+    println!("  the department's specialty: {system} {own_code} \"{}\"", own["display"].as_str().unwrap_or("-"));
+    // Another specialty from the same list: Cardiology (4) or Family Medicine (9), whichever is not the department's.
+    let other_code = if own_code == "4" { "9" } else { "4" };
+    let record = epic.read(epic.base().join(&format!("Patient/{patient}")).map_err(|_| "bad URL")?).await.map_err(|e| e.to_string())?;
+    let mut demographics = json!({"resourceType": "Patient"});
+    for f in ["identifier", "name", "birthDate", "gender", "telecom", "address"] {
+        if !record[f].is_null() {
+            demographics[f] = record[f].clone();
+        }
+    }
+    let p = |name: &str, v: Value| {
+        let mut o = v;
+        o["name"] = json!(name);
+        o
+    };
+    let start = jiff::ZonedDateTime::now().date().checked_add(jiff::Span::new().days(1)).map_err(|_| "date")?;
+    let end = start.checked_add(jiff::Span::new().days(14)).map_err(|_| "date")?;
+    let base = vec![
+        p("patient", json!({"resource": demographics})),
+        p("startTime", json!({"valueDateTime": format!("{start}T08:00:00-06:00")})),
+        p("endTime", json!({"valueDateTime": format!("{end}T17:00:00-06:00")})),
+        p("service-type", json!({"valueCodeableConcept": {"coding": [visit["serviceType"][0]["coding"][0].clone()]}})),
+    ];
+    let at = p("location-reference", json!({"valueReference": {"reference": location}}));
+    let spec = |code: &str| p("specialties", json!({"valueCodeableConcept": {"coding": [{"system": system, "code": code}]}}));
+    let tries: Vec<(&str, Vec<Value>)> = vec![
+        ("department, no specialty (the baseline)", [base.clone(), vec![at.clone()]].concat()),
+        ("department and its own specialty", [base.clone(), vec![at.clone(), spec(&own_code)]].concat()),
+        ("its own specialty, no department", [base.clone(), vec![spec(&own_code)]].concat()),
+        ("department and another specialty", [base, vec![at, spec(other_code)]].concat()),
+    ];
+    let stu3 = reqwest::Url::parse(&epic.base().as_str().replace("/R4/", "/STU3/")).map_err(|_| "bad STU3 URL")?;
+    let find = stu3.join("Appointment/$find").map_err(|_| "bad $find URL")?;
+    for (label, parameter) in tries {
+        let (status, reply) = epic.post(find.clone(), &json!({"resourceType": "Parameters", "parameter": parameter})).await.map_err(|e| e.to_string())?;
+        let Some(reply) = reply else {
+            println!("  $find, {label}: HTTP {status}, no body");
+            continue;
+        };
+        let found: Vec<&Value> = reply["entry"].as_array().map(|e| e.iter().map(|x| &x["resource"]).filter(|r| r["resourceType"] == "Appointment").collect()).unwrap_or_default();
+        let places: Vec<String> = found
+            .iter()
+            .flat_map(|a| a["participant"].as_array().into_iter().flatten().filter_map(|x| x["actor"]["reference"].as_str()).filter(|r| r.contains("Location/")).map(last_id))
+            .fold(Vec::new(), |mut v, id| {
+                if !v.contains(&id) {
+                    v.push(id);
+                }
+                v
+            });
+        let specialties: Vec<String> = found
+            .iter()
+            .flat_map(|a| a["specialty"].as_array().into_iter().flatten().flat_map(|s| s["coding"].as_array().cloned().unwrap_or_default()))
+            .map(|c| format!("{} \"{}\"", c["code"].as_str().unwrap_or("-"), c["display"].as_str().unwrap_or("-")))
+            .fold(Vec::new(), |mut v, s| {
+                if !v.contains(&s) {
+                    v.push(s);
+                }
+                v
+            });
+        println!(
+            "  $find, {label}: HTTP {status}, {} proposed, {} distinct departments, specialties on the reply {specialties:?}, issues {:?}",
+            found.len(),
+            places.len(),
+            issues(&reply)
+        );
+    }
+    Ok(())
+}
+
 async fn epic_find() -> Result<(), String> {
     use serde_json::{json, Value};
     let config = EpicConfig::sandbox(&PathBuf::from(EPIC_CLIENT), &PathBuf::from(EPIC_KEY))?;
@@ -422,6 +630,9 @@ async fn run() -> Result<(), String> {
     }
     if first.peek().map(String::as_str) == Some("epic-locations") {
         return epic_locations().await;
+    }
+    if first.peek().map(String::as_str) == Some("epic-booking") {
+        return epic_booking().await;
     }
     if first.peek().map(String::as_str) == Some("ingest") {
         first.next();

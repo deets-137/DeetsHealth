@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [ehr/src/texts.rs, ehr/src/verify.rs, ehr/src/service.rs, ehr/src/main.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/tests/texts.rs, core/src/text.rs, core/src/shielded.rs, agent/deets_agent/fake_twilio.py, agent/deets_agent/dev_server.py, agent/deets_agent/ehr_process.py, agent/deets_agent/call_record.py, agent/prompts/AGENT-PROMPT.md, agent/tests/test_fake_twilio.py, scripts/dev.mjs]
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # DeetsHealth — The code by text
 

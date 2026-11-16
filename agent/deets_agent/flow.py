@@ -249,6 +249,61 @@ def _words(value: str) -> set[str]:
     return {w for w in ("".join(c for c in part if c.isalnum()) for part in value.lower().split()) if w}
 
 
+# Words that only ask for a visit. A reason made of these alone says nothing about what the
+# visit is for ("book an appointment", "I'd like to see the doctor").
+_BOOKING_WORDS = {
+    "a", "an", "the", "to", "i", "id", "im", "would", "like", "want", "need", "please", "can",
+    "book", "booking", "make", "schedule", "set", "up", "get", "new", "appointment",
+    "appointments", "visit", "visits", "see", "doctor", "dr", "with", "my", "me", "in", "come",
+}
+
+
+# The first words of a sentence that asks something ("Is this with my doctor", "Do you need").
+_QUESTION_STARTS = {
+    "is", "are", "was", "were", "do", "does", "did", "can", "could", "will", "would", "should",
+    "may", "what", "whats", "when", "where", "who", "whos", "why", "how", "which",
+}
+
+
+def _asks_question(line: str) -> bool:
+    """True when the caller's line holds a question: a sentence that ends in "?", or one that
+    starts with a question word (speech-to-text may drop the mark). "Can I do option 2" counts:
+    the model then just answers it."""
+    for sentence in re.split(r"(?<=[.!?])\s+", line.strip()):
+        words = sentence.split()
+        if not words:
+            continue
+        if sentence.rstrip().endswith("?"):
+            return True
+        if "".join(c for c in words[0].lower() if c.isalpha()) in _QUESTION_STARTS:
+            return True
+    return False
+
+
+def _no_reason(given: str) -> bool:
+    """True when `given` holds no reason: empty, or only words that ask for a visit."""
+    return _words(given) <= _BOOKING_WORDS
+
+
+def _spelled(line: str) -> set[str]:
+    """The names a caller spelled in `line`, letter by letter: each run of two or more single
+    letters, joined ("D E R R I C K. space L I N." -> {"derrick", "lin"}). Any word that is not
+    one letter ("space", "the") ends a run."""
+    runs: set[str] = set()
+    run = ""
+    for part in line.lower().split():
+        token = "".join(c for c in part if c.isalpha())
+        if len(token) == 1:
+            run += token
+            continue
+        if len(run) >= 2:
+            runs.add(run)
+        run = ""
+    if len(run) >= 2:
+        runs.add(run)
+    return runs
+
+
 def role(today: date) -> str:
     """The role prompt. `today` is its only part that changes, once a day, so the prompt cache
     misses once a day per clinic, not once a call."""
@@ -294,6 +349,8 @@ NOTE_TOOL = {
     "note.after_reminder": "safety_reminder",
     "note.after_verified": "check_code",
     "note.after_flag": "flag_for_staff",
+    "note.after_ask_reason": "find_slots",
+    "note.question_with_choice": "choose_option",
     "note.after_ask_preference": "find_slots",
     # Also sent back by hand_off; both are global tools, so the scope is the same.
     "note.summary_pronoun": "flag_for_staff",
@@ -365,6 +422,17 @@ class CallFlow:
     # once a call, before the first search.
     books_both_modes: bool = True
     preference_asked: bool = False
+    # Whether the caller was asked what the visit is for: once a call, before the preference
+    # question and the first search (the owner, 2026-11-16: "ask for a reason before presenting
+    # options (gives time for 911 flags, specialty care, etc)").
+    reason_asked: bool = False
+    # The caller line and option of a choice that came with a question: noted once, so the
+    # next choose_option reads back (the owner's 1A, 2026-11-16).
+    questioned_choice: tuple[int, int] | None = None
+    # How many caller lines there were when the agent offered a person (offer_staff): a hand-off
+    # on the caller's next line says it is for what the agent could not answer (the owner's 2C,
+    # 2026-11-16).
+    staff_offered_at: int | None = None
     # Every option the caller has heard on this call, by its number. A number keeps its time for
     # the whole call, and a new search goes on from the last number, so "option 3" never means
     # two times (the owner, 2026-11-12, after a double booking).
@@ -718,6 +786,10 @@ class CallFlow:
             # that did not work, the caller hears an apology (the owner, 2026-11-12). The same
             # words for every caller, matched or not, so they reveal nothing (SECURITY.md §4.4).
             line = "line.hand_off_code" if args.get("kind") == "verification_failed" else "line.hand_off"
+            # On the caller's reply to offer_staff (a yes, or the question asked again), the line
+            # says the person is for what the agent could not answer (the owner's 2C, 2026-11-16).
+            if line == "line.hand_off" and self.staff_offered_at is not None and len(self.caller_lines) - self.staff_offered_at <= 1:
+                line = "line.hand_off_answer"
             return await self._say(flow_manager, text(line), self.handed_off())
 
         return _tool(
@@ -739,14 +811,19 @@ class CallFlow:
         self.caller_lines.append(Shielded(line))
 
     def _was_said(self, name: str) -> bool:
-        """True when every word of `name` is a word the caller said on this call."""
+        """True when every word of `name` is a word the caller said on this call, or is in a
+        name the caller spelled letter by letter ("D E R R I C K, space, L I N"; the call of
+        2026-11-15, 22:38: speech-to-text heard "Derek Lynn", the caller spelled it, and the
+        guard refused the spelled name)."""
         words = _words(name)
         if not words:
             return False
         said: set[str] = set()
+        spelled: set[str] = set()
         for line in self.caller_lines:
             said |= _words(line.reveal())
-        return words <= said
+            spelled |= _spelled(line.reveal())
+        return all(w in said or any(w in run for run in spelled) for w in words)
 
     def _possible_birth(self, value: str) -> bool:
         try:
@@ -869,7 +946,16 @@ class CallFlow:
     def _find_slots_fn(self) -> FlowsFunctionSchema:
         async def handler(args, flow_manager: FlowManager):
             more = args.get("more") is True or str(args.get("more", "")).lower() == "true"
-            reason = Shielded(self._reason_words(str(args.get("reason", ""))))
+            given = str(args.get("reason", "") or "")
+            # The reason question (the owner, 2026-11-16): once a call, before anything else the
+            # search needs, when the caller has given no reason. "Book an appointment" is no
+            # reason (the call of 2026-11-15, 22:36, filed it as the visit's note).
+            if not more and not self.reason_asked and _no_reason(given):
+                self.reason_asked = True
+                logger.info("find_slots: reason asked")
+                return await self._say(flow_manager, text("line.ask_reason"), next_step=text("note.after_ask_reason"))
+            self.reason_asked = True
+            reason = Shielded(self._reason_words(given))
             day = str(args.get("earliest_day", "") or "").strip()
             last = str(args.get("latest_day", "") or "").strip()
             said_mode = str(args.get("visit_mode", "") or "").strip()
@@ -895,8 +981,9 @@ class CallFlow:
                         flow_manager, text(f"line.ask_preference_{key}"), next_step=text("note.after_ask_preference")
                     )
                 self.preference_asked = True
+            any_place = args.get("any_place") is True or str(args.get("any_place", "")).lower() == "true"
             try:
-                slots, waiting = await self._once_more(
+                slots, waiting, usual = await self._once_more(
                     lambda: self.ehr.find_slots(
                         self.handle,
                         reason,
@@ -907,6 +994,7 @@ class CallFlow:
                         days=days,
                         clinician=Shielded(who) if who else None,
                         more=more,
+                        any_place=any_place,
                     ),
                     "find_slots",
                 )
@@ -921,6 +1009,13 @@ class CallFlow:
                 text("line.slot_option", number=str(n), visit=_visit_words(s, zone=self.zone))
                 for n, s in zip(numbers, slots)
             )
+            # The usual place, named with the times so the caller can ask for another
+            # (BOOKING-RULES.md §3.2), and the one sooner time with another clinician (§3.3, P-A).
+            if usual.reveal():
+                options = f"{text('line.slots_usual_place', place=usual.reveal())} {options}"
+            for n, s in zip(numbers, slots):
+                if s.sooner:
+                    options = f"{options} {text('line.slot_sooner', number=str(n))}"
             return await self._say(
                 flow_manager,
                 text("line.slots", options=options),
@@ -942,9 +1037,10 @@ class CallFlow:
                 "clinician": "",
                 "any_time": "",
                 "more": "",
+                "any_place": "",
             },
             required=["reason"],
-            types={"more": "boolean", "any_time": "boolean"},
+            types={"more": "boolean", "any_time": "boolean", "any_place": "boolean"},
             schemas={
                 "visit_mode": {"type": "string", "enum": ["", *VISIT_MODES]},
                 "time_of_day": {"type": "string", "enum": ["", *self.times_of_day]},
@@ -975,6 +1071,14 @@ class CallFlow:
                 option = 0
             if option not in self.offered:
                 return await self._say(flow_manager, text("line.which_option"))
+            # A question asked with the choice (the owner's 1A, 2026-11-16; the call of 2026-11-15,
+            # 22:36, dropped two): the read-back waits for the caller's answer, so the model
+            # answers first. Once per choice; the next choose_option reads back.
+            latest = self.caller_lines[-1].reveal() if self.caller_lines else ""
+            if self.questioned_choice != (len(self.caller_lines), option) and _asks_question(latest):
+                self.questioned_choice = (len(self.caller_lines), option)
+                logger.info("choose_option: a question came with the choice; answered first")
+                return {"next_step": text("note.question_with_choice", number=str(option))}, None
             self.chosen = option
             logger.info("choose_option: read back")
             said = _visit_words(self.offered[option], zone=self.zone)
@@ -1185,9 +1289,12 @@ class CallFlow:
         # The owner's option A (2026-11-13), after Camila's call: when the agent cannot do what the
         # caller asks, it says so and offers a person; the caller chooses. A yes is hand_off; a no,
         # the call goes on. A caller who asks for a person, or whose code fails, still goes at once.
-        # The words are a hospital setting (FUTURE-SETTINGS.md §10).
+        # The owner's 2C (2026-11-16): the same question asked again is hand_off too, and the
+        # line says why (`line.hand_off_answer`). The words are a hospital setting
+        # (FUTURE-SETTINGS.md §10).
         async def handler(args, flow_manager: FlowManager):
             why = args.get("why")
+            self.staff_offered_at = len(self.caller_lines)
             logger.info("staff offered ({})", why if why in OFFER_REASONS else "cannot_help")
             line = "line.offer_staff_private" if why == "private" else "line.offer_staff"
             return await self._say(flow_manager, text(line))

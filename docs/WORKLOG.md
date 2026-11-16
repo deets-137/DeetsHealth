@@ -2,11 +2,73 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # DeetsHealth — Work log
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
+
+## 2026-11-16 (Windows) — what is unwired; booking by place, specialty and rule designed
+- He asked what remains unwired to the agent. Checked in the code: no call reads the
+  specialty, a place in the search, the address, the phone, the hours, the closed days, the
+  facilities or coded reasons (`find_slots` and `FindSlotsRequest` have no place or specialty;
+  `$find` sends `service-type` and `time-of-day` only).
+- Designed with him: architecture/BOOKING-RULES.md. His forks: 1A refined by his PCP question,
+  2A, P-A, E-A ("debating if this should be the start of the rules engine … but definitely
+  hospital markable"). His question on referrals ("would a patient typically book those
+  without a referral?") is answered in §3.5.
+- Found: open.epic's catalog has no search for a patient's referrals; `ServiceRequest.Read
+  (Referral)` returns no specialty or state. EPIC.md §7.10 corrected. Found: `coded_bookable`
+  offers "New Patient Appointment" to every caller in Epic mode (BOOKING-RULES.md §1, step 1).
+- His line: "Not planning on linking orders for the purpose of checking referrals." The orders
+  path is out of the design; Referral needed is a rule's outcome with no referral read.
+- Step 0 built and run: `ehr epic-booking` (two runs, about 23 requests each; EPIC.md §7.12).
+  The PCP is on 3 of 7 test patients, ours, and on Camila Lopez's visits; one patient has two
+  PCPs. `specialties` is accepted and ignored by the sandbox, so `ehr` will filter by the Places
+  list's specialties (BOOKING-RULES.md §3.1).
+- Step 1 built (BOOKING-RULES.md §5.1): the Visit types column Patients, Booking › Years for an
+  established patient, one past-visit search a call when a type is for one kind, the slots kept
+  by the caller's status at each slot's department. The Default: Office Visit established, New
+  Patient Appointment new. Desk test open. Agent tests: 252 pass; `booked_reason_asked`
+  misses its replay (Priya Raman is now a new patient) and needs recording again.
+- He asked what step 2 changes; it shows nothing in the sandbox. Step 5 first is the open
+  choice. **Paused here at his word**; the pick-up list is in HANDOFF › Open now.
+- Read his four calls of 2026-11-15, 22:30 to 22:38 (Epic sandbox, synthetic). Found: the voice
+  call was silent (Cartesia `voice_not_found` on every line); a name spelled letter by letter
+  is refused by the name guard; an in-person ask got five online times; two questions asked
+  while choosing were dropped and the reason filed was "book an appointment"; `offer_staff`
+  then `hand_off` with no yes; an idle timeout filed as "the caller hung up".
+- His word: "Fix all that you can from this list without any forks." Fixed: the cause of the
+  silence (his active Config › Cartesia version, 11-13 | 2, names "Emma", whom Cartesia no
+  longer has; "Emma" left the voice list); a voice call checks its voice before it starts, and a
+  voice that dies mid-call ends the call with a `voice_failed` review flag; a spelled name
+  passes the name guard; ehr keeps only times that fit in person or online; Pipecat's idle limit
+  is filed as such; the sandbox patients' notes. Left (each needs his choice): asking for a
+  reason, questions dropped while choosing, `hand_off` with no yes, the long list of times, and
+  a new voice to replace Emma.
+- He asked why every sandbox time is online: EPIC.md §7.13 (Epic's own `$find` sample returns a
+  type other than the one asked; the hospital's Cadence rules choose it).
+- His word: "ask for a reason before presenting options (gives time for 911 flags, specialty
+  care, etc)". Built: `find_slots` asks once, before the preference question, when the reason is
+  empty or only asks for a visit (`_no_reason`); `line.ask_reason` and `note.after_ask_reason`
+  (draft words, his to edit); `arg.find_slots.reason` says to leave it empty. The kept scripts
+  miss their replays (8 and the stamp): record them again.
+- His forks on the two left: **1A** ("the power of ai is to interpret ambigous sentences,
+  multiple tasks, and do it all seamlessly") and **2C**. Built: a choice that comes with a
+  question holds the read-back once, and `note.question_with_choice` tells the model to answer
+  first (`_asks_question`: a "?" or a sentence that starts with a question word); `task.schedule`
+  says the same. After `offer_staff`, a hand-off on the caller's next line says
+  `line.hand_off_answer` ("I'll connect you with a member of our staff who can answer that");
+  `tool.hand_off` allows the question asked again. Words are drafts. All 15 kept scripts now miss
+  their replays (`tool.hand_off` is in every step): record them again.
+- He chose to record the kept scripts after step 3, and: "Start step 3". Built (BOOKING-RULES.md
+  §5.2): the PCP from verification, the usual place, `location-reference`, the PCP's times
+  first, one sooner time with another clinician (P-A; a Booking switch, on), Specialties ›
+  Primary care. Decided inside, for his review: the usual place is named with the times, not
+  asked before them. Desk test open; ehr 138 tests pass; the kept scripts still to record.
+- His review: keep the usual place named with the times ("would rather be safe than sorry with
+  the user not getting booked at the wrong place").
+- Not committed.
 
 ## 2026-11-15 (Windows, night) — Dark theme: a charcoal base discussed
 - He asked for the color roles of each theme, then for a charcoal base in Dark in place of

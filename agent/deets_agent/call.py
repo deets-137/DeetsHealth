@@ -63,6 +63,11 @@ class CallFailed(Exception):
     the full error is in the dev call record."""
 
 
+VOICE_FAILED = object()
+"""Sonic can no longer speak (Pipecat marks it unusable): a voice call ends at once, since the
+caller hears nothing (the call of 2026-11-15, 22:38)."""
+
+
 _MONTHS_DAYS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 _VALUE = re.compile(r"\d+(?::\d+)?|\b(?:" + "|".join(_MONTHS_DAYS) + r")\b", re.IGNORECASE)
 
@@ -449,6 +454,23 @@ class TypedCall:
         async def _on_started(worker, frame):
             started.set()
 
+        # Pipecat's idle limit cancels the pipeline; the record then names that, not a hang-up
+        # (the call of 2026-11-15, 22:30, was filed as "the caller hung up").
+        idled: list[bool] = []
+
+        @self._worker.event_handler("on_idle_timeout")
+        async def _on_idle(worker):
+            idled.append(True)
+
+        if self.voice is not None:
+            tts = self.voice.tts
+
+            @self._worker.event_handler("on_pipeline_error")
+            async def _on_error(worker, frame):
+                # Sonic marked unusable: every line from here on is silent, so the call ends.
+                if getattr(frame, "processor", None) is tts and not getattr(tts, "is_usable", True):
+                    self._collector.turns.put_nowait(VOICE_FAILED)
+
         await self.flow.start()
         await self._runner.add_workers(self._worker)
         self._run_task = asyncio.create_task(self._runner.run())
@@ -468,10 +490,18 @@ class TypedCall:
                     break
                 if getter not in done:
                     getter.cancel()
-                    break  # the pipeline stopped: the caller's socket closed
+                    if idled:
+                        reason = "no activity on the call: Pipecat's idle limit"
+                    break  # the pipeline stopped: the caller's socket closed, or the idle limit
                 turn = getter.result()
                 if isinstance(turn, CallFailed):
                     reason = f"Claude's request failed ({turn})"
+                    break
+                if turn is VOICE_FAILED:
+                    reason = "the voice failed: Sonic could not speak"
+                    self.review_flags.append("voice_failed")
+                    if self.record is not None:
+                        self.record.event("review_flag", reason="voice_failed", final=True)
                     break
                 if turn is ENDED:
                     reason = "the agent ended it"

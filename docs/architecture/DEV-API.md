@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [agent/deets_agent/dev_server.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/resources.py, agent/deets_agent/access.py, agent/deets_agent/turn.py, agent/deets_agent/cloudflare.py, console/src/reload.ts, console/src/agent/api.ts, console/src/agent/transport.ts, console/vite.config.ts, scripts/docs-check.mjs, agent/tests/test_dev_server.py]
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # DeetsHealth — The dev API (the console and the agent's dev server)
 

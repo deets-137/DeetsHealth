@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: []
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # DeetsHealth — The agent (`agent/`), as built
 
@@ -201,7 +201,10 @@ for something the agent cannot do: the offer of a person, a "no", and the call g
   - **The name guard**: `identify` runs only when each word of both names is a word the caller
     said on this call (the screen feeds every line to `CallFlow.heard`, kept as `Shielded`). If
     not, the agent asks for the full name again, and no try is used. This replaces the prompt
-    rule alone ("Billy Bob" sent as both names). Test: `test_gate.py`.
+    rule alone ("Billy Bob" sent as both names). Test: `test_gate.py`. Since 2026-11-16 a name
+    the caller spelled letter by letter counts too (`_spelled`: each run of two or more single
+    letters in one line, "D E R R I C K, space, L I N"); speech-to-text had heard "Derek Lynn"
+    and the guard refused the spelled name. Test: `test_screen.py`.
   - **Off-topic**: one prompt rule. Small talk (a greeting, a thank-you) is fine; anything else
     gets no answer, not even arithmetic, and the agent says kindly in one sentence that it can
     only help with visits, then asks what the caller needs. The first version only said to name
@@ -272,9 +275,18 @@ for something the agent cannot do: the offer of a person, a "no", and the call g
 - **The model's own words: values checked, wording not.** The invented-value check (§3) finds
   a number, month or day that no one gave the model, in the record and in the tests; it does
   not stop a live caller hearing it. A value said in words ("three thirty") is not caught.
-- **The name guard checks words, not spelling.** On a voice call it compares the model's names
-  with the speech-to-text words, so a name the transcriber spells one way passes only if the
-  model spells it the same way.
+- **The name guard checks words, and spelled letters.** On a voice call it compares the model's
+  names with the speech-to-text words, so a name the transcriber spells one way passes only if
+  the model spells it the same way, or the caller spelled it out (2026-11-16). ehr's match still
+  needs the record's name within one letter: a misheard name the caller never spells sends no
+  code, and the caller hears the same words either way.
+- **A dead voice ends a voice call** (2026-11-16). A voice call first asks Cartesia whether the
+  active voice still exists (`dev_server.py › _voice_missing`; a 404 refuses the call with a
+  message for Config › Cartesia). When Sonic is marked unusable mid-call, the call ends at once
+  with the reason "the voice failed" and a `voice_failed` review flag (`call.py`, FLAGS.md §8).
+  In the dev seat no person can take the call; a real call's transfer comes with Twilio.
+- **The end's reason names Pipecat's idle limit** (2026-11-16): a call the idle limit cancels is
+  filed as "no activity on the call", not "the caller hung up".
 - **No call timeline.** The dev call record covers the agent's side of a typed call. The
   timeline is the Chat page's Timeline panel, fed by the watch stream once the agent is wired
   in (CHAT.md §5); the voice timings come with the phone-and-voice work (BUILD-ORDER.md §3.3).

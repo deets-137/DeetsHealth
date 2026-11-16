@@ -107,6 +107,9 @@ class Slot:
     place: Shielded[str]
     # An online visit (from its visit type); the place is still the record's.
     online: bool = False
+    # With the caller's PCP; the one sooner time with another clinician (BOOKING-RULES.md §3.3).
+    with_pcp: bool = False
+    sooner: bool = False
 
 
 # How the caller wants to be seen (the owner's 1A, 2026-11-13): FindSlots's `visit_mode`.
@@ -177,6 +180,8 @@ def _slot(s) -> Slot:
         clinician=Shielded(s.clinician),
         place=Shielded(s.place),
         online=s.online,
+        with_pcp=s.with_pcp,
+        sooner=s.sooner,
     )
 
 
@@ -618,11 +623,14 @@ class EhrClient:
         days: tuple[str, ...] = (),
         clinician: Shielded[str] | None = None,
         more: bool = False,
-    ) -> tuple[list[Slot], bool]:
-        """The slots to offer now, and whether more of the same search wait. `reason`: the
+        any_place: bool = False,
+    ) -> tuple[list[Slot], bool, Shielded[str]]:
+        """The slots to offer now, whether more of the same search wait, and the caller's usual
+        place when the search was held to it ("" otherwise; BOOKING-RULES.md §3.2). `reason`: the
         caller's own words (flow.py checks them); ehr keeps them for this call and Book sends
         them to the scheduler as the visit's note. `more`: the next slots of the last search;
-        every other argument is ignored."""
+        every other argument is ignored. `any_place`: the caller wants any place, not their
+        usual one."""
         reply = await self._call(
             "FindSlots",
             pb.FindSlotsRequest(
@@ -635,9 +643,10 @@ class EhrClient:
                 days=list(days),
                 clinician=clinician.reveal() if clinician else "",
                 more=more,
+                any_place=any_place,
             ),
         )
-        return [_slot(s) for s in reply.slots], reply.more
+        return [_slot(s) for s in reply.slots], reply.more, Shielded(reply.place_default)
 
     async def book(
         self, handle: Shielded[str], slot_token: Shielded[str], idempotency_key: str

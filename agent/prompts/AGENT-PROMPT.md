@@ -148,7 +148,8 @@ none suits them and more_waiting is true, use `find_slots` with more true; other
 `find_slots` with what they want instead (another day, time of day or clinician). If the booking
 could not be confirmed and they say yes to trying again, use `book` again. An option number keeps
 its time for the whole call, so a number from an earlier list still means that time. If they want to change or cancel a
-visit already booked, use `change_visit`.
+visit already booked, use `change_visit`. If the caller asks a question along with their choice,
+answer it first, or say you cannot see that here, then go on with their choice.
 
 ## tool.identify
 Read the caller's first name, last name and date of birth back to them, to check before the
@@ -186,7 +187,8 @@ named no day or time: it asks the caller what it needs. Never ask about the day,
 person or online yourself.
 
 ## arg.find_slots.reason
-What the visit is for, in the caller's words.
+What the visit is for, in the caller's words. Leave it empty if the caller has not said what the
+visit is for: wanting a visit or an appointment is not a reason.
 
 ## arg.find_slots.earliest_day
 The earliest day they can come, YYYY-MM-DD. Leave empty for the next open day.
@@ -214,6 +216,10 @@ true when the caller said any day or time is fine. Otherwise false.
 ## arg.find_slots.more
 true when they want other times from the same search ("anything else?"); the other fields are
 then not read. Otherwise false.
+
+## arg.find_slots.any_place
+true when the caller wants a place other than the one the times were found at, or any place.
+Otherwise false.
 
 ## tool.choose_option
 Read the chosen time back to the caller and ask them to confirm it. Books nothing.
@@ -257,7 +263,8 @@ End the call: the caller says goodbye, wants to hang up, or has nothing else.
 
 ## tool.hand_off
 Connect the caller with a person. Use when they ask for one, when they are upset, when they
-said yes to `offer_staff`, or when they are confused and more tries will not help.
+said yes to `offer_staff` or asked again what you could not answer, or when they are confused
+and more tries will not help.
 
 ## tool.offer_staff
 Tell the caller you cannot help with this, and ask if they want a member of staff. Use when they
@@ -359,6 +366,13 @@ If those details match our records and we have a mobile number on file, a new co
 way. If it doesn't come, just tell me and I'll connect you with a member of our staff. Could you
 read it to me when it arrives?
 
+## line.ask_reason
+What is the visit for?
+
+## note.after_ask_reason
+The caller was asked what the visit is for. When they answer, use `find_slots` again with their
+reason in their own words, and anything they said about how or when.
+
 ## line.ask_preference_both
 Would you like to come in person or have an online visit? And is there a day or time that works
 best for you?
@@ -383,11 +397,21 @@ Here are the times I have. {options} Which one would you like?
 ## line.slot_option
 Option {number}: {visit}.
 
+## line.slots_usual_place
+These are at {place}, where you were seen last. If you'd like somewhere else, just say so.
+
+## line.slot_sooner
+Option {number} is sooner, with another clinician at the same place.
+
 ## line.which_option
 Which option would you like?
 
 ## line.confirm_slot
 Option {number}: {visit}. Shall I book it?
+
+## note.question_with_choice
+The caller chose option {number} and also asked a question. Answer it now in a short sentence,
+or say you cannot see that here; then use `choose_option` again with option {number}.
 
 ## line.change_booked
 Your visit on {visit} is still booked. I can't change a booking on this call, so I'm
@@ -508,6 +532,9 @@ I'm connecting you with a member of our staff now.
 ## line.hand_off_code
 I'm sorry about the trouble with the code. Let me connect you with a member of our staff who can
 help.
+
+## line.hand_off_answer
+I'll connect you with a member of our staff who can answer that.
 
 ## note.after_reminder
 The caller has heard the reminder. Do not say it again, in any words. Now go on with what the

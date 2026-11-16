@@ -2,7 +2,7 @@
 status: project
 desk_test: open
 sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/deets_agent/catalog.py, agent/prompts/AGENT-PROMPT.md]
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # Staff flags — the agent marks a call for a person
 
@@ -130,6 +130,9 @@ raises it; the model never does. It carries a reason, never a value.
   with the retry cap. `final` is true when the retry was cut off too. Code: `_CutOffGuard` in
   `agent/deets_agent/llm.py`; `on_cut_off` in `TypedCall` (`agent/deets_agent/call.py`); the caps:
   `MAX_TOKENS`, `RETRY_MAX_TOKENS` (`agent/deets_agent/config.py`).
+- **`voice_failed`** (2026-11-16): Sonic was marked unusable during a voice call (the voice of
+  the call of 2026-11-15, 22:38, was gone from Cartesia), so the caller heard nothing. The call
+  ends at once. Code: `serve` in `TypedCall` (`agent/deets_agent/call.py`).
 - **Where it goes:** a `review_flag` event in the call record, and a `review_<reason>` label in
   the catalog. In production, a review queue that only roles with transcript access can open,
   each view audited (SECURITY.md §4.10).

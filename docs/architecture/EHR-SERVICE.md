@@ -2,7 +2,7 @@
 status: built
 desk_test: none
 sources: [ehr/proto/deets/ehr/v1/ehr.proto, ehr/src/service.rs, ehr/src/edge.rs, ehr/src/transport.rs, ehr/build.rs, agent/deets_agent/ehr_client.py, ehr/src/scheduler.rs, ehr/src/visit_about.rs, ehr/src/session.rs]
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # DeetsHealth — The `ehr` service and its wire
 
@@ -270,7 +270,17 @@ is ignored. So nothing past the edge sees a wire type.
 - **Slots:** at most 3 per `FindSlots` (enough to choose from, short enough to say). New
   tokens each time, so an old token no longer books. A token works on its own call only.
   `visit_mode` (2026-11-14; the owner's 1A of 2026-11-13): in person, online, or either when
-  unset; an unknown value is `INVALID_ARGUMENT`. Each slot says whether it is online.
+  unset; an unknown value is `INVALID_ARGUMENT`. Each slot says whether it is online. Since
+  2026-11-16 ehr keeps only the returned times that fit the mode asked, on every page: an EHR
+  may return a type other than the one searched (Epic's sandbox returns every time as a video
+  visit), so an in-person ask there now finds no times.
+  New or established (2026-11-16; BOOKING-RULES.md §5.1): when a visit type the agent may book
+  is for one kind of patient, the first `FindSlots` of a call reads the caller's seen visits in
+  the hospital's window (`Session.seen`, one call long), and every page keeps only the slots
+  whose type fits the caller at the slot's place (`keep_fitting`). No wire change.
+  The usual place, the PCP and P-A (2026-11-16; BOOKING-RULES.md §5.2): `FindSlotsRequest.any_place`
+  turns the usual place off; a new search held to it says so in `FindSlotsReply.place_default`
+  (phi); each `Slot` says `with_pcp` and `sooner`. The PCP comes from verification (`Session.pcp`).
 - **The reason becomes the booking's note (2026-11-14).** `FindSlots`'s reason (the caller's
   own words: the agent checks them, CALL-FLOW.md §5) is screened at the edge
   (`BookNote::screen`, `visit_about.rs`), before it is wrapped, and kept in the session one call

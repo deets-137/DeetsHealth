@@ -44,6 +44,19 @@ def test_name_guard_takes_names_the_caller_said():
     assert _flow("I'm Mary-Ann O'Brien")._was_said("O'Brien")
 
 
+def test_name_guard_takes_a_name_spelled_letter_by_letter():
+    # The call of 2026-11-15, 22:38: speech-to-text heard "Derek Lynn"; the caller spelled it.
+    flow = _flow("Hi, my name is Derek Lynn.", "It's D E R R I C K. space L I N.")
+    assert flow._was_said("Derrick") and flow._was_said("Lin")
+    assert flow._was_said("Derek"), "what the caller first said still counts"
+    # Spelled with no break between the names: each name is in the run.
+    run = _flow("D-E-R-R-I-C-K L I N", "d e r r i c k l i n")
+    assert run._was_said("Derrick") and run._was_said("Lin")
+    # Single letters alone are not a name, and a name never spelled is still refused.
+    assert not _flow("plan A or B")._was_said("Ab")
+    assert not flow._was_said("Smith")
+
+
 def test_name_guard_refuses_a_filled_in_name():
     flow = _flow("i am billy bob, born february 27th 1990")
     assert flow._was_said("Billy")

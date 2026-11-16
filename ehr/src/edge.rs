@@ -270,11 +270,14 @@ pub fn check_code(mut req: pb::CheckCodeRequest) -> Result<(Token, Shielded<Stri
     Ok((handle, Shielded::new(code)))
 }
 
-/// A new search, or the next slots of the last one.
+/// A new search, or the next slots of the last one. One per request, never stored in bulk:
+/// the size of the wish does not matter.
+#[allow(clippy::large_enum_variant)]
 pub enum SlotAsk {
-    /// The wish, and the time of day's name ("" for none): the service sets the wish's
-    /// `time_of_day` from the call's hospital.
-    New(SlotWish, String),
+    /// The wish, the time of day's name ("" for none): the service sets the wish's
+    /// `time_of_day` from the call's hospital; and whether the caller asked for any place, not
+    /// their usual one (BOOKING-RULES.md §3.2).
+    New(SlotWish, String, bool),
     More,
 }
 
@@ -337,8 +340,18 @@ pub fn find_slots(mut req: pb::FindSlotsRequest) -> Result<(Token, SlotAsk), Sta
     let note = BookNote::screen(reason.trim().to_string());
     Ok((
         handle,
-        SlotAsk::New(SlotWish { note, earliest_day, latest_day, mode, time_of_day, days, clinician, who: None }, time.trim().to_string()),
+        SlotAsk::New(
+            SlotWish { note, earliest_day, latest_day, mode, time_of_day, days, clinician, who: None, seen: Vec::new(), place: None },
+            time.trim().to_string(),
+            req.any_place,
+        ),
     ))
+}
+
+/// The usual place's words for the reply (BOOKING-RULES.md §3.2): "" for none.
+pub fn place_words(words: Option<&Shielded<String>>) -> String {
+    let pass = WirePass::issue();
+    words.map(|w| w.reveal(&pass).clone()).unwrap_or_default()
 }
 
 pub fn book(req: &pb::BookRequest) -> Result<(Token, Token, String), Status> {
@@ -354,8 +367,9 @@ pub fn book(req: &pb::BookRequest) -> Result<(Token, Token, String), Status> {
     Ok((handle, slot, key.clone()))
 }
 
-/// The one reveal for the wire: a slot, under the token the agent knows it by.
-pub fn slot(token: &Token, slot: &Slot) -> pb::Slot {
+/// The one reveal for the wire: a slot, under the token the agent knows it by; whether it is
+/// with the caller's PCP, and whether it is the sooner time with another clinician (§3.3).
+pub fn slot(token: &Token, slot: &Slot, with_pcp: bool, sooner: bool) -> pb::Slot {
     let pass = WirePass::issue();
     pb::Slot {
         token: token.to_hex(),
@@ -364,6 +378,8 @@ pub fn slot(token: &Token, slot: &Slot) -> pb::Slot {
         clinician: slot.clinician.reveal(&pass).clone(),
         place: slot.place.reveal(&pass).clone(),
         online: slot.about.online,
+        with_pcp,
+        sooner,
     }
 }
 
@@ -596,7 +612,7 @@ mod tests {
 
     fn wish(ask: SlotAsk) -> SlotWish {
         match ask {
-            SlotAsk::New(w, _) => w,
+            SlotAsk::New(w, _, _) => w,
             SlotAsk::More => panic!("a new search"),
         }
     }
@@ -612,7 +628,7 @@ mod tests {
             clinician: " Dr. Lin ".into(),
             ..Default::default()
         };
-        let SlotAsk::New(w, time) = find_slots(req).ok().unwrap().1 else { panic!("a new search") };
+        let SlotAsk::New(w, time, _) = find_slots(req).ok().unwrap().1 else { panic!("a new search") };
         assert!(w.latest_day.is_some() && w.clinician.is_some() && w.who.is_none());
         // The name only: the service reads it in the call's hospital.
         assert!(w.time_of_day.is_none() && time == "Morning");

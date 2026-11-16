@@ -4,12 +4,16 @@
 //! The fake is deterministic: fixed slots on fixed days, no clock. A tool result that changed
 //! from run to run would change the prompt and miss the replay cache (EHR-SERVICE.md §7).
 
-use std::{collections::HashSet, future::Future, sync::Mutex};
+use std::{
+    collections::{HashMap, HashSet},
+    future::Future,
+    sync::Mutex,
+};
 
 use deetshealth_core::Shielded;
 
 use crate::{
-    hospital::{Hospital, TimeOfDay},
+    hospital::{ClinicianRef, Hospital, PatientKind, PlaceRef, TimeOfDay},
     sandbox::sandbox,
     session::PatientKey,
     visit_about::{BookNote, VisitAbout},
@@ -38,6 +42,25 @@ pub struct Slot {
     pub status: VisitStatus,
     /// The hospital's visit group (visits.rs), from the visit type. None for a private visit.
     pub group: Option<Shielded<String>>,
+    /// The place as the record names it (its FHIR id and name), for new or established
+    /// (BOOKING-RULES.md §3.4). `place` is the words said.
+    pub place_ref: PlaceRef,
+    /// Which patients the slot's visit type is for (the Visit types list).
+    pub kind: PatientKind,
+    /// The clinician as the record names them (FHIR id and name), to find the caller's PCP
+    /// (BOOKING-RULES.md §3.2). `clinician` is the words said.
+    pub clinician_ref: ClinicianRef,
+}
+
+/// One visit the caller was seen at in the hospital's window (BOOKING-RULES.md §3.2, §3.4):
+/// where, with whom, when, and the words for the place. Kept one call long, in the session.
+#[derive(Clone)]
+pub struct SeenVisit {
+    pub place: PlaceRef,
+    pub place_words: Shielded<String>,
+    pub clinician: ClinicianRef,
+    /// YYYY-MM-DDTHH:MM: the newest is the last visit.
+    pub starts_at: Shielded<String>,
 }
 
 /// Where a visit stands, as the agent may say it (EPIC.md §7.10).
@@ -130,6 +153,14 @@ pub struct SlotWish {
     /// `identifier`, `name` and `birthDate`, as JSON), from the search that found them. The
     /// service sets it; none for the fake.
     pub who: Option<Shielded<String>>,
+    /// Where the caller was seen in the hospital's window (`established_years`): the service
+    /// reads it once a call when a visit type is for new or established patients only, and
+    /// keeps only the slots that fit (BOOKING-RULES.md §3.4). The fake picks its types by it.
+    pub seen: Vec<PlaceRef>,
+    /// The place to search (BOOKING-RULES.md §3.2: the caller's last place of this kind of
+    /// care). Epic's `$find` gets its FHIR id as `location-reference`; the service keeps only
+    /// the slots there either way. None: any place.
+    pub place: Option<PlaceRef>,
 }
 
 /// One search's slots, all of them, in order (the service offers a few at a time), and the
@@ -215,6 +246,9 @@ pub struct FakeScheduler {
     taken: Mutex<HashSet<String>>,
     /// Bookings made on this run, by patient.
     booked: Mutex<Vec<(PatientKey, Slot)>>,
+    /// The visit type each slot was last offered with (it depends on the caller: new or
+    /// established), so a booking keeps the type the caller heard.
+    offered_as: Mutex<HashMap<String, String>>,
 }
 
 impl Default for FakeScheduler {
@@ -226,13 +260,18 @@ impl Default for FakeScheduler {
 
 impl FakeScheduler {
     fn with_days(days: Vec<String>) -> Self {
-        Self { days, taken: Mutex::default(), booked: Mutex::default() }
+        Self { days, taken: Mutex::default(), booked: Mutex::default(), offered_as: Mutex::default() }
     }
 
-    /// The record's name of slot `i`'s visit type, or None when the hospital has no type of
-    /// that kind to book.
-    fn visit_type(h: &Hospital, i: usize) -> Option<String> {
-        h.fake_type(FAKE_SLOTS[i].5).map(|t| t.record.clone())
+    /// The fake's one place, as a record names it.
+    fn place_ref() -> PlaceRef {
+        PlaceRef::new(None, Some(&sandbox().place))
+    }
+
+    /// The record's name of slot `i`'s visit type for a caller who is (or is not) established,
+    /// or None when the hospital has no type of that kind to book.
+    fn visit_type(h: &Hospital, i: usize, established: bool) -> Option<String> {
+        h.fake_type(FAKE_SLOTS[i].5, established).map(|t| t.record.clone())
     }
 
     /// An open slot: its type is known (and so whether it is online), its reason is not yet.
@@ -250,6 +289,9 @@ impl FakeScheduler {
             about,
             csn: None,
             status: VisitStatus::Upcoming,
+            place_ref: Self::place_ref(),
+            kind: h.patients_of(Some(visit_type)),
+            clinician_ref: ClinicianRef::new(None, Some(clinician)),
         }
     }
 
@@ -263,7 +305,9 @@ impl Scheduler for FakeScheduler {
     async fn find(&self, h: &Hospital, _: &PatientKey, wish: &SlotWish) -> Result<FoundSlots, SchedulerDown> {
         use jiff::civil::Date;
         let taken = self.taken.lock().unwrap();
-        let slots = (0..FAKE_SLOTS.len())
+        // New or established at the fake's one place: its types follow (BOOKING-RULES.md §3.4).
+        let established = h.established(&wish.seen, &Self::place_ref());
+        let slots: Vec<Slot> = (0..FAKE_SLOTS.len())
             .filter(|&i| !taken.contains(FAKE_SLOTS[i].0))
             .filter(|&i| wish.mode.fits(FAKE_SLOTS[i].5))
             // Shielded compares without revealing. The fake's own days and times are not
@@ -275,8 +319,14 @@ impl Scheduler for FakeScheduler {
                 wish.days.is_empty()
                     || self.days[i].parse::<Date>().is_ok_and(|d| wish.days.contains(&d.weekday()))
             })
-            .filter_map(|i| Some(self.slot(h, i, &Self::visit_type(h, i)?)))
+            .filter_map(|i| Some(self.slot(h, i, &Self::visit_type(h, i, established)?)))
             .collect();
+        let mut offered_as = self.offered_as.lock().unwrap();
+        for (i, s) in FAKE_SLOTS.iter().enumerate() {
+            if let Some(t) = Self::visit_type(h, i, established) {
+                offered_as.insert(s.0.to_string(), t);
+            }
+        }
         Ok(FoundSlots { slots, next: Vec::new() })
     }
 
@@ -290,8 +340,10 @@ impl Scheduler for FakeScheduler {
             return Ok(BookResult::Taken);
         };
         // A save between the search and the booking cannot reach this call: its hospital is
-        // the one it opened with. None only if the call's own list has no such type.
-        let Some(visit_type) = Self::visit_type(h, i) else {
+        // the one it opened with. The type the slot was offered as; else (a slot never offered
+        // on this run) the first of its kind. None only if the call's own list has no such type.
+        let offered = self.offered_as.lock().unwrap().get(slot.0.as_str()).cloned();
+        let Some(visit_type) = offered.or_else(|| Self::visit_type(h, i, true)).or_else(|| Self::visit_type(h, i, false)) else {
             return Ok(BookResult::Taken);
         };
         if !self.taken.lock().unwrap().insert(slot.0.clone()) {
@@ -330,6 +382,9 @@ impl Scheduler for FakeScheduler {
                 csn: v.csn.clone().map(Shielded::new),
                 status,
                 group,
+                place_ref: Self::place_ref(),
+                kind: h.patients_of(v.visit_type.as_deref()),
+                clinician_ref: ClinicianRef::new(None, Some(&v.clinician)),
             };
             Some((key, visit))
         });

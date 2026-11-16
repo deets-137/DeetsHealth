@@ -2,7 +2,7 @@
 status: project
 desk_test: open
 sources: [agent/deets_agent/voice.py, agent/deets_agent/config.py, agent/deets_agent/resources.py, agent/deets_agent/flow.py]
-updated: 2026-11-13
+updated: 2026-11-16
 ---
 # Cartesia — speech in (Ink) and speech out (Sonic)
 
@@ -54,6 +54,9 @@ updated: 2026-11-13
 - **Voice:** Cartesia's guide says stable, realistic voices do better in agents than studio or
   emotive ones. Its list for agents: Skylar, Gemma, Jacqueline, Emma, Lauren, Daniel, Archie,
   Parker, Jameson, Corey. The guide says nothing about 8 kHz phone audio: listen on a phone.
+  **Emma is gone (2026-11-16):** Cartesia's voice list has no voice of that name, and its old id
+  answers 404 (`voice_not_found`); it left the console's list (`config.RECOMMENDED_VOICES`). The
+  other nine answer. A voice call now checks the active voice before it starts.
 
 ## 4. Cost
 > **Part:** project · 2026-11-12

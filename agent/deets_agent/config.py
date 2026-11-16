@@ -35,6 +35,8 @@ HOSPITAL_KEYS = (
     "narrow_over",
     "groups_named",
     "past_days",
+    "established_years",
+    "sooner_with_others",
     "ahead_windows",
     "booking_note_label",
 )
@@ -165,7 +167,7 @@ RECOMMENDED_VOICES: tuple[tuple[str, str | None], ...] = (
     ("Skylar", DEFAULT_VOICE_ID),
     ("Gemma", None),
     ("Jacqueline", None),
-    ("Emma", None),
+    # "Emma" left the list on 2026-11-16: Cartesia has no voice of that name now.
     ("Lauren", None),
     ("Daniel", "47c38ca4-5f35-497b-b1a3-415245fb35e1"),
     ("Archie", None),

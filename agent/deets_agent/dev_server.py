@@ -790,6 +790,12 @@ def build_app(state: State) -> FastAPI:
             raise HTTPException(409, "a voice call needs a Cartesia key in .env")
         # The active voice settings (CONSOLE.md §7), read once: the whole call runs with them.
         values = await active_voice_settings(state)
+        # A voice Cartesia no longer has makes every line silent (the call of 2026-11-15, 22:38:
+        # "Emma" was gone, and the caller heard nothing for a minute). Ask before the call
+        # starts; no credits.
+        missing = await _voice_missing(key, (values.get("voice") or {}).get("id") or config.voice_id())
+        if missing is not None:
+            raise HTTPException(409, missing)
         # On this PC both ends are local: host candidates only, no STUN or TURN server. A guest
         # is on another network: STUN and TURN, with this end's own credentials (DEMO.md §3.7).
         servers = await _ice_for(state, request.state.who)
@@ -1819,6 +1825,25 @@ async def _find_voice_id(key: str, name: str) -> str:
         if isinstance(v, dict) and str(v.get("name", "")).strip().lower() == name.lower() and v.get("id"):
             return str(v["id"])
     raise VoiceNotFound("voice: Cartesia has no voice of that name")
+
+
+async def _voice_missing(key: str, voice_id: str) -> str | None:
+    """Why the voice cannot speak, or None: Cartesia's Get Voice answers 404 for a voice it no
+    longer has. Any other answer, or none, lets the call start: the call itself then shows a
+    fault. No credits; the message names no value."""
+    import aiohttp
+
+    headers = {"Authorization": f"Bearer {key}", "Cartesia-Version": CARTESIA_VOICES_VERSION}
+    try:
+        async with (
+            aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as s,
+            s.get(f"https://api.cartesia.ai/voices/{voice_id}", headers=headers) as r,
+        ):
+            if r.status == 404:
+                return "Cartesia no longer has the active voice: choose another on Config › Cartesia"
+    except (aiohttp.ClientError, TimeoutError):
+        return None
+    return None
 
 
 def _refuse_call(state: State, ehr_source: str) -> str | None:

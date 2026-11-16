@@ -16,7 +16,10 @@ import {
   type HoursRow,
   type ImportedPlaces,
   type LocationRow,
+  type PatientKind,
   type ReasonSystem,
+  type SpecialtyRow,
+  type VisitTypeRow,
 } from "../agent/api";
 import { hospitalSettings } from "../agent/stores";
 import { reducedMotion, tokenMs } from "../tokens";
@@ -61,7 +64,7 @@ const TAB_KEYS: Record<Tab, Key[]> = {
   times: ["time_zone", "times_of_day", "hours", "closed_days"],
   places: ["facilities", "locations"],
   specialties: ["specialty_list", "specialties"],
-  booking: ["slots_offered", "narrow_over", "groups_named", "past_days", "ahead_windows", "booking_note_label"],
+  booking: ["slots_offered", "narrow_over", "groups_named", "past_days", "established_years", "sooner_with_others", "ahead_windows", "booking_note_label"],
 };
 
 // ---- The search box (TABLES.md §6.3: W2 A filter, W3 B the shown tab, W4 A Ctrl+F)
@@ -177,6 +180,17 @@ const REASON_SYSTEMS: [ReasonSystem, string][] = [
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** A list's tools: its order is kept and used, and a row can go (TABLES.md §3.10). */
 const LIST = { move: true, remove: true };
+/** A visit type's Patients column (BOOKING-RULES.md §3.4): its value and its words. */
+const PATIENT_KINDS: [PatientKind, string][] = [
+  ["either", "Either"],
+  ["new", "New"],
+  ["established", "Established"],
+];
+const PATIENT_HELP: Record<PatientKind, string> = {
+  either: "Any caller. No search of the caller's visits for this type.",
+  new: "Only a caller new to the specialty of the slot's department: not seen by it within Booking › Years for an established patient.",
+  established: "Only a caller the specialty of the slot's department has seen within Booking › Years for an established patient.",
+};
 
 // ---- Places › Locations (HOSPITAL-CONFIG.md §8.2)
 const PLACES_VIEWS = ["cards", "table"] as const;
@@ -223,14 +237,23 @@ const PLACE_SEARCHES = 5;
 const SUGGESTIONS = 6;
 
 /** A version saved before a row gained its fields (a department's facility, DEP ID, specialty
- * and hours, 2026-11-15) holds rows without them: fill each with its empty value, as ehr's
- * hospital.rs does (`#[serde(default)]`). Without this the page's checks read a missing field
- * and the page never draws. */
+ * and hours, 2026-11-15; a visit type's patients, 2026-11-16) holds rows without them: fill
+ * each with its empty value, as ehr's hospital.rs does (`#[serde(default)]`). Without this the
+ * page's checks read a missing field and the page never draws. A number saved before it
+ * existed takes the Default's, as ehr's `from_pairs` takes the file's. */
 function withRowDefaults(v: HospitalValues): HospitalValues {
-  const stored = v as Omit<HospitalValues, "facilities" | "locations"> & {
+  const stored = v as Omit<HospitalValues, "facilities" | "locations" | "visit_types" | "specialties" | "established_years" | "sooner_with_others"> & {
     facilities?: Partial<FacilityRow>[];
     locations?: Partial<LocationRow>[];
+    visit_types?: Partial<VisitTypeRow>[];
+    specialties?: Partial<SpecialtyRow>[];
+    established_years?: number;
+    sooner_with_others?: boolean;
   };
+  v.visit_types = (stored.visit_types ?? []).map((t) => ({ code: "", record: "", spoken: "", online: false, book: false, patients: "either", ...t }));
+  v.specialties = (stored.specialties ?? []).map((s) => ({ code: "", spoken: "", words: [], primary_care: false, ...s }));
+  v.established_years = stored.established_years ?? 3;
+  v.sooner_with_others = stored.sooner_with_others ?? true;
   v.facilities = (stored.facilities ?? []).map((f) => ({ record: "", spoken: "", id: "", code: "", address: "", phone: "", ...f }));
   v.locations = (stored.locations ?? []).map((l) => ({
     record: "",
@@ -865,13 +888,20 @@ class Parts {
     const out = titleLine(
       "Visit types",
       this.count(rows.length, d.visit_types.length),
-      "Epic's service-type. A visit whose type is on this list says the spoken name and takes the Online mark. Epic searches each type the agent may book that has an ID; the local fake books the first of each kind, in this order.",
-      this.add("a visit type", d.visit_types, () => ({ code: "", record: "", spoken: "", online: false, book: false })),
+      "Epic's service-type. A visit whose type is on this list says the spoken name and takes the Online mark. Epic searches each type the agent may book that has an ID; the local fake books the first of each kind that fits the caller, in this order. Patients: a type for new or for established patients is offered only to a caller who fits, by the specialty of the slot's department (Booking › Years for an established patient).",
+      this.add("a visit type", d.visit_types, () => ({ code: "", record: "", spoken: "", online: false, book: false, patients: "either" })),
     );
     out.push(this.listBlock("Visit type list", "visit_type_list", "The list every visit type's ID belongs to, sent with each ID to Epic's $find."));
     const t = table(
       "Visit types",
-      ["The record's name", "Spoken name", { head: "ID", kind: "id" }, { head: "Online", kind: "flag" }, { head: "Agent may book", kind: "flag" }],
+      [
+        "The record's name",
+        "Spoken name",
+        { head: "ID", kind: "id" },
+        { head: "Online", kind: "flag" },
+        { head: "Agent may book", kind: "flag" },
+        { head: "Patients", kind: "choice" },
+      ],
       LIST,
     );
     this.fill(t, "visit-types", rows, (r) =>
@@ -884,11 +914,13 @@ class Parts {
             this.idCell("visit_type_list", r.code, (v) => (r.code = v)),
             this.onOff("Online", r.online, (v) => (r.online = v)),
             this.onOff("Agent may book", r.book, (v) => (r.book = v)),
+            this.choose(PATIENT_KINDS, r.patients, (v) => (r.patients = v as PatientKind)),
           ],
           [
             ["The record's name:", "The type's name as the record holds it. A visit of this name, in any case, takes this row."],
             ["Spoken name:", "What the caller hears for this type. Empty: the record's own words. A name that names sensitive care makes the visit private."],
             ["ID:", r.code ? "The type's ID in the visit type list, sent to Epic's $find." : "None: Epic cannot search or book this type. The local fake can."],
+            ["Patients:", PATIENT_HELP[r.patients]],
           ],
           this.moves(d.visit_types, r, "this visit type"),
         ),
@@ -1673,11 +1705,11 @@ class Parts {
     const out = titleLine(
       "Specialties",
       this.count(rows.length, d.specialties.length),
-      `Epic's specialties: a kind of care, such as Cardiology. Each department on Places names one by its ID; here each ID gets the name the caller hears and the caller's words for it, such as "a skin doctor". ${NOT_USED}`,
-      this.add("a specialty", d.specialties, () => ({ code: "", spoken: "", words: [] })),
+      `Epic's specialties: a kind of care, such as Cardiology. Each department on Places names one by its ID; here each ID gets the name the caller hears and the caller's words for it, such as "a skin doctor". Primary care: a caller with no visit with their PCP has their times searched at their last department of a primary care specialty. The names and words are not used by calls yet.`,
+      this.add("a specialty", d.specialties, () => ({ code: "", spoken: "", words: [], primary_care: false })),
     );
     out.push(this.listBlock("Specialty list", "specialty_list", "The list every specialty's ID belongs to. Epic gives no list of a hospital's specialties by API."));
-    const t = table("Specialties", ["Spoken name", "The caller's words", { head: "ID", kind: "id" }], LIST);
+    const t = table("Specialties", ["Spoken name", "The caller's words", { head: "ID", kind: "id" }, { head: "Primary care", kind: "flag" }], LIST);
     this.fill(t, "specialties", rows, (r) =>
       row(
         r,
@@ -1686,8 +1718,12 @@ class Parts {
           this.text("Spoken name", r.spoken, (v) => (r.spoken = v)),
           this.wordsCell("The caller's words", r.words, (v) => (r.words = v)),
           this.idCell("specialty_list", r.code, (v) => (r.code = v)),
+          this.onOff("Primary care", r.primary_care, (v) => (r.primary_care = v)),
         ],
-        [["ID:", "The specialty's ID in the specialty list, from the hospital's own build."]],
+        [
+          ["ID:", "The specialty's ID in the specialty list, from the hospital's own build."],
+          ["Primary care:", "On: the caller's last department of this specialty is their usual place for a visit with no specialty named, when they have no visit with their PCP."],
+        ],
         this.moves(d.specialties, r, "this specialty"),
       ),
     );
@@ -1708,6 +1744,16 @@ class Parts {
       ["Visits before the narrowing question", this.num("Visits before the narrowing question", d.narrow_over, 1, 10, (v) => (d.narrow_over = v)), "More visits than this match what the caller named, and the agent asks which group they mean."],
       ["Groups one question names", this.num("Groups one question names", d.groups_named, 1, 5, (v) => (d.groups_named = v)), "The rest are \"another visit\"."],
       ["Days back for a past visit", this.num("Days back for a past visit", d.past_days, 1, 3650, (v) => (d.past_days = v)), "How far back \"when was I last seen?\" looks."],
+      [
+        "Years for an established patient",
+        this.num("Years for an established patient", d.established_years, 1, 10, (v) => (d.established_years = v)),
+        "A caller seen by a specialty within this many years is established in it; else new (the CPT rule's 3 years). Read only when a visit type is for new or established patients: one search of the caller's visits a call.",
+      ],
+      [
+        "Offer a sooner time with another clinician",
+        this.onOff("Offer a sooner time with another clinician", d.sooner_with_others, (v) => (d.sooner_with_others = v)),
+        "With the caller's PCP's times first, also offer one time with another clinician at the same place when it is on an earlier day than the PCP's first. Off: the PCP's times, then the others, with none called sooner.",
+      ],
       ["Search windows (days)", windows, "The search for the visits to come widens through these windows, then has no end. Each window is longer than the one before. One read to Epic per window."],
       [
         "Label after the reason in the booking note",

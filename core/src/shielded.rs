@@ -129,6 +129,16 @@ impl Shielded<String> {
             })
     }
 
+    /// "Is this time on an earlier day than that one?" Both are local times that start with the
+    /// day, YYYY-MM-DD (a slot's start). Answers yes or no and never reveals either value
+    /// (BOOKING-RULES.md §3.3: a sooner time with another clinician).
+    pub fn earlier_day(&self, other: &Self) -> bool {
+        match (self.0.get(..10), other.0.get(..10)) {
+            (Some(a), Some(b)) => a < b,
+            _ => false,
+        }
+    }
+
     /// The first of `terms` that the caller's words name, by whole words in any case ("my surgery
     /// visit" names "surgery"; "primary care" names "primary care"). Used for a visit group,
     /// whose names are the hospital's, not protected data. Never reveals the caller's words.

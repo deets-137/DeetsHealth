@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: [ehr/src/epic.rs, ehr/src/epic_ehr.rs, ehr/fixtures/epic-sandbox.json, docs/architecture/images/epic-catalog-location-2026-11-15.png, docs/architecture/images/epic-catalog-resources-1-2026-11-15.png, docs/architecture/images/epic-catalog-resources-2-2026-11-15.png, docs/architecture/images/epic-catalog-resources-3-2026-11-15.png]
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # DeetsHealth — Epic: the backend app registration and the sandbox
 
@@ -467,7 +467,8 @@ All go from `ehr` (Rust) only, over `ehr`'s AWS-LC client (`ehr/src/epic.rs` `Ep
 | `POST` token endpoint, `client_credentials` with a signed ES384 assertion | `epic.rs` › `Epic::token` (through `bearer`) | at start of use, then about once an hour (the token lives 3600 s, renewed a minute early); once more after a 401 | none (the assertion names our client ID only) | 1 per hour |
 | `GET Patient?family&given&birthdate` | `epic_ehr.rs` › `EpicPatients::candidates` | each `Identify` (at most 3 per call, `MAX_IDENTIFIES`) | the caller's claimed name and date of birth, in the URL (`EhrPass`) | 1 per try |
 | `GET Appointment?patient&service-category=appointment&status=…&date=ge…&date=lt…` | `epic_ehr.rs` › `EpicScheduler::visits` (`appointments`) | each `FindVisit`, after both factors pass | the verified patient's FHIR id (`EhrPass`); the day or month the caller named, as a date range | 1 (a day, a month, the past) or 1 to 2 (the visits to come: 90 days, then 400) |
-| `POST STU3 Appointment/$find` | `epic_ehr.rs` › `EpicScheduler::find_one` | each `FindSlots` in Epic mode, after both factors pass | the verified patient's `identifier`, `name` and `birthDate`, in the body (`EhrPass`); the days, time of day and weekdays asked for | 1 per visit type (in person or online: 1; either: 2) |
+| `POST STU3 Appointment/$find` | `epic_ehr.rs` › `EpicScheduler::find_one` | each `FindSlots` in Epic mode, after both factors pass | the verified patient's `identifier`, `name` and `birthDate`, in the body (`EhrPass`); the days, time of day and weekdays asked for; since 2026-11-16 the caller's usual place as `location-reference` (BOOKING-RULES.md §5.2) | 1 per visit type (in person or online: 1; either: 2) |
+| `GET Appointment?patient&service-category=appointment&status=…&date=ge…&date=lt…` over the hospital's window (`established_years`, 3 by default) | `service.rs` › `seen`, through `EpicScheduler::visits` | the first `FindSlots` of a call, only when a visit type the agent may book is for new or for established patients (BOOKING-RULES.md §3.4); then kept for the call | the verified patient's FHIR id (`EhrPass`); the window's two days | 1 per call |
 | `POST` Epic's `next` link of a `$find` page (empty Parameters) | `epic_ehr.rs` › `EpicScheduler::find_more` | `FindSlots` with `more`, when this page's slots are all offered | none new (the link is Epic's own) | 1 per page |
 | `POST STU3 Appointment/$book` | `epic_ehr.rs` › `EpicScheduler::book` | each `Book` in Epic mode | the patient's FHIR id and the caller's reason as `appointmentNote`, then the hospital's label (`booking_note_label`, HOSPITAL-CONFIG.md §2.9) (`EhrPass`) | 1 per booking; a write |
 | `GET Appointment/{id}` (R4) | `epic_ehr.rs` › `EpicScheduler::book` | after a booking, for its instructions | the new visit's id | 1 per booking |
@@ -477,6 +478,7 @@ All go from `ehr` (Rust) only, over `ehr`'s AWS-LC client (`ehr/src/epic.rs` `Ep
 | `ehr epic-book`: `Patient/{id}`, one `$find`, one `$book`, one `Appointment` read, two visit searches | `main.rs` › `epic_book`; `epic_ehr.rs` › `EpicEhr::probe_book` | by hand, only with the owner's go-ahead (a write; run once, 2026-11-15) | Camila Lopez's public test details | about 6, one write |
 | `GET metadata` and one `Patient` search | `main.rs` › `epic_check` | `ehr epic-check`, by hand | Camila Lopez's public test details | about 5 |
 | `ehr epic-locations` (the probe): one `Appointment` search, `Location/{id}` per department named, six `Location?…` searches | `main.rs` › `epic_locations` | by hand | Camila Lopez's public test FHIR id | about 11 |
+| `ehr epic-booking` (the probe, §7.12): `Patient/{id}` per public test patient, `Practitioner/{id}` per PCP, an `Appointment` search per patient with a PCP, one `Location/{id}`, four `$find`s | `main.rs` › `epic_booking` | by hand | the public test patients' details | about 23 |
 | `GET Location?address=<state>`, or `Location?address=<city>&address-state=<state>` (`Location.Search (Organizational Directory) (R4)`), then each page's `next` link | `epic_ehr.rs` › `EpicEhr::places` | Config › Hospital › Places › Import from Epic, by an analyst (HOSPITAL-CONFIG.md §8); never during a call | none: the state, or the city and state, typed | 1 per search typed (up to 5) (the sandbox: its 435 locations in one page); at most 50 pages |
 
 Not sent yet: `Patient.$match`, the medicine, refill and lab reads (R2–R4), `Practitioner` / `Location` reads, and booking (STU3 `$find`, `$book`). Each joins this table when it is built. The planned writes are booking and the held chart note (`DocumentReference.Create`, §2.1).
@@ -755,8 +757,10 @@ is E-4, the real `$find` and `$book`, and carries every item that needs them. Th
   found: the caller hears that the booking did not go through and is asked whether to try
   again (`line.book_not_through`, a draft). A yes sends one new `$book` for the same slot.
 - **Referrals** (item 8) wait: `ServiceRequest` is held in the registration (§2.1). Adding it is
-  the owner's choice. Then a caller who says they were referred gets their open referrals read
-  once, and its id goes to `$find`.
+  the owner's choice. **Corrected 2026-11-16:** a caller's open referrals cannot be read.
+  `ServiceRequest.Read (Referral) (R4)` reads one referral by id, has no search by patient, and
+  returns no specialty or state. Reading orders to check a referral is not taken (the owner,
+  2026-11-16): the hospital's booking rules say what happens. architecture/BOOKING-RULES.md §3.6.
 - **Moves and cancels** (item 9) wait for a hospital's interface team (§7.6). Until then
   `change_visit` and the flag with the CSN.
 
@@ -957,3 +961,49 @@ example `.7.2.657380` is "the Interface Specification (AIP) master file": A=65, 
   DocumentReference today (`tutorial:2659`). Epic tells vendors to ask the hospital: the
   hospital runs Epic's "OID Generator" utility (a Galaxy document, for Epic's customers only)
   and sends the OIDs.
+
+### 7.12 The PCP and `specialties` in the sandbox (step 0, 2026-11-16)
+> **Part:** built · 2026-11-16. `ehr epic-booking` (`main.rs › epic_booking`), for
+> architecture/BOOKING-RULES.md §6 step 0. Run twice (the second run added the PCP's `type`);
+> about 23 requests a run; reads and `$find`s only, nothing booked.
+
+- **The PCP.** `Patient.Read` returns `generalPractitioner` on 3 of the 7 public test patients
+  (`epic-sandbox.json`): Camila Lopez, Desiree Powell (the child) and Warren McGinnis. Each is a
+  relative `Practitioner/{id}` reference with a `display`; Warren McGinnis has two. The
+  `type` key is the plain Reference type, so nothing says which of two is the general PCP.
+  `Practitioner.Read` answers for each (HTTP 200): the PCP is a Practitioner of this
+  organization (BOOKING-RULES.md §3.2, case 1; case 4 not seen).
+- **The PCP on the visits.** Camila Lopez: 3 of her 8 visits are with her PCP, so the PCP's
+  clinic can come from the last visit with them. Desiree Powell: 0 of 2 (case 2: a PCP never
+  seen in the history read). Warren McGinnis: 1 of 1.
+- **`specialties` in `$find`.** With Camila Lopez's visit type and department (specialty 9,
+  Family Medicine, under `…7.10.686980.110`), four tries: the department alone; the department
+  and its own specialty; its own specialty with no department; the department and another
+  specialty (4, Cardiology). Every try: HTTP 200, 10 proposed times, all at one department,
+  the same one "information" issue, and **no `specialty` on any proposed Appointment**. Epic
+  accepts the input and the sandbox's Cadence rules ignore it, as Epic warns ("some
+  organizations may ignore or require any of these properties", `api:840`). So `ehr` cannot
+  rely on `$find` to narrow by specialty: it sends `specialties` and also keeps only the times
+  whose department has that specialty on the Places list (BOOKING-RULES.md §3.1).
+
+### 7.13 Why every sandbox time is a video visit (read 2026-11-16)
+> **Part:** research · 2026-11-16. The owner asked; open.epic searched (`api:840`, `api:839`,
+> `tutorial:50`, the FAQ).
+
+- **Epic says nothing about the sandbox's own build.** The test-data page (`tutorial:50`) lists
+  the test patients and the resources each holds; none names a schedule, a visit type or
+  `$find`.
+- **What Epic does say** (`api:840`): `$find` "requires pre-coordination with the healthcare
+  organization. The organization must build out specific rules in the Epic Cadence scheduling
+  system that accept the provided inputs and determine which providers and slots will be
+  returned." The inputs are only "*potential* elements that might be used by an organization's
+  scheduling rules. Some organizations may ignore or require any of these properties."
+- **Epic's own sample shows the rules choose the visit type.** The sample request sends
+  `Office Visit` 95014 in one system (`…7.3.808267.11`); every proposed visit in the sample reply
+  is `Office Visit` 10770 in another (`…861.1.7.2.808267`). The type that comes back is the one
+  the rules book, not the one asked for.
+- **So in the sandbox:** its Cadence rules map every request, whatever `service-type`,
+  `specialties` or place, to one provider's MyChart Video Visit times (step 0, §7.12; §5.2). It is
+  the sandbox's build, not our request. A hospital's own rules decide this for its build, which
+  is why `ehr` checks each returned time against the caller's in person or online
+  (EHR-SERVICE.md §2, 2026-11-16) and asks the hospital for its rules (§4).

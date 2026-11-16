@@ -12,7 +12,7 @@ use std::future::Future;
 
 use deetshealth_core::Shielded;
 
-use crate::{sandbox::sandbox, session::PatientKey};
+use crate::{hospital::ClinicianRef, sandbox::sandbox, session::PatientKey};
 
 /// What the caller said.
 pub struct Claimed {
@@ -36,6 +36,10 @@ pub struct Candidate {
     /// `identifier`, `name` and `birthDate` as the EHR sent them, as JSON. None for the fake.
     /// Kept for the call only, in the session.
     pub facts: Option<Shielded<String>>,
+    /// The patient's primary care providers on file (Epic's `generalPractitioner`; the fake's
+    /// `pcp`), for the default place and the PCP's times first (BOOKING-RULES.md §3.2). Empty:
+    /// none on file, or the hospital's security does not show them.
+    pub pcp: Vec<ClinicianRef>,
 }
 
 /// The EHR or the text service did not answer. Never carries text from them.
@@ -93,6 +97,7 @@ impl Patients for FakePatients {
                 birth_date: Shielded::new(p.birth_date.clone()),
                 phone: Some(Shielded::new(p.phone.clone())),
                 facts: None,
+                pcp: p.pcp.as_deref().map(|name| ClinicianRef::new(None, Some(name))).into_iter().collect(),
             })
             .filter(|c| c.birth_date == claimed.birth_date)
             .collect())

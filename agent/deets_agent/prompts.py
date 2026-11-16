@@ -66,6 +66,8 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "arg.find_slots.clinician": set(),
     "arg.find_slots.any_time": set(),
     "arg.find_slots.more": set(),
+    # Any place, not the usual one (BOOKING-RULES.md §3.2).
+    "arg.find_slots.any_place": set(),
     "tool.choose_option": set(),
     "arg.choose_option.option": set(),
     "tool.book": set(),
@@ -107,7 +109,10 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "line.code_wrong": set(),
     "line.no_more_codes": set(),
     "line.code_resent": set(),
-    # The preference question before the first search (the owner's 1A, 2026-11-15).
+    # The reason question, then the preference question, before the first search (the owner,
+    # 2026-11-16 and 1A, 2026-11-15).
+    "line.ask_reason": set(),
+    "note.after_ask_reason": set(),
     "line.ask_preference_both": set(),
     "line.ask_preference_mode": set(),
     "line.ask_preference_when": set(),
@@ -116,10 +121,13 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "line.no_more_slots": set(),
     "line.slots": {"options"},
     "line.slot_option": {"number", "visit"},
+    "line.slots_usual_place": {"place"},
+    "line.slot_sooner": {"number"},
     "line.which_option": set(),
     # The holding line when a reply is cut off by the token cap (llm.py, call.py).
     "line.one_moment": set(),
     "line.confirm_slot": {"number", "visit"},
+    "note.question_with_choice": {"number"},
     "line.change_booked": {"visit"},
     "line.change_visit": set(),
     "line.slot_taken": set(),
@@ -167,6 +175,7 @@ PLACEHOLDERS: dict[str, set[str]] = {
     "line.hand_off": set(),
     # The hand-off after the code did not work (FUTURE-SETTINGS.md §7, the owner, 2026-11-12).
     "line.hand_off_code": set(),
+    "line.hand_off_answer": set(),
     "line.emergency": set(),
     "line.emergency_reminder": set(),
     # A note in a tool result, for the model only: never spoken.

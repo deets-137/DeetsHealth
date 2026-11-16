@@ -11,9 +11,11 @@ use tonic::{Request, Response, Status};
 use crate::{
     edge,
     epic_ehr::{EpicEhr, EpicSandbox},
-    hospital::{Hospital, PlaceSearch},
+    hospital::{ClinicianRef, Hospital, PlaceRef, PlaceSearch},
     proto::v1::{self as pb, ehr_server::Ehr},
-    scheduler::{BookResult, FoundSlots, FoundVisits, Scheduler, SchedulerDown, SlotId, SlotWish, VisitAsk},
+    scheduler::{
+        BookResult, DayRange, FoundSlots, FoundVisits, Scheduler, SchedulerDown, SeenVisit, Slot, SlotId, SlotWish, VisitAsk, VisitStatus,
+    },
     visit_about::BookNote,
     visits::{narrow, Found, Narrow},
     session::{Pending, PatientKey, Refusal, Sessions, Source, Stage, Token},
@@ -217,6 +219,96 @@ impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
             Source::EpicSandbox => Sched::Epic(self.epic()?),
         })
     }
+
+    /// Where the verified caller was seen in the hospital's window (`established_years`): the
+    /// places of their seen visits (BOOKING-RULES.md §3.4). Read once a call, at the first
+    /// search that needs it (one visit search at Epic, in FindSlots's ledger), then kept in the
+    /// session for the call.
+    async fn seen(
+        &self,
+        call: &Arc<tokio::sync::Mutex<crate::session::Session>>,
+        h: &Arc<Hospital>,
+        patient: &PatientKey,
+        source: Source,
+    ) -> Result<Vec<SeenVisit>, Status> {
+        if let Some(seen) = call.lock().await.seen.clone() {
+            return Ok(seen);
+        }
+        let today = jiff::Timestamp::now().to_zoned_datetime(h.tz().clone()).date();
+        let from = today.checked_sub(jiff::Span::new().years(h.established_years)).map_err(|_| Status::internal("the window"))?;
+        let to = today.tomorrow().map_err(|_| Status::internal("the window"))?;
+        let ask = VisitAsk {
+            range: Some(DayRange { from: shielded_day(from), to: shielded_day(to) }),
+            past: false,
+        };
+        let (sched, hh, who) = (self.sched(source)?, Arc::clone(h), patient.clone());
+        let found = ledgered(call, "FindSlots", async move { sched.visits(&hh, &who, &ask).await })
+            .await?
+            .map_err(scheduler_down)?;
+        let mut seen: Vec<SeenVisit> = found
+            .visits
+            .into_iter()
+            .filter(|v| v.status == VisitStatus::Seen)
+            .map(|v| SeenVisit { place: v.place_ref, place_words: v.place, clinician: v.clinician_ref, starts_at: v.starts_at })
+            .collect();
+        // Newest first: the last visit decides the usual place.
+        seen.sort_by(|a, b| b.starts_at.cmp(&a.starts_at));
+        call.lock().await.seen = Some(seen.clone());
+        Ok(seen)
+    }
+}
+
+/// The caller's usual place for this search (BOOKING-RULES.md §3.2), and the PCP seen there: the
+/// last seen visit with a PCP on file (when there are two, the one seen last: case 4b), else
+/// the last at a department of a primary care specialty. None: no such visit (cases 2 and 5).
+fn usual_place(h: &Hospital, seen: &[SeenVisit], pcp: &[ClinicianRef]) -> Option<(SeenVisit, Option<ClinicianRef>)> {
+    if let Some((v, p)) = seen.iter().find_map(|v| pcp.iter().find(|p| v.clinician.same(p)).map(|p| (v, p))) {
+        return Some((v.clone(), Some(p.clone())));
+    }
+    seen.iter().find(|v| h.primary_care_at(&v.place)).map(|v| (v.clone(), None))
+}
+
+/// The PCP's times first (BOOKING-RULES.md §3.3), in their own order, then the others. With the
+/// hospital's P-A setting on, the soonest time with another clinician on an earlier day than
+/// the PCP's first goes in the first offer, as its last option; its id comes back, so the reply
+/// marks it. Slots with no PCP among them keep their order.
+fn pcp_first(h: &Hospital, pcp: Option<&ClinicianRef>, slots: &mut Vec<Slot>, offered_at_once: usize) -> Option<SlotId> {
+    let pcp = pcp?;
+    let (mut mine, others): (Vec<Slot>, Vec<Slot>) = std::mem::take(slots).into_iter().partition(|s| s.clinician_ref.same(pcp));
+    if mine.is_empty() {
+        *slots = others;
+        return None;
+    }
+    let mut others = others;
+    let sooner = if h.sooner_with_others {
+        let first = mine[0].starts_at.clone();
+        others.iter().position(|s| s.starts_at.earlier_day(&first)).map(|i| others.remove(i))
+    } else {
+        None
+    };
+    let id = sooner.as_ref().map(|s| s.id.clone());
+    if let Some(s) = sooner {
+        let at = mine.len().min(offered_at_once.saturating_sub(1));
+        mine.insert(at, s);
+    }
+    mine.extend(others);
+    *slots = mine;
+    id
+}
+
+/// A day, wrapped: a window's edge is a search input like the caller's own days.
+fn shielded_day(d: jiff::civil::Date) -> deetshealth_core::Shielded<String> {
+    deetshealth_core::Shielded::new(d.to_string())
+}
+
+/// Keeps the slots whose visit type fits the caller at the slot's place: a type for new
+/// patients only to a caller new to that specialty, one for established patients only to a
+/// caller seen by it in the window (BOOKING-RULES.md §3.4). Every slot fits when no type the
+/// agent may book is for one kind. The same for every EHR.
+fn keep_fitting(h: &Hospital, seen: &[PlaceRef], slots: &mut Vec<Slot>) {
+    if h.sorts_patients() {
+        slots.retain(|s| s.kind.fits(h.established(seen, &s.place_ref)));
+    }
 }
 
 /// The longest record FileCall takes, in lines and in bytes. A half-hour call is far below both.
@@ -352,12 +444,13 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let found = found.map_err(down)?;
         // One match with a number that takes a text: a code goes out. With no such number on
         // file, nothing is sent, the same as no match.
-        if let Some(Candidate { patient, phone: Some(phone), facts, .. }) = one_match(&claimed, found) {
+        if let Some(Candidate { patient, phone: Some(phone), facts, pcp, .. }) = one_match(&claimed, found) {
             let code = self.codes.issue();
             self.codes.send(&phone, &code, session.text_template.as_deref()).await.map_err(down)?;
             session.stage = Stage::Unverified(Some(Pending {
                 patient,
                 facts,
+                pcp,
                 phone,
                 code,
                 issued: std::time::Instant::now(),
@@ -408,12 +501,13 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             Stage::Unverified(None) => None,
             Stage::Unverified(Some(p)) => {
                 // Constant time: the reply's timing never says how many digits were right.
-                (p.code.ct_eq(&code) && p.issued.elapsed() < CODE_LIFETIME).then(|| (p.patient.clone(), p.facts.clone()))
+                (p.code.ct_eq(&code) && p.issued.elapsed() < CODE_LIFETIME).then(|| (p.patient.clone(), p.facts.clone(), p.pcp.clone()))
             }
         };
-        if let Some((patient, facts)) = right {
+        if let Some((patient, facts, pcp)) = right {
             session.stage = Stage::Verified(patient);
             session.facts = facts;
+            session.pcp = pcp;
             return reply(pb::CheckOutcome::Pass, 0);
         }
         session.code_failures += 1;
@@ -437,13 +531,14 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         };
         let sched = self.sched(source)?;
         let offered_at_once = h.slots_offered;
+        let new_search = matches!(ask, edge::SlotAsk::New(..));
 
         // The EHR's work runs in its own task (`ledgered`), with the session unlocked, so its
         // ledger is kept even when the agent stops waiting.
         let (mut session, mut found) = match ask {
             // A new search. New tokens: a token from an older search no longer books. The
             // reason asked with these slots is the one Book sends.
-            edge::SlotAsk::New(mut wish, time) => {
+            edge::SlotAsk::New(mut wish, time, any_place) => {
                 wish.who = facts;
                 // Only a name on the call's own list: the model picks, the hospital decides
                 // what it means.
@@ -451,6 +546,20 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                     let t = h.time_of_day(&time).ok_or_else(|| Status::invalid_argument("time_of_day: not on the hospital's list"))?;
                     wish.time_of_day = Some(t);
                 }
+                // The caller's seen visits in the hospital's window, read once a call, only when
+                // they can matter: new or established (BOOKING-RULES.md §3.4), or a default place
+                // (§3.2: the caller has a PCP, or the hospital marks a primary care specialty).
+                let pcp = call.lock().await.pcp.clone();
+                let wants_place = !any_place && (!pcp.is_empty() || h.specialties.iter().any(|s| s.primary_care));
+                let seen = if h.sorts_patients() || wants_place { self.seen(&call, &h, &patient, source).await? } else { Vec::new() };
+                wish.seen = seen.iter().map(|v| v.place.clone()).collect();
+                // The default place and the PCP (§3.2): the last visit with a PCP on file, else
+                // the last at a primary care department. A caller who asked for anywhere gets
+                // none. The PCP's times come first either way.
+                let usual = if wants_place { usual_place(&h, &seen, &pcp) } else { None };
+                let search_pcp = usual.as_ref().and_then(|u| u.1.clone()).or_else(|| pcp.first().cloned());
+                wish.place = usual.as_ref().map(|u| u.0.place.clone());
+                let place_words = usual.map(|u| u.0.place_words);
                 let hh = Arc::clone(&h);
                 let (found, wish) = ledgered(&call, "FindSlots", async move {
                     let found = sched.find(&hh, &patient, &wish).await;
@@ -468,6 +577,20 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                 if let Some(who) = &wish.clinician {
                     slots.retain(|s| who.names_clinician(&s.clinician));
                 }
+                // In person or online, as the caller asked: an EHR may return a type other than
+                // the one searched (Epic's sandbox returns every time as a video visit; the
+                // call of 2026-11-15, 22:36, offered five online times to an in-person ask).
+                session.mode = wish.mode;
+                slots.retain(|s| wish.mode.fits(s.about.online));
+                keep_fitting(&h, &wish.seen, &mut slots);
+                // The usual place only, whether or not the EHR took `location-reference`.
+                session.search_place = wish.place.clone();
+                if let Some(p) = &wish.place {
+                    slots.retain(|s| s.place_ref.same(p));
+                }
+                session.sooner = pcp_first(&h, search_pcp.as_ref(), &mut slots, offered_at_once);
+                session.search_pcp = search_pcp;
+                session.place_words = place_words;
                 (session, slots)
             }
             // The next ones of the same search (the owner, 2026-11-14: keep Epic's page of 10):
@@ -484,7 +607,15 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                         .map_err(scheduler_down)?;
                     let mut session = call.lock().await;
                     session.next_pages = page.next;
-                    (session, page.slots)
+                    let mut slots = page.slots;
+                    let mode = session.mode;
+                    slots.retain(|s| mode.fits(s.about.online));
+                    let places: Vec<PlaceRef> = session.seen.iter().flatten().map(|v| v.place.clone()).collect();
+                    keep_fitting(&h, &places, &mut slots);
+                    if let Some(p) = &session.search_place {
+                        slots.retain(|s| s.place_ref.same(p));
+                    }
+                    (session, slots)
                 } else {
                     (session, rest)
                 }
@@ -495,11 +626,17 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let mut slots = Vec::with_capacity(found.len());
         for slot in &found {
             let token = Token::random();
-            slots.push(edge::slot(&token, slot));
+            // With the caller's PCP, and the one time offered as sooner with another clinician
+            // (BOOKING-RULES.md §3.3).
+            let with_pcp = session.search_pcp.as_ref().is_some_and(|p| slot.clinician_ref.same(p));
+            let sooner = session.sooner.as_ref() == Some(&slot.id);
+            slots.push(edge::slot(&token, slot, with_pcp, sooner));
             session.offered.insert(token, slot.id.clone());
         }
         let more = !session.rest.is_empty() || !session.next_pages.is_empty();
-        Ok(Response::new(pb::FindSlotsReply { slots, more }))
+        // The usual place is named with a new search's times only (§3.2).
+        let place_default = if new_search { edge::place_words(session.place_words.as_ref()) } else { String::new() };
+        Ok(Response::new(pb::FindSlotsReply { slots, more, place_default }))
     }
 
     async fn book(
@@ -548,7 +685,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             Ok(match result {
                 BookResult::Booked(slot) => pb::BookReply {
                     outcome: pb::BookOutcome::Booked.into(),
-                    booked: Some(edge::slot(&slot_token, &slot)),
+                    booked: Some(edge::slot(&slot_token, &slot, false, false)),
                     visit: Some(edge::visit(&slot)),
                 },
                 BookResult::Taken => pb::BookReply {
@@ -1334,6 +1471,92 @@ mod tests {
         assert_eq!(next_visit.reason, reason);
     }
 
+    #[test]
+    fn the_usual_place_is_the_last_with_a_pcp_else_the_last_primary_care_place() {
+        use deetshealth_core::Shielded;
+        let list = serde_json::json!("urn:oid:1.2.840.114350.1.13.0.1.7.10.686980.110");
+        let specialties = serde_json::json!([{"code": "9", "spoken": "family medicine", "primary_care": true}, {"code": "4", "spoken": "cardiology"}]);
+        let locations = serde_json::json!([
+            {"record": "North Family", "id": "d1", "specialty": "9"},
+            {"record": "South Family", "id": "d2", "specialty": "9"},
+            {"record": "Heart Clinic", "id": "d3", "specialty": "4"}
+        ]);
+        let h = Hospital::from_pairs([("specialty_list", &list), ("specialties", &specialties), ("locations", &locations)]).unwrap();
+        let visit = |place: &str, who: &str, at: &str| SeenVisit {
+            place: PlaceRef::new(Some(place), None),
+            place_words: Shielded::new(place.to_string()),
+            clinician: ClinicianRef::new(Some(who), None),
+            starts_at: Shielded::new(at.to_string()),
+        };
+        // Newest first, as `seen` keeps them.
+        let seen = [visit("d3", "cardio", "2026-10-01T09:00"), visit("d2", "pcp-b", "2026-06-01T09:00"), visit("d1", "pcp-a", "2026-01-01T09:00")];
+        let pcp = |ids: &[&str]| ids.iter().map(|i| ClinicianRef::new(Some(i), None)).collect::<Vec<_>>();
+        let place_of = |u: Option<(SeenVisit, Option<ClinicianRef>)>| u.map(|(v, p)| (v.place, p));
+        // Case 1: the last visit with the PCP, not the later cardiology visit.
+        assert!(place_of(usual_place(&h, &seen, &pcp(&["pcp-a"]))) == Some((PlaceRef::new(Some("d1"), None), Some(ClinicianRef::new(Some("pcp-a"), None)))));
+        // Case 4b: two PCPs, the one seen last.
+        assert!(place_of(usual_place(&h, &seen, &pcp(&["pcp-a", "pcp-b"]))).is_some_and(|(p, _)| p == PlaceRef::new(Some("d2"), None)));
+        // No PCP visit: the last primary care place; cardiology is not one.
+        assert!(place_of(usual_place(&h, &seen, &pcp(&["nobody"]))) == Some((PlaceRef::new(Some("d2"), None), None)));
+        assert!(usual_place(&h, &seen[..1], &[]).is_none(), "cardiology only: no usual place");
+    }
+
+    /// BOOKING-RULES.md §3.3: Priya Raman's PCP is Dr. Okafor (the fake's file), whom she has not
+    /// seen yet, so no usual place; his times come first, and Dr. Lin's on an earlier day is the
+    /// one sooner time, the last of the first offer (P-A). Jordan Ellis has no PCP on file: his
+    /// times keep their order.
+    #[tokio::test]
+    async fn the_pcp_s_times_come_first_with_one_sooner_time_from_another_clinician() {
+        let s = svc();
+        let priya = open(&s).await;
+        identify(&s, &priya, "Priya", "Raman", "1971-11-30").await;
+        assert_eq!(check(&s, &priya, FAKE_CODE).await.outcome, pb::CheckOutcome::Pass as i32);
+        let reply = s.find_slots(find_req_with(&priya, "", "a check-up", pb::VisitMode::InPerson)).await.unwrap().into_inner();
+        let got: Vec<(&str, &str, bool, bool)> =
+            reply.slots.iter().map(|x| (x.starts_at.as_str(), x.clinician.as_str(), x.with_pcp, x.sooner)).collect();
+        assert_eq!(
+            got,
+            [
+                ("2026-11-03T10:00", "Dr. Sam Okafor", true, false),
+                ("2026-11-05T11:00", "Dr. Sam Okafor", true, false),
+                ("2026-11-02T09:00", "Dr. Avery Lin", false, true),
+            ]
+        );
+        assert!(reply.place_default.is_empty(), "never seen by her PCP: no usual place");
+        // The rest, on "more": the other clinician's times, none marked sooner.
+        let more = pb::FindSlotsRequest { handle: priya.clone(), more: true, ..Default::default() };
+        let rest = s.find_slots(Request::new(more)).await.unwrap().into_inner();
+        assert_eq!(rest.slots.iter().map(|x| (x.starts_at.as_str(), x.sooner)).collect::<Vec<_>>(), [("2026-11-02T14:30", false)]);
+
+        let jordan = verified(&s).await;
+        let reply = s.find_slots(find_req_with(&jordan, "", "a check-up", pb::VisitMode::InPerson)).await.unwrap().into_inner();
+        let starts: Vec<&str> = reply.slots.iter().map(|x| x.starts_at.as_str()).collect();
+        assert_eq!(starts, ["2026-11-02T09:00", "2026-11-02T14:30", "2026-11-03T10:00"]);
+        assert!(reply.slots.iter().all(|x| !x.with_pcp && !x.sooner));
+    }
+
+    /// BOOKING-RULES.md §3.4: Jordan Ellis was seen at Main Street Clinic in October, so his
+    /// in-person visit is the established type; Priya Raman has no visit there, so hers is the
+    /// new-patient type. One past-visit read a call, kept in the session.
+    #[tokio::test]
+    async fn a_new_patient_books_the_new_patient_type_and_an_established_one_does_not() {
+        async fn book_in_person(s: &Svc, h: &str, key: &str) -> String {
+            let req = find_req_with(h, "", "a check-up", pb::VisitMode::InPerson);
+            let slot = s.find_slots(req).await.unwrap().into_inner().slots.remove(0);
+            s.book(book_req(h, &slot.token, key)).await.unwrap().into_inner().visit.unwrap().visit_type
+        }
+        let s = svc();
+        let jordan = verified(&s).await;
+        assert_eq!(book_in_person(&s, &jordan, "key-0000000000000011").await, "an office visit");
+        let call = s.sessions.get(&Token::parse(&jordan).unwrap()).await.ok().unwrap();
+        assert!(call.lock().await.seen.as_ref().is_some_and(|v| v.len() == 1), "one seen visit, read once");
+
+        let priya = open(&s).await;
+        identify(&s, &priya, "Priya", "Raman", "1971-11-30").await;
+        assert_eq!(check(&s, &priya, FAKE_CODE).await.outcome, pb::CheckOutcome::Pass as i32);
+        assert_eq!(book_in_person(&s, &priya, "key-0000000000000012").await, "a new patient visit");
+    }
+
     #[tokio::test]
     async fn an_online_wish_offers_only_online_slots() {
         let s = svc();
@@ -1409,6 +1632,7 @@ mod tests {
                     birth_date: c.birth_date.clone(),
                     phone: None,
                     facts: None,
+                    pcp: Vec::new(),
                 }])
             }
         }
@@ -1468,6 +1692,7 @@ mod tests {
             ("FindSlotsRequest", "latest_day"),
             ("FindSlotsRequest", "time_of_day"),
             ("FindSlotsRequest", "clinician"),
+            ("FindSlotsReply", "place_default"),
             ("Slot", "token"),
             ("Slot", "starts_at"),
             ("Slot", "clinician"),

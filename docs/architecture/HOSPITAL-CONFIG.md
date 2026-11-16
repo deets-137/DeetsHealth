@@ -39,7 +39,9 @@ so.
 
 ### 2.1 Visit types (Epic's `service-type`) — Visits tab, used now
 - Above the table: the **Visit type list**, one OID for every row (§5.1). Columns: the
-  record's name, the spoken name, the ID ("R PRC 1003"), Online, Agent may book.
+  record's name, the spoken name, the ID ("R PRC 1003"), Online, Agent may book, and
+  **Patients** (either, new, established; since 2026-11-16, BOOKING-RULES.md §5.1): a type for
+  one kind is offered only to a caller who fits at the slot's department.
 - A visit or a slot whose type, as the record names it, is on the list (in any case) says the
   row's spoken name and takes the row's Online mark. A spoken name that names sensitive care
   makes the visit private (FUTURE-SETTINGS.md §9). A type not on the list keeps the record's
@@ -107,7 +109,8 @@ so.
   Locations on Places, which after an import put it about 400 rows down. A specialty is a kind
   of care, not a place: each department names one by its ID, and many share it.
 - Above the table: the **Specialty list**, one OID (§5.1). Columns: the spoken name, the
-  caller's words, the ID. Epic gives no list of a hospital's specialty codes by API.
+  caller's words, the ID, and **Primary care** (since 2026-11-16: read by calls for the usual
+  place, BOOKING-RULES.md §5.2; the names and words are not read yet). Epic gives no list of a hospital's specialty codes by API.
 - **What the sandbox can give (2026-11-15).** A department's specialty, one at a time:
   `Location.Read` (registered) returns it as an extension, with its code and system (EPIC.md
   §7.11). The departments come from the Location references on the test patients' visits and on
@@ -126,7 +129,9 @@ so.
 
 ### 2.9 Booking — Booking tab, used now
 - Slots offered at a time (1 to 5); visits before the narrowing question; groups one question
-  names; days back for a past visit; the search windows for the visits to come (each longer
+  names; days back for a past visit; years for an established patient (1 to 10, 3 by default;
+  BOOKING-RULES.md §3.4); offer a sooner time with another clinician (on; BOOKING-RULES.md
+  §5.2); the search windows for the visits to come (each longer
   than the one before; one Epic read per window, then one with no end). FUTURE-SETTINGS.md
   §13.2 and §13.3 list the choices not built yet (the order, the clinician's name, times on one
   day).
@@ -337,7 +342,9 @@ so.
   Epic itself: §8.
 - Whether a location may override the hospital's hours and time zone, or only add to them.
 - Each list that is not used yet waits for its feature: the specialty and location in `$find`,
-  coded reasons, hours with the hand-off.
+  coded reasons, hours with the hand-off. **Designed 2026-11-16:** the place and the specialty
+  in the search, the default place and the PCP, new or established on Visit types, the Booking
+  rules, and the address, phone and hours by a new tool: [BOOKING-RULES.md](BOOKING-RULES.md).
 - Many hospitals and the routing rules (ideas/README.md).
 
 ## 8. Import Places from Epic (built)

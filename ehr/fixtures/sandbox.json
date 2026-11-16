@@ -3,7 +3,7 @@
   "place": "Main Street Clinic",
   "patients": [
     { "id": "fake-patient-1", "given": "Jordan", "family": "Ellis", "birth_date": "1984-03-12", "phone": "+15555550101" },
-    { "id": "fake-patient-2", "given": "Priya", "family": "Raman", "birth_date": "1971-11-30", "phone": "+15555550102" },
+    { "id": "fake-patient-2", "given": "Priya", "family": "Raman", "birth_date": "1971-11-30", "phone": "+15555550102", "pcp": "Dr. Sam Okafor" },
     { "id": "fake-patient-3", "given": "Casey", "family": "Morgan", "birth_date": "1990-06-05", "phone": "+15555550103" },
     { "id": "fake-patient-4", "given": "Casey", "family": "Morgen", "birth_date": "1990-06-05", "phone": "+15555550104" }
   ],

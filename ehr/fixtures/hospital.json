@@ -3,11 +3,11 @@
   "time_zone": "America/Chicago",
   "visit_type_list": "urn:oid:1.2.840.114350.1.13.0.1.7.2.808267",
   "visit_types": [
-    { "code": "", "record": "Office Visit", "spoken": "an office visit", "online": false, "book": true },
-    { "code": "", "record": "Video Visit", "spoken": "a video visit", "online": true, "book": true },
-    { "code": "1003", "record": "New Patient Appointment", "spoken": "a new patient visit", "online": false, "book": true },
-    { "code": "1400000001", "record": "MyChart Video Visit", "spoken": "a video visit", "online": true, "book": true },
-    { "code": "", "record": "X-Ray Exam", "spoken": "an X-ray", "online": false, "book": false }
+    { "code": "", "record": "Office Visit", "spoken": "an office visit", "online": false, "book": true, "patients": "established" },
+    { "code": "", "record": "Video Visit", "spoken": "a video visit", "online": true, "book": true, "patients": "either" },
+    { "code": "1003", "record": "New Patient Appointment", "spoken": "a new patient visit", "online": false, "book": true, "patients": "new" },
+    { "code": "1400000001", "record": "MyChart Video Visit", "spoken": "a video visit", "online": true, "book": true, "patients": "either" },
+    { "code": "", "record": "X-Ray Exam", "spoken": "an X-ray", "online": false, "book": false, "patients": "either" }
   ],
   "visit_groups": [
     { "name": "primary care", "words": ["checkup", "check-up", "regular doctor"], "visit_types": ["Office Visit", "New Patient Appointment"] },
@@ -44,15 +44,17 @@
   ],
   "specialty_list": "urn:oid:1.2.840.114350.1.13.0.1.7.10.686980.110",
   "specialties": [
-    { "code": "9", "spoken": "family medicine", "words": ["family doctor", "primary care", "regular doctor"] },
-    { "code": "", "spoken": "dermatology", "words": ["skin doctor"] },
-    { "code": "4", "spoken": "cardiology", "words": ["heart doctor"] },
-    { "code": "40", "spoken": "radiology", "words": ["x-ray", "imaging"] }
+    { "code": "9", "spoken": "family medicine", "words": ["family doctor", "primary care", "regular doctor"], "primary_care": true },
+    { "code": "", "spoken": "dermatology", "words": ["skin doctor"], "primary_care": false },
+    { "code": "4", "spoken": "cardiology", "words": ["heart doctor"], "primary_care": false },
+    { "code": "40", "spoken": "radiology", "words": ["x-ray", "imaging"], "primary_care": false }
   ],
   "slots_offered": 3,
   "narrow_over": 2,
   "groups_named": 3,
   "past_days": 400,
+  "established_years": 3,
+  "sooner_with_others": true,
   "ahead_windows": [7, 30, 90],
   "booking_note_label": "(automated transcription from patient)"
 }

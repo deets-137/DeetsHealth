@@ -23,7 +23,9 @@ use serde_json::{json, Value};
 
 use crate::{
     epic::Epic,
-    hospital::{FacilityRow, Hospital, HoursRow, LocationRow, PlaceSearch, Places, SpecialtyRow, VisitTypeRow, PLACES_MAX},
+    hospital::{
+        ClinicianRef, FacilityRow, Hospital, HoursRow, LocationRow, PlaceRef, PlaceSearch, Places, SpecialtyRow, VisitTypeRow, PLACES_MAX,
+    },
     scheduler::{BookResult, FoundSlots, FoundVisits, Scheduler, SchedulerDown, Slot, SlotId, SlotWish, VisitAsk, VisitStatus},
     session::PatientKey,
     verify::{Candidate, Claimed, Down, Patients},
@@ -184,6 +186,8 @@ impl EpicEhr {
             days: Vec::new(),
             clinician: None,
             who: Some(Shielded::new(demographics(&record))),
+            seen: Vec::new(),
+            place: None,
         };
         let mut out = Vec::new();
         let h = Hospital::file();
@@ -263,6 +267,8 @@ impl EpicEhr {
                 days: Vec::new(),
                 clinician: None,
                 who: Some(who.clone()),
+                seen: Vec::new(),
+                place: None,
             };
             match self.scheduler.find(&Hospital::file(), &key, &wish).await {
                 Ok(found) => {
@@ -306,17 +312,37 @@ impl Patients for EpicPatients {
         }
         let bundle = self.epic.read(url).await.map_err(|_| Down)?;
         Ok(entries(&bundle, "Patient")
-            .filter_map(|r| Some((patient_fields(r, Timestamp::now())?, demographics(r))))
-            .map(|(p, facts)| Candidate {
+            .filter_map(|r| Some((patient_fields(r, Timestamp::now())?, demographics(r), pcps(r))))
+            .map(|(p, facts, pcp)| Candidate {
                 patient: PatientKey(Shielded::new(p.id)),
                 given: Shielded::new(p.given),
                 family: Shielded::new(p.family),
                 birth_date: Shielded::new(p.birth_date),
                 phone: p.phone.map(Shielded::new),
                 facts: Some(Shielded::new(facts)),
+                pcp,
             })
             .collect())
     }
+}
+
+/// The patient's PCPs (`generalPractitioner`): each Practitioner reference, by its FHIR id and
+/// display (step 0, EPIC.md §7.12: relative `Practitioner/{id}` references with a display; one
+/// test patient has two). A PractitionerRole or Organization reference is not a clinician.
+fn pcps(r: &Value) -> Vec<ClinicianRef> {
+    r["generalPractitioner"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|g| {
+            let reference = g["reference"].as_str()?;
+            if !(reference.starts_with("Practitioner/") || reference.contains("/Practitioner/")) {
+                return None;
+            }
+            let id = reference.rsplit('/').next().filter(|i| !i.is_empty());
+            Some(ClinicianRef::new(id, g["display"].as_str()))
+        })
+        .collect()
 }
 
 /// Visits in Epic's sandbox; slots from `$find`, bookings by `$book` (E-4, EPIC.md §7.10). Each
@@ -354,6 +380,12 @@ impl EpicScheduler {
         ];
         if let Some(d) = &wish.latest_day {
             parameter.push(json!({"name": "endTime", "valueDateTime": at(d, 1)?.to_string()}));
+        }
+        // The caller's usual place (BOOKING-RULES.md §3.2): a Location reference, as Epic's sample
+        // sends it (the probe of 2026-11-15 took it). A place with no FHIR id sends nothing; the
+        // service keeps only that place's slots either way.
+        if let Some(id) = wish.place.as_ref().and_then(|p| p.id.as_ref()) {
+            parameter.push(json!({"name": "location-reference", "valueReference": {"reference": format!("Location/{}", id.reveal(pass))}}));
         }
         if wish.time_of_day.is_some() || !wish.days.is_empty() {
             let mut repeat = json!({});
@@ -523,6 +555,8 @@ struct Visit {
     starts_at: String,
     minutes: u32,
     clinician: String,
+    /// The Practitioner's FHIR id: the PCP is matched by it (BOOKING-RULES.md §3.2).
+    clinician_id: Option<String>,
     /// The Location's name, as the record holds it; none when it names no place.
     place: Option<String>,
     /// The Location's FHIR id: the hospital's list matches it first.
@@ -544,16 +578,20 @@ impl Visit {
     fn into_slot(self, h: &Hospital) -> Slot {
         let about = h.about(self.visit_type.as_deref(), self.reason.as_deref()).with_instructions(self.instructions.as_deref());
         let group = h.group_of(&about, self.visit_type.as_deref());
+        let clinician_ref = ClinicianRef::new(self.clinician_id.as_deref(), Some(&self.clinician));
         Slot {
             id: SlotId(format!("epic-appointment-{}", self.id)),
             starts_at: Shielded::new(self.starts_at),
             minutes: self.minutes,
             clinician: Shielded::new(self.clinician),
+            clinician_ref,
             place: Shielded::new(h.place(self.place_id.as_deref(), self.place.as_deref())),
             about,
             csn: self.csn.map(Shielded::new),
             status: self.status,
             group,
+            place_ref: PlaceRef::new(self.place_id.as_deref(), self.place.as_deref()),
+            kind: h.patients_of(self.visit_type.as_deref()),
         }
     }
 }
@@ -679,6 +717,7 @@ fn appointment(a: &Value, tz: &TimeZone, now: Timestamp) -> Option<(Timestamp, V
             starts_at: local.strftime("%Y-%m-%dT%H:%M").to_string(),
             minutes,
             clinician: actor(a, "Practitioner/").unwrap_or_default(),
+            clinician_id: actor_id(a, "Practitioner/"),
             place: actor(a, "Location/"),
             place_id: actor_id(a, "Location/"),
             // The visit type's words, else the visit's short subject line (EPIC.md §7.3).
@@ -730,16 +769,21 @@ fn proposed(a: &Value, h: &Hospital) -> Option<Slot> {
     let visit_type = concept_words(&a["serviceType"][0]);
     let about = h.about(visit_type.as_deref(), None);
     let group = h.group_of(&about, visit_type.as_deref());
+    let (place_id, place) = (actor_id(a, "Location/"), actor(a, "Location/"));
+    let clinician = actor(a, "Practitioner/");
     Some(Slot {
         id: SlotId(format!("epic-proposed-{}@{}", a["id"].as_str()?, start)),
         starts_at: Shielded::new(start.to_zoned_datetime(zone).strftime("%Y-%m-%dT%H:%M").to_string()),
         minutes,
-        clinician: Shielded::new(actor(a, "Practitioner/").unwrap_or_default()),
-        place: Shielded::new(h.place(actor_id(a, "Location/").as_deref(), actor(a, "Location/").as_deref())),
+        clinician_ref: ClinicianRef::new(actor_id(a, "Practitioner/").as_deref(), clinician.as_deref()),
+        clinician: Shielded::new(clinician.unwrap_or_default()),
+        place: Shielded::new(h.place(place_id.as_deref(), place.as_deref())),
         about,
         csn: None,
         status: VisitStatus::Upcoming,
         group,
+        place_ref: PlaceRef::new(place_id.as_deref(), place.as_deref()),
+        kind: h.patients_of(visit_type.as_deref()),
     })
 }
 
@@ -877,7 +921,7 @@ fn places_from(found: &[Value]) -> Result<Places, String> {
                 }
                 if system == p.specialty_list {
                     if !p.specialties.iter().any(|s| s.code == code) {
-                        p.specialties.push(SpecialtyRow { code: code.clone(), spoken: words.to_lowercase(), words: vec![] });
+                        p.specialties.push(SpecialtyRow { code: code.clone(), spoken: words.to_lowercase(), words: vec![], primary_care: false });
                     }
                     specialty = code;
                 } else {

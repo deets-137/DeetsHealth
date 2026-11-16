@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [console/src/pages/agent.ts, console/src/pages/system.ts, console/src/styles/config.css, agent/prompts/GUIDE.md, agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/prompts.py, agent/deets_agent/dev_server.py, agent/tests/test_prompts.py, agent/prompts/AGENT-PROMPT.md, agent/prompts/TOOLS.md, docs/architecture/images/system-test-variable-2026-11-13.png, docs/architecture/images/agent-code-keys-jitter-2026-11-14.png]
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # DeetsHealth — Config › Agent, arranged by the call
 

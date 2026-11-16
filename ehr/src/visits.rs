@@ -168,6 +168,9 @@ mod tests {
             csn: None,
             status,
             group: group.map(|g| Shielded::new(g.to_string())),
+            place_ref: Default::default(),
+            kind: Default::default(),
+            clinician_ref: Default::default(),
         }
     }
 

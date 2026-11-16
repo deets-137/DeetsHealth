@@ -52,6 +52,8 @@ pub const KEYS: &[&str] = &[
     "narrow_over",
     "groups_named",
     "past_days",
+    "established_years",
+    "sooner_with_others",
     "ahead_windows",
     "booking_note_label",
 ];
@@ -104,6 +106,63 @@ pub struct VisitTypeRow {
     pub online: bool,
     #[serde(default)]
     pub book: bool,
+    /// Which patients the type is for (BOOKING-RULES.md §3.4). A version saved before the
+    /// column reads as "either".
+    #[serde(default)]
+    pub patients: PatientKind,
+}
+
+/// Whether a visit type is for patients new to the department's specialty, for established
+/// ones, or for either (BOOKING-RULES.md §3.4; the CPT rule: new = not seen by that specialty
+/// in the hospital's window, `established_years`).
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum PatientKind {
+    #[default]
+    Either,
+    New,
+    Established,
+}
+
+impl PatientKind {
+    /// Whether a caller who is (or is not) established fits.
+    pub fn fits(self, established: bool) -> bool {
+        match self {
+            PatientKind::Either => true,
+            PatientKind::New => !established,
+            PatientKind::Established => established,
+        }
+    }
+}
+
+/// A clinician as a record names them: the Practitioner's FHIR id and the display name, the same
+/// shape as a place (BOOKING-RULES.md §3.2: the PCP, and who a visit or a slot is with).
+pub type ClinicianRef = PlaceRef;
+
+/// A place as a visit's record names it: the Location's FHIR id and the record's name, trimmed
+/// and in lower case so it compares without a reveal. Wrapped: on a patient's visit it says
+/// where they were seen.
+#[derive(Clone, Default, PartialEq)]
+pub struct PlaceRef {
+    pub id: Option<Shielded<String>>,
+    pub name: Option<Shielded<String>>,
+}
+
+impl PlaceRef {
+    pub fn new(id: Option<&str>, name: Option<&str>) -> Self {
+        let keep = |s: Option<&str>, lower: bool| {
+            s.map(str::trim).filter(|s| !s.is_empty()).map(|s| Shielded::new(if lower { s.to_lowercase() } else { s.to_string() }))
+        };
+        Self { id: keep(id, false), name: keep(name, true) }
+    }
+
+    /// The same place (or clinician): the same FHIR id when both have one, else the same name.
+    pub fn same(&self, other: &PlaceRef) -> bool {
+        match (&self.id, &other.id) {
+            (Some(a), Some(b)) => a == b,
+            _ => self.name.is_some() && self.name == other.name,
+        }
+    }
 }
 
 /// One time of day a caller may name ("morning"): its first hour and its length.
@@ -229,6 +288,11 @@ pub struct SpecialtyRow {
     pub spoken: String,
     #[serde(default)]
     pub words: Vec<String>,
+    /// Primary care (BOOKING-RULES.md §4): a call that names no specialty searches at the
+    /// caller's last department of a primary care specialty when they have no visit with their
+    /// PCP. A version saved before the mark reads as not primary care.
+    #[serde(default)]
+    pub primary_care: bool,
 }
 
 /// One reason as a code (Epic's `indications`). Kept; no call reads it yet: booking sends the
@@ -323,6 +387,12 @@ pub struct Hospital {
     pub groups_named: usize,
     /// How far back "when was I last seen?" looks, in days.
     pub past_days: i64,
+    /// A caller seen by a specialty within this many years is established in it (the CPT
+    /// rule's 3 by default; BOOKING-RULES.md §3.4).
+    pub established_years: i64,
+    /// The owner's P-A (BOOKING-RULES.md §3.3): with the PCP's times, also offer a time with
+    /// another clinician at the same place when it is on an earlier day than the PCP's first.
+    pub sooner_with_others: bool,
     /// The windows the search for the visits to come widens through, in days, then no end.
     pub ahead_windows: Vec<i64>,
     /// Put after the caller's words in the note a booking files in Epic (the owner's N2,
@@ -585,6 +655,8 @@ pub fn check_key(key: &str, value: &Value) -> Result<(), String> {
         "narrow_over" => whole(key, value, 1, 10).map(|_| ()),
         "groups_named" => whole(key, value, 1, 5).map(|_| ()),
         "past_days" => whole(key, value, 1, 3650).map(|_| ()),
+        "established_years" => whole(key, value, 1, 10).map(|_| ()),
+        "sooner_with_others" => value.as_bool().map(|_| ()).ok_or_else(|| format!("{key}: on or off")),
         "ahead_windows" => {
             let list: Vec<i64> = field(key, value)?;
             if list.is_empty() || list.len() > WINDOWS_MAX {
@@ -675,6 +747,8 @@ impl Hospital {
             narrow_over: n("narrow_over") as usize,
             groups_named: n("groups_named") as usize,
             past_days: n("past_days"),
+            established_years: n("established_years"),
+            sooner_with_others: get("sooner_with_others").as_bool().unwrap_or(true),
             ahead_windows: field("ahead_windows", get("ahead_windows"))?,
             booking_note_label: field("booking_note_label", get("booking_note_label"))?,
         })
@@ -720,7 +794,7 @@ impl Hospital {
             if epic {
                 self.coded_bookable().any(|t| t.online == online)
             } else {
-                self.fake_type(online).is_some()
+                self.fake_type(online, true).is_some() || self.fake_type(online, false).is_some()
             }
         };
         has(true) && has(false)
@@ -744,10 +818,52 @@ impl Hospital {
         self.visit_types.iter().filter(|t| t.book && !t.code.trim().is_empty())
     }
 
-    /// The type the local fake gives a slot that is online or not: the first the agent may
-    /// book. None: the fake offers no such slot.
-    pub fn fake_type(&self, online: bool) -> Option<&VisitTypeRow> {
-        self.visit_types.iter().find(|t| t.book && t.online == online)
+    /// The type the local fake gives a slot that is online or not, for a caller who is (or is
+    /// not) established: the first the agent may book that fits. None: the fake offers no such
+    /// slot.
+    pub fn fake_type(&self, online: bool, established: bool) -> Option<&VisitTypeRow> {
+        self.visit_types.iter().find(|t| t.book && t.online == online && t.patients.fits(established))
+    }
+
+    /// Whether any type the agent may book is for new or for established patients only: then a
+    /// search needs the caller's past visits (BOOKING-RULES.md §3.4). With none, no read.
+    pub fn sorts_patients(&self) -> bool {
+        self.visit_types.iter().any(|t| t.book && t.patients != PatientKind::Either)
+    }
+
+    /// Which patients a slot's type is for, by the record's name: "either" for a type not on
+    /// the list.
+    pub fn patients_of(&self, visit_type: Option<&str>) -> PatientKind {
+        visit_type.and_then(|t| self.visit_type(t)).map(|r| r.patients).unwrap_or_default()
+    }
+
+    /// The department a place names: by its FHIR id first, then by the record's name.
+    fn department(&self, at: &PlaceRef) -> Option<&LocationRow> {
+        if let Some(id) = &at.id {
+            if let Some(row) = self.locations.iter().find(|l| !l.id.trim().is_empty() && Shielded::new(l.id.trim().to_string()) == *id) {
+                return Some(row);
+            }
+        }
+        let name = at.name.as_ref()?;
+        self.locations.iter().find(|l| Shielded::new(l.record.trim().to_lowercase()) == *name)
+    }
+
+    /// Whether a place is a department of a primary care specialty on the lists.
+    pub fn primary_care_at(&self, at: &PlaceRef) -> bool {
+        let Some(code) = self.department(at).map(|l| l.specialty.trim()).filter(|s| !s.is_empty()) else { return false };
+        self.specialties.iter().any(|s| s.primary_care && s.code.trim() == code)
+    }
+
+    /// Whether a caller seen at `seen` (their seen visits in the window) is established at
+    /// `at` (BOOKING-RULES.md §3.4): seen at a department of the same specialty, by the Places
+    /// list; when `at` has no specialty on the list, seen at that same department. Answers yes
+    /// or no and never reveals a place.
+    pub fn established(&self, seen: &[PlaceRef], at: &PlaceRef) -> bool {
+        let specialty = self.department(at).map(|l| l.specialty.trim()).filter(|s| !s.is_empty());
+        seen.iter().any(|v| match specialty {
+            Some(s) => self.department(v).is_some_and(|l| l.specialty.trim() == s),
+            None => v.same(at),
+        })
     }
 
     /// The row of a visit type, by the record's name, in any case.
@@ -912,8 +1028,60 @@ mod tests {
     #[test]
     fn the_fake_and_epic_each_have_a_type_to_book() {
         let h = Hospital::file();
-        assert!(h.fake_type(false).is_some() && h.fake_type(true).is_some());
+        for established in [true, false] {
+            assert!(h.fake_type(false, established).is_some() && h.fake_type(true, established).is_some());
+        }
         assert!(h.coded_bookable().any(|t| t.online) && h.coded_bookable().any(|t| !t.online));
+    }
+
+    #[test]
+    fn the_default_gives_new_and_established_callers_their_own_in_person_type() {
+        let h = Hospital::file();
+        assert!(h.sorts_patients());
+        assert_eq!(h.fake_type(false, true).unwrap().record, "Office Visit");
+        assert_eq!(h.fake_type(false, false).unwrap().record, "New Patient Appointment");
+        // Online is for either.
+        assert_eq!(h.fake_type(true, true), h.fake_type(true, false));
+        assert_eq!(h.established_years, 3);
+    }
+
+    #[test]
+    fn established_by_the_specialty_else_by_the_same_department() {
+        let list = json!("urn:oid:1.2.840.114350.1.13.0.1.7.10.686980.110");
+        let specialties = json!([{"code": "9", "spoken": "family medicine"}, {"code": "4", "spoken": "cardiology"}]);
+        let locations = json!([
+            {"record": "North Family Medicine", "id": "d1", "specialty": "9"},
+            {"record": "South Family Medicine", "id": "d2", "specialty": "9"},
+            {"record": "EMC Cardiology", "id": "d3", "specialty": "4"},
+            {"record": "Main Street Clinic"}
+        ]);
+        let h = Hospital::from_pairs([("specialty_list", &list), ("specialties", &specialties), ("locations", &locations)]).unwrap();
+        let at = |id: Option<&str>, name: &str| PlaceRef::new(id, Some(name));
+        let seen_north = [at(Some("d1"), "North Family Medicine")];
+        // Seen by family medicine at another department: established in family medicine.
+        assert!(h.established(&seen_north, &at(Some("d2"), "South Family Medicine")));
+        // Not seen by cardiology: new there.
+        assert!(!h.established(&seen_north, &at(Some("d3"), "EMC Cardiology")));
+        // A place with no specialty on the list: the same department only, by name in any case.
+        let seen_main = [at(None, "  main street clinic ")];
+        assert!(h.established(&seen_main, &at(None, "Main Street Clinic")));
+        assert!(!h.established(&seen_main, &at(None, "Lab Annex")));
+        // Nothing seen: new everywhere.
+        assert!(!h.established(&[], &at(Some("d1"), "North Family Medicine")));
+        assert!(PatientKind::New.fits(false) && !PatientKind::New.fits(true));
+        assert!(PatientKind::Established.fits(true) && !PatientKind::Established.fits(false));
+        assert!(PatientKind::Either.fits(true) && PatientKind::Either.fits(false));
+    }
+
+    #[test]
+    fn a_version_from_before_the_column_reads_as_either_and_needs_no_read() {
+        let old = json!([{"code": "", "record": "Office Visit", "spoken": "", "online": false, "book": true}]);
+        let h = Hospital::from_pairs([("visit_types", &old)]).expect("an old version");
+        assert_eq!(h.visit_types[0].patients, PatientKind::Either);
+        assert!(!h.sorts_patients(), "no type for one kind: no past-visit read");
+        assert!(check_key("visit_types", &json!([{"record": "A", "patients": "returning"}])).is_err());
+        assert!(check_key("established_years", &json!(0)).is_err());
+        assert!(check_key("established_years", &json!(11)).is_err());
     }
 
     #[test]

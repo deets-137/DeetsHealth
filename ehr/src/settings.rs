@@ -133,6 +133,7 @@ pub const PROMPT: &[Setting] = &[
     p("arg.find_slots.clinician", &[]),
     p("arg.find_slots.any_time", &[]),
     p("arg.find_slots.more", &[]),
+    p("arg.find_slots.any_place", &[]),
     p("tool.choose_option", &[]),
     p("arg.choose_option.option", &[]),
     p("tool.book", &[]),
@@ -173,6 +174,8 @@ pub const PROMPT: &[Setting] = &[
     p("line.code_wrong", &[]),
     p("line.no_more_codes", &[]),
     p("line.code_resent", &[]),
+    p("line.ask_reason", &[]),
+    p("note.after_ask_reason", &[]),
     p("line.ask_preference_both", &[]),
     p("line.ask_preference_mode", &[]),
     p("line.ask_preference_when", &[]),
@@ -181,8 +184,11 @@ pub const PROMPT: &[Setting] = &[
     p("line.no_more_slots", &[]),
     p("line.slots", &["options"]),
     p("line.slot_option", &["number", "visit"]),
+    p("line.slots_usual_place", &["place"]),
+    p("line.slot_sooner", &["number"]),
     p("line.which_option", &[]),
     p("line.confirm_slot", &["number", "visit"]),
+    p("note.question_with_choice", &["number"]),
     p("line.change_booked", &["visit"]),
     p("line.change_visit", &[]),
     p("line.slot_taken", &[]),
@@ -219,6 +225,7 @@ pub const PROMPT: &[Setting] = &[
     p("line.goodbye", &[]),
     p("line.hand_off", &[]),
     p("line.hand_off_code", &[]),
+    p("line.hand_off_answer", &[]),
     p("note.after_reminder", &[]),
     p("note.after_flag", &[]),
     p("note.summary_pronoun", &[]),
@@ -254,6 +261,8 @@ pub const HOSPITAL: &[Setting] = &[
     s("narrow_over", Kind::Hospital),
     s("groups_named", Kind::Hospital),
     s("past_days", Kind::Hospital),
+    s("established_years", Kind::Hospital),
+    s("sooner_with_others", Kind::Hospital),
     s("ahead_windows", Kind::Hospital),
     s("booking_note_label", Kind::Hospital),
 ];
@@ -883,7 +892,7 @@ mod tests {
                 (s.key.to_string(), json!(format!("Words {words}.")).to_string())
             })
             .collect();
-        assert_eq!(check(PROMPT, &set).unwrap().len(), 123);
+        assert_eq!(check(PROMPT, &set).unwrap().len(), 130);
 
         let with = |key: &str, text: &str| {
             let mut s = set.clone();

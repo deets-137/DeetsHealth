@@ -33,6 +33,9 @@ pub struct Patient {
     pub birth_date: String,
     /// The number on file that takes a text.
     pub phone: String,
+    /// The primary care provider on file, by the clinician's name (BOOKING-RULES.md §3.2).
+    #[serde(default)]
+    pub pcp: Option<String>,
 }
 
 #[derive(Deserialize)]
