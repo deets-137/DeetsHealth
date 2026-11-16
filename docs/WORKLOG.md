@@ -51,6 +51,14 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   keep. Built in `scripts/dev.mjs`: each step timed, a `ready in` summary, a `slower than
   usual` note, `logs/dev-start.jsonl`, a `building ehr…` line (HANDOFF.md › Run it). Not run
   yet: his dev server held the terminal.
+- Committed `c62816a` (the dependency work) and `d387127` (Open now), apart from the other
+  session's files. SECURITY.md §7.1: a watch list for dependencies and the build (a draft).
+- He desk-tested sqlx 0.9 (done). His choice for the no-OpenSSL guard: cargo-deny (Embark
+  Studios) over a `cargo tree` step. Built: `deny.toml` (bans OpenSSL, `native-tls`, `ring` in
+  `ehr` on every platform; advisories and crates.io-only sources for the workspace), two steps
+  in the `ehr` scope of `npm run check`, cargo-deny pinned at 0.20.2, `env:check` shows it,
+  `publish = false` on `core` and `ehr`. First run: no advisory; the ban, tried on `core` alone,
+  fails on `native-tls`, `openssl` and `openssl-sys` as it should.
 
 ## 2026-11-15 (Windows, late night) — jiff 1.0, timestamps with offsets, the dependency list
 - jiff 0.2 → 1.0 in `ehr` (released today): the rename `to_zoned` → `to_zoned_datetime` and

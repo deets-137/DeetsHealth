@@ -1,0 +1,41 @@
+# cargo-deny (EmbarkStudios/cargo-deny), run by `npm run check` (scripts/check.mjs; DEPENDENCIES.md
+# §6; SECURITY.md §7.1, items 2 and 5). Two runs, one config:
+# - bans: ehr's graph only (`--manifest-path ehr/Cargo.toml`), every target platform. core built
+#   alone keeps native-tls for the patient app, so the bans never apply to the workspace.
+# - advisories and sources: the whole workspace (`--workspace`).
+# Licenses are not checked (not decided).
+
+[graph]
+# Empty: every target platform, so a crate that only Linux (the deploy) pulls in is seen too.
+targets = []
+all-features = false
+no-default-features = false
+
+[output]
+feature-depth = 1
+
+[advisories]
+# RustSec's database, fetched on each run. An advisory fails the check; an exception goes here
+# with its id and the reason, and gets a line in DEPENDENCIES.md §5.
+ignore = []
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+# One TLS stack and one crypto provider in ehr: rustls on AWS-LC (FIPS in the `fips` build).
+# Cargo turns a feature on for the whole build when any crate asks, so a new dependency can
+# bring these back without a word (core's reqwest did, until 2026-11-16).
+deny = [
+    { crate = "openssl-sys", reason = "OpenSSL: a second TLS stack in ehr (SECURITY.md §7.1, item 5)" },
+    { crate = "openssl", reason = "OpenSSL: a second TLS stack in ehr (SECURITY.md §7.1, item 5)" },
+    { crate = "native-tls", reason = "the OS's TLS (OpenSSL on Linux): a second TLS stack in ehr" },
+    { crate = "ring", reason = "a second crypto provider beside AWS-LC, outside the FIPS module" },
+]
+
+[sources]
+# crates.io only. A git or other registry dependency fails the check.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

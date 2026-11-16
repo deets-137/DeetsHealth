@@ -7,6 +7,7 @@
 // - a `# NAME=` line: a setting with a default in the code, reported as set or default.
 // Then the secret files outside .env, also made per machine.
 // It exits 1 only when a "(needed)" group is incomplete.
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
@@ -109,6 +110,13 @@ console.log("Build tools (per machine):");
   const { bin } = protocPaths();
   const ok = existsSync(bin);
   console.log(`  ${(ok ? "ok " : "off").padEnd(7)} ${relative(root, bin).replaceAll("\\", "/")} — Google's protoc for ehr's build (node scripts/protoc.mjs)`);
+}
+// cargo-deny: npm run check's banned crates and advisories (deny.toml). The version is pinned
+// in scripts/check.mjs; this line only says whether it is installed.
+{
+  const v = spawnSync("cargo", ["deny", "--version"], { encoding: "utf8" });
+  const have = v.status === 0 ? v.stdout.trim() : null;
+  console.log(`  ${(have ? "ok " : "MISSING").padEnd(7)} ${have ?? "cargo-deny"} — npm run check's Rust checks (DEPENDENCIES.md §1)`);
 }
 
 process.exit(failed ? 1 : 0);

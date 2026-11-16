@@ -233,9 +233,12 @@ The full map of laws, guidance and standards, and what each asks of us: REGULATI
    `protobuf` (below 7), so a fix in those can wait on Pipecat. Holds now: known publishers;
    `uv.lock` pins every wheel by hash. Watch: Pipecat's releases and advisories; check the
    tree at each Pipecat major.
-2. **No audit for Rust or Python yet.** `npm audit` runs (console, JWKS worker). `cargo audit`
-   and `pip-audit` have never run (DEPENDENCIES.md §6). Watch: run both before the first real
-   call, then on a schedule.
+2. **Audits: Rust is automatic, Python is not yet.** `npm audit` runs by hand (console, JWKS
+   worker). Since 2026-11-16 `npm run check` runs cargo-deny on every Rust change and on the
+   pre-push hook: RustSec's advisories and crates.io-only sources for the whole workspace
+   (`deny.toml`); none found on its first run. `pip-audit` has never run (DEPENDENCIES.md §6).
+   Watch: run `pip-audit` before the first real call, then on a schedule; a Rust advisory that
+   cannot be fixed at once goes in `deny.toml`'s `ignore` with its reason, never silently.
 3. **Tools that run with the owner's sign-ins.** `cf` (the deploy CLI) runs on the owner's PC
    with his Cloudflare sign-in; its beta.19 bundled `undici` with a TLS-check bypass (fixed in
    beta.32). The npm name `cf` had an owner before Cloudflare. Holds now: exact pins; npm runs no
@@ -249,8 +252,10 @@ The full map of laws, guidance and standards, and what each asks of us: REGULATI
 5. **One TLS stack in `ehr`, kept by a feature flag.** `ehr` is rustls on AWS-LC (FIPS in the
    `fips` build). Cargo turns on a feature for the whole build when any crate asks for it, so a
    new dependency can bring `native-tls` and OpenSSL back without a word (it did until
-   2026-11-16). Watch: `cargo tree -p deetshealth-ehr -e normal --target all -i openssl-sys`
-   finds nothing; a check in `npm run check` would make it automatic.
+   2026-11-16). Holds now (2026-11-16): `npm run check`'s "ehr banned crates" step (cargo-deny,
+   `deny.toml`) fails when `openssl-sys`, `openssl`, `native-tls` or `ring` is in `ehr`'s graph on
+   any platform, and names the path that brought it. Watch: a step that fails here is a design
+   question, not a lint to silence.
 6. **SQL text from code only.** `ehr/src/sql.rs` holds the one `AssertSqlSafe` in `ehr/src`
    (DATABASE.md §4a). Watch: any new `AssertSqlSafe` outside it is a review stop.
 7. **The console's dev server stays local.** Vite 6 is a major behind; its dev server has had

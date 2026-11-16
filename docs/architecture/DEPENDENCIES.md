@@ -1,7 +1,7 @@
 ---
 status: foundation
 desk_test: none
-sources: [core/Cargo.toml, ehr/Cargo.toml, Cargo.lock, agent/pyproject.toml, agent/uv.lock, package.json, package-lock.json, ehr/jwks-worker/package.json, ehr/protoc.json, scripts/protoc.mjs]
+sources: [core/Cargo.toml, ehr/Cargo.toml, Cargo.lock, deny.toml, agent/pyproject.toml, agent/uv.lock, package.json, package-lock.json, ehr/jwks-worker/package.json, ehr/protoc.json, scripts/protoc.mjs]
 updated: 2026-11-16
 ---
 
@@ -56,6 +56,11 @@ Terms:
 **Build tool:** `protoc`, Google (protocolbuffers/protobuf releases), **36.2**, pinned by SHA-256
 in `ehr/protoc.json` (§5, item 3). A new version: change the version and every asset's hash
 there, from the digests on the GitHub release page; `build.rs` refuses any other version.
+
+**Check tool:** `cargo-deny`, Embark Studios (EmbarkStudios/cargo-deny on GitHub; crates.io owner
+`embark-studios`), **0.20.2**, pinned in `scripts/check.mjs` (`CARGO_DENY`). Config:
+`deny.toml`. Install once per machine: `cargo install cargo-deny --version 0.20.2 --locked`.
+A new version: change both, and read its notes for config changes.
 
 ## 2. Python (`agent/`, locked by uv)
 
@@ -184,7 +189,9 @@ is untrustworthy. These items need a second look:
 Audits run on 2026-11-15:
 - `npm audit` (console): 0 vulnerabilities.
 - `npm audit` (JWKS worker): the `cf` findings in item 1; 0 after the bump.
-- Rust (`cargo audit`) and Python (`pip-audit`): not run yet (§6).
+- Rust: not run on 2026-11-15. Since 2026-11-16, cargo-deny in `npm run check` (advisories and
+  sources for the workspace, banned crates for `ehr`); its first run found no advisory.
+- Python (`pip-audit`): not run yet (§6).
 
 ## 6. Refresh this doc
 
@@ -200,7 +207,8 @@ gh release view --repo protocolbuffers/protobuf
 The audits:
 
 ```bash
-cargo install cargo-audit --locked && cargo audit
+cargo deny --locked --workspace check advisories sources
+cargo deny --locked --manifest-path ehr/Cargo.toml check bans
 cd agent && uv export --format requirements-txt --no-hashes --all-groups > req.txt && uvx pip-audit -r req.txt --no-deps
 npm audit
 ```

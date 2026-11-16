@@ -58,10 +58,17 @@ const SCOPES = {
 		],
 	},
 	ehr: {
-		about: "the ehr service: its tests",
-		match: [/^ehr\/(?!jwks-worker\/)/, /^Cargo\.(toml|lock)$/, /^\.cargo\//, /^scripts\/protoc\.mjs$/],
+		about: "the ehr service: its tests, its banned crates, the advisories",
+		match: [/^ehr\/(?!jwks-worker\/)/, /^Cargo\.(toml|lock)$/, /^\.cargo\//, /^scripts\/protoc\.mjs$/, /^deny\.toml$/],
 		needs: ["core"],
-		steps: [["ehr tests", "cargo", ["test", "-q", "-p", "deetshealth-ehr"]]],
+		steps: [
+			["ehr tests", "cargo", ["test", "-q", "-p", "deetshealth-ehr"]],
+			// cargo-deny (deny.toml; SECURITY.md §7.1, items 2 and 5): no second TLS stack or crypto
+			// provider in ehr on any platform, then RustSec's advisories and crates.io-only sources
+			// for the whole workspace. The advisories need the network (RustSec's database).
+			["ehr banned crates", "cargo", ["deny", "--locked", "--manifest-path", "ehr/Cargo.toml", "check", "bans"]],
+			["Rust advisories and sources", "cargo", ["deny", "--locked", "--workspace", "check", "advisories", "sources"]],
+		],
 		full: [["ehr lints", "cargo", ["clippy", "-q", "-p", "deetshealth-ehr", "--all-targets", "--", "-D", "warnings"]]],
 	},
 	agent: {
@@ -184,6 +191,20 @@ if (reasons.has("agent") && !existsSync(join(ROOT, "dev-certs"))) {
 if (reasons.has("keys") && !existsSync(join(WORKER, "node_modules"))) {
 	console.error("check: the key-set Worker is not installed. Run once: cd ehr/jwks-worker && npm install");
 	process.exit(1);
+}
+// cargo-deny, pinned: a newer version can read deny.toml differently, so it moves by a commit
+// that changes this line and DEPENDENCIES.md's row.
+const CARGO_DENY = "0.20.2";
+if (plan.some(({ step }) => step[2]?.[0] === "deny")) {
+	const v = spawnSync("cargo", ["deny", "--version"], { encoding: "utf8" });
+	const have = v.status === 0 ? v.stdout.trim().split(/\s+/).pop() : null;
+	if (have !== CARGO_DENY) {
+		console.error(
+			`check: cargo-deny ${CARGO_DENY} is needed (${have ? `found ${have}` : "not installed"}). ` +
+				`Run once: cargo install cargo-deny --version ${CARGO_DENY} --locked`,
+		);
+		process.exit(1);
+	}
 }
 // ehr's build runs Google's pinned protoc (DEPENDENCIES.md §5): fetch it before any cargo step.
 if (plan.some(({ step }) => step[1] === "cargo")) {

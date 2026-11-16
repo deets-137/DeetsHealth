@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "DeetsHealth's web-ready core: sign-in, fetch, sealing, the store and the normalizer."
 authors = ["Aditya Sundaram"]
 edition = "2021"
+# Never on crates.io (the repo is private; deny.toml's bans read this).
+publish = false
 
 # No Tauri here, ever: this crate must also build for wasm32-unknown-unknown (CORE-CRATE.md §3).
 [dependencies]
