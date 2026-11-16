@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 19 |
 | Theme (color roles) | themes.css | 36 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 119 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 126 tokens · overrides:  |
 
 ## Theme roles
 
@@ -151,6 +151,13 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--cfg-label` | `168px` | — | a Config row's name column: room for its longest name ("Longest wait (ms)") |
 | `--info-size` | `28px` | — | a Config row's "i" button, a rounded square |
 | `--help-max` | `640px` | — | a Config row's help text, at its widest |
+| `--col-min` | `100px` | — | The one table's columns (data-table.css; TABLES.md §3.1): each column's kind is a width. — a text column, at its least: the text columns share what the others leave |
+| `--col-id` | `152px` | — | an ID with its list's prefix ("R PRC 1003") |
+| `--col-short` | `152px` | — | a time, a date (YYYY-MM-DD), a number, a count |
+| `--col-choice` | `208px` | — | a select: room for "The hospital's diagnoses" |
+| `--col-flag` | `144px` | — | Off \| On (two --pair-part parts in their frame) |
+| `--icon-size` | `16px` | — | an icon in the "i"'s square: the row tools' ↑ ↓ ✕ |
+| `--search-width` | `280px` | — | a page's search box, on its tab bar's line (TABLES.md §6), at its widest |
 | `--prompt-max` | `1100px` | — | Config › Agent: the column of sections, at its widest: the name column and about 110 characters of words, so long sections wrap less |
 | `--prompt-indent` | `28px` | — | Config › Agent: a field's name, inset under its action's (the "i"'s width) |
 | `--thumb-size` | `16px` | — | a Config slider's thumb |

@@ -88,9 +88,9 @@ function table(title: string, roles: Role[]): Table {
     <section class="roles-section">
       <div class="auth-top">
         <h2 class="auth-title"></h2>
-        <button class="cfg-button cfg-save auth-add roles-add" type="button">Add</button>
+        <div class="dt-add"><div class="tabs" role="group"><button class="tab auth-add roles-add" type="button">Add</button></div></div>
       </div>
-      <table class="auth-table roles-table">
+      <table class="dt dt-plain auth-table roles-table">
         <thead><tr><th scope="col">Role</th></tr></thead>
         <tbody></tbody>
       </table>
@@ -203,7 +203,7 @@ function table(title: string, roles: Role[]): Table {
           <p class="cfg-status auth-edit-status roles-edit-status" role="status"></p>
           <div class="roles-users">
             <h3 class="roles-users-title">Users with this role</h3>
-            <table class="auth-table roles-users-table">
+            <table class="dt dt-plain roles-users-table">
               <thead><tr></tr></thead>
               <tbody></tbody>
             </table>

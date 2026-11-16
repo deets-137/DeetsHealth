@@ -37,6 +37,12 @@ hospital or a patient that the agent can do any of these things. The patient app
   in front of analysts is the production watch instead (sign-in, roles, an audit row per view;
   CONSOLE.md). **2026-11-13:** now a project with full access for guests, not watch-only:
   [ops/DEMO.md](../ops/DEMO.md).
+- **A Compass for the console** (the owner, 2026-11-15: "a DeetsMusic style DeetsCompass to do
+  full console navigation later"). One key opens a bar over any page. Typing lists the pages,
+  tabs, settings and rows that match, from every page; Enter goes to the owner of the result
+  (DeetsMusic's `docs/features/COMPASS.md`). Until then, each page's search box searches only
+  the tab it shows (TABLES.md §6.3, W3 B). Its key, its scope and how it shows a row from a
+  list wait for its design on paper. Hints and results never carry protected data.
 - **A CLI and an MCP server for the console** (the owner, 2026-11-12):
   [CONSOLE-MCP.md](CONSOLE-MCP.md). One staff API with three clients (the console, `deets` on
   the command line, a remote MCP server), under the same sign-in, roles and audit trail. The

@@ -9,6 +9,8 @@
 import type { Range, SettingVersion } from "../agent/api";
 import type { Store } from "../agent/store";
 import { holdReload } from "../reload";
+import { addButton, addTo, field as dtField, growAll, listTools, row as dtRow, table as dtTable } from "./data-table";
+import { flushWindows } from "./list-window";
 import { el } from "./page";
 import { placePill, type View } from "./subnav";
 
@@ -44,6 +46,9 @@ export type Kit = {
   rerender: (toTop?: boolean) => void;
   /** Call after an edit the kit did not make (a text box): Discard and Save follow it. */
   changed: () => void;
+  /** Gives controls drawn after the cards (a long list's window, a search's rows) the page's
+   * mode: in Read each is off. */
+  apply: (nodes: Iterable<Element>) => void;
 };
 
 export type Spec<V, D, S extends SettingsBase<V>> = {
@@ -76,6 +81,9 @@ export type Spec<V, D, S extends SettingsBase<V>> = {
 const INFO = `<span class="i-glyph" aria-hidden="true">i</span>`;
 
 /** The decimals a step needs: 0.05 → 2, 80 → 0. */
+/** The most characters a list's cell takes (a word, a phrase, how to say it). */
+const LIST_CELL = 200;
+
 export const decimals = (step: number) => (String(step).split(".")[1] ?? "").length;
 export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -153,15 +161,20 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         parts.forEach((b) => b.setAttribute("aria-checked", String(b.dataset.mode === mode)));
         placePill(pill, parts.find((b) => b.dataset.mode === mode), animate);
         animate = false;
-        // Read disables each control, not the whole body, so the "i" buttons still open. A
-        // control marked data-off (Listen; a value the model does not allow) stays off in both.
-        scroll
-          .querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>(
-            ".cfg-control input, .cfg-control select, .cfg-control button, .cfg-control textarea",
-          )
-          .forEach((x) => (x.disabled = mode === "read" || x.dataset.off !== undefined));
+        applyMode(scroll);
         pairs.forEach((p) => p());
         showStatus();
+      };
+      // Read disables each control, not the whole body, so the "i" buttons still open. A
+      // control marked data-off (Listen; a value the model does not allow) stays off in both.
+      const CONTROLS = ".cfg-control input, .cfg-control select, .cfg-control button, .cfg-control textarea";
+      const applyMode = (root: ParentNode) =>
+        root
+          .querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>(CONTROLS)
+          .forEach((x) => (x.disabled = mode === "read" || x.dataset.off !== undefined));
+      const apply = (nodes: Iterable<Element>) => {
+        for (const n of nodes) applyMode(n);
+        pairs.forEach((p) => p());
       };
       bar.addEventListener("click", (e) => {
         const b = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-mode]");
@@ -246,7 +259,17 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         }
       });
 
-      const changed = () => showStatus();
+      // Once a frame, not once a key: the check compares the whole draft with the saved one
+      // (TABLES.md §6.1).
+      let statusQueued = false;
+      const changed = () => {
+        if (statusQueued) return;
+        statusQueued = true;
+        requestAnimationFrame(() => {
+          statusQueued = false;
+          showStatus();
+        });
+      };
 
       // ---- the parts of a row
 
@@ -384,63 +407,28 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         pairs.push(place);
         return p;
       };
-      /** The add row (one text box per column, then Add), and under it the entries as a table
-       * with a header row and a Remove per entry. No table while it is empty. */
+      /** A list as the one table (data-table.ts; TABLES.md §3.16): Add at the top right, level
+       * with the row's name; each entry's cells edited in place, and its ✕. The order is not
+       * kept, so there is no ↑ ↓. A new entry is blank; the view's `blocked` holds Save until it
+       * has words. */
       const table = (rows: string[][], columns: string[]) => {
-        const wrap = el(`<div class="cfg-list"><div class="cfg-add"></div><table class="cfg-table"><thead><tr></tr></thead><tbody></tbody></table></div>`);
-        const add = wrap.querySelector<HTMLElement>(".cfg-add")!;
-        const t = wrap.querySelector<HTMLTableElement>("table")!;
-        const head = t.querySelector("tr")!;
-        const body = t.querySelector("tbody")!;
-        for (const c of [...columns, ""]) {
-          const th = document.createElement("th");
-          th.scope = "col";
-          th.textContent = c;
-          head.append(th);
-        }
-        const draw = () => {
-          t.hidden = rows.length === 0;
-          body.replaceChildren(
-            ...rows.map((cells, i) => {
-              const tr = document.createElement("tr");
-              for (const c of cells) {
-                const td = document.createElement("td");
-                td.textContent = c;
-                tr.append(td);
-              }
-              const td = el(`<td class="cfg-remove"><button class="cfg-link" type="button">Remove</button></td>`);
-              td.querySelector("button")!.addEventListener("click", () => {
-                rows.splice(i, 1);
-                draw();
-                changed();
-              });
-              tr.append(td);
-              return tr;
+        const wrap = el(`<div class="cfg-list"><div class="cfg-list-top"></div></div>`);
+        const done = () => {
+          changed();
+          render();
+        };
+        wrap.querySelector(".cfg-list-top")!.append(addButton(`Add to ${columns.join(", ")}`, () => addTo(rows, columns.map(() => ""), done)));
+        const t = dtTable(columns.join(", "), columns, { remove: true });
+        for (const r of rows) {
+          const cells = columns.map((c, i) =>
+            dtField(c, r[i] ?? "", LIST_CELL, (v) => {
+              r[i] = v;
+              changed();
             }),
           );
-        };
-        const inputs = columns.map((c) => {
-          const input = document.createElement("input");
-          input.type = "text";
-          input.className = "cfg-field";
-          input.placeholder = c;
-          input.setAttribute("aria-label", c);
-          return input;
-        });
-        const button = el(`<button class="cfg-button" type="button">Add</button>`);
-        const takeRow = () => {
-          const cells = inputs.map((x) => x.value.trim());
-          if (cells.some((c) => !c)) return;
-          rows.push(cells);
-          inputs.forEach((x) => (x.value = ""));
-          inputs[0].focus();
-          draw();
-          changed();
-        };
-        button.addEventListener("click", takeRow);
-        inputs.forEach((x) => x.addEventListener("keydown", (e) => e.key === "Enter" && takeRow()));
-        add.append(...inputs, button);
-        draw();
+          t.body.append(...dtRow(r, r[0] || "A new row", cells, [], listTools(rows, r, r[0] ? `"${r[0]}"` : "this row", done, { move: false })));
+        }
+        wrap.append(t.wrap);
         return wrap;
       };
       /** A card; `name` places it in the layout (config.css › .cfg-card[data-card]). */
@@ -452,7 +440,7 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         return c;
       };
 
-      const kit: Kit = { row, keyed, fixed, select, slider, number, pair, table, card, rerender: (toTop) => render(toTop), changed };
+      const kit: Kit = { row, keyed, fixed, select, slider, number, pair, table, card, rerender: (toTop) => render(toTop), changed, apply };
 
       // ---- the view
 
@@ -477,7 +465,11 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         const top = scroll.scrollTop;
         scroll.replaceChildren(body);
         scroll.scrollTop = toTop ? 0 : top;
+        // A long list's rows, near the kept scroll place, before the first frame (TABLES.md §6).
+        flushWindows();
         showMode();
+        // A table's text boxes as tall as their words (data-table.ts › field), all at once.
+        requestAnimationFrame(() => growAll(body));
       }
 
       // The first load, from the active version's store. Only its first value draws the cards:

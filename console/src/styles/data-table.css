@@ -1,0 +1,315 @@
+/* The console's one table (pages/data-table.ts; docs/architecture/TABLES.md; the owner,
+   2026-11-15). Every table wears these classes: Config › Hospital, System, Cartesia, Teams ›
+   Auth and Roles. Every value is a token. */
+
+/* The box: wider than the view, the table scrolls sideways inside it, never the page. An empty
+   list says so under its header. */
+.dt-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.dt-wrap:has(tbody:empty)::after {
+  content: attr(data-empty);
+  display: block;
+  padding: var(--space-3) calc(var(--space-2) + var(--space-4) + var(--edge));
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+/* Fixed columns (TABLES.md §3.1): the widths are on the <col>s. Separate borders, so a row
+   that slides carries its own line with it. --dt-box: one box's height, a line of words in a
+   text box's padding and edge; every control in a cell takes it (§3.2). */
+.dt {
+  --dt-box: calc(2 * var(--space-3) + var(--line-height) * var(--text-size) + 2 * var(--edge));
+  --dt-inset: calc(var(--space-2) + var(--space-4) + var(--edge)); /* a header's word over a box's words (§3.3) */
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--text-size);
+}
+
+.dt thead th {
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--dt-inset);
+  border-bottom: var(--edge) solid var(--line);
+  font-size: var(--text-small);
+  font-weight: var(--weight-regular);
+  color: var(--text-3);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dt td {
+  padding: var(--space-2);
+  vertical-align: top;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
+/* The "i" column: flush with the table's left edge. */
+.dt .dt-i {
+  padding-left: 0;
+}
+
+/* The "i" and the tools sit level with a row's first line (§3.4). */
+.dt-row .cfg-info,
+.dt-tools {
+  margin-top: calc((var(--dt-box) - var(--info-size)) / 2);
+}
+
+/* Words in a cell: a box's padding and (clear) edge, so they line up with the boxes' words. */
+.dt-text {
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--edge) solid transparent;
+  line-height: var(--line-height);
+  overflow-wrap: break-word;
+}
+
+/* Every control is one box tall. */
+.dt select.cfg-field,
+.dt input.cfg-field,
+.dt .cfg-pair {
+  height: var(--dt-box);
+}
+
+.dt .cfg-control {
+  min-height: 0;
+}
+
+.dt tr.prompt-bad .prompt-text {
+  border-color: var(--error);
+}
+
+/* The line between rows sits under each row's help, so an open help stays with its row. The
+   help's words start where the row's words do. */
+.dt-help td {
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: var(--edge) solid var(--line);
+}
+
+.dt-help .cfg-help-text {
+  padding-left: calc(var(--space-4) + var(--edge));
+  padding-bottom: var(--space-3);
+}
+
+/* A long list's window (list-window.ts; TABLES.md §6): the spacers hold the height of the rows
+   not drawn, and carry no padding or line of their own. The page's scroll anchoring stays out of
+   the list: the windower keeps the row in view in place itself. */
+.lw-host {
+  overflow-anchor: none;
+}
+
+.lw-spacer td {
+  padding: 0;
+  border: 0;
+}
+
+.lw-spacer-grid {
+  grid-column: 1 / -1;
+}
+
+/* A heading row across the table (Places' facilities). */
+.dt-group td {
+  padding-top: var(--space-4);
+  border-bottom: var(--edge) solid var(--line);
+  font-weight: var(--weight-bold);
+  color: var(--title);
+}
+
+.dt-group td:not(.dt-i) {
+  padding-left: var(--dt-inset);
+}
+
+.dt-group .sys-id-file,
+.dt-group .dt-count {
+  font-weight: var(--weight-regular);
+}
+
+/* ---------------------------------------------------------------- the row tools (1A) */
+
+.dt-tools {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+/* ↑ ↓ ✕: the "i"'s rounded square (config.css › .cfg-info, which these share). */
+.dt-tool svg {
+  width: var(--icon-size);
+  height: var(--icon-size);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dt-tool[data-tool="up"] svg {
+  transform: rotate(180deg);
+}
+
+.dt-tool:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+/* Auth's ✕, pressed once: "Confirm?" in the error colors, filling its column (§3.12). */
+.dt-tool.dt-confirm,
+.dt-tool.dt-confirm:hover {
+  width: 100%;
+  padding: 0 var(--space-3);
+  border-color: var(--error);
+  background: var(--error);
+  color: var(--on-error);
+  font-size: var(--text-small);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- Read (§3.5) */
+
+/* Every cell shows words: nothing greys. A control and its words share one place; the layer
+   that appears does so at once, the one that goes waits for its fade (config.css ›
+   .prompt-control). The tools and Add keep their space. */
+.cfg[data-mode="read"] .dt .cfg-control {
+  opacity: 1;
+}
+
+.cfg[data-mode="read"] .dt-tools,
+.cfg[data-mode="read"] .dt-add {
+  visibility: hidden;
+}
+
+.dt-dual {
+  display: grid;
+}
+
+.dt-dual > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+  transition: opacity var(--dur-collapse) var(--ease), visibility 0s linear var(--dur-collapse);
+}
+
+.dt-edit {
+  display: flex;
+  align-items: flex-start;
+}
+
+.cfg[data-mode="read"] .dt-edit,
+.cfg[data-mode="edit"] .dt-read {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.cfg[data-mode="read"] .dt-read,
+.cfg[data-mode="edit"] .dt-edit {
+  transition: opacity var(--dur-collapse) var(--ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dt-dual > *,
+  .cfg[data-mode="read"] .dt-read,
+  .cfg[data-mode="edit"] .dt-edit {
+    transition: none;
+  }
+}
+
+/* ---------------------------------------------------------------- the title line (2) */
+
+/* The title and its count at the left, its actions at the right, all on one center line at a
+   tab bar's height. */
+.dt-title-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-4);
+  min-height: var(--control-height);
+  margin-top: var(--space-4);
+}
+
+.dt-title-line:first-child {
+  margin-top: 0;
+}
+
+.dt-title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--text-page);
+  font-weight: var(--weight-bold);
+  line-height: var(--line-height-tight);
+  color: var(--title);
+}
+
+.dt-count {
+  font-size: var(--text-small);
+  font-weight: var(--weight-regular);
+  color: var(--text-3);
+}
+
+.dt-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+.dt-actions:empty {
+  display: none;
+}
+
+/* Add, and every other button on a title line: the tab bar's frame, Discard | Save's part. */
+.dt-add {
+  flex: none;
+}
+
+.dt-add .tabs {
+  height: var(--control-height);
+}
+
+.dt-add .tab {
+  min-width: var(--action-part);
+  text-align: center;
+}
+
+.dt-add .tab:disabled {
+  color: var(--text-3);
+  background: transparent;
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------- a table of plain words */
+
+/* Auth and Roles (§3.17): their rows open panels and hold no boxes, so the columns fit their
+   words, and a header starts where its cells' words do. */
+.dt-plain {
+  table-layout: auto;
+}
+
+.dt-plain th,
+.dt-plain td {
+  padding: var(--space-2) var(--space-3);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.dt-plain td {
+  border-bottom: var(--edge) solid var(--line);
+}
+
+.dt-plain .dt-tools-cell {
+  width: var(--split-half);
+}
+
+.dt-plain .dt-tools {
+  margin-top: 0;
+}

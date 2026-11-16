@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [docs/architecture/images/hospital-columns-misaligned-2026-11-15.png, docs/architecture/images/hospital-visit-type-code-2026-11-15.png, docs/architecture/images/hospital-reasons-codes-2026-11-15.png, docs/architecture/images/hospital-specialties-2026-11-15.png, ehr/src/hospital.rs, ehr/fixtures/hospital.json, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/scheduler.rs, ehr/src/epic_ehr.rs, ehr/src/visits.rs, ehr/src/session.rs, ehr/migrations/0009_settings_hospital.sql, ehr/proto/deets/ehr/v1/ehr.proto, agent/deets_agent/config.py, agent/deets_agent/dev_server.py, agent/deets_agent/flow.py, agent/deets_agent/ehr_client.py, console/src/pages/hospital.ts, console/src/pages/epic-oid.ts, console/src/agent/api.ts, console/src/styles/config.css, docs/integrations/EPIC.md, console/src/styles/people.css, docs/architecture/images/hospital-places-toggle-2026-11-15.png, docs/architecture/images/hospital-places-import-button-2026-11-15.png, docs/architecture/images/hospital-import-panel-margins-2026-11-15.png]
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # DeetsHealth — Config › Hospital: the hospital's own lists
 
@@ -102,7 +102,10 @@ so.
   place as last time"), the address and phone ("where to go"), the specialty, the hours, and
   every facility field.
 
-### 2.8 Specialties (Epic's `specialties`) — Places tab, not used yet
+### 2.8 Specialties (Epic's `specialties`) — Specialties tab, not used yet
+- **Its own tab since 2026-11-15** (the owner, TABLES.md §6.3, W1 A): before, it sat under
+  Locations on Places, which after an import put it about 400 rows down. A specialty is a kind
+  of care, not a place: each department names one by its ID, and many share it.
 - Above the table: the **Specialty list**, one OID (§5.1). Columns: the spoken name, the
   caller's words, the ID. Epic gives no list of a hospital's specialty codes by API.
 - **What the sandbox can give (2026-11-15).** A department's specialty, one at a time:
@@ -173,11 +176,13 @@ so.
 ## 4. Every place it runs
 - **The call:** the same on any phone. The model sees only the spoken names it may offer and
   the time-of-day names, never a code.
-- **The console:** one page, four tabs of tables, each row edited in place. Who may edit waits on
-  the roles (ACCESS-ROLES.md). On a phone each table scrolls on its own (`.sys-table-wrap`).
+- **The console:** one page, five tabs of tables (Visits, Times, Places, Specialties, Booking),
+  each row edited in place; a search box on the tab bar's line and long lists windowed
+  (TABLES.md §6). Who may edit waits on
+  the roles (ACCESS-ROLES.md). On a phone each table scrolls on its own (`.dt-wrap`, TABLES.md).
 - **The deploy:** A2 and B read the lists from the settings store.
 - **Each EHR:** the columns are Epic's. Another adapter maps its own concepts behind the same
-  lists (athenahealth's appointment types, Oracle Health's; OTHER-EHRS.md). A list an EHR does
+  lists (athenahealth's appointment types, Oracle Health's; NON-EPIC-EHRS.md). A list an EHR does
   not use stays empty.
 - **Many hospitals** (later; the owner, 2026-11-15): one deploy serving several hospitals, with
   rules that route a call to its hospital. Today there is one.
@@ -206,14 +211,15 @@ so.
   `hospital` event (call record schema 13); `flow.py › CallFlow.times_of_day` builds
   `find_slots`'s list; `dev_server.py`: `GET` and `POST /agent/hospital` (DEV-API.md),
   `hospital_view`.
-- **The console**: `hospital.ts`, built from System's table parts (`system.ts` exports
-  `table`, `row`, `field`, `heading`, `grow`); `api.ts` types; the `settings.hospital` store.
-  The page checks each row as ehr does (`problem`) and shows the first problem above the tabs;
-  Save waits until there is none. No new CSS.
+- **The console**: `hospital.ts`, built from the console's one table (`data-table.ts`:
+  `table`, `row`, `field`, `titleLine`, `listTools`; TABLES.md, 2026-11-15; before, System's
+  parts in `system.ts`); `api.ts` types; the `settings.hospital` store. The page checks each
+  row as ehr does (`problem`) and shows the first problem above the tabs; Save waits until
+  there is none.
 - **The columns' alignment** (the owner, 2026-11-15): the words of an editable cell started
-  about 13 px right of their header, on this page and on Config › System. Fixed in
-  `config.css › .sys-table .prompt-control`: the control moves left by the box's inner padding
-  and edge.
+  about 13 px right of their header, on this page and on Config › System. First fixed with a
+  negative margin on the text boxes; that left the selects out, so since TABLES.md the header
+  starts at the box's inner padding instead (TABLES.md §3.3).
 
   ![The owner's screenshot, 2026-11-15: the Visits tab, each editable column's words right of its header (an orange line marks Spoken name); he asks what Code system and Code are](images/hospital-columns-misaligned-2026-11-15.png)
 
@@ -269,7 +275,7 @@ so.
 - Closed days and hours have one zone: the hospital's.
 
 ## 6. Desk test
-1. `npm run dev`. Open Config › Hospital. Read shows four tabs; Visits shows five visit types.
+1. `npm run dev`. Open Config › Hospital. Read shows five tabs; Visits shows five visit types.
 2. Choose Edit. On Visits, change the spoken name of "Office Visit" to "a clinic visit". Save.
    The status says the new version is active from the next call.
 3. On Chat, Local, start a typed call as Jordan Ellis and book a visit. Ask what the visit is.
@@ -297,7 +303,8 @@ so.
     the cards come back the same way.
 14. Choose Table: the same departments in one table under a "Not in a facility" row. Choose
     Cards again. Reload the page: it opens on the view you chose last.
-15. In Read, "Import from Epic" right of the tabs is grey. Choose Edit and press it: the panel
+15. In Read, "Import from Epic" on the Locations title line is hidden, as Add is. Choose Edit
+    and press it: the panel
     drops with the instruction. Type `wis`: Wisconsin (WI) is suggested; press Enter: a "WI" chip.
     Type `Springfield, ZZ` and press Enter: the line says what to type, and nothing is added.
     Press Import. The panel closes, and the line under the Locations heading counts
@@ -305,7 +312,7 @@ so.
     the other locations left out, and 1 read. The cards fill: one per facility, with counts and
     specialties. "EMC Family Medicine" keeps "the family medicine clinic" and is marked
     Changed; "Main Street Clinic" is marked Not in Epic.
-16. Open a facility. Change a department's spoken name. Press Remove facility on another one:
+16. Open a facility. Change a department's spoken name. Press ✕ on another facility's row:
     it and its departments are gone. Save. The status says the new version is active.
 17. Choose Table: every department, a heading row per facility. Narrow the window to a phone's
     width: the cards stack in one column; the table scrolls on its own.
@@ -394,8 +401,8 @@ location. A **DEP** is a department record ("EMC Cardiology"): the place a visit
     one last card, "Not in a facility".
   - **Drill in (2A):** a press on a card replaces the cards with that facility: "← All
     facilities", its own fields (the record's name, the spoken name, the address, the phone,
-    Remove facility), then its departments' table, edited in place as every table on the page.
-    Remove facility takes out the facility and its departments.
+    ✕), then its departments' table, edited in place as every table on the page. The ✕ on
+    the facility's row takes out the facility and its departments (TABLES.md §3.11).
   - **The motion:** the console's own, no new value. The cards fade out as a page does when the
     nav changes (`--dur-leave`); then the facility's header and rows rise and fade in as one wave,
     top to bottom, as Chat's controls do after a mode change (`--dur-wave-in`, `--wave-step`,
@@ -416,8 +423,9 @@ location. A **DEP** is a department record ("EMC Cardiology"): the place a visit
   saved setting.
 
   ![The owner's screenshot, 2026-11-15: Places in Table view, an orange box right of the Visits, Times, Places, Booking tabs where the Import button goes](images/hospital-places-import-button-2026-11-15.png)
-- **Import from Epic** (Edit only): "Import from Epic" just right of the tabs, on Places only for
-  now. It drops a panel:
+- **Import from Epic** (Edit only): "Import from Epic" on the Locations title line, left of Add,
+  in the same tab bar frame (since 2026-11-15, TABLES.md §2; first just right of the tabs). It
+  drops a panel:
   - The instruction: a city and its state ("Verona, WI"), or just a state ("WI" or
     "Wisconsin"); Enter adds each, up to 5. Since the owner's note the same evening ("neaten
     this box please, use our standard sized text box, styling, rounding, and move the help text
@@ -488,7 +496,7 @@ location. A **DEP** is a department record ("EMC Cardiology"): the place a visit
   `HOSPITAL_KEYS`, `places` in `HOSPITAL_LIMITS`.
 - **The console (`hospital.ts`):** `places()`: the import block (Edit only), the Cards | Table
   toggle (`deets.console.hospital.places`), the stage. `cards()`, `facility()` (the drill-in),
-  `placesTable()` (one table, a `place-group` row per facility). `mergePlaces` merges an import
+  `placesTable()` (one table, a group row per facility: `data-table.ts › groupRow`). `mergePlaces` merges an import
   into the draft and returns the status line (counts only). The page's state across redraws is
   `PlacesUi`: the view, the facility open, the import's marks (new, changed, not in Epic; kept
   until Save, Discard or a version pick), the motion. `config.css › Places › Locations`: the
@@ -531,4 +539,4 @@ location. A **DEP** is a department record ("EMC Cardiology"): the place a visit
 - Filters for a list of hundreds (by specialty, by facility, by city), and a way to remove many
   rows at once: when the owner designs them.
 - Whether a department's hours override the hospital's hours (§2.6): with the hand-off.
-- Another EHR's import: behind its own adapter (OTHER-EHRS.md).
+- Another EHR's import: behind its own adapter (NON-EPIC-EHRS.md).

@@ -1,12 +1,12 @@
 // Config › Hospital (HOSPITAL-CONFIG.md; the owner, 2026-11-15: every section now, so the page
 // shows what is left to build; one hospital for every EHR source). The hospital's own lists and
 // numbers, in the Config frame (Read | Edit, the versions, Discard | Save), as tabs of tables
-// that are edited in place (System's parts: system.ts). A save makes a new active version; each
+// that are edited in place (the one table: data-table.ts, TABLES.md). A save makes a new active version; each
 // call takes the active version when it opens, and keeps it to its end.
 //
 // Some lists are kept but read by no call yet: each one's note says so ("Not used by calls
 // yet"). No row is protected data: a row is a fact about the hospital. Every size, color and
-// timing is an existing token: the page reuses System's classes and adds none.
+// timing is a token.
 import {
   importPlaces,
   saveHospital,
@@ -22,9 +22,26 @@ import { hospitalSettings } from "../agent/stores";
 import { reducedMotion, tokenMs } from "../tokens";
 import { settingsView, type Kit } from "./config-kit";
 import { describeEpicOid, recordPrefix } from "./epic-oid";
+import { fillGrid, fillTable, heightsOf, type Unit } from "./list-window";
 import { el } from "./page";
 import { placePill } from "./subnav";
-import { field, grow, heading, row, table } from "./system";
+import {
+  addButton,
+  addTo,
+  dual,
+  field,
+  groupRow,
+  growAll,
+  listTools,
+  refilter,
+  row,
+  rowTools,
+  table,
+  titleLine,
+  track,
+  type Column,
+  type DataTable,
+} from "./data-table";
 import { citiesIn, placeSearch, US_STATES } from "./us-states";
 import type { View } from "./subnav";
 import { remember, remembered, tabBar } from "./tab-bar";
@@ -33,16 +50,110 @@ type Draft = HospitalValues;
 type Key = keyof HospitalValues;
 type ListKey = "visit_type_list" | "diagnosis_list" | "specialty_list";
 type Limits = HospitalSettings["limits"];
-const TABS = ["visits", "times", "places", "booking"] as const;
+// Specialties has a tab of its own (the owner, W1 A, 2026-11-15): a long list never sits under
+// another one (TABLES.md §6.3).
+const TABS = ["visits", "times", "places", "specialties", "booking"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_KEY = "deets.console.hospital.tab";
 /** Each tab's lists, in the page's order. */
 const TAB_KEYS: Record<Tab, Key[]> = {
   visits: ["visit_type_list", "visit_types", "visit_groups", "diagnosis_list", "reasons"],
   times: ["time_zone", "times_of_day", "hours", "closed_days"],
-  places: ["facilities", "locations", "specialty_list", "specialties"],
+  places: ["facilities", "locations"],
+  specialties: ["specialty_list", "specialties"],
   booking: ["slots_offered", "narrow_over", "groups_named", "past_days", "ahead_windows", "booking_note_label"],
 };
+
+// ---- The search box (TABLES.md §6.3: W2 A filter, W3 B the shown tab, W4 A Ctrl+F)
+
+/** The name of the search's marks (config.css › ::highlight). */
+const HIGHLIGHT = "deets-search";
+
+/** A row's words for the search: each of its own words and lists of words, and `more`. */
+function textOf(o: object, ...more: string[]): string {
+  const out = [...more];
+  for (const v of Object.values(o)) {
+    if (typeof v === "string") out.push(v);
+    else if (Array.isArray(v)) for (const x of v) if (typeof x === "string") out.push(x);
+  }
+  return out.join("\n");
+}
+
+/** The search box's words, and which rows match them. A row's first answer stays until the
+ * words change, so a row being edited never leaves under the cursor; a row added since the
+ * words changed shows until they change again. */
+class Search {
+  private words: string[] = [];
+  private result = new WeakMap<object, boolean>();
+  private kept = new WeakSet<object>();
+
+  set(query: string) {
+    this.words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    this.result = new WeakMap();
+    this.kept = new WeakSet();
+  }
+
+  get on(): boolean {
+    return this.words.length > 0;
+  }
+
+  get terms(): readonly string[] {
+    return this.words;
+  }
+
+  keep(item: object) {
+    this.kept.add(item);
+  }
+
+  /** Every search word is in `text`, in any case. */
+  matches(text: string): boolean {
+    const t = text.toLowerCase();
+    return this.words.every((w) => t.includes(w));
+  }
+
+  /** Whether a row shows: no words, a row added since, or its words match. */
+  shows(item: object, text: () => string): boolean {
+    if (!this.on || this.kept.has(item)) return true;
+    let r = this.result.get(item);
+    if (r === undefined) {
+      r = this.matches(text());
+      this.result.set(item, r);
+    }
+    return r;
+  }
+}
+
+/** Marks each search word in the words shown under `root` (the CSS Custom Highlight API: the
+ * page's own text is not changed). A browser without it shows the rows without marks. */
+function markMatches(root: HTMLElement | null, terms: readonly string[]) {
+  const css = CSS as unknown as { highlights?: Map<string, unknown> };
+  const make = (window as unknown as { Highlight?: new (...r: Range[]) => unknown }).Highlight;
+  if (!css.highlights || !make) return;
+  if (!root || !terms.length) {
+    css.highlights.delete(HIGHLIGHT);
+    return;
+  }
+  const ranges: Range[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) =>
+      n.parentElement?.closest(".prompt-words, .dt-text, .people-text, .place-chip, .dt-group") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+  });
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    const text = (n.nodeValue ?? "").toLowerCase();
+    for (const w of terms) {
+      for (let at = text.indexOf(w); at >= 0; at = text.indexOf(w, at + w.length)) {
+        const r = new Range();
+        r.setStart(n, at);
+        r.setEnd(n, at + w.length);
+        ranges.push(r);
+      }
+    }
+  }
+  css.highlights.set(HIGHLIGHT, new make(...ranges));
+}
+
+/** The "Not in a facility" group's key in the motion and the heights (it has no row of its own). */
+const NONE_GROUP = {};
 const DAYS: [string, string][] = [
   ["mon", "Monday"],
   ["tue", "Tuesday"],
@@ -64,6 +175,8 @@ const REASON_SYSTEMS: [ReasonSystem, string][] = [
   ["hospital", "The hospital's diagnoses"],
 ];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** A list's tools: its order is kept and used, and a row can go (TABLES.md §3.10). */
+const LIST = { move: true, remove: true };
 
 // ---- Places › Locations (HOSPITAL-CONFIG.md §8.2)
 const PLACES_VIEWS = ["cards", "table"] as const;
@@ -94,8 +207,15 @@ type PlacesUi = {
   importEntries: string[];
   importSay: string;
   go: (open: string | null) => void;
+  /** A facility just added: the page drills into it, the cursor in its name (TABLES.md §3.7). */
+  fresh?: FacilityRow;
+  openNew: (f: FacilityRow) => void;
   setView: (v: PlacesView) => void;
   runImport: (d: Draft, searches: string[], say: HTMLElement, button: HTMLButtonElement) => void;
+  /** The search box's words, for every tab (TABLES.md §6.3). */
+  search: Search;
+  /** Marks the search words again on the next frame (rows drawn by a long list's window). */
+  markSoon: () => void;
 };
 /** The most searches one import runs: ehr's ImportPlaces takes 1 to 5. */
 const PLACE_SEARCHES = 5;
@@ -130,9 +250,11 @@ function withRowDefaults(v: HospitalValues): HospitalValues {
 /** A facility's key on this page: its FHIR id, else its record's name. */
 const facilityKey = (f: FacilityRow) => (f.id.trim() ? `id:${f.id.trim()}` : `name:${f.record.trim().toLowerCase()}`);
 
-/** The facility a key names in this draft; null when it is gone (Back to the cards). */
-function resolveOpen(d: Draft, open: string | null): FacilityRow | "none" | null {
+/** The facility a key names in this draft; null when it is gone (Back to the cards). "new": the
+ * facility just added, which has no name or id to key it by yet. */
+function resolveOpen(d: Draft, open: string | null, fresh?: FacilityRow): FacilityRow | "none" | null {
   if (open === "none") return "none";
+  if (open === "new") return fresh && d.facilities.includes(fresh) ? fresh : null;
   return open ? (d.facilities.find((f) => facilityKey(f) === open) ?? null) : null;
 }
 
@@ -346,9 +468,19 @@ function problem(d: Draft, l: Limits): string | null {
   return null;
 }
 
+/** Each list of a saved or active version as JSON, made once: those versions are never edited
+ * (the kit edits a copy, the draft), and the check runs on each frame of typing. */
+const savedJson = new WeakMap<Draft, Map<Key, string>>();
+
 function differing(a: Draft, b: Draft): Set<string> {
   const out = new Set<string>();
-  for (const k of Object.keys({ ...a, ...b }) as Key[]) if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) out.add(k);
+  let cache = savedJson.get(a);
+  if (!cache) savedJson.set(a, (cache = new Map()));
+  for (const k of Object.keys({ ...a, ...b }) as Key[]) {
+    let was = cache.get(k);
+    if (was === undefined) cache.set(k, (was = JSON.stringify(a[k])));
+    if (was !== JSON.stringify(b[k])) out.add(k);
+  }
   return out;
 }
 
@@ -388,6 +520,17 @@ export const hospitalView = (): View => {
     importEntries: [],
     importSay: "",
     go: (open) => swap(() => (ui.open = open)),
+    openNew: (f) =>
+      swap(() => {
+        ui.fresh = f;
+        ui.open = "new";
+        if (ui.view !== "cards") {
+          ui.view = "cards";
+          remember(PLACES_VIEW_KEY, "cards");
+        }
+        // After the redraw that follows this change: the cursor in the facility's first box.
+        queueMicrotask(() => ui.stage?.querySelector<HTMLTextAreaElement>("textarea")?.focus());
+      }),
     setView: (v) => {
       if (swapping || v === ui.view) return;
       // The pill slides to the new choice now, as Read | Edit's does (subnav.ts › placePill);
@@ -422,7 +565,59 @@ export const hospitalView = (): View => {
         .catch((e: unknown) => show(`Not imported: ${e instanceof Error && e.message ? e.message : "the import failed"}`))
         .finally(() => (button.disabled = false));
     },
+    search: new Search(),
+    markSoon: () => {
+      if (marking) return;
+      marking = true;
+      requestAnimationFrame(() => {
+        marking = false;
+        markMatches(sections, ui.search.terms);
+      });
+    },
   };
+
+  // ---- the search box (TABLES.md §6.3): one box for the view's life, put on the tab bar's line
+  // at each draw, so a search's redraw never takes the cursor out of it.
+  let marking = false;
+  /** The tab's sections drawn last, and how to draw them again for a search. */
+  let sections: HTMLElement | null = null;
+  let redrawSections: (() => void) | null = null;
+  const searchWrap = el(`
+    <div class="cfg-search" role="search">
+      <input class="cfg-field cfg-search-box" type="search" spellcheck="false" autocomplete="off"
+        placeholder="Search this tab" aria-label="Search this tab" aria-keyshortcuts="Control+F Meta+F" />
+    </div>`);
+  const searchBox = searchWrap.querySelector<HTMLInputElement>("input")!;
+  searchBox.title = "Ctrl+F. Press Ctrl+F again for the browser's own find. Esc clears.";
+  let searchQueued = false;
+  searchBox.addEventListener("input", () => {
+    // One redraw a frame, however fast the typing.
+    if (searchQueued) return;
+    searchQueued = true;
+    requestAnimationFrame(() => {
+      searchQueued = false;
+      ui.search.set(searchBox.value.trim());
+      if (redrawSections && sections?.isConnected) refilter(redrawSections);
+    });
+  });
+  searchBox.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    if (!searchBox.value) return searchBox.blur();
+    searchBox.value = "";
+    searchBox.dispatchEvent(new Event("input"));
+  });
+  // Ctrl+F (⌘F) while this view shows: the first press goes to the box; a second press, while
+  // the box has the cursor, is left to the browser, whose own find opens (the owner, W4 A).
+  document.addEventListener("keydown", (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "f") return;
+    if (!searchBox.isConnected || !searchBox.offsetParent) return;
+    if (document.activeElement === searchBox) return;
+    e.preventDefault();
+    searchBox.focus();
+    searchBox.select();
+  });
+  let cardWatch: ResizeObserver | undefined;
 
   return settingsView<HospitalValues, Draft, HospitalSettings>({
     id: "hospital",
@@ -453,6 +648,7 @@ export const hospitalView = (): View => {
         ["visits", "Visits"],
         ["times", "Times"],
         ["places", "Places"],
+        ["specialties", "Specialties"],
         ["booking", "Booking"],
       ],
       tab,
@@ -465,35 +661,54 @@ export const hospitalView = (): View => {
       from,
     );
     const bars = el(`<div class="prompt-bars"></div>`);
-    bars.append(bar.el);
+    bars.append(bar.el, searchWrap);
     const body = el(`<div class="prompt-sections"></div>`);
     kitNow = kit;
     draftNow = d;
-    const p = new Parts(s.limits, d, kit, ui);
-    if (tab === "visits") body.append(...p.visitTypes(), ...p.visitGroups(), ...p.reasons());
-    else if (tab === "times") body.append(...p.timeZone(), ...p.timesOfDay(), ...p.hours(), ...p.closedDays());
-    else if (tab === "places") {
-      body.append(...p.places(), ...p.specialties());
-      // Right of the tabs (the owner's screenshot, 2026-11-15). Places only for now; other tabs
-      // can take it later.
-      bars.append(p.importControl());
-    }
-    else body.append(...p.booking());
     const err = el(`<p class="prompt-problem" role="status" hidden></p>`);
     const showProblem = () => {
       const msg = problem(d, s.limits);
       err.textContent = msg ?? "";
       err.hidden = !msg;
     };
-    p.onEdit = showProblem;
+    // Once a frame while typing: the check reads every list.
+    let problemQueued = false;
+    const problemSoon = () => {
+      if (problemQueued) return;
+      problemQueued = true;
+      requestAnimationFrame(() => {
+        problemQueued = false;
+        showProblem();
+      });
+    };
+    const drawSections = () => {
+      const p = new Parts(s.limits, d, kit, ui);
+      p.onEdit = problemSoon;
+      if (tab === "visits") body.replaceChildren(...p.visitTypes(), ...p.visitGroups(), ...p.reasons());
+      else if (tab === "times") body.replaceChildren(...p.timeZone(), ...p.timesOfDay(), ...p.hours(), ...p.closedDays());
+      else if (tab === "places") body.replaceChildren(...p.places());
+      else if (tab === "specialties") body.replaceChildren(...p.specialties());
+      else body.replaceChildren(...p.booking());
+      ui.markSoon();
+    };
+    drawSections();
+    sections = body;
+    // A search draws only the sections again; the kit gives their controls the page's mode.
+    redrawSections = () => {
+      drawSections();
+      kit.apply([body]);
+    };
     showProblem();
     card.append(bars, err, body);
     const settle = () => {
-      card.querySelectorAll<HTMLTextAreaElement>("textarea").forEach(grow);
+      growAll(card);
       bar.place();
     };
     requestAnimationFrame(settle);
-    new ResizeObserver(settle).observe(card);
+    // One watcher for the card shown; the last draw's card is gone.
+    cardWatch?.disconnect();
+    cardWatch = new ResizeObserver(settle);
+    cardWatch.observe(card);
     return {
       cards: [card],
       layout: "prompt",
@@ -521,6 +736,41 @@ class Parts {
     this.onEdit();
   }
 
+  // ---- the search and the long lists (TABLES.md §6)
+
+  /** Whether a row shows under the search box's words. */
+  private shows(item: object, text: () => string = () => textOf(item)): boolean {
+    return this.ui.search.shows(item, text);
+  }
+
+  /** The rows of a list that show. */
+  private visible<T extends object>(rows: T[], text?: (r: T) => string): T[] {
+    if (!this.ui.search.on) return rows;
+    return rows.filter((r) => this.shows(r, text ? () => text(r) : undefined));
+  }
+
+  /** A title's count: "12 of 403" while a search is on. */
+  private count(shown: number, total: number): number | string {
+    return this.ui.search.on ? `${shown} of ${total}` : total;
+  }
+
+  /** After a long list's window draws rows: the page's mode, the boxes' heights, the marks. */
+  private drawnLater = (nodes: HTMLElement[]) => {
+    this.kit.apply(nodes);
+    growAll(nodes);
+    this.ui.markSoon();
+  };
+
+  /** A list's rows into its table, windowed when long. `list` names its kept heights. */
+  private fill<T extends object>(t: DataTable, list: string, rows: T[], draw: (r: T) => HTMLElement[]) {
+    if (this.ui.search.on) t.wrap.dataset.empty = "No match";
+    fillTable(
+      t,
+      rows.map((r) => ({ item: r, draw: () => draw(r) })),
+      { heights: heightsOf(list), drawn: this.drawnLater },
+    );
+  }
+
   /** A one-line text cell. */
   private text(label: string, value: string, on: (v: string) => void): HTMLElement {
     return field(label, value, this.l.cell, (v) => (on(v), this.edited()));
@@ -531,46 +781,36 @@ class Parts {
     return field(`${label} (comma separated)`, words(value), this.l.cell * 4, (v) => (on(unwords(v)), this.edited()));
   }
 
-  /** Off | On in a cell. */
+  /** Off | On in a cell; "On" or "Off" in Read. */
   private onOff(label: string, value: boolean, on: (v: boolean) => void): HTMLElement {
-    const wrap = el(`<div class="cfg-control"></div>`);
-    wrap.append(this.kit.pair(value, (v) => (on(v), this.onEdit()), label));
-    return wrap;
+    let now = value;
+    return dual(
+      this.kit.pair(value, (v) => ((now = v), on(v), this.onEdit()), label),
+      () => (now ? "On" : "Off"),
+    );
   }
 
+  /** A select in a cell; its chosen words in Read. */
   private choose(options: [string, string][], value: string, on: (v: string) => void): HTMLElement {
-    const wrap = el(`<div class="cfg-control"></div>`);
-    wrap.append(this.kit.select(options, value, (v) => (on(v), this.onEdit())));
-    return wrap;
+    const select = this.kit.select(options, value, (v) => (on(v), this.onEdit()));
+    return dual(select, () => select.selectedOptions[0]?.textContent ?? "");
   }
 
+  /** A number in a cell; the number in Read. */
   private num(label: string, value: number, min: number, max: number, on: (v: number) => void): HTMLElement {
-    const wrap = el(`<div class="cfg-control"></div>`);
-    wrap.append(this.kit.number(value, min, max, (v) => (on(v), this.onEdit()), label));
-    return wrap;
+    const input = this.kit.number(value, min, max, (v) => (on(v), this.onEdit()), label);
+    return dual(input, () => input.value);
   }
 
-  /** Up and Remove for one row (Edit only): the order matters where a note says so. */
-  private moves<T>(rows: T[], r: T): HTMLElement {
-    const wrap = el(`<div class="cfg-control sys-remove"><button class="cfg-link" type="button">Up</button><button class="cfg-link" type="button">Remove</button></div>`);
-    const [up, remove] = [...wrap.querySelectorAll<HTMLButtonElement>("button")];
-    const i = rows.indexOf(r);
-    if (i === 0) {
-      up.dataset.off = "";
-      up.hidden = true;
-    }
-    up.addEventListener("click", () => {
-      const at = rows.indexOf(r);
-      if (at > 0) [rows[at - 1], rows[at]] = [rows[at], rows[at - 1]];
-      this.kit.changed();
-      this.kit.rerender();
-    });
-    remove.addEventListener("click", () => {
-      rows.splice(rows.indexOf(r), 1);
-      this.kit.changed();
-      this.kit.rerender();
-    });
-    return wrap;
+  /** Draws the page again after a row tool or Add. */
+  private done = () => {
+    this.kit.changed();
+    this.kit.rerender();
+  };
+
+  /** ↑ ↓ ✕ for a row of a list (Edit only): the order matters where a note says so. */
+  private moves<T extends object>(rows: T[], r: T, what: string): HTMLElement {
+    return listTools(rows, r, what, this.done, { still: this.ui.search.on });
   }
 
   /** The "R PRC" spans of each list's rows, kept current while the list's OID is typed. */
@@ -589,7 +829,7 @@ class Parts {
       for (const p of this.prefixes.get(key) ?? []) p.textContent = recordPrefix(d[key]);
     });
     t.body.append(
-      ...row(title, [oid, says], [
+      ...row(null, title, [oid, says], [
         ["The OID:", help],
         ["Where it comes from:", "The hospital's Epic team runs Epic's OID Generator utility and sends it. It differs between the hospital's test and production Epic."],
       ]),
@@ -600,7 +840,7 @@ class Parts {
   /** A row's ID in its list, after the list's prefix ("R PRC 1003"). The prefix is shown only;
    * the OID and the ID are what is kept and sent. */
   private idCell(key: ListKey, value: string, on: (v: string) => void): HTMLElement {
-    const wrap = el(`<div class="sys-id"><span class="sys-id-file"></span></div>`);
+    const wrap = el(`<div class="sys-id dt-cell"><span class="sys-id-file"></span></div>`);
     const prefix = wrap.firstElementChild as HTMLElement;
     prefix.textContent = recordPrefix(this.d[key]);
     this.prefixes.set(key, [...(this.prefixes.get(key) ?? []), prefix]);
@@ -608,32 +848,35 @@ class Parts {
     return wrap;
   }
 
-  /** Add a row (Edit only): an empty row at the end, to fill in place. */
-  private add<T>(what: string, rows: T[], blank: () => T, max = this.l.rows): HTMLElement {
-    const wrap = el(`<div class="sys-add"><div class="cfg-control"><button class="cfg-button" type="button"></button></div></div>`);
-    const b = wrap.querySelector<HTMLButtonElement>("button")!;
-    b.textContent = `Add ${what}`;
-    b.addEventListener("click", () => {
-      if (rows.length >= max) return;
-      rows.push(blank());
-      this.kit.changed();
-      this.kit.rerender();
+  /** Add, on a section's title line (Edit only): an empty row at the foot of the list, to fill
+   * in place (TABLES.md §3.7). */
+  private add<T extends object>(what: string, rows: T[], blank: () => T, max = this.l.rows): HTMLElement {
+    return addButton(`Add ${what}`, () => {
+      // A new row shows while a search is on: it matches nothing yet.
+      const item = blank();
+      this.ui.search.keep(item);
+      addTo(rows, item, this.done, max);
     });
-    return wrap;
   }
 
   visitTypes(): HTMLElement[] {
     const d = this.d;
-    const out = heading(
+    const rows = this.visible(d.visit_types);
+    const out = titleLine(
       "Visit types",
-      d.visit_types.length,
+      this.count(rows.length, d.visit_types.length),
       "Epic's service-type. A visit whose type is on this list says the spoken name and takes the Online mark. Epic searches each type the agent may book that has an ID; the local fake books the first of each kind, in this order.",
+      this.add("a visit type", d.visit_types, () => ({ code: "", record: "", spoken: "", online: false, book: false })),
     );
     out.push(this.listBlock("Visit type list", "visit_type_list", "The list every visit type's ID belongs to, sent with each ID to Epic's $find."));
-    const t = table("Visit types", ["The record's name", "Spoken name", "ID", "Online", "Agent may book", ""]);
-    for (const r of d.visit_types) {
-      t.body.append(
-        ...row(
+    const t = table(
+      "Visit types",
+      ["The record's name", "Spoken name", { head: "ID", kind: "id" }, { head: "Online", kind: "flag" }, { head: "Agent may book", kind: "flag" }],
+      LIST,
+    );
+    this.fill(t, "visit-types", rows, (r) =>
+        row(
+          r,
           r.record || "A new visit type",
           [
             this.text("The record's name", r.record, (v) => (r.record = v)),
@@ -641,58 +884,64 @@ class Parts {
             this.idCell("visit_type_list", r.code, (v) => (r.code = v)),
             this.onOff("Online", r.online, (v) => (r.online = v)),
             this.onOff("Agent may book", r.book, (v) => (r.book = v)),
-            this.moves(d.visit_types, r),
           ],
           [
             ["The record's name:", "The type's name as the record holds it. A visit of this name, in any case, takes this row."],
             ["Spoken name:", "What the caller hears for this type. Empty: the record's own words. A name that names sensitive care makes the visit private."],
             ["ID:", r.code ? "The type's ID in the visit type list, sent to Epic's $find." : "None: Epic cannot search or book this type. The local fake can."],
           ],
+          this.moves(d.visit_types, r, "this visit type"),
         ),
-      );
-    }
-    out.push(t.wrap, this.add("a visit type", d.visit_types, () => ({ code: "", record: "", spoken: "", online: false, book: false })));
+    );
+    out.push(t.wrap);
     return out;
   }
 
   visitGroups(): HTMLElement[] {
     const d = this.d;
-    const out = heading(
+    const rows = this.visible(d.visit_groups);
+    const out = titleLine(
       "Visit groups",
-      d.visit_groups.length,
+      this.count(rows.length, d.visit_groups.length),
       "When a caller has several visits, the agent asks which group they mean. A group whose name or words name sensitive care is never said.",
+      this.add("a group", d.visit_groups, () => ({ name: "", words: [], visit_types: [] })),
     );
-    const t = table("Visit groups", ["Name the caller hears", "The caller's words", "Visit types", ""]);
-    for (const g of d.visit_groups) {
-      t.body.append(
-        ...row(
+    const t = table("Visit groups", ["Name the caller hears", "The caller's words", "Visit types"], LIST);
+    this.fill(t, "visit-groups", rows, (g) =>
+        row(
+          g,
           g.name || "A new group",
           [
             this.text("Name the caller hears", g.name, (v) => (g.name = v)),
             this.wordsCell("The caller's words", g.words, (v) => (g.words = v)),
             this.wordsCell("Visit types", g.visit_types, (v) => (g.visit_types = v)),
-            this.moves(d.visit_groups, g),
           ],
           [
             ["The caller's words:", "Other words a caller may say for this group, such as \"my checkup\"."],
             ["Visit types:", "The members, by the record's name of each visit type."],
           ],
+          this.moves(d.visit_groups, g, "this group"),
         ),
-      );
-    }
-    out.push(t.wrap, this.add("a group", d.visit_groups, () => ({ name: "", words: [], visit_types: [] })));
+    );
+    out.push(t.wrap);
     return out;
   }
 
   reasons(): HTMLElement[] {
     const d = this.d;
-    const out = heading("Reasons as codes", d.reasons.length, `Epic's indications: the caller's words for a reason, as a code. ${NOT_USED} A booking sends the caller's own words today.`);
+    const rows = this.visible(d.reasons, (r) => textOf(r, REASON_SYSTEMS.find(([k]) => k === r.system)?.[1] ?? ""));
+    const out = titleLine(
+      "Reasons as codes",
+      this.count(rows.length, d.reasons.length),
+      `Epic's indications: the caller's words for a reason, as a code. ${NOT_USED} A booking sends the caller's own words today.`,
+      this.add("a reason", d.reasons, () => ({ system: "" as ReasonSystem, code: "", words: [], visit_type: "", specialty: "" })),
+    );
     out.push(this.listBlock("Diagnosis list", "diagnosis_list", "The hospital's own diagnosis list, for a reason whose code system is the hospital's diagnoses. Epic: when the hospital's code and a SNOMED code are both sent, the hospital's code wins."));
-    const t = table("Reasons as codes", ["The caller's words", "Code system", "Code", "Visit type", "Specialty", ""]);
-    for (const r of d.reasons) {
+    const t = table("Reasons as codes", ["The caller's words", { head: "Code system", kind: "choice" }, { head: "Code", kind: "id" }, "Visit type", "Specialty"], LIST);
+    this.fill(t, "reasons", rows, (r) => {
       const code = r.system === "hospital" ? this.idCell("diagnosis_list", r.code, (v) => (r.code = v)) : this.text("Code", r.code, (v) => (r.code = v));
-      t.body.append(
-        ...row(
+      return row(
+          r,
           r.words[0] || "A new reason",
           [
             this.wordsCell("The caller's words", r.words, (v) => (r.words = v)),
@@ -704,27 +953,27 @@ class Parts {
             code,
             this.text("Visit type", r.visit_type, (v) => (r.visit_type = v)),
             this.text("Specialty", r.specialty, (v) => (r.specialty = v)),
-            this.moves(d.reasons, r),
           ],
           [
             ["Code system:", "SNOMED CT, ICD-10-CM, or the hospital's own diagnoses (the Diagnosis list above)."],
             ["Code:", "Epic's own sample sends SNOMED CT 46866001, a broken leg."],
           ],
-        ),
+          this.moves(d.reasons, r, "this reason"),
       );
-    }
-    out.push(t.wrap, this.add("a reason", d.reasons, () => ({ system: "" as ReasonSystem, code: "", words: [], visit_type: "", specialty: "" })));
+    });
+    out.push(t.wrap);
     return out;
   }
 
   timeZone(): HTMLElement[] {
     const d = this.d;
-    const out = heading("Time zone", 1, "The hospital's clock: the call's today and time, and each slot's time unless Epic sends the department's own zone.");
+    const out = titleLine("Time zone", null, "The hospital's clock: the call's today and time, and each slot's time unless Epic sends the department's own zone.");
     const all = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.("timeZone") ?? [];
     const zones = all.includes(d.time_zone) ? all : [d.time_zone, ...all];
     const t = table("Time zone", ["Zone"]);
     t.body.append(
       ...row(
+        null,
         "Time zone",
         [this.choose(zones.map((z) => [z, z.replace(/_/g, " ")]), d.time_zone, (v) => (d.time_zone = v))],
         [["Zone:", "An IANA name. One zone for the whole hospital for now."]],
@@ -736,66 +985,79 @@ class Parts {
 
   timesOfDay(): HTMLElement[] {
     const d = this.d;
-    const out = heading(
+    const rows = this.visible(d.times_of_day, (r) => textOf(r, String(r.hours)));
+    const out = titleLine(
       "Times of day",
-      d.times_of_day.length,
+      this.count(rows.length, d.times_of_day.length),
       "The names a caller may use for a time of day, such as morning. The agent may choose only these names; Epic's $find gets the start and the length.",
+      this.add("a time of day", d.times_of_day, () => ({ name: "", from: "08:00", hours: 1 }), this.l.times),
     );
-    const t = table("Times of day", ["Name", "Starts (HH:MM)", "Hours", ""]);
-    for (const r of d.times_of_day) {
-      t.body.append(
-        ...row(
-          r.name || "A new time of day",
-          [
-            this.text("Name", r.name, (v) => (r.name = v)),
-            this.text("Starts", r.from, (v) => (r.from = v)),
-            this.num("Hours", r.hours, 1, 24, (v) => (r.hours = v)),
-            this.moves(d.times_of_day, r),
-          ],
-          [["Name:", "Lower case a to z, spaces and -. The model sees these names."]],
-        ),
-      );
-    }
-    out.push(t.wrap, this.add("a time of day", d.times_of_day, () => ({ name: "", from: "08:00", hours: 1 })));
+    const t = table("Times of day", ["Name", { head: "Starts (HH:MM)", kind: "short" }, { head: "Hours", kind: "short" }], LIST);
+    this.fill(t, "times-of-day", rows, (r) =>
+      row(
+        r,
+        r.name || "A new time of day",
+        [
+          this.text("Name", r.name, (v) => (r.name = v)),
+          this.text("Starts", r.from, (v) => (r.from = v)),
+          this.num("Hours", r.hours, 1, 24, (v) => (r.hours = v)),
+        ],
+        [["Name:", "Lower case a to z, spaces and -. The model sees these names."]],
+        this.moves(d.times_of_day, r, "this time of day"),
+      ),
+    );
+    out.push(t.wrap);
     return out;
   }
 
   hours(): HTMLElement[] {
     const d = this.d;
-    const out = heading("Hours", d.hours.length, `When the hospital is open, by day of the week. ${NOT_USED} Epic's $find returns open slots only.`);
-    const t = table("Hours", ["Day", "Opens (HH:MM)", "Closes (HH:MM)", ""]);
-    for (const r of d.hours) {
-      t.body.append(
-        ...row(
-          DAYS.find(([k]) => k === r.day)?.[1] ?? "A day",
-          [
-            this.choose(DAYS, r.day, (v) => (r.day = v)),
-            this.text("Opens", r.opens, (v) => (r.opens = v)),
-            this.text("Closes", r.closes, (v) => (r.closes = v)),
-            this.moves(d.hours, r),
-          ],
-          [["Later:", "What the agent says when no person can take a hand-off now, and when a nurse may join a call."]],
-        ),
-      );
-    }
-    out.push(t.wrap, this.add("a day", d.hours, () => ({ day: "mon", opens: "08:00", closes: "17:00" })));
+    const dayName = (day: string) => DAYS.find(([k]) => k === day)?.[1] ?? "";
+    const rows = this.visible(d.hours, (r) => textOf(r, dayName(r.day)));
+    const out = titleLine(
+      "Hours",
+      this.count(rows.length, d.hours.length),
+      `When the hospital is open, by day of the week. ${NOT_USED} Epic's $find returns open slots only.`,
+      this.add("a day", d.hours, () => ({ day: "mon", opens: "08:00", closes: "17:00" })),
+    );
+    const t = table("Hours", [{ head: "Day", kind: "choice" }, { head: "Opens (HH:MM)", kind: "short" }, { head: "Closes (HH:MM)", kind: "short" }], LIST);
+    this.fill(t, "hours", rows, (r) =>
+      row(
+        r,
+        dayName(r.day) || "A day",
+        [
+          this.choose(DAYS, r.day, (v) => (r.day = v)),
+          this.text("Opens", r.opens, (v) => (r.opens = v)),
+          this.text("Closes", r.closes, (v) => (r.closes = v)),
+        ],
+        [["Later:", "What the agent says when no person can take a hand-off now, and when a nurse may join a call."]],
+        this.moves(d.hours, r, "this day"),
+      ),
+    );
+    out.push(t.wrap);
     return out;
   }
 
   closedDays(): HTMLElement[] {
     const d = this.d;
-    const out = heading("Closed days", d.closed_days.length, `Holidays and other days the hospital is closed. ${NOT_USED}`);
-    const t = table("Closed days", ["Date (YYYY-MM-DD)", "Name", ""]);
-    for (const r of d.closed_days) {
-      t.body.append(
-        ...row(
-          r.name || r.date || "A new day",
-          [this.text("Date", r.date, (v) => (r.date = v)), this.text("Name", r.name, (v) => (r.name = v)), this.moves(d.closed_days, r)],
-          [["Date:", "The day, in the hospital's time zone."]],
-        ),
-      );
-    }
-    out.push(t.wrap, this.add("a closed day", d.closed_days, () => ({ date: "", name: "" })));
+    const rows = this.visible(d.closed_days);
+    const out = titleLine(
+      "Closed days",
+      this.count(rows.length, d.closed_days.length),
+      `Holidays and other days the hospital is closed. ${NOT_USED}`,
+      this.add("a closed day", d.closed_days, () => ({ date: "", name: "" })),
+    );
+    const t = table("Closed days", [{ head: "Date (YYYY-MM-DD)", kind: "short" }, "Name"], LIST);
+    this.fill(t, "closed-days", rows, (r) =>
+      row(
+        r,
+        r.name || r.date || "A new day",
+        [this.text("Date", r.date, (v) => (r.date = v)), this.text("Name", r.name, (v) => (r.name = v))],
+        [["Date:", "The day, in the hospital's time zone."]],
+        this.moves(d.closed_days, r, "this closed day"),
+      ),
+    );
+    out.push(t.wrap);
     return out;
   }
 
@@ -804,9 +1066,54 @@ class Parts {
 
   /** The departments of a facility, or of none ("none"), in the list's order. */
   private departments(f: FacilityRow | "none"): LocationRow[] {
-    const d = this.d;
-    if (f !== "none") return f.id.trim() ? d.locations.filter((l) => l.facility === f.id) : [];
-    return d.locations.filter((l) => !l.facility || !d.facilities.some((x) => x.id === l.facility));
+    // Grouped once per draw, not scanned once per facility (TABLES.md §6.1).
+    if (!this.byFacility) {
+      const ids = new Set(this.d.facilities.map((x) => x.id));
+      const by = new Map<string, LocationRow[]>();
+      const none: LocationRow[] = [];
+      for (const l of this.d.locations) {
+        if (!l.facility || !ids.has(l.facility)) none.push(l);
+        else {
+          const list = by.get(l.facility);
+          if (list) list.push(l);
+          else by.set(l.facility, [l]);
+        }
+      }
+      this.byFacility = { by, none };
+    }
+    if (f === "none") return this.byFacility.none;
+    return f.id.trim() ? (this.byFacility.by.get(f.id) ?? []) : [];
+  }
+
+  private byFacility?: { by: Map<string, LocationRow[]>; none: LocationRow[] };
+
+  /** A specialty's spoken name by its ID ("ID 9" when it has none). */
+  private specialtyName = (code: string): string => {
+    if (!this.specialtyNames) this.specialtyNames = new Map(this.d.specialties.map((s) => [s.code, s.spoken]));
+    return this.specialtyNames.get(code) || `ID ${code}`;
+  };
+
+  private specialtyNames?: Map<string, string>;
+
+  /** A department's words for the search: its own, its specialty's name and its hours. */
+  private departmentText = (l: LocationRow): string => textOf(l, l.specialty ? this.specialtyName(l.specialty) : "", this.hoursText(l.hours));
+
+  /** A facility's own words match the search (its name, code, address, phone). */
+  private facilityMatches(f: FacilityRow | "none"): boolean {
+    return f !== "none" && this.ui.search.on && this.shows(f);
+  }
+
+  /** The departments of a facility that show: all when the facility itself matches. */
+  private departmentsShown(f: FacilityRow | "none"): LocationRow[] {
+    const all = this.departments(f);
+    if (!this.ui.search.on || this.facilityMatches(f)) return all;
+    return all.filter((l) => this.shows(l, () => this.departmentText(l)));
+  }
+
+  /** A facility shows when its own words or any of its departments match. */
+  private facilityShows(f: FacilityRow | "none"): boolean {
+    if (f === "none") return this.departmentsShown("none").length > 0;
+    return !this.ui.search.on || this.facilityMatches(f) || this.departmentsShown(f).length > 0;
   }
 
   /** A row's import mark, as a word after its name: new, changed, or not in Epic. */
@@ -821,7 +1128,7 @@ class Parts {
 
   /** A cell with the record's name and, after it, the row's import mark. */
   private nameCell(label: string, row: { record: string }): HTMLElement {
-    const wrap = el(`<div class="sys-cell"></div>`);
+    const wrap = el(`<div class="sys-cell dt-cell"></div>`);
     wrap.append(this.text(label, row.record, (v) => (row.record = v)));
     const m = this.mark(row);
     if (m) wrap.append(m);
@@ -852,48 +1159,36 @@ class Parts {
 
   /** A department's specialty, chosen from the Specialties list by its ID. */
   private specialtyCell(r: LocationRow): HTMLElement {
-    const options: [string, string][] = [["", "None"], ...this.d.specialties.filter((s) => s.code.trim()).map((s): [string, string] => [s.code, s.spoken || s.code])];
+    this.specialtyOptions ??= [["", "None"], ...this.d.specialties.filter((s) => s.code.trim()).map((s): [string, string] => [s.code, s.spoken || s.code])];
+    const options = [...this.specialtyOptions];
     if (r.specialty && !options.some(([c]) => c === r.specialty)) options.push([r.specialty, `ID ${r.specialty}`]);
     return this.choose(options, r.specialty, (v) => (r.specialty = v));
   }
 
-  /** Up within its facility, and Remove (Edit only). */
+  /** The Specialty select's options, made once per draw. */
+  private specialtyOptions?: [string, string][];
+
+  /** ↑ ↓ within its facility, and ✕ (Edit only). */
   private departmentMoves(r: LocationRow): HTMLElement {
-    const d = this.d;
-    const wrap = el(`<div class="cfg-control sys-remove"><button class="cfg-link" type="button">Up</button><button class="cfg-link" type="button">Remove</button></div>`);
-    const [up, remove] = [...wrap.querySelectorAll<HTMLButtonElement>("button")];
     const same = (x: LocationRow) => (x.facility || "") === (r.facility || "");
-    const before = () => {
-      const at = d.locations.indexOf(r);
-      for (let i = at - 1; i >= 0; i--) if (same(d.locations[i])) return i;
-      return -1;
-    };
-    if (before() < 0) {
-      up.dataset.off = "";
-      up.hidden = true;
-    }
-    up.addEventListener("click", () => {
-      const at = d.locations.indexOf(r);
-      const to = before();
-      if (to < 0) return;
-      [d.locations[to], d.locations[at]] = [d.locations[at], d.locations[to]];
-      this.kit.changed();
-      this.kit.rerender();
-    });
-    remove.addEventListener("click", () => {
-      d.locations.splice(d.locations.indexOf(r), 1);
-      this.kit.changed();
-      this.kit.rerender();
-    });
-    return wrap;
+    return listTools(this.d.locations, r, "this department", this.done, { peers: same, still: this.ui.search.on });
   }
 
-  private static readonly DEPARTMENT_COLUMNS = ["The record's name", "Spoken name", "DEP ID", "Specialty", "FHIR id", "Address", "Phone", "Hours", ""];
+  private static readonly DEPARTMENT_COLUMNS: Column[] = [
+    { head: "The record's name" },
+    { head: "Spoken name" },
+    { head: "DEP ID", kind: "id" },
+    { head: "Specialty", kind: "choice" },
+    { head: "FHIR id" },
+    { head: "Address" },
+    { head: "Phone" },
+    { head: "Hours" },
+  ];
 
   /** One department's row: the same cells in the drill-in and the Table view. */
   private departmentRow(r: LocationRow): HTMLTableRowElement[] {
     // The prefix shows only beside an ID (the owner's screenshot, 2026-11-15: "R DEP" alone).
-    const id = el(`<div class="sys-id"><span class="sys-id-file"></span></div>`);
+    const id = el(`<div class="sys-id dt-cell"><span class="sys-id-file"></span></div>`);
     const prefix = id.firstElementChild as HTMLElement;
     prefix.textContent = r.code.trim() ? "R DEP" : "";
     id.append(
@@ -905,6 +1200,7 @@ class Parts {
     const hours = el(`<span class="place-hours"></span>`);
     hours.textContent = this.hoursText(r.hours);
     return row(
+      r,
       r.record || "A new department",
       [
         this.nameCell("The record's name", r),
@@ -915,7 +1211,6 @@ class Parts {
         this.text("Address", r.address, (v) => (r.address = v)),
         this.text("Phone", r.phone, (v) => (r.phone = v)),
         hours,
-        this.departmentMoves(r),
       ],
       [
         ["The record's name:", "The department's name as the record holds it, such as EMC Family Medicine. A visit there says the spoken name."],
@@ -924,6 +1219,7 @@ class Parts {
         ["FHIR id:", "Epic's id for the Location: a visit's place is found by it first. Later: $find's location-reference."],
         ["Hours:", `From Epic's directory. ${NOT_USED}`],
       ],
+      this.departmentMoves(r),
     );
   }
 
@@ -937,9 +1233,11 @@ class Parts {
   private cards(): HTMLElement[] {
     const d = this.d;
     const grid = el(`<div class="place-cards" role="list" aria-label="Facilities"></div>`);
-    const specialtyName = (code: string) => d.specialties.find((s) => s.code === code)?.spoken || `ID ${code}`;
+    const specialtyName = this.specialtyName;
     const card = (f: FacilityRow | "none", i: number) => {
-      const depts = this.departments(f);
+      const all = this.departments(f);
+      // While a search is on, a facility shown for its departments counts and names only those.
+      const depts = this.facilityMatches(f) ? all : this.departmentsShown(f);
       const c = el(`
         <button class="people-card place-card" type="button" role="listitem">
           <span class="people-band place-band"></span>
@@ -959,7 +1257,10 @@ class Parts {
         address.textContent = f === "none" ? "Departments Epic names no facility for" : "Address";
         address.parentElement!.classList.add("is-placeholder");
       } else address.textContent = f.address;
-      count.textContent = `${depts.length} ${depts.length === 1 ? "department" : "departments"}`;
+      count.textContent =
+        depts.length === all.length
+          ? `${all.length} ${all.length === 1 ? "department" : "departments"}`
+          : `${depts.length} of ${all.length} departments match`;
       const codes = [...new Set(depts.map((l) => l.specialty).filter(Boolean))];
       const chips = c.querySelector<HTMLElement>(".place-chips")!;
       for (const code of codes.slice(0, CHIPS)) {
@@ -979,14 +1280,19 @@ class Parts {
       if (this.ui.older && this.facilityChanged(f)) c.classList.add("place-card-changed");
       c.setAttribute("aria-label", `${name.textContent}, ${count.textContent}`);
       c.addEventListener("click", () => this.ui.go(f === "none" ? "none" : facilityKey(f)));
+      track(f === "none" ? NONE_GROUP : f, c);
       return this.wave(c, i);
     };
-    const none = this.departments("none");
-    grid.append(...d.facilities.map(card));
-    if (none.length) grid.append(card("none", d.facilities.length));
-    if (!grid.childElementCount) grid.append(el(`<p class="empty">No facilities yet: import them from Epic, or add one</p>`));
-    const add = this.add("a facility", d.facilities, () => ({ record: "", spoken: "", id: "", code: "", address: "", phone: "" }), this.l.places);
-    return [grid, add];
+    const shown: (FacilityRow | "none")[] = d.facilities.filter((f) => this.facilityShows(f));
+    if (this.facilityShows("none")) shown.push("none");
+    const units: Unit[] = shown.map((f, i) => ({ item: f === "none" ? NONE_GROUP : f, draw: () => [card(f, i)] }));
+    fillGrid(grid, units, { heights: heightsOf("facility-cards"), drawn: this.drawnLater });
+    if (!units.length) {
+      const empty = el(`<p class="empty"></p>`);
+      empty.textContent = this.ui.search.on ? "No facility or department matches" : "No facilities yet: import them from Epic, or add one";
+      grid.append(empty);
+    }
+    return [grid];
   }
 
   /** Whether a facility or its departments differ from the active version's (an older version
@@ -1014,18 +1320,20 @@ class Parts {
     title.lastElementChild!.textContent = f !== "none" && f.code ? `R EAF ${f.code}` : "";
     out.push(this.wave(title, i++));
     if (f !== "none") {
-      const t = table("Facility", ["The record's name", "Spoken name", "EAF ID", "FHIR id", "Address", "Phone", ""]);
-      const remove = el(`<div class="cfg-control sys-remove"><button class="cfg-link" type="button">Remove facility</button></div>`);
-      remove.querySelector("button")!.addEventListener("click", () => {
-        // The facility and its departments (the owner's import-all: analysts remove what the
-        // agent does not need).
-        const gone = new Set(this.departments(f));
-        d.locations = d.locations.filter((l) => !gone.has(l));
-        d.facilities.splice(d.facilities.indexOf(f), 1);
-        this.kit.changed();
-        this.ui.go(null);
+      const t = table("Facility", ["The record's name", "Spoken name", { head: "EAF ID", kind: "id" }, "FHIR id", "Address", "Phone"], { remove: true });
+      // ✕ takes the facility and its departments (the owner's import-all: analysts remove what
+      // the agent does not need), then goes back to the cards (TABLES.md §3.11).
+      const remove = rowTools("this facility and its departments", {
+        remove: () => {
+          const gone = new Set(this.departments(f));
+          d.locations = d.locations.filter((l) => !gone.has(l));
+          d.facilities.splice(d.facilities.indexOf(f), 1);
+          this.kit.changed();
+          this.ui.go(null);
+        },
       });
       const [main, help] = row(
+        f,
         f.record || "A new facility",
         [
           this.nameCell("The record's name", f),
@@ -1034,30 +1342,36 @@ class Parts {
           this.text("FHIR id", f.id, (v) => (f.id = v)),
           this.text("Address", f.address, (v) => (f.address = v)),
           this.text("Phone", f.phone, (v) => (f.phone = v)),
-          remove,
         ],
         [
           ["The record's name:", "The facility's name in Epic (EAF): a building or campus that holds departments."],
           ["Spoken name:", `What the caller would hear for the facility. ${NOT_USED}`],
           ["FHIR id:", "Epic's id for the Location. Its departments name it as their facility."],
-          ["Remove facility:", "Takes out the facility and every department in it. Nothing is saved until Save."],
+          ["Remove (✕):", "Takes out the facility and every department in it. Nothing is saved until Save."],
         ],
+        remove,
       );
       t.body.append(main, help);
       out.push(this.wave(t.wrap, i++));
     }
-    const depts = this.departments(f);
-    const h = el(`<h4 class="place-subhead"><span>Departments</span><span class="prompt-count"></span></h4>`);
-    h.lastElementChild!.textContent = String(depts.length);
-    out.push(this.wave(h, i++));
-    const t = table("Departments", Parts.DEPARTMENT_COLUMNS);
-    for (const r of depts) {
+    const depts = this.departmentsShown(f);
+    // Add on the title line; a facility with no FHIR id cannot hold departments yet.
+    const canAdd = f === "none" || !!f.id.trim();
+    const [line, note] = titleLine(
+      "Departments",
+      this.count(depts.length, this.departments(f).length),
+      canAdd ? null : "Type the facility's FHIR id to add departments to it.",
+      ...(canAdd ? [this.addDepartment(f === "none" ? "" : f.id)] : []),
+    );
+    out.push(this.wave(line, i++));
+    if (note) out.push(note);
+    const t = table("Departments", Parts.DEPARTMENT_COLUMNS, LIST);
+    const first = i;
+    this.fill(t, "departments", depts, (r) => {
       const [main, help] = this.departmentRow(r);
-      t.body.append(this.wave(main, i++), help);
-    }
+      return [this.wave(main, first + depts.indexOf(r)), help];
+    });
     out.push(t.wrap);
-    if (f === "none" || f.id.trim()) out.push(this.addDepartment(f === "none" ? "" : f.id));
-    else out.push(el(`<p class="sys-note">Type the facility's FHIR id to add departments to it.</p>`));
     return out;
   }
 
@@ -1065,29 +1379,44 @@ class Parts {
    * "Table of DEPs grouped into an EAF"). */
   private placesTable(): HTMLElement[] {
     const d = this.d;
-    const t = table("Departments by facility", Parts.DEPARTMENT_COLUMNS);
-    let i = 0;
+    const t = table("Departments by facility", Parts.DEPARTMENT_COLUMNS, LIST);
+    if (this.ui.search.on) t.wrap.dataset.empty = "No match";
+    // Each facility's heading row, then its departments: one list of rows, windowed when long.
+    const units: Unit[] = [];
     const group = (f: FacilityRow | "none") => {
-      const depts = this.departments(f);
-      if (f === "none" && !depts.length) return;
-      const head = el(`<table><tbody><tr class="place-group"><td></td><td><span class="place-group-name"></span> <span class="sys-id-file"></span> <span class="prompt-count"></span></td></tr></tbody></table>`).querySelector("tr")!;
-      head.lastElementChild!.setAttribute("colspan", String(Parts.DEPARTMENT_COLUMNS.length));
-      const [name, code, count] = [...head.querySelectorAll<HTMLElement>("span")];
-      name.textContent = f === "none" ? "Not in a facility" : f.spoken || f.record || "A new facility";
-      code.textContent = f !== "none" && f.code ? `R EAF ${f.code}` : "";
-      count.textContent = String(depts.length);
-      t.body.append(this.wave(head, i++));
+      if (!this.facilityShows(f) || (f === "none" && !this.departments("none").length)) return;
+      const all = this.departments(f);
+      const depts = this.departmentsShown(f);
+      const at = units.length;
+      units.push({
+        item: f === "none" ? NONE_GROUP : f,
+        draw: () => {
+          const [name, code, count] = [el(`<span></span>`), el(`<span class="sys-id-file"></span>`), el(`<span class="dt-count"></span>`)];
+          name.textContent = f === "none" ? "Not in a facility" : f.spoken || f.record || "A new facility";
+          code.textContent = f !== "none" && f.code ? `R EAF ${f.code}` : "";
+          count.textContent = depts.length === all.length ? String(all.length) : `${depts.length} of ${all.length}`;
+          return [this.wave(groupRow(t, name, " ", code, " ", count), at)];
+        },
+      });
       for (const r of depts) {
-        const [main, help] = this.departmentRow(r);
-        t.body.append(this.wave(main, i++), help);
+        const k = units.length;
+        units.push({
+          item: r,
+          draw: () => {
+            const [main, help] = this.departmentRow(r);
+            return [this.wave(main, k), help];
+          },
+        });
       }
     };
     d.facilities.forEach(group);
     group("none");
+    fillTable(t, units, { heights: heightsOf("places-table"), drawn: this.drawnLater });
     return [t.wrap];
   }
 
-  /** Import from Epic, right of the tabs (the owner's screenshot, 2026-11-15, and his B: "can
+  /** Import from Epic, on the Locations title line left of Add (the owner, 2026-11-15: "Go" on
+   * TABLES.md's follow list; before, right of the tabs, his screenshot), and his B: "can
    * dropdown a small panel with a cities/states box and explicit instruction to enter city, state
    * or just state"). Edit only: an import fills the draft. The panel takes up to 5 searches, each
    * checked as it is added (a known state; a city of letters), and suggests the states and the
@@ -1096,7 +1425,7 @@ class Parts {
     const ui = this.ui;
     const wrap = el(`
       <div class="place-import">
-        <div class="cfg-control"><button class="cfg-button place-import-open" type="button" aria-haspopup="dialog" aria-expanded="false">Import from Epic</button></div>
+        <div class="cfg-control dt-add"><div class="tabs" role="group"><button class="tab place-import-open" type="button" aria-haspopup="dialog" aria-expanded="false">Import from Epic</button></div></div>
         <div class="menu place-import-panel" role="dialog" aria-label="Import from Epic" hidden>
           <div class="place-import-entry">
             <button class="cfg-info" type="button" aria-expanded="false" aria-label="How to search"><span class="i-glyph" aria-hidden="true">i</span></button>
@@ -1286,10 +1615,23 @@ class Parts {
 
   places(): HTMLElement[] {
     const d = this.d;
-    const out = heading(
+    const matching = this.ui.search.on
+      ? [...d.facilities, "none" as const].reduce((n, f) => n + (this.facilityShows(f) ? this.departmentsShown(f).length : 0), 0)
+      : d.locations.length;
+    const out = titleLine(
       "Locations",
-      d.locations.length,
+      this.count(matching, d.locations.length),
       `${d.facilities.length} ${d.facilities.length === 1 ? "facility" : "facilities"} (Epic's EAF), each holding its departments (DEP). A visit at a department on this list says its spoken name; the first department is said when a record names no place.`,
+      this.importControl(),
+      // A new facility is a card with nothing to show: Add opens it, drilled in, to fill.
+      addButton("Add a facility", () => {
+        if (d.facilities.length >= this.l.places) return;
+        const f: FacilityRow = { record: "", spoken: "", id: "", code: "", address: "", phone: "" };
+        this.ui.search.keep(f);
+        d.facilities.push(f);
+        this.kit.changed();
+        this.ui.openNew(f);
+      }),
     );
     // What the last import did (counts only), until the next draw of a new draft.
     if (this.ui.importSay) {
@@ -1312,9 +1654,13 @@ class Parts {
     new ResizeObserver(() => bar.place()).observe(bar.el);
     out.push(bar.el);
     const stage = el(`<div class="place-stage"></div>`);
-    const open = this.ui.view === "cards" ? resolveOpen(d, this.ui.open) : null;
+    const open = this.ui.view === "cards" ? resolveOpen(d, this.ui.open, this.ui.fresh) : null;
     stage.append(...(this.ui.view === "table" ? this.placesTable() : open ? this.facility(open) : this.cards()));
-    if (this.ui.wave) stage.classList.add("place-wave");
+    if (this.ui.wave) {
+      stage.classList.add("place-wave");
+      // After the wave, rows a long list draws as it scrolls come in without it.
+      window.setTimeout(() => stage.classList.remove("place-wave"), tokenMs("--dur-wave-in") + WAVE_LAST * tokenMs("--wave-step"));
+    }
     this.ui.wave = false;
     this.ui.stage = stage;
     out.push(stage);
@@ -1323,30 +1669,35 @@ class Parts {
 
   specialties(): HTMLElement[] {
     const d = this.d;
-    const out = heading("Specialties", d.specialties.length, `Epic's specialties: the department's specialty, for "a skin doctor". ${NOT_USED}`);
+    const rows = this.visible(d.specialties);
+    const out = titleLine(
+      "Specialties",
+      this.count(rows.length, d.specialties.length),
+      `Epic's specialties: a kind of care, such as Cardiology. Each department on Places names one by its ID; here each ID gets the name the caller hears and the caller's words for it, such as "a skin doctor". ${NOT_USED}`,
+      this.add("a specialty", d.specialties, () => ({ code: "", spoken: "", words: [] })),
+    );
     out.push(this.listBlock("Specialty list", "specialty_list", "The list every specialty's ID belongs to. Epic gives no list of a hospital's specialties by API."));
-    const t = table("Specialties", ["Spoken name", "The caller's words", "ID", ""]);
-    for (const r of d.specialties) {
-      t.body.append(
-        ...row(
-          r.spoken || "A new specialty",
-          [
-            this.text("Spoken name", r.spoken, (v) => (r.spoken = v)),
-            this.wordsCell("The caller's words", r.words, (v) => (r.words = v)),
-            this.idCell("specialty_list", r.code, (v) => (r.code = v)),
-            this.moves(d.specialties, r),
-          ],
-          [["ID:", "The specialty's ID in the specialty list, from the hospital's own build."]],
-        ),
-      );
-    }
-    out.push(t.wrap, this.add("a specialty", d.specialties, () => ({ code: "", spoken: "", words: [] })));
+    const t = table("Specialties", ["Spoken name", "The caller's words", { head: "ID", kind: "id" }], LIST);
+    this.fill(t, "specialties", rows, (r) =>
+      row(
+        r,
+        r.spoken || "A new specialty",
+        [
+          this.text("Spoken name", r.spoken, (v) => (r.spoken = v)),
+          this.wordsCell("The caller's words", r.words, (v) => (r.words = v)),
+          this.idCell("specialty_list", r.code, (v) => (r.code = v)),
+        ],
+        [["ID:", "The specialty's ID in the specialty list, from the hospital's own build."]],
+        this.moves(d.specialties, r, "this specialty"),
+      ),
+    );
+    out.push(t.wrap);
     return out;
   }
 
   booking(): HTMLElement[] {
     const d = this.d;
-    const out = heading("Booking", 6, "How the agent offers slots, finds a caller's visits, and notes a booking.");
+    const out = titleLine("Booking", null, "How the agent offers slots, finds a caller's visits, and notes a booking.");
     const t = table("Booking", ["Setting", "Value"]);
     const windows = field("Search windows (days, comma separated)", d.ahead_windows.join(", "), 40, (v) => {
       d.ahead_windows = unwords(v).map(Number);
@@ -1364,7 +1715,12 @@ class Parts {
         "Epic's $book files the caller's reason, in their own words, as the visit's note; this label follows it, so staff know who said it. Empty: the words alone. Epic keeps 500 characters; the label is kept whole.",
       ],
     ];
-    for (const [name, control, help] of rows) t.body.append(...row(name, [name, control], [["What it does:", help]]));
+    // A search shows the settings whose name or help holds its words.
+    if (this.ui.search.on) t.wrap.dataset.empty = "No match";
+    for (const [name, control, help] of rows) {
+      if (this.ui.search.on && !this.ui.search.matches(`${name}\n${help}`)) continue;
+      t.body.append(...row(null, name, [name, control], [["What it does:", help]]));
+    }
     out.push(t.wrap);
     return out;
   }

@@ -143,6 +143,12 @@ function differing(a: Draft, b: Draft): Set<string> {
   return out;
 }
 
+/** "Pronunciations, row 2: a cell is empty", or null. Names a list and a row, never a value. */
+function blankCell(name: string, rows: string[][]): string | null {
+  const i = rows.findIndex((r) => r.some((c) => !c.trim()));
+  return i < 0 ? null : `${name}, row ${i + 1}: a cell is empty`;
+}
+
 export const cartesiaView = (): View => {
   let cycle: CartesiaCycle | undefined;
   return settingsView<VoiceValues, Draft, CartesiaSettings>({
@@ -152,6 +158,9 @@ export const cartesiaView = (): View => {
     save: (s, d) => saveCartesia(toValues(d, s.tts.voices, s.values)),
     fromValues,
     differing,
+    // A row added in place starts blank (TABLES.md §3.16): Save waits until each cell has
+    // words, so an empty word never reaches Cartesia.
+    blocked: (d) => blankCell("Pronunciations", d.pronunciations) ?? blankCell("Keyterms", d.keyterms),
     extra: async () => {
       const use = resources(null);
       await use.refresh("open");

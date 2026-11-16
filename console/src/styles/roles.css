@@ -16,7 +16,7 @@
 }
 
 /* Add at the title row's right end (Auth's status line pushes it there; here nothing does). */
-.roles-add {
+.roles-section .dt-add {
   margin-inline-start: auto;
 }
 
@@ -24,7 +24,7 @@
 .roles-table > tbody > tr > th {
   position: static;
   background: none;
-  border-top: var(--edge) solid var(--line);
+  border-bottom: var(--edge) solid var(--line);
 }
 
 /* A role's name: a button that opens its panel, in the row's look (auth.css › .auth-row). */

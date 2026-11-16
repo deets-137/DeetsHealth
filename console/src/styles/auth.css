@@ -19,10 +19,11 @@
 
 /* "Users" at the left, Add at the right. The title is as tall as Add (the owner, 2026-11-14:
    "increase the font size of Users so it matches the size of the Add button"): a page
-   heading's size, on a row of a field's height. */
+   heading's size, on a row of a tab bar's height, as every table's title line
+   (data-table.css › .dt-title-line). */
 .auth-title {
   flex: none;
-  height: var(--field-height);
+  height: var(--control-height);
   display: flex;
   align-items: center;
   font-size: var(--text-page);
@@ -36,9 +37,6 @@
   text-align: right;
 }
 
-.auth-add {
-  flex: none;
-}
 
 /* The table scrolls both ways inside the panel; the page itself never does. */
 .auth-scroll {
@@ -47,30 +45,13 @@
   overflow: auto;
 }
 
-.auth-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-small);
-}
-
+/* The one table (data-table.css › .dt-plain); only its header sticks, as the list scrolls in
+   its own box (TABLES.md §3.13). */
 .auth-table th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: var(--pad-row);
   background: var(--glass-fill-strong);
-  color: var(--text-2);
-  font-weight: var(--weight-bold);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.auth-table td {
-  padding: var(--pad-row);
-  border-top: var(--edge) solid var(--line);
-  color: var(--text);
-  white-space: nowrap;
-  vertical-align: middle;
 }
 
 .auth-row {

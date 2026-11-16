@@ -249,8 +249,10 @@
   border-top: var(--edge) solid var(--line);
 }
 
-/* The "i": a rounded square the size of --info-size. Pressed open, it takes the accent edge. */
-.cfg-info {
+/* The "i": a rounded square the size of --info-size. Pressed open, it takes the accent edge.
+   The tables' ↑ ↓ ✕ (data-table.css › .dt-tool) are the same square. */
+.cfg-info,
+.dt-tool {
   grid-area: info;
   justify-self: start; /* its left edge on the card's text edge, under the title's */
   margin: 0;
@@ -266,7 +268,8 @@
   transition: background-color var(--dur-hover) var(--ease), border-color var(--dur-hover) var(--ease);
 }
 
-.cfg-info:hover {
+.cfg-info:hover,
+.dt-tool:hover:not(:disabled) {
   background: var(--press);
   color: var(--text);
 }
@@ -521,49 +524,32 @@ select.cfg-field {
 
 /* ---------------------------------------------------------------- a list as a table */
 
-/* The add row first; the entries under it, as a table with a header row. */
+/* Pronunciations, Keyterms (TABLES.md §3.16): Add at the top right of the control, then the
+   one table (data-table.css). Add sits level with the row's "i" and name: the row lines up at
+   its top, and the "i" and the name center on Add's height. */
 .cfg-list {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
-.cfg-add {
+.cfg-list-top {
   display: flex;
-  gap: var(--space-3);
+  justify-content: flex-end;
 }
 
-.cfg-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-small);
+.cfg-row:has(.cfg-list) {
+  align-items: start;
 }
 
-.cfg-table[hidden] {
-  display: none;
+.cfg-row:has(.cfg-list) > .cfg-info {
+  margin-top: calc((var(--control-height) - var(--info-size)) / 2);
 }
 
-.cfg-table th {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: var(--edge) solid var(--line);
-  color: var(--text-3);
-  font-weight: var(--weight-regular);
-  text-align: left;
-}
-
-.cfg-table td {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: var(--edge) solid var(--line);
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-
-.cfg-table .cfg-remove {
-  width: 1%;
-  text-align: right;
-  white-space: nowrap;
+.cfg-row:has(.cfg-list) > .cfg-name {
+  padding-top: calc((var(--control-height) - var(--line-height) * var(--text-size)) / 2);
 }
 
 /* ---------------------------------------------------------------- Read */
@@ -599,6 +585,30 @@ select.cfg-field {
 
 .prompt-bar {
   max-width: 100%;
+}
+
+/* A page's search box, at the right of its tab bar's line (TABLES.md §6; the owner's
+   screenshot, 2026-11-15). As tall as the tab bar; it takes the whole line when narrow. */
+.cfg-search {
+  display: flex;
+  flex: 0 1 var(--search-width);
+  min-width: 0;
+}
+
+.cfg-search-box {
+  height: var(--control-height);
+}
+
+/* The search's words, marked where they are shown (hospital.ts › markMatches). */
+::highlight(deets-search) {
+  background-color: var(--accent);
+  color: var(--on-accent);
+}
+
+@media (max-width: 720px) {
+  .cfg-search {
+    flex-basis: 100%;
+  }
 }
 
 /* A dot after a tab's name: a changed section on an older version (the accent), or a section
@@ -1068,79 +1078,22 @@ select.cfg-field {
   color: var(--text);
 }
 
-/* ---------------------------------------------------------------- Config › System */
+/* ---------------------------------------------------------------- Config › System, Hospital */
 
-/* SYSTEM-PAGE.md §3.6 (the owner, 2026-11-13: "use tables where there are multiple rows of
-   things"): each list is a table with a header row; each row's title says what it is, and its
-   "i" rolls the rest down in a row under it. The type is body size, as on Config › Agent; the
-   header is the Cartesia tables' (.cfg-table th). Wider than the view: the table scrolls
-   sideways inside its own box, never the page. */
-.sys-table-wrap {
-  min-width: 0;
-  overflow-x: auto;
-}
-
-.sys-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.sys-table th {
-  padding: var(--space-2) var(--space-3);
-  border-bottom: var(--edge) solid var(--line);
-  font-size: var(--text-small);
-  font-weight: var(--weight-regular);
-  color: var(--text-3);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.sys-table td {
-  padding: var(--space-3);
-  vertical-align: top;
-  color: var(--text);
-  overflow-wrap: break-word;
-}
-
-/* The "i" column: as wide as the "i", flush with the table's left edge. */
-.sys-table .sys-i {
-  width: var(--info-size);
-  padding-left: 0;
-}
-
-/* The line between rows sits under each row's help, so an open help stays with its row. */
-.sys-help-row td {
-  padding-top: 0;
-  padding-bottom: 0;
-  border-bottom: var(--edge) solid var(--line);
-}
-
-.sys-help-row .cfg-help-text {
-  padding-bottom: var(--space-3);
-}
-
-/* An editable cell keeps Config › Agent's words and box (.prompt-control) at the cell's edge.
-   The words carry the box's inner padding and edge (.prompt-words, .prompt-text), so the control
-   moves left by that much: the words start where the column's header starts (the owner's
-   screenshot, 2026-11-15). In Edit the box's edge sits just left of them, inside the gap
-   between columns. */
-.sys-table .prompt-control {
-  margin: calc(-1 * var(--space-3)) 0 calc(-1 * var(--space-3)) calc(-1 * (var(--space-4) + var(--edge)));
-}
-
+/* Their tables are the one table (data-table.css; TABLES.md). These are the cells of their
+   own: a cell with a problem line under its box, and a row's ID after its list's prefix. */
 .sys-cell {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-/* A row's ID after its list's prefix, "R PRC 1003" (Config › Hospital, the owner's A,
-   2026-11-15). The gap holds the box's pulled-in left edge (the rule above), so in Edit the
-   box starts just after the prefix and the words do not move. */
+/* "R PRC 1003" (Config › Hospital, the owner's A, 2026-11-15): the prefix starts where a
+   header's word does, and the box follows it. */
 .sys-id {
   display: flex;
   align-items: baseline;
-  gap: calc(var(--space-4) + var(--edge) + var(--space-2));
+  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -1148,6 +1101,10 @@ select.cfg-field {
   flex: none;
   color: var(--text-3);
   white-space: nowrap;
+}
+
+.sys-id > .sys-id-file {
+  padding-left: calc(var(--space-4) + var(--edge));
 }
 
 .sys-id-file:empty {
@@ -1159,10 +1116,6 @@ select.cfg-field {
   min-width: 0;
 }
 
-.sys-table tr.prompt-bad .prompt-text {
-  border-color: var(--error);
-}
-
 .sys-links {
   display: inline;
 }
@@ -1170,35 +1123,6 @@ select.cfg-field {
 .sys-note {
   font-size: var(--text-small);
   color: var(--text-3);
-}
-
-.sys-remove {
-  min-height: 0;
-  justify-content: flex-end;
-  white-space: nowrap;
-}
-
-/* Add a variable: under the table, a title, then the three fields and Add on one line. */
-.sys-add {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding-top: var(--space-3);
-}
-
-.sys-add-title {
-  font-size: var(--text-small);
-  color: var(--text-3);
-}
-
-.sys-add-fields {
-  flex-wrap: wrap;
-}
-
-/* Read shows what is there; Remove and Add a variable are Edit's alone. */
-.cfg[data-mode="read"] .sys-remove,
-.cfg[data-mode="read"] .sys-add {
-  display: none;
 }
 
 /* ---------------------------------------------------------------- Places › Locations */
@@ -1291,32 +1215,9 @@ select.cfg-field {
   align-items: baseline;
   gap: var(--space-3);
   margin: 0;
-  font-size: var(--text-panel);
+  font-size: var(--text-page); /* a title line's size (data-table.css › .dt-title), so the facility stands over its Departments */
   font-weight: var(--weight-bold);
   color: var(--title);
-}
-
-.place-subhead {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  margin: var(--space-3) 0 0;
-  font-size: var(--text-size);
-  font-weight: var(--weight-bold);
-  color: var(--title);
-}
-
-/* The Table view's heading row before each facility's departments. */
-.sys-table .place-group td {
-  padding-top: var(--space-4);
-  border-bottom: var(--edge) solid var(--line);
-  font-weight: var(--weight-bold);
-  color: var(--title);
-}
-
-.place-group .sys-id-file,
-.place-group .prompt-count {
-  font-weight: var(--weight-regular);
 }
 
 .place-hours {
@@ -1324,13 +1225,17 @@ select.cfg-field {
   color: var(--text-2);
 }
 
-/* Import from Epic: a button just right of the tabs (the owner's screenshot, 2026-11-15), and
-   under it a panel in the console's frosted menu (app.css › .menu): how to search, the box, the
-   suggestions (word-row, as the `{` list), what to search as chips, Cancel and Import. */
+/* Import from Epic: on the Locations title line, left of Add, in the same tab bar frame
+   (TABLES.md §2; before, right of the tabs: the owner's screenshot, 2026-11-15), and under it
+   a panel in the console's frosted menu (app.css › .menu), at the button's right edge: how to
+   search, the box, the suggestions (word-row, as the `{` list), what to search as chips,
+   Cancel and Import. Hidden in Read, as Add is. */
 .place-import {
   position: relative;
-  align-self: center;
-  margin-right: auto;
+}
+
+.cfg[data-mode="read"] .place-import {
+  visibility: hidden;
 }
 
 .place-import-panel {
@@ -1345,14 +1250,6 @@ select.cfg-field {
   flex-direction: column;
   gap: var(--canvas-pad);
   white-space: normal;
-}
-
-/* Under a narrow bar the button wraps to its own line, at the left: the panel opens from there. */
-@media (max-width: 720px) {
-  .place-import-panel {
-    left: 0;
-    right: auto;
-  }
 }
 
 .place-import-panel[hidden],

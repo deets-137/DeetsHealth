@@ -121,13 +121,18 @@ the branch `archive/patient-app`.
 - `CONSOLE.md` — the web console as built: where it runs (a browser; installable as a web
   app), the shell in DeetsMotion's look (top bar, nav, pages, Chat's stage and rail), the
   themes and the Glass skin, what moved to the archive, the desk test; Config › Cartesia (§7)
-  and Config › Anthropic (§8), their settings store and shared frame (`config-kit.ts`).
+  and Config › Anthropic (§8), their settings store and shared frame (`config-kit.ts`); the
+  speed rules for every page and the recipe for a slow one (§12).
 - `CHAT.md` — the Chat page (built, wired to the agent's dev server): the owner's sketch (`images/`), the canvas, the
   bubbles and their line facts, the PHI / Test / Demo toggle, the text box, the connection, the
   catalog of calls, the rail's sandbox patients and the code button (§8); its forks.
 - `MOBILE-UI.md` — the console on a phone: how a page knows it is narrow (width, pointer,
   hover; no user-agent checks), the width tokens, what is built page by page, what is open.
   Add a row and a log line with each piece built.
+- `TABLES.md` — the console's one table (`data-table.ts`, `data-table.css`), as `tab-bar.ts` is
+  for tab bars: column kinds as width tokens, one cell box, words under the headers, ↑ ↓ ✕ at
+  the right edge, Add on the title line, the row motion, Read as words. Every table uses it.
+  §6: long lists windowed (`list-window.ts`, above 200 rows) and the search box with Ctrl+F.
 - `LOADING.md` — the console's reads: one store per kind of data (the newest answer wins, writes
   in click order, polls one at a time, retry when the agent is back), the ledger of every read
   for debugging and health later, and the first-load wave (the owner's fork A: hold, then one
@@ -168,7 +173,8 @@ the branch `archive/patient-app`.
   `CARTESIA.md` (Ink and Sonic, ZDR, the pronunciation dictionary; ElevenLabs as the fallback),
   `ANTHROPIC.md` (HIPAA readiness, the models and prices, every lever and its setting, caching for voice), `PIPECAT.md` (the
   call loop; known issues to test first), `CLOUD.md` (what a deploy needs; C1 decided: AWS `us-east-1`),
-  `OTHER-EHRS.md` (Oracle Health, athenahealth, MEDITECH).
+  `NON-EPIC-EHRS.md` (the shape for every EHR: one standard FHIR core with a variant per EHR,
+  `Source` as EHR and environment, the SMART sandbox; then Oracle Health, athenahealth, MEDITECH).
 
 **`docs/ops/`** — build, ship, diagnose
 - `DEBUGGING.md` — how a call is read after it goes wrong: the call log, the call timeline, the
@@ -265,7 +271,10 @@ The full rules are SECURITY.md (the phone agent's, 2026-10-19). In short:
 - **Before you build a new console panel, row, button or card**, walk DeetsMusic's list (its
   CLAUDE.md › Working style) with one change for this project: hints, toasts and log lines
   **may never carry protected data (PHI or PII)**. A hint or toast names a kind of thing
-  ("3 calls handed off"), never a value from a record or a call.
+  ("3 calls handed off"), never a value from a record or a call. Then walk the speed rules
+  (`architecture/CONSOLE.md` §12): plan for the longest list a real hospital has, window a list
+  past 200 rows, give it a search box, never read layout in a write loop, and run key-press work
+  once a frame.
 - He values polish and good stewardship: keep calls to each health system's FHIR server
   low, and quote a cost before a fetch-heavy or minute-heavy approach (FHIR calls, Twilio,
   Cartesia and Claude minutes).

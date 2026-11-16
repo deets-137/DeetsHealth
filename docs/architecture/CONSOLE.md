@@ -2,7 +2,7 @@
 status: built
 desk_test: passed 2026-11-11
 sources: [docs/architecture/images/hospital-places-cards-dark-2026-11-15.png, docs/architecture/images/hospital-places-cards-charcoal-2026-11-15.png, console/src/styles/people.css, console/src/styles/palette.css, console/security-headers.json, agent/deets_agent/security_headers.py, scripts/html-sinks.mjs, docs/architecture/images/chat-compact-toggles-2026-11-14.png, docs/architecture/images/nav-compact-layout-2026-11-14.png, console/src/picker.ts, console/src/pages/page.ts, console/src/styles/subnav.css, console/src/styles/chat.css, docs/architecture/images/config-agent-test-button-2026-11-14.png, console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # DeetsHealth — The console
 
@@ -519,9 +519,9 @@ version Active](images/config-cartesia-2026-11-13.png)
   default, the thumb is centred on the line both ways: the track's edge is an inset shadow, not
   a border, because a border moves the thumb's travel in by its width (the owner, 2026-11-13).
 - **The tables** (the owner, 2026-11-13: "move the active list into a structured table below the
-  text boxes"): the add row first (one box per column, then Add; Enter adds too), the entries
-  under it as a table with a header row and Remove at each row's end. No table while it is
-  empty.
+  text boxes"; since 2026-11-15 the console's one table, TABLES.md §3.16): Add at the top right
+  of the row's control, level with its name; each entry's cells edited in place, and its ✕. A
+  new entry is blank; Save waits until each cell has words. "None yet" when it is empty.
 - **The data:** `GET /agent/cartesia` (DEV-API.md §2): every value the next call runs with, and
   each lever's range and Cartesia's default, from the constants `voice.py` uses
   (`config.py`). A null value is "Cartesia's default": the agent sends nothing for it.
@@ -1107,3 +1107,64 @@ page by page, is [MOBILE-UI.md](MOBILE-UI.md).
 - Start | End call fills the canvas's width, each button one half (the owner, 2026-11-14).
   Demo's Play | Stop does the same (decided inside his ask). When the code button shows, it
   keeps its own width and the split takes the rest.
+
+## 12. Speed: the rules for every page
+
+> **Part:** guide · 2026-11-15 (from the slow Hospital page after an import: TABLES.md §6.1;
+> the owner, 2026-11-15: "doc for future build as we build out more and more pages")
+
+Hospital froze after an import because of four habits that cost nothing on a list of 10 rows
+and a lot on 400. Each new page, panel or list follows these rules from the start. Walk them
+with DeetsMusic's build list (CLAUDE.md › Working style).
+
+### 12.1 What a page draws
+1. **Plan for the long list.** Ask how long each list can get in a real hospital (Places'
+   limit is 2,000 rows), not how long it is in the sandbox. A list that can pass 200 rows goes
+   through `fillTable` or `fillGrid` (`list-window.ts`, TABLES.md §6). Never append every row.
+2. **A page that holds a long list has a search box** (the Hospital one: `Search`, the box on
+   the tab bar's line, Ctrl+F). It searches the data, not the screen. Move `Search` and the box
+   to a shared part the second time a page needs them.
+3. **Pages are kept.** `nav.ts` and `subnav.ts` build a page once and keep it, so what a page
+   holds in the page's tree costs it on every visit. Keep that tree small.
+4. **One scroll per page.** Never a box that scrolls up and down inside the page's scroll
+   (TABLES.md §6.3, W1). A table's box scrolls only sideways.
+5. **Build a shared part once per draw,** not once per row: a select's option list, a name
+   lookup, a group of rows by their parent (`departments()`, `specialtyOptions` in
+   `hospital.ts`).
+
+### 12.2 What the code does each frame
+1. **Never read layout in a loop that also writes it.** Each write followed by a read
+   (`offsetWidth`, `scrollHeight`, `getBoundingClientRect`) forces a layout of the whole page.
+   Write all, then read all, then write all: `growAll` in `data-table.ts` is the pattern.
+2. **Work that follows a key press runs once a frame, not once a key:** a check, a count, a
+   search's redraw (`requestAnimationFrame`, as `changed` in `config-kit.ts`).
+3. **No work in proportion to the whole draft on each key.** Compare only what changed, and
+   make the saved side once: a saved version is never edited (`savedJson` in `hospital.ts`).
+4. **No scan inside a scan.** A lookup inside a loop over rows becomes a `Map` built once.
+5. **One observer per element.** A `ResizeObserver` or a document listener made in a draw is
+   let go before the next draw, or made once for the view's life.
+6. **A redraw of a part, not the page,** when only the part changed, so the cursor and the
+   scroll place stay (a search redraws the tab's sections, not the card).
+7. **Controls drawn after the page's draw take its mode:** `kit.apply(nodes)` on a Config page.
+8. **A row's state lives on its draft object,** not on its element: an open "i", a mark, a
+   height. A windowed row is drawn many times.
+
+### 12.3 What it reads
+- Every read goes through a store (LOADING.md): one read per kind of data, the newest answer
+  wins, no read in a loop. A page never fetches inside a row's draw.
+
+### 12.4 How to find a slow page (the recipe, 2026-11-15)
+1. **The agent or the console?** Time the read: `curl -w "%{time_total}"` on
+   `http://localhost:<vite port>/agent/<route>` (Vite adds the token), or
+   `window.deetsLedger.recent()` in dev. Hospital's read was 12 ms: the cost was the console.
+2. **A fresh tab:** open the page in a new tab. A fresh tab that is fast and an old tab that is
+   slow point to what the old tab keeps (a kept page with its rows).
+3. **The page's own work:** in the browser's console, a `PerformanceObserver` on
+   `long-animation-frame` names each script that ran in a slow frame and its forced layout
+   time; time a draw with `performance.now()` around it.
+4. **Test in a window in front.** Chrome slows the frames of a window behind another one, on
+   every tab alike, so a frame rate measured there is not the page's. Time the script, or ask
+   the owner to look in his own window.
+5. **Count what is in the page:** `document.querySelectorAll("*").length`, the rows, the
+   `option`s, the `textarea`s. Hospital after the import, before windowing: every department's
+   row, with a 118-option select in each.

@@ -72,7 +72,7 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
 **Booking**
 - Hours, visit types and transfer numbers. Not built (DESIGN.md K2). The visit types per mode
   (in person, online) and the booking's note: §9.2.
-- Which providers and locations are open to booking. Not built (OTHER-EHRS.md).
+- Which providers and locations are open to booking. Not built (NON-EPIC-EHRS.md).
 - The hospital's lists for `$find`: visit types, hours, time of day, specialties, reasons as
   codes, locations, and the time zone. On Config › Hospital — §13.1 (built 2026-11-15; some
   lists kept but not used yet; HOSPITAL-CONFIG.md).
@@ -104,6 +104,14 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
   (ideas/STAFF-SIGN-IN.md §7).
 - The idle logoff for console sessions. The default is open. Not built
   (ideas/STAFF-SIGN-IN.md §5, M2).
+
+**The console** (a hospital's default, and maybe each analyst's own; who sets it is open)
+- The search box's way of finding: filter the list (the default) or jump from match to match,
+  with Cards moving to Table so no match is out of sight (the owner, 2026-11-15). Not built
+  (TABLES.md §6.3, W2).
+- Ctrl+F (⌘F): the first press goes to the search box and a second opens the browser's find
+  (the default), or every press goes to the box (the owner, 2026-11-15). Not built (TABLES.md
+  §6.3, W4).
 
 **Ideas only** (not planned; see ideas/README.md)
 - Protected data through MCP, for one client the hospital's BAA covers. Off by default
@@ -733,4 +741,4 @@ caller's visits and what it says about it, and the hospital facts that Epic's `$
 - **The console:** Config › Hospital for the lists and these values; every change audited.
 - **The deploy:** A2 and B read them from the settings store.
 - **Each EHR:** the lists' columns are Epic's; each adapter maps its own concepts behind them
-  (OTHER-EHRS.md). The local fake reads the same settings.
+  (NON-EPIC-EHRS.md). The local fake reads the same settings.

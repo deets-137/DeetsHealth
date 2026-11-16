@@ -27,6 +27,7 @@
 import { addPerson, removePerson, setPersonPhoto, updatePerson, type People, type Person } from "../agent/api";
 import { people } from "../agent/stores";
 import { tokenMs } from "../tokens";
+import { toolButton } from "./data-table";
 import { el } from "./page";
 import { fillPhoto, forgetPhotos, phoneMark, showPhone, squareWebp } from "./person";
 import type { View } from "./subnav";
@@ -65,10 +66,10 @@ export function authView(): View {
           <div class="auth-top">
             <h2 class="auth-title">Users</h2>
             <p class="cfg-status auth-status" role="status"></p>
-            <button class="cfg-button cfg-save auth-add" type="button">Add</button>
+            <div class="dt-add"><div class="tabs" role="group"><button class="tab auth-add" type="button" aria-label="Add a user">Add</button></div></div>
           </div>
           <div class="auth-scroll own-scrollbars">
-            <table class="auth-table">
+            <table class="dt dt-plain auth-table">
               <thead><tr></tr></thead>
               <tbody><tr><td class="empty" colspan="${COLUMNS.length}">Loading</td></tr></tbody>
             </table>
@@ -489,15 +490,22 @@ function row(p: Person, you: string, isOpen: boolean, confirming: boolean): HTML
     if (c === phone) td.className = "auth-col-phone";
     tr.append(td);
   }
+  // ✕ in the table's tools column; a first press turns it into "Confirm?" in the error colors,
+  // in the same column, for --confirm-hold (TABLES.md §3.12): a remove takes sign-in away at once.
   const last = document.createElement("td");
+  last.className = "dt-tools-cell";
   if (!p.owner && !blank) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "cfg-button auth-remove";
-    b.textContent = confirming ? "Confirm?" : "Remove";
     const who = p.email || [p.first_name, p.last_name].filter(Boolean).join(" ") || "this person";
-    b.setAttribute("aria-label", confirming ? `Confirm: remove ${who}` : `Remove ${who}`);
-    last.append(b);
+    const b = toolButton("remove", `Remove ${who}`);
+    b.classList.add("auth-remove");
+    if (confirming) {
+      b.classList.add("dt-confirm");
+      b.textContent = "Confirm?";
+      b.setAttribute("aria-label", `Confirm: remove ${who}`);
+    }
+    const tools = el(`<div class="dt-tools"></div>`);
+    tools.append(b);
+    last.append(tools);
   }
   tr.append(last);
   return tr;

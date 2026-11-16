@@ -131,7 +131,17 @@ are DEPENDENCIES.md; the watch list is SECURITY.md §7.1. Open:
   patient app's code). For the deploy image (not built): `PROTOC` set to a checked copy, and
   the FIPS build's tools from known sources.
 
-**Start here (2026-11-15, evening).** **Built, desk test open, not committed: Config › Hospital ›
+**Long lists and the search box (2026-11-15, night).** **Built, his first look passed ("load
+timings are also way better"); the full desk test is TABLES.md §6.6.** After an import, Places
+froze: every department's row was drawn, and each text box forced its own layout. Now a list
+past 200 rows draws only the rows near the screen (`list-window.ts`), a search box on the tab
+bar's line filters the shown tab (Ctrl+F opens it; a second Ctrl+F opens the browser's find),
+and Specialties has its own tab. His forks W1 A, W2 A, W3 B, W4 A (TABLES.md §6.3); jump mode
+and the other Ctrl+F way are future settings (FUTURE-SETTINGS.md › The console); a console
+Compass is an idea (ideas/README.md). The speed rules for every new page: CONSOLE.md §12.
+Later: TABLES.md §6.5.
+
+**Start here (2026-11-15, evening).** **Built, desk test open, pushed in 1c98463: Config › Hospital ›
 Places, Import from Epic** (HOSPITAL-CONFIG.md §8; desk test §6, steps 13 to 19). His forks:
 import all (analysts remove what is not needed), 1A one card per facility, the Table view grouped
 by facility, 2A drill in with the console's own motion, 3A two lists (`facilities` and
@@ -186,8 +196,8 @@ specialties, a location's id, address and phone) are the work left: HOSPITAL-CON
    IDs of a facility or location. The docs say a short ID is a record ID in some master file,
    and the system names the file: here 1003's system is PRC (visit types).
 2. **Done: the owner chose A** (2026-11-15, morning) and it is built: HOSPITAL-CONFIG.md §5.1.
-3. Reload the console and check the column alignment fix (`config.css › .sys-table
-   .prompt-control`; Config › Hospital and Config › System), then the desk test.
+3. Reload the console and desk-test the one table (TABLES.md §5): Config › Hospital, System,
+   Cartesia, Teams › Auth and Roles.
 
 ### The build (BUILD-ORDER.md)
 **Where we stand (2026-11-11): the paper work and the text run are done.** Three tracks remain,

@@ -27,6 +27,23 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   `hospital-places-cards-dark-2026-11-15.png`, `hospital-places-cards-light-2026-11-15.png`
   (Places › Cards in each theme, after an import; sandbox facilities only).
 
+## 2026-11-15 (Windows, evening) — a slow Hospital page after an import; windowing designed
+- He imported Places from Epic (32 facilities, 403 departments, 118 specialties, not saved):
+  the page froze, then stayed slow. Measured: the agent answers in 11 to 14 ms and a fresh tab
+  draws in 235 ms; the cost is in the console (TABLES.md §6.1).
+- His choice: windowing, as DeetsMusic's library. Designed in TABLES.md §6, with forks W1 to
+  W4 open (where a long list scrolls, the search box's filter or jump, its scope, Ctrl+F).
+- Saved: `docs/architecture/images/hospital-places-search-box-2026-11-15.png`.
+- His picks: W1 A (Specialties gets its own tab), W2 A (filter, with motion; jump mode a future
+  setting), W3 B (the shown tab; a console Compass later, ideas/README.md), W4 A (Ctrl+F, then
+  the browser's find; the other way a future setting). FUTURE-SETTINGS.md › The console.
+- Built: `list-window.ts` (tables and the facility cards above 200 rows), the search box with
+  Ctrl+F, the filter and its marks, the Specialties tab, and the speed fixes (`growAll`, the
+  status and the problem line once a frame, the saved lists' JSON made once, departments grouped
+  once). On his saved import, Places › Table draws about 20 of 437 rows. Found while testing:
+  the windower took the table's sideways box for its scroller; fixed (TABLES.md §6.0).
+  `npm run check -- web docs` passed; the `ehr` step fails only on the dev server's lock of its
+  exe. Desk test: TABLES.md §6.6.
 
 ## 2026-11-16 (Windows, small hours) — the major updates: verdicts, then the Rust batch
 - Each major update tried in a scratch worktree (removed after); the verdicts are
@@ -59,6 +76,29 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   in the `ehr` scope of `npm run check`, cargo-deny pinned at 0.20.2, `env:check` shows it,
   `publish = false` on `core` and `ehr`. First run: no advisory; the ban, tried on `core` alone,
   fails on `native-tls`, `openssl` and `openssl-sys` as it should.
+
+## 2026-11-15 (Windows, late night) — the console's one table
+- The talk: his screenshot of Places' Table view (Up and Remove in different places, the select
+  lower than the boxes, columns that move). His choices: the row tools ↑ ↓ ✕ at the right edge
+  in the "i"'s square (1A); Add on each section's title line in the tab bar's frame, the title
+  sized up, a new row sliding in (his own option for 2); every table in one change (3A); "Go" on
+  the follow list, Import from Epic on the Locations title line.
+- Built: [TABLES.md](architecture/TABLES.md); `data-table.ts` and `data-table.css`. Config ›
+  Hospital, System and Cartesia, Teams › Auth and Roles moved to it; `.sys-table`, `.cfg-table`
+  and Auth's table look deleted. New tokens: `--col-min`, `--col-id`, `--col-short`,
+  `--col-choice`, `--col-flag`, `--icon-size`. Decided inside his choices: TABLES.md §3.
+- Saved: `docs/architecture/images/hospital-places-table-misaligned-2026-11-15.png`.
+- Not desk-tested; not looked at on a phone.
+
+## 2026-11-15 (Windows, late night) — the shape for EHRs other than Epic
+- The talk: how Oracle Health, athenahealth, MEDITECH and the SMART sandbox fit. His choices:
+  architecture first (1B); Oracle is the first vendor to consider after it; one hospital uses
+  one EHR, and the console's many-hospitals talk comes later.
+- Checked the SMART R4 sandbox (read only): Smile CDR, 795 patients, 598 slots, every free slot
+  in the past (latest 2026-10-29). Booking tests need a test clock or a server we can write to.
+- The old other-EHRs doc renamed to [NON-EPIC-EHRS.md](integrations/NON-EPIC-EHRS.md) and rewritten:
+  the standard FHIR core with a variant per EHR, `Source` as EHR and environment, one token
+  interface, the order of work, testing. Nothing built.
 
 ## 2026-11-15 (Windows, late night) — jiff 1.0, timestamps with offsets, the dependency list
 - jiff 0.2 → 1.0 in `ehr` (released today): the rename `to_zoned` → `to_zoned_datetime` and

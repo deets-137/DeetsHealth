@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [docs/architecture/images/system-test-variable-2026-11-13.png, agent/prompts/AGENT-PROMPT.md, agent/prompts/VARIABLES.md, agent/prompts/TOOLS.md, agent/deets_agent/prompts.py, agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/dev_server.py, agent/deets_agent/call_record.py, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/texts.rs, ehr/src/store.rs, ehr/proto/deets/ehr/v1/ehr.proto, ehr/migrations/0006_settings_system.sql, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, console/src/pages/agent.ts, console/src/pages/config.ts, console/src/styles/config.css]
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # DeetsHealth — Config › System: variables and tools
 
@@ -153,8 +153,9 @@ the versions, Discard | Save).
 
 **Variables.** Three groups, under headings:
 - **Clinic** — the System variables. Each row: the name, the meaning, the value, and the
-  sections that use it. In Edit, the meaning and the value are boxes. **Add a variable** adds
-  a row; **Remove** removes one (not `{clinic}`).
+  sections that use it. In Edit, the meaning and the value are boxes. **Add** on the title
+  line adds a blank row at the foot, its name a box until Save; ✕ removes one (dimmed on
+  `{clinic}`). The tables are the console's one table (TABLES.md, 2026-11-15).
 - **Filled by the code** — `{today}` and its section; read only.
 - **From the call** — the nine call values, each with what it is, its source, its section,
   and a **Protected** marker where it holds protected data. Read only. Never a value.
