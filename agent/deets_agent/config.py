@@ -27,6 +27,7 @@ HOSPITAL_KEYS = (
     "times_of_day",
     "hours",
     "closed_days",
+    "facilities",
     "locations",
     "specialty_list",
     "specialties",
@@ -38,8 +39,9 @@ HOSPITAL_KEYS = (
     "booking_note_label",
 )
 # The limits ehr's hospital.rs checks, for the page's own checks before a save. The same numbers
-# as CELL_MAX, ROWS_MAX, WORDS_MAX, TIMES_MAX and WINDOWS_MAX there.
-HOSPITAL_LIMITS = {"cell": 120, "rows": 200, "words": 30, "times": 12, "windows": 5}
+# as CELL_MAX, ROWS_MAX, PLACES_MAX (facilities and departments), WORDS_MAX, TIMES_MAX and
+# WINDOWS_MAX there.
+HOSPITAL_LIMITS = {"cell": 120, "rows": 200, "places": 2000, "words": 30, "times": 12, "windows": 5}
 
 
 def hospital_defaults() -> dict:

@@ -32,6 +32,9 @@ DEADLINE_S = 3.0
 FILE_DEADLINE_S = 15.0
 # A booking may take longer at a real EHR. It runs to its end in ehr even if this passes.
 BOOK_DEADLINE_S = 8.0
+# An import of the hospital's places (HOSPITAL-CONFIG.md §8): no caller waits on it. ehr caps
+# every request at 10 s (main.rs › REQUEST_LIMIT), so this is that cap.
+IMPORT_DEADLINE_S = 10.0
 
 
 class ErrorKind(enum.Enum):
@@ -519,6 +522,28 @@ class EhrClient:
             "SeedUsers", pb.SeedUsersRequest(emails=[pb.SeedEmail(email=e) for e in emails])
         )
         return reply.added
+
+    async def import_places(self, addresses: list[str]) -> dict:
+        """Config › Hospital › Places, Import from Epic (HOSPITAL-CONFIG.md §8): the hospital's
+        facilities, departments and specialties from the EHR's directory, as the hospital's rows
+        (`values`: facilities, locations, specialty_list, specialties), and the counts. Saves
+        nothing. Raises EhrError with ehr's fixed reason in `detail`: BAD_INPUT for the
+        addresses, NOT_ALLOWED_NOW when ehr serves no directory, UNAVAILABLE while it does not
+        answer, OTHER when it returns more than an import holds. Facts about the hospital, never
+        protected data."""
+        try:
+            reply = await self._stub.ImportPlaces(pb.ImportPlacesRequest(addresses=addresses), timeout=IMPORT_DEADLINE_S)
+        except grpc.aio.AioRpcError as e:
+            error = EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), "ImportPlaces")
+            # service.rs › import_places: fixed words, never a value.
+            error.detail = e.details() or ""
+            raise error from None
+        return {
+            "values": {v.key: json.loads(v.value) for v in reply.values},
+            "others": reply.others,
+            "other_specialty_lists": reply.other_specialty_lists,
+            "reads": reply.reads,
+        }
 
     async def _users_call(self, name: str, request):
         try:

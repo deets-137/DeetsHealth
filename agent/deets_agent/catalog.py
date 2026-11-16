@@ -366,7 +366,7 @@ class Catalog:
         """Check and stamp an annotation, for the store (DATABASE.md §9). The stamps are the
         catalog's own: a sender's `at` or `rubric_version` is refused by the gate."""
         a = check_annotation(annotation)
-        a["at"] = datetime.now().isoformat(timespec="seconds")
+        a["at"] = datetime.now().astimezone().isoformat(timespec="seconds")
         if a["kind"] == "rating":
             a["rubric_version"] = RUBRIC_VERSION
         if self.db is None or self.db.execute("SELECT 1 FROM calls WHERE id = ?", (a["call"],)).fetchone() is None:

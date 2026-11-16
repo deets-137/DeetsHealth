@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: open
-sources: [docs/architecture/images/hospital-columns-misaligned-2026-11-15.png, docs/architecture/images/hospital-visit-type-code-2026-11-15.png, docs/architecture/images/hospital-reasons-codes-2026-11-15.png, docs/architecture/images/hospital-specialties-2026-11-15.png, ehr/src/hospital.rs, ehr/fixtures/hospital.json, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/scheduler.rs, ehr/src/epic_ehr.rs, ehr/src/visits.rs, ehr/src/session.rs, ehr/migrations/0009_settings_hospital.sql, ehr/proto/deets/ehr/v1/ehr.proto, agent/deets_agent/config.py, agent/deets_agent/dev_server.py, agent/deets_agent/flow.py, agent/deets_agent/ehr_client.py, console/src/pages/hospital.ts, console/src/pages/epic-oid.ts, console/src/agent/api.ts, console/src/styles/config.css, docs/integrations/EPIC.md]
+sources: [docs/architecture/images/hospital-columns-misaligned-2026-11-15.png, docs/architecture/images/hospital-visit-type-code-2026-11-15.png, docs/architecture/images/hospital-reasons-codes-2026-11-15.png, docs/architecture/images/hospital-specialties-2026-11-15.png, ehr/src/hospital.rs, ehr/fixtures/hospital.json, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/scheduler.rs, ehr/src/epic_ehr.rs, ehr/src/visits.rs, ehr/src/session.rs, ehr/migrations/0009_settings_hospital.sql, ehr/proto/deets/ehr/v1/ehr.proto, agent/deets_agent/config.py, agent/deets_agent/dev_server.py, agent/deets_agent/flow.py, agent/deets_agent/ehr_client.py, console/src/pages/hospital.ts, console/src/pages/epic-oid.ts, console/src/agent/api.ts, console/src/styles/config.css, docs/integrations/EPIC.md, console/src/styles/people.css, docs/architecture/images/hospital-places-toggle-2026-11-15.png, docs/architecture/images/hospital-places-import-button-2026-11-15.png, docs/architecture/images/hospital-import-panel-margins-2026-11-15.png]
 updated: 2026-11-15
 ---
 # DeetsHealth — Config › Hospital: the hospital's own lists
@@ -92,11 +92,15 @@ so.
   slots only, so the hours never filter slots.
 
 ### 2.7 Locations (Epic's `location-reference`) — Places tab, used now in part
-- Columns: the record's name, the spoken name, the FHIR id, the address, the phone.
-- Used now: a visit at a Location on the list says the spoken name; the first row is said when
-  a record names no place (`Hospital::place`). Not used yet: the FHIR id (`$find`'s
-  `location-reference`, "the same place as last time"), the address and phone ("where to go").
-  `Location.Read` could fill the address and phone, once per row, never once per call.
+- Since 2026-11-15 two lists: facilities (EAF) and their departments (DEP), shown as a card per
+  facility or one table; filled by Import from Epic (§8).
+- Department columns: the record's name, the spoken name, the DEP ID, the specialty, the FHIR
+  id, the address, the phone, the hours.
+- Used now: a visit at a department on the list says the spoken name, found by the Location's
+  FHIR id first, then by name; the first department is said when a record names no place
+  (`Hospital::place`). Not used yet: the FHIR id in `$find` (`location-reference`, "the same
+  place as last time"), the address and phone ("where to go"), the specialty, the hours, and
+  every facility field.
 
 ### 2.8 Specialties (Epic's `specialties`) — Places tab, not used yet
 - Above the table: the **Specialty list**, one OID (§5.1). Columns: the spoken name, the
@@ -287,6 +291,31 @@ so.
 11. Choose an older version (saved before today): it shows in the new shape, each ID in its
     list.
 12. In Epic mode, ask to book a visit: `$find` still returns times (the same request as before).
+13. **Places (§8).** Restart `npm run dev` (a new `ehr`). Open Places. Cards shows one card, "Not
+    in a facility", with five departments. Press it: the cards fade out, then "← All facilities",
+    the title and the departments' rows rise in, one after another. Press "← All facilities":
+    the cards come back the same way.
+14. Choose Table: the same departments in one table under a "Not in a facility" row. Choose
+    Cards again. Reload the page: it opens on the view you chose last.
+15. In Read, "Import from Epic" right of the tabs is grey. Choose Edit and press it: the panel
+    drops with the instruction. Type `wis`: Wisconsin (WI) is suggested; press Enter: a "WI" chip.
+    Type `Springfield, ZZ` and press Enter: the line says what to type, and nothing is added.
+    Press Import. The panel closes, and the line under the Locations heading counts
+    Epic's facilities and departments (the sandbox: about 34 and 400), what is new and changed,
+    the other locations left out, and 1 read. The cards fill: one per facility, with counts and
+    specialties. "EMC Family Medicine" keeps "the family medicine clinic" and is marked
+    Changed; "Main Street Clinic" is marked Not in Epic.
+16. Open a facility. Change a department's spoken name. Press Remove facility on another one:
+    it and its departments are gone. Save. The status says the new version is active.
+17. Choose Table: every department, a heading row per facility. Narrow the window to a phone's
+    width: the cards stack in one column; the table scrolls on its own.
+18. In Epic mode, ask Camila Lopez's next visit: the place is the department's spoken name.
+19. With reduced motion on (Windows: Settings › Accessibility › Visual effects › Animation
+    effects off), a drill shows the next view at once.
+20. Press "Import from Epic" again: the cities from the imported addresses are suggested with
+    the box empty ("Verona, WI", …). Choose one and press Import: one more read, the same
+    facilities found as "changed" or not at all. Press Cards | Table: the pill slides first,
+    then the view changes.
 
 ## 7. Open
 - **Decided 2026-11-15: A, one Epic list per list** (built, §5.1). Not chosen: B, an OID on
@@ -304,8 +333,8 @@ so.
   coded reasons, hours with the hand-off.
 - Many hospitals and the routing rules (ideas/README.md).
 
-## 8. Import Places from Epic (designed)
-> **Part:** designed · 2026-11-15. The owner: "Since an import is possible, let's doc the route
+## 8. Import Places from Epic (built)
+> **Part:** built · 2026-11-15 (as built: §8.3). Designed the same day. The owner: "Since an import is possible, let's doc the route
 > first, can help with fast onboarding for a clinic / hospital." And: "EAF / DEP split is perfect,
 > helps distinguish higher level locations with sublocations/departments and EAF / DEP are very
 > familiar terms for hospital folks." The facts behind it: EPIC.md §2.2 (the sandbox try).
@@ -338,18 +367,168 @@ location. A **DEP** is a department record ("EMC Cardiology"): the place a visit
 7. **Not from this search:** visit types (PRC) and reasons (EDG). They come from the hospital's
    Cadence team, or, for visit types, from the visits and `$find` replies seen.
 
-### 8.2 What the page needs for it (not built)
-- Locations gain columns: the kind (EAF or DEP), the facility it is part of, the DEP ID, the
-  hours. The table groups DEPs under their EAF.
-- An "Import from Epic" control on the Places tab, and an `ehr` RPC that runs the search (EHR
-  facts behind the EHR adapter; another EHR gets its own).
+### 8.2 The page (decided 2026-11-15)
+> **Part:** designed · 2026-11-15. The owner: "the import creating a list and before deploying
+> into production, analysts would remove what's unnecessary. So that said, we can import all for
+> now and we'll have to build better filters and UI to handle filtering things out which we can
+> deal with when we get there." Then, of the page: "i don't think we can handle the two tiers.
+> Would it make sense to maybe make cards of every location / facilities like we do for teams
+> to better organize? (and a table view as well to get more info laid out, albeit cluttered)".
+> His forks: **1A**, one card per facility; the Table view groups the DEPs under their EAF;
+> **2A**, a card opens by drilling in, "ensure to have a gentle animation in line with the rest
+> of DeetsHealth"; **3A**, two lists.
+
+- **Import all.** Every EAF and DEP the search returns comes in. The analysts remove what the
+  agent does not need before the hospital goes live. Better filters come later.
+- **Two lists (3A).** `facilities`: one row per EAF (the record's name, the spoken name, the FHIR
+  id, the EAF ID, the address, the phone). `locations` keeps its name and holds the departments;
+  each gains `facility` (its EAF's FHIR id; empty: no facility), `code` (the DEP ID),
+  `specialty` (its ID in the specialty list) and `hours` (the days and times, from
+  `hoursOfOperation`; not used by calls yet). A department's facility must be on the list. A
+  version saved before this reads as it was: its rows are departments with no facility.
+- **Places › Locations, Cards | Table.** A toggle above the list; Cards is the default, and the
+  page remembers the last choice in this browser.
+  - **Cards (1A):** one card per facility, in rows that wrap, built from the People card
+    (`people.css`: the same edge, corners and band; no picture). Each card: the name, "R EAF n",
+    the address, the count of departments, the specialties. Departments with no facility share
+    one last card, "Not in a facility".
+  - **Drill in (2A):** a press on a card replaces the cards with that facility: "← All
+    facilities", its own fields (the record's name, the spoken name, the address, the phone,
+    Remove facility), then its departments' table, edited in place as every table on the page.
+    Remove facility takes out the facility and its departments.
+  - **The motion:** the console's own, no new value. The cards fade out as a page does when the
+    nav changes (`--dur-leave`); then the facility's header and rows rise and fade in as one wave,
+    top to bottom, as Chat's controls do after a mode change (`--dur-wave-in`, `--wave-step`,
+    `--wave-rise`, `--ease-wave`). Back runs the same way. Reduced motion: no motion.
+  - **Table:** every department in one table, a facility heading row before each group, so the
+    columns line up across facilities. All the columns at once: the cluttered view.
+  - **The toggle slides** (the owner, 2026-11-15: "can we have the selection slide please?"):
+    the pill moves to the new choice at once (`--dur-pill`), the stage fades out under it, and
+    the redraw comes when the pill has landed. The "R DEP" prefix shows only beside an ID.
+
+    ![The owner's screenshot, 2026-11-15: the Cards | Table toggle boxed and one "Not in a facility" card; he asks for the selection to slide](images/hospital-places-toggle-2026-11-15.png)
+- **An Import button beside the tabs** (the owner, 2026-11-15): "Let's implement the import
+  button in the orange box ... Clicking it can just import the EAFs/DEPs and their info as sent
+  by Epic, later we can have the import button wire into more places." Epic refuses a search
+  with no input (error 4110), so the button needs what to search by. His **B**: "can dropdown a
+  small panel with a cities/states box and explicit instruction to enter city, state or just
+  state. Can we wire in any guardrails / auto-suggest user cities/states?" Not chosen: A, a
+  saved setting.
+
+  ![The owner's screenshot, 2026-11-15: Places in Table view, an orange box right of the Visits, Times, Places, Booking tabs where the Import button goes](images/hospital-places-import-button-2026-11-15.png)
+- **Import from Epic** (Edit only): "Import from Epic" just right of the tabs, on Places only for
+  now. It drops a panel:
+  - The instruction: a city and its state ("Verona, WI"), or just a state ("WI" or
+    "Wisconsin"); Enter adds each, up to 5. Since the owner's note the same evening ("neaten
+    this box please, use our standard sized text box, styling, rounding, and move the help text
+    to an info button to the left of the textbox. Make the placeholder text City, State ... for
+    cancel/import, use the save/discard style of buttons"): the words sit behind an "i" left of
+    the Config tables' own text box (placeholder "City, State"), and Cancel | Import is Discard
+    | Save's bar, Import in Save's colors and grey while there is nothing to search. Then
+    ("use the blue lines here to make the margins consistent throughout the panel"): one margin,
+    `--canvas-pad` (the Config frame's edge to its tab bar), inside the panel and between its
+    rows.
+
+    ![The owner's screenshot, 2026-11-15: the Import panel open under the tabs, blue lines at the Config frame's corner marking the margin the panel should use](images/hospital-import-panel-margins-2026-11-15.png)
+  - **When Epic's sandbox is down** (2026-11-15 evening: its `smart-configuration` answered HTTP
+    503 while its website answered): the panel says "Epic's directory did not answer". ehr
+    asks Epic again at each press, and an ehr that started while Epic was down signs in again
+    every 30 s (`EpicSandbox::start`, `SANDBOX_RETRY`); press Import again later.
+  - **Guardrails:** each entry is checked as it is added and turned into the one form ehr takes:
+    a USPS state code (a name becomes its code), or "City, ST" (a city of letters, spaces, `.`,
+    `'` and `-`; "verona wi" becomes "Verona, WI"). Anything else gets a line that says what to
+    type; a repeat and a sixth entry are refused. ehr checks the same rules again
+    (`hospital.rs › PlaceSearch`) and refuses anything else.
+  - **Suggestions:** as the analyst types, up to 6 rows: the cities already in the page's
+    addresses (after a first import, the next is a pick), the states whose code or name starts
+    with what is typed, and the typed entry itself once it reads as a search. Arrow keys move,
+    Enter adds, Escape closes, Backspace in an empty box takes the last entry off.
+  - **The search Epic gets:** a state is `Location?address=WI`; a city and its state is
+    `Location?address=Verona&address-state=WI` (Epic searches by `address` and filters by
+    `address-state` after, EPIC.md §2.2).
+  - The panel shows "Importing from Epic", and a failure in Epic's or ehr's own words. On
+    success it closes, and the line under the Locations heading counts what came in. The
+    reply fills the draft:
+  - A facility or department already on the list is matched by its FHIR id, then by the
+    record's name. Epic's facts replace ours (the record's name, the IDs, the facility, the
+    address, the phone, the hours, the specialty); the spoken name stays.
+  - New rows and changed rows are marked until Save or Discard. A row on the list that Epic did
+    not return stays, marked "not in Epic". The import never removes a row.
+  - Specialties: the departments' specialty system becomes the Specialty list's OID when it is
+    empty; each specialty code not on the list becomes a row, its spoken name Epic's display in
+    lower case. A different OID already set: the import stops and says so.
+  - Nothing is saved until Save, as for any edit.
+- **Sizes.** A list of facilities or departments holds up to 2,000 rows (the other lists keep
+  200). The wire's message limit grows from 64 KB to 4 MiB, gRPC's own default, so a whole
+  hospital fits in one GetSettings.
+- **A visit's place** is matched by the Location's FHIR id first (exact once the import has
+  run), then by the record's name.
 - **The Default today** (2026-11-15, from the probe's printout, no new search): the Specialty
   list's OID and IDs 9 (family medicine), 4 (cardiology), 40 (radiology, a new row); the
-  sandbox's four departments on Camila Lopez's visits by name. Their FHIR ids, addresses and
-  phones were not printed by the probe, so those cells stay empty until the import exists.
+  sandbox's four departments on Camila Lopez's visits by name, with no facility. An import fills
+  the rest.
 
-### 8.3 Open (his to decide when the import is built)
-- A hospital in several states or cities: one search per state, or a list the analyst types.
-- Inactive locations (`status` other than active): left out, or shown greyed.
-- The table: DEPs grouped under each EAF heading, or one flat table with a Facility column.
+### 8.3 As built (2026-11-15)
+> **Part:** built · 2026-11-15. Where this part and §8.1–§8.2 disagree, this part is the code.
+
+- **ehr › `hospital.rs`:** `FacilityRow`; `LocationRow` gains `facility`, `code`, `specialty`,
+  `hours`; the key `facilities` (in `KEYS` and `settings.rs › HOSPITAL`); `PLACES_MAX` (2,000)
+  for both lists; `twice_place` (the same FHIR id, else the same name with no id, is one place
+  twice); `from_pairs` refuses a department whose facility is not on the list, and a specialty ID
+  with no Specialty list. `place(id, record)` matches the FHIR id first. `Places`: what an
+  import offers.
+- **ehr › `epic_ehr.rs`:** `EpicEhr::places` (the searches and their pages, at most 50) and
+  `places_from` (the split: a DEP identifier `….7.2.686980` is a department, an EAF identifier
+  `….7.2.696570` a facility, anything else counted; the address, the first phone, the hours, the
+  specialty; a facility the search did not return is cleared from its departments). A visit's
+  place and a `$find` slot's place pass the Location's FHIR id (`actor_id`).
+- **The wire:** `rpc ImportPlaces` (EHR-SERVICE.md §3); the message limit is 4 MiB.
+- **The agent:** `ehr_client.py › import_places` (10 s: ehr's own cap on any request);
+  `POST /agent/hospital/import-places` (DEV-API.md); `config.py`: `facilities` in
+  `HOSPITAL_KEYS`, `places` in `HOSPITAL_LIMITS`.
+- **The console (`hospital.ts`):** `places()`: the import block (Edit only), the Cards | Table
+  toggle (`deets.console.hospital.places`), the stage. `cards()`, `facility()` (the drill-in),
+  `placesTable()` (one table, a `place-group` row per facility). `mergePlaces` merges an import
+  into the draft and returns the status line (counts only). The page's state across redraws is
+  `PlacesUi`: the view, the facility open, the import's marks (new, changed, not in Epic; kept
+  until Save, Discard or a version pick), the motion. `config.css › Places › Locations`: the
+  card on People's rules, the chips, the marks, the motion. `withRowDefaults` fills the new
+  fields of rows saved before them, as ehr's serde defaults do (found at the first desk test:
+  without it the page's checks threw and the page stayed on "Loading").
+- **Limits found while building:** ehr caps every request at 10 s (`main.rs › REQUEST_LIMIT`),
+  so an import of several large searches may not finish; the sandbox's one search does. A
+  hospital with thousands of departments may need the import to run as a job: when one does.
+- **The Import button and panel (his B, the same evening):** `hospital.ts › importControl`
+  (appended to the tab bar's row on Places); `console/src/pages/us-states.ts` (the states and
+  territories by USPS code, `placeSearch`, `citiesIn`); `hospital.rs › US_STATES` and
+  `PlaceSearch` (the same codes, the same city rule); `EpicEhr::places` takes `PlaceSearch`es.
+  `config.css › Import from Epic`: the panel on the console's `.menu`, its rows on `.word-row`.
+
+**Decided inside the owner's choices (for his review):**
+- The button reads "Import from Epic". In Read it is grey, with the hint "Edit only".
+- Suggestions: the cities in the page's addresses first (shown with the box empty), then the
+  states, then the typed entry; at most 6. A city's words are capitalized ("verona" →
+  "Verona").
+- A city with no state is refused: Epic's sandbox matched "Verona" alone to every location, so
+  a city needs its state to narrow the search.
+- The searches typed stay in the panel until the page is left, so a second import is one press.
+- The card shows the spoken name, else the record's name; "R EAF n"; the address (a dim
+  "Address" when there is none); the count; at most 3 specialties, then "n more".
+- Departments with no facility, or whose facility is not on the list, share one last card,
+  "Not in a facility".
+- The facility's band is a quarter of the People band (no picture); a facility an import added
+  or changed, or one an older version changed, has the accent edge.
+- A department's specialty is a dropdown of the Specialties list (by ID); its hours are read
+  only, written as "Mon–Fri 08:00–17:00".
+- Up moves a department above the one before it in the same facility.
+- A facility added by hand needs its FHIR id typed before departments can be added to it.
+- The wave's last step is the 13th part; the rows after it come in with it.
+- An import whose Specialty list OID differs from the page's stops and says so.
+- A specialty an import adds takes Epic's words in lower case as its spoken name.
+
+### 8.4 Open
 - Who may run an import: waits on the roles (ACCESS-ROLES.md).
+- Filters for a list of hundreds (by specialty, by facility, by city), and a way to remove many
+  rows at once: when the owner designs them.
+- Whether a department's hours override the hospital's hours (§2.6): with the hand-off.
+- Another EHR's import: behind its own adapter (OTHER-EHRS.md).

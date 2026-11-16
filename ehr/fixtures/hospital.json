@@ -34,6 +34,7 @@
     { "date": "2026-12-25", "name": "Christmas Day" },
     { "date": "2027-01-01", "name": "New Year's Day" }
   ],
+  "facilities": [],
   "locations": [
     { "record": "Main Street Clinic", "spoken": "", "id": "", "address": "", "phone": "" },
     { "record": "EMC Family Medicine", "spoken": "the family medicine clinic", "id": "", "address": "", "phone": "" },

@@ -7,12 +7,25 @@
 // Some lists are kept but read by no call yet: each one's note says so ("Not used by calls
 // yet"). No row is protected data: a row is a fact about the hospital. Every size, color and
 // timing is an existing token: the page reuses System's classes and adds none.
-import { saveHospital, type HospitalSettings, type HospitalValues, type ReasonSystem } from "../agent/api";
+import {
+  importPlaces,
+  saveHospital,
+  type FacilityRow,
+  type HospitalSettings,
+  type HospitalValues,
+  type HoursRow,
+  type ImportedPlaces,
+  type LocationRow,
+  type ReasonSystem,
+} from "../agent/api";
 import { hospitalSettings } from "../agent/stores";
+import { reducedMotion, tokenMs } from "../tokens";
 import { settingsView, type Kit } from "./config-kit";
 import { describeEpicOid, recordPrefix } from "./epic-oid";
 import { el } from "./page";
+import { placePill } from "./subnav";
 import { field, grow, heading, row, table } from "./system";
+import { citiesIn, placeSearch, US_STATES } from "./us-states";
 import type { View } from "./subnav";
 import { remember, remembered, tabBar } from "./tab-bar";
 
@@ -27,7 +40,7 @@ const TAB_KEY = "deets.console.hospital.tab";
 const TAB_KEYS: Record<Tab, Key[]> = {
   visits: ["visit_type_list", "visit_types", "visit_groups", "diagnosis_list", "reasons"],
   times: ["time_zone", "times_of_day", "hours", "closed_days"],
-  places: ["locations", "specialty_list", "specialties"],
+  places: ["facilities", "locations", "specialty_list", "specialties"],
   booking: ["slots_offered", "narrow_over", "groups_named", "past_days", "ahead_windows", "booking_note_label"],
 };
 const DAYS: [string, string][] = [
@@ -52,6 +65,145 @@ const REASON_SYSTEMS: [ReasonSystem, string][] = [
 ];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+// ---- Places › Locations (HOSPITAL-CONFIG.md §8.2)
+const PLACES_VIEWS = ["cards", "table"] as const;
+type PlacesView = (typeof PLACES_VIEWS)[number];
+const PLACES_VIEW_KEY = "deets.console.hospital.places";
+/** The wave's last step: rows after it come in with it, so a long table never waits. */
+const WAVE_LAST = 12;
+/** The specialties a card names before "n more". */
+const CHIPS = 3;
+/** An import's mark on a row, until Save or Discard. */
+type Mark = "new" | "changed" | "gone";
+
+/** The Places tab's own state: it lives across the redraws of one view. */
+type PlacesUi = {
+  view: PlacesView;
+  /** The facility drilled into, by `facilityKey`; "none" for the departments in none. */
+  open: string | null;
+  /** The stage comes in as a wave on the next draw. */
+  wave: boolean;
+  /** The stage drawn last, for the fade out before a drill. */
+  stage?: HTMLElement;
+  /** The Cards | Table toggle drawn last: its pill slides before the redraw. */
+  toggle?: HTMLElement;
+  marks: WeakMap<object, Mark>;
+  /** The active version's values, while an older one is shown: its changed cards are marked. */
+  older: HospitalValues | null;
+  /** The searches in the Import panel ("WI", "Verona, WI"): kept while the view lives. */
+  importEntries: string[];
+  importSay: string;
+  go: (open: string | null) => void;
+  setView: (v: PlacesView) => void;
+  runImport: (d: Draft, searches: string[], say: HTMLElement, button: HTMLButtonElement) => void;
+};
+/** The most searches one import runs: ehr's ImportPlaces takes 1 to 5. */
+const PLACE_SEARCHES = 5;
+/** The most suggestions the Import panel shows at once. */
+const SUGGESTIONS = 6;
+
+/** A version saved before a row gained its fields (a department's facility, DEP ID, specialty
+ * and hours, 2026-11-15) holds rows without them: fill each with its empty value, as ehr's
+ * hospital.rs does (`#[serde(default)]`). Without this the page's checks read a missing field
+ * and the page never draws. */
+function withRowDefaults(v: HospitalValues): HospitalValues {
+  const stored = v as Omit<HospitalValues, "facilities" | "locations"> & {
+    facilities?: Partial<FacilityRow>[];
+    locations?: Partial<LocationRow>[];
+  };
+  v.facilities = (stored.facilities ?? []).map((f) => ({ record: "", spoken: "", id: "", code: "", address: "", phone: "", ...f }));
+  v.locations = (stored.locations ?? []).map((l) => ({
+    record: "",
+    spoken: "",
+    id: "",
+    address: "",
+    phone: "",
+    facility: "",
+    code: "",
+    specialty: "",
+    ...l,
+    hours: l.hours ?? [],
+  }));
+  return v;
+}
+
+/** A facility's key on this page: its FHIR id, else its record's name. */
+const facilityKey = (f: FacilityRow) => (f.id.trim() ? `id:${f.id.trim()}` : `name:${f.record.trim().toLowerCase()}`);
+
+/** The facility a key names in this draft; null when it is gone (Back to the cards). */
+function resolveOpen(d: Draft, open: string | null): FacilityRow | "none" | null {
+  if (open === "none") return "none";
+  return open ? (d.facilities.find((f) => facilityKey(f) === open) ?? null) : null;
+}
+
+/** The same place: by FHIR id when the row has one, else by the record's name (in any case). */
+function samePlace(a: { id: string; record: string }, b: { id: string; record: string }): boolean {
+  if (a.id.trim() && b.id.trim()) return a.id.trim() === b.id.trim();
+  return a.record.trim().toLowerCase() === b.record.trim().toLowerCase() && !!a.record.trim();
+}
+
+/** Merges an import into the draft (HOSPITAL-CONFIG.md §8.2): Epic's facts replace ours, the
+ * spoken names and the caller's words stay, new and changed rows are marked, a row Epic did not
+ * return stays, marked "gone". Returns the words for the status line, or throws when the
+ * specialty list's OID differs from the one set. Counts only, never a value. */
+function mergePlaces(d: Draft, got: ImportedPlaces, marks: WeakMap<object, Mark>, limits: Limits): string {
+  const v = got.values;
+  if (v.specialty_list && d.specialty_list && v.specialty_list !== d.specialty_list) {
+    throw new Error("Epic's specialty list is not the one set on this page: clear the Specialty list's OID to take Epic's");
+  }
+  const counts = { facilities: [0, 0], departments: [0, 0], specialties: 0, gone: 0 };
+  const merge = <T extends { id: string; record: string }>(mine: T[], theirs: T[], keep: (old: T, next: T) => T, tally: number[]) => {
+    const matched = new Set<T>();
+    for (const t of theirs) {
+      const old = mine.find((m) => !matched.has(m) && samePlace(m, t));
+      if (!old) {
+        mine.push(t);
+        matched.add(t);
+        marks.set(t, "new");
+        tally[0]++;
+        continue;
+      }
+      matched.add(old);
+      const next = keep(old, t);
+      if (JSON.stringify(next) !== JSON.stringify(old)) {
+        Object.assign(old, next);
+        if (marks.get(old) !== "new") marks.set(old, "changed");
+        tally[1]++;
+      }
+    }
+    for (const m of mine) {
+      if (!matched.has(m)) {
+        marks.set(m, "gone");
+        counts.gone++;
+      }
+    }
+  };
+  merge(d.facilities, v.facilities, (old, t) => ({ ...t, spoken: old.spoken }), counts.facilities);
+  merge(d.locations, v.locations, (old, t) => ({ ...t, spoken: old.spoken }), counts.departments);
+  if (v.specialty_list && !d.specialty_list) d.specialty_list = v.specialty_list;
+  for (const s of v.specialties) {
+    if (d.specialties.some((x) => x.code === s.code)) continue;
+    d.specialties.push(s);
+    marks.set(s, "new");
+    counts.specialties++;
+  }
+  const over = d.facilities.length > limits.places || d.locations.length > limits.places;
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  return [
+    `Epic: ${plural(v.facilities.length, "facility", "facilities")}, ${plural(v.locations.length, "department", "departments")}`,
+    `${counts.facilities[0] + counts.departments[0]} new, ${counts.facilities[1] + counts.departments[1]} changed`,
+    counts.gone ? `${counts.gone} on the page not in Epic (kept)` : "",
+    counts.specialties ? plural(counts.specialties, "new specialty", "new specialties") : "",
+    got.others ? `${got.others} other locations left out` : "",
+    got.other_specialty_lists ? `${got.other_specialty_lists} departments' specialties are in another list (left empty)` : "",
+    plural(got.reads, "read", "reads"),
+    over ? `more than ${limits.places} rows: remove some before Save` : "",
+    "Nothing is saved until Save",
+  ]
+    .filter(Boolean)
+    .join(". ");
+}
+
 /** A cell of words: "a, b, c" in the box, a list in the draft. */
 const words = (list: string[]) => list.join(", ");
 const unwords = (text: string) =>
@@ -72,14 +224,28 @@ function twice<T>(rows: T[], name: (r: T) => string): number {
   return 0;
 }
 
+/** The first row (1-based) that names a place an earlier row names, or 0: by FHIR id when the row
+ * has one, else by the record's name (ehr's hospital.rs › twice_place). */
+function twicePlace(rows: { id: string; record: string }[]): number {
+  const seen = new Set<string>();
+  for (let i = 0; i < rows.length; i++) {
+    const id = rows[i].id.trim();
+    const key = id ? `id:${id}` : `name:${rows[i].record.trim().toLowerCase()}`;
+    if (key === "name:") continue;
+    if (seen.has(key)) return i + 1;
+    seen.add(key);
+  }
+  return 0;
+}
+
 /** What does not fit, in the page's words, or null: the rules of ehr's hospital.rs, which
  * checks again on save. Names a list and a row, never a value. */
 function problem(d: Draft, l: Limits): string | null {
   const one = (text: string, needed: boolean) =>
     (needed && !text.trim()) || text.length > l.cell || /[\u0000-\u001f\u007f-\u009f]/.test(text);
   const many = (list: string[]) => list.length > l.words || list.some((w) => one(w, true));
-  const each = <T>(name: string, rows: T[], check: (r: T) => string | null): string | null => {
-    if (rows.length > l.rows) return `${name}: at most ${l.rows} rows`;
+  const each = <T>(name: string, rows: T[], check: (r: T) => string | null, max = l.rows): string | null => {
+    if (rows.length > max) return `${name}: at most ${max} rows`;
     for (let i = 0; i < rows.length; i++) {
       const p = check(rows[i]);
       if (p) return `${name}, row ${i + 1}: ${p}`;
@@ -140,10 +306,27 @@ function problem(d: Draft, l: Limits): string | null {
       ),
     () => each("Closed days", d.closed_days, (c) => (!DATE.test(c.date) || Number.isNaN(Date.parse(c.date)) ? "the date is not YYYY-MM-DD" : one(c.name, false) ? "the name is too long" : null)),
     () =>
-      each("Locations", d.locations, (r) =>
-        one(r.record, true) ? "the record's name is empty or too long" : [r.spoken, r.id, r.address, r.phone].some((x) => one(x, false)) ? "a cell is too long" : null,
+      each(
+        "Facilities",
+        d.facilities,
+        (r) => (one(r.record, true) ? "the record's name is empty or too long" : [r.spoken, r.id, r.code, r.address, r.phone].some((x) => one(x, false)) ? "a cell is too long" : null),
+        l.places,
       ),
-    () => (twice(d.locations, (r) => r.record) ? `Locations, row ${twice(d.locations, (r) => r.record)}: the record's name is there twice` : null),
+    () => (twicePlace(d.facilities) ? `Facilities, row ${twicePlace(d.facilities)}: the facility is there twice` : null),
+    () =>
+      each(
+        "Departments",
+        d.locations,
+        (r) => {
+          if (one(r.record, true)) return "the record's name is empty or too long";
+          if ([r.spoken, r.id, r.address, r.phone, r.facility, r.code, r.specialty].some((x) => one(x, false))) return "a cell is too long";
+          if (r.facility && !d.facilities.some((f) => f.id.trim() === r.facility.trim())) return "its facility is not on the facility list";
+          if (r.specialty && !d.specialty_list) return "a specialty ID needs the specialty list's OID";
+          return null;
+        },
+        l.places,
+      ),
+    () => (twicePlace(d.locations) ? `Departments, row ${twicePlace(d.locations)}: the department is there twice` : null),
     () =>
       each("Specialties", d.specialties, (s) =>
         one(s.spoken, true) ? "the spoken name is empty or too long" : many(s.words) ? "too many words, or one too long" : one(s.code, false) ? "a cell is too long" : null,
@@ -173,14 +356,87 @@ export const hospitalView = (): View => {
   let tab: Tab = remembered(TAB_KEY, TABS, "visits");
   let slideTab: string | undefined;
   let latest: HospitalSettings | undefined;
+  let kitNow: Kit | undefined;
+  let draftNow: Draft | undefined;
+  let swapping = false;
+
+  // Places › Locations: a drill in or out fades the stage out as a page swap does (nav.ts,
+  // --dur-leave), then draws the new stage, which comes in as Chat's wave (chat.css › the wave:
+  // --dur-wave-in, --wave-step, --wave-rise, --ease-wave). No motion with reduced motion.
+  // `wait`: how long before the redraw; the view toggle waits for its pill to land (--dur-pill),
+  // so the redraw never cuts its slide short.
+  const swap = (change: () => void, wait = tokenMs("--dur-leave")) => {
+    if (swapping) return;
+    const finish = () => {
+      swapping = false;
+      change();
+      ui.wave = !reducedMotion();
+      kitNow?.rerender(true);
+    };
+    const stage = ui.stage;
+    if (!stage?.isConnected || reducedMotion()) return finish();
+    swapping = true;
+    stage.classList.add("place-leaving");
+    window.setTimeout(finish, Math.max(wait, tokenMs("--dur-leave")));
+  };
+  const ui: PlacesUi = {
+    view: remembered(PLACES_VIEW_KEY, PLACES_VIEWS, "cards"),
+    open: null,
+    wave: false,
+    marks: new WeakMap(),
+    older: null,
+    importEntries: [],
+    importSay: "",
+    go: (open) => swap(() => (ui.open = open)),
+    setView: (v) => {
+      if (swapping || v === ui.view) return;
+      // The pill slides to the new choice now, as Read | Edit's does (subnav.ts › placePill);
+      // the stage fades out under it, and the redraw comes when the pill has landed.
+      const bar = ui.toggle;
+      const to = bar?.querySelector<HTMLElement>(`[data-value="${v}"]`);
+      const pill = bar?.querySelector<HTMLElement>(".tab-pill");
+      if (bar && to && pill) {
+        bar.querySelectorAll<HTMLElement>("[data-value]").forEach((b) => b.setAttribute("aria-selected", String(b === to)));
+        placePill(pill, to, !reducedMotion());
+      }
+      swap(() => {
+        ui.view = v;
+        remember(PLACES_VIEW_KEY, v);
+      }, tokenMs("--dur-pill"));
+    },
+    runImport: (d, searches, say, button) => {
+      const show = (text: string) => {
+        say.textContent = text;
+        say.hidden = !text;
+      };
+      button.disabled = true;
+      show("Importing from Epic");
+      importPlaces(searches)
+        .then((got) => {
+          // A version picked, a Discard or a Save while it ran: this draft is gone.
+          if (!kitNow || !latest || draftNow !== d) return show("The page changed while Epic answered: import again");
+          ui.importSay = mergePlaces(d, got, ui.marks, latest.limits);
+          kitNow.changed();
+          kitNow.rerender();
+        })
+        .catch((e: unknown) => show(`Not imported: ${e instanceof Error && e.message ? e.message : "the import failed"}`))
+        .finally(() => (button.disabled = false));
+    },
+  };
 
   return settingsView<HospitalValues, Draft, HospitalSettings>({
     id: "hospital",
     title: "Hospital",
     store: hospitalSettings,
-    took: (s) => (latest = s),
+    took: (s) => {
+      latest = s;
+      // A new draft (a Save, a version): the import's marks and its line were for the old one.
+      ui.marks = new WeakMap();
+      ui.importSay = "";
+      ui.older = s.version && !s.version.active ? s.active : null;
+    },
     save: (_s, d) => saveHospital(d),
-    fromValues: (v) => structuredClone(v),
+    fromValues: (v) => withRowDefaults(structuredClone(v)),
     differing,
     blocked: (d) => (latest ? problem(d, latest.limits) : null),
     render: (s, d, kit) => render(s, d, kit),
@@ -211,10 +467,17 @@ export const hospitalView = (): View => {
     const bars = el(`<div class="prompt-bars"></div>`);
     bars.append(bar.el);
     const body = el(`<div class="prompt-sections"></div>`);
-    const p = new Parts(s.limits, d, kit);
+    kitNow = kit;
+    draftNow = d;
+    const p = new Parts(s.limits, d, kit, ui);
     if (tab === "visits") body.append(...p.visitTypes(), ...p.visitGroups(), ...p.reasons());
     else if (tab === "times") body.append(...p.timeZone(), ...p.timesOfDay(), ...p.hours(), ...p.closedDays());
-    else if (tab === "places") body.append(...p.locations(), ...p.specialties());
+    else if (tab === "places") {
+      body.append(...p.places(), ...p.specialties());
+      // Right of the tabs (the owner's screenshot, 2026-11-15). Places only for now; other tabs
+      // can take it later.
+      bars.append(p.importControl());
+    }
     else body.append(...p.booking());
     const err = el(`<p class="prompt-problem" role="status" hidden></p>`);
     const showProblem = () => {
@@ -250,6 +513,7 @@ class Parts {
     private l: Limits,
     private d: Draft,
     private kit: Kit,
+    private ui: PlacesUi,
   ) {}
 
   private edited() {
@@ -345,12 +609,12 @@ class Parts {
   }
 
   /** Add a row (Edit only): an empty row at the end, to fill in place. */
-  private add<T>(what: string, rows: T[], blank: () => T): HTMLElement {
+  private add<T>(what: string, rows: T[], blank: () => T, max = this.l.rows): HTMLElement {
     const wrap = el(`<div class="sys-add"><div class="cfg-control"><button class="cfg-button" type="button"></button></div></div>`);
     const b = wrap.querySelector<HTMLButtonElement>("button")!;
     b.textContent = `Add ${what}`;
     b.addEventListener("click", () => {
-      if (rows.length >= this.l.rows) return;
+      if (rows.length >= max) return;
       rows.push(blank());
       this.kit.changed();
       this.kit.rerender();
@@ -535,35 +799,525 @@ class Parts {
     return out;
   }
 
-  locations(): HTMLElement[] {
+  // ---- Places › Locations (HOSPITAL-CONFIG.md §8.2): facilities as cards (1A), a card opens
+  // by drilling in (2A), or every department in one table grouped by facility.
+
+  /** The departments of a facility, or of none ("none"), in the list's order. */
+  private departments(f: FacilityRow | "none"): LocationRow[] {
+    const d = this.d;
+    if (f !== "none") return f.id.trim() ? d.locations.filter((l) => l.facility === f.id) : [];
+    return d.locations.filter((l) => !l.facility || !d.facilities.some((x) => x.id === l.facility));
+  }
+
+  /** A row's import mark, as a word after its name: new, changed, or not in Epic. */
+  private mark(row: object): HTMLElement | null {
+    const m = this.ui.marks.get(row);
+    if (!m) return null;
+    const s = el(`<span class="place-mark"></span>`);
+    s.dataset.mark = m;
+    s.textContent = m === "new" ? "New" : m === "changed" ? "Changed" : "Not in Epic";
+    return s;
+  }
+
+  /** A cell with the record's name and, after it, the row's import mark. */
+  private nameCell(label: string, row: { record: string }): HTMLElement {
+    const wrap = el(`<div class="sys-cell"></div>`);
+    wrap.append(this.text(label, row.record, (v) => (row.record = v)));
+    const m = this.mark(row);
+    if (m) wrap.append(m);
+    return wrap;
+  }
+
+  /** One element of the stage's wave: it rises and fades in a step after the one before. */
+  private wave<E extends HTMLElement>(e: E, i: number): E {
+    e.dataset.wave = "";
+    e.style.setProperty("--wave-i", String(Math.min(i, WAVE_LAST)));
+    return e;
+  }
+
+  /** "Mon–Fri 08:00–17:00; Sat 09:00–12:00": a department's hours, read only. */
+  private hoursText(hours: HoursRow[]): string {
+    if (!hours.length) return "";
+    const name = (day: string) => DAYS.find(([k]) => k === day)?.[1].slice(0, 3) ?? day;
+    const spans: { from: string; to: string; time: string }[] = [];
+    for (const h of hours) {
+      const time = `${h.opens}–${h.closes}`;
+      const last = spans[spans.length - 1];
+      const next = DAYS.findIndex(([k]) => k === h.day);
+      if (last && last.time === time && DAYS.findIndex(([k]) => k === last.to) === next - 1) last.to = h.day;
+      else spans.push({ from: h.day, to: h.day, time });
+    }
+    return spans.map((s) => `${name(s.from)}${s.to !== s.from ? `–${name(s.to)}` : ""} ${s.time}`).join("; ");
+  }
+
+  /** A department's specialty, chosen from the Specialties list by its ID. */
+  private specialtyCell(r: LocationRow): HTMLElement {
+    const options: [string, string][] = [["", "None"], ...this.d.specialties.filter((s) => s.code.trim()).map((s): [string, string] => [s.code, s.spoken || s.code])];
+    if (r.specialty && !options.some(([c]) => c === r.specialty)) options.push([r.specialty, `ID ${r.specialty}`]);
+    return this.choose(options, r.specialty, (v) => (r.specialty = v));
+  }
+
+  /** Up within its facility, and Remove (Edit only). */
+  private departmentMoves(r: LocationRow): HTMLElement {
+    const d = this.d;
+    const wrap = el(`<div class="cfg-control sys-remove"><button class="cfg-link" type="button">Up</button><button class="cfg-link" type="button">Remove</button></div>`);
+    const [up, remove] = [...wrap.querySelectorAll<HTMLButtonElement>("button")];
+    const same = (x: LocationRow) => (x.facility || "") === (r.facility || "");
+    const before = () => {
+      const at = d.locations.indexOf(r);
+      for (let i = at - 1; i >= 0; i--) if (same(d.locations[i])) return i;
+      return -1;
+    };
+    if (before() < 0) {
+      up.dataset.off = "";
+      up.hidden = true;
+    }
+    up.addEventListener("click", () => {
+      const at = d.locations.indexOf(r);
+      const to = before();
+      if (to < 0) return;
+      [d.locations[to], d.locations[at]] = [d.locations[at], d.locations[to]];
+      this.kit.changed();
+      this.kit.rerender();
+    });
+    remove.addEventListener("click", () => {
+      d.locations.splice(d.locations.indexOf(r), 1);
+      this.kit.changed();
+      this.kit.rerender();
+    });
+    return wrap;
+  }
+
+  private static readonly DEPARTMENT_COLUMNS = ["The record's name", "Spoken name", "DEP ID", "Specialty", "FHIR id", "Address", "Phone", "Hours", ""];
+
+  /** One department's row: the same cells in the drill-in and the Table view. */
+  private departmentRow(r: LocationRow): HTMLTableRowElement[] {
+    // The prefix shows only beside an ID (the owner's screenshot, 2026-11-15: "R DEP" alone).
+    const id = el(`<div class="sys-id"><span class="sys-id-file"></span></div>`);
+    const prefix = id.firstElementChild as HTMLElement;
+    prefix.textContent = r.code.trim() ? "R DEP" : "";
+    id.append(
+      this.text("DEP ID", r.code, (v) => {
+        r.code = v;
+        prefix.textContent = v.trim() ? "R DEP" : "";
+      }),
+    );
+    const hours = el(`<span class="place-hours"></span>`);
+    hours.textContent = this.hoursText(r.hours);
+    return row(
+      r.record || "A new department",
+      [
+        this.nameCell("The record's name", r),
+        this.text("Spoken name", r.spoken, (v) => (r.spoken = v)),
+        id,
+        this.specialtyCell(r),
+        this.text("FHIR id", r.id, (v) => (r.id = v)),
+        this.text("Address", r.address, (v) => (r.address = v)),
+        this.text("Phone", r.phone, (v) => (r.phone = v)),
+        hours,
+        this.departmentMoves(r),
+      ],
+      [
+        ["The record's name:", "The department's name as the record holds it, such as EMC Family Medicine. A visit there says the spoken name."],
+        ["Spoken name:", "What the caller hears. Empty: the record's own words."],
+        ["DEP ID:", "The department's record ID in Epic (DEP)."],
+        ["FHIR id:", "Epic's id for the Location: a visit's place is found by it first. Later: $find's location-reference."],
+        ["Hours:", `From Epic's directory. ${NOT_USED}`],
+      ],
+    );
+  }
+
+  /** Add a department to a facility (Edit only). */
+  private addDepartment(facility: string): HTMLElement {
+    const blank = (): LocationRow => ({ record: "", spoken: "", id: "", address: "", phone: "", facility, code: "", specialty: "", hours: [] });
+    return this.add("a department", this.d.locations, blank, this.l.places);
+  }
+
+  /** The cards: one per facility, then the departments in none. */
+  private cards(): HTMLElement[] {
+    const d = this.d;
+    const grid = el(`<div class="place-cards" role="list" aria-label="Facilities"></div>`);
+    const specialtyName = (code: string) => d.specialties.find((s) => s.code === code)?.spoken || `ID ${code}`;
+    const card = (f: FacilityRow | "none", i: number) => {
+      const depts = this.departments(f);
+      const c = el(`
+        <button class="people-card place-card" type="button" role="listitem">
+          <span class="people-band place-band"></span>
+          <span class="people-body">
+            <span class="people-line people-name"><span class="people-text"></span></span>
+            <span class="people-line people-role place-code"><span class="people-text"></span></span>
+            <span class="people-line people-role place-address"><span class="people-text"></span></span>
+            <span class="people-line people-role place-count"><span class="people-text"></span></span>
+            <span class="place-chips"></span>
+          </span>
+        </button>`);
+      const [name, code, address, count] = [...c.querySelectorAll<HTMLElement>(".people-text")];
+      name.textContent = f === "none" ? "Not in a facility" : f.spoken || f.record || "A new facility";
+      if (f === "none" || !f.code) code.parentElement!.remove();
+      else code.textContent = `R EAF ${f.code}`;
+      if (f === "none" || !f.address) {
+        address.textContent = f === "none" ? "Departments Epic names no facility for" : "Address";
+        address.parentElement!.classList.add("is-placeholder");
+      } else address.textContent = f.address;
+      count.textContent = `${depts.length} ${depts.length === 1 ? "department" : "departments"}`;
+      const codes = [...new Set(depts.map((l) => l.specialty).filter(Boolean))];
+      const chips = c.querySelector<HTMLElement>(".place-chips")!;
+      for (const code of codes.slice(0, CHIPS)) {
+        const chip = el(`<span class="place-chip"></span>`);
+        chip.textContent = specialtyName(code);
+        chips.append(chip);
+      }
+      if (codes.length > CHIPS) {
+        const more = el(`<span class="place-chip place-chip-more"></span>`);
+        more.textContent = `${codes.length - CHIPS} more`;
+        chips.append(more);
+      }
+      if (!codes.length) chips.remove();
+      const m = f !== "none" ? this.ui.marks.get(f) : undefined;
+      if (m) c.dataset.mark = m;
+      // An older version: a facility whose rows differ from the active version's.
+      if (this.ui.older && this.facilityChanged(f)) c.classList.add("place-card-changed");
+      c.setAttribute("aria-label", `${name.textContent}, ${count.textContent}`);
+      c.addEventListener("click", () => this.ui.go(f === "none" ? "none" : facilityKey(f)));
+      return this.wave(c, i);
+    };
+    const none = this.departments("none");
+    grid.append(...d.facilities.map(card));
+    if (none.length) grid.append(card("none", d.facilities.length));
+    if (!grid.childElementCount) grid.append(el(`<p class="empty">No facilities yet: import them from Epic, or add one</p>`));
+    const add = this.add("a facility", d.facilities, () => ({ record: "", spoken: "", id: "", code: "", address: "", phone: "" }), this.l.places);
+    return [grid, add];
+  }
+
+  /** Whether a facility or its departments differ from the active version's (an older version
+   * is shown). Matched by FHIR id, else the record's name. */
+  private facilityChanged(f: FacilityRow | "none"): boolean {
+    const a = this.ui.older!;
+    const same = (x: { id: string; record: string }, y: { id: string; record: string }) =>
+      x.id ? x.id === y.id : !y.id && x.record.trim().toLowerCase() === y.record.trim().toLowerCase();
+    const theirs = f === "none" ? undefined : a.facilities.find((x) => same(f, x));
+    if (f !== "none" && JSON.stringify(f) !== JSON.stringify(theirs)) return true;
+    const mine = this.departments(f);
+    const others = a.locations.filter((l) => (f === "none" ? !l.facility || !a.facilities.some((x) => x.id === l.facility) : !!f.id && l.facility === f.id));
+    return mine.length !== others.length || mine.some((l) => JSON.stringify(l) !== JSON.stringify(others.find((o) => same(l, o))));
+  }
+
+  /** One facility, drilled in: back, its own fields, then its departments. */
+  private facility(f: FacilityRow | "none"): HTMLElement[] {
+    const d = this.d;
+    let i = 0;
+    const back = el(`<button class="cfg-link place-back" type="button">← All facilities</button>`);
+    back.addEventListener("click", () => this.ui.go(null));
+    const out: HTMLElement[] = [this.wave(back, i++)];
+    const title = el(`<h4 class="place-title"><span></span><span class="sys-id-file"></span></h4>`);
+    title.firstElementChild!.textContent = f === "none" ? "Not in a facility" : f.spoken || f.record || "A new facility";
+    title.lastElementChild!.textContent = f !== "none" && f.code ? `R EAF ${f.code}` : "";
+    out.push(this.wave(title, i++));
+    if (f !== "none") {
+      const t = table("Facility", ["The record's name", "Spoken name", "EAF ID", "FHIR id", "Address", "Phone", ""]);
+      const remove = el(`<div class="cfg-control sys-remove"><button class="cfg-link" type="button">Remove facility</button></div>`);
+      remove.querySelector("button")!.addEventListener("click", () => {
+        // The facility and its departments (the owner's import-all: analysts remove what the
+        // agent does not need).
+        const gone = new Set(this.departments(f));
+        d.locations = d.locations.filter((l) => !gone.has(l));
+        d.facilities.splice(d.facilities.indexOf(f), 1);
+        this.kit.changed();
+        this.ui.go(null);
+      });
+      const [main, help] = row(
+        f.record || "A new facility",
+        [
+          this.nameCell("The record's name", f),
+          this.text("Spoken name", f.spoken, (v) => (f.spoken = v)),
+          this.text("EAF ID", f.code, (v) => (f.code = v)),
+          this.text("FHIR id", f.id, (v) => (f.id = v)),
+          this.text("Address", f.address, (v) => (f.address = v)),
+          this.text("Phone", f.phone, (v) => (f.phone = v)),
+          remove,
+        ],
+        [
+          ["The record's name:", "The facility's name in Epic (EAF): a building or campus that holds departments."],
+          ["Spoken name:", `What the caller would hear for the facility. ${NOT_USED}`],
+          ["FHIR id:", "Epic's id for the Location. Its departments name it as their facility."],
+          ["Remove facility:", "Takes out the facility and every department in it. Nothing is saved until Save."],
+        ],
+      );
+      t.body.append(main, help);
+      out.push(this.wave(t.wrap, i++));
+    }
+    const depts = this.departments(f);
+    const h = el(`<h4 class="place-subhead"><span>Departments</span><span class="prompt-count"></span></h4>`);
+    h.lastElementChild!.textContent = String(depts.length);
+    out.push(this.wave(h, i++));
+    const t = table("Departments", Parts.DEPARTMENT_COLUMNS);
+    for (const r of depts) {
+      const [main, help] = this.departmentRow(r);
+      t.body.append(this.wave(main, i++), help);
+    }
+    out.push(t.wrap);
+    if (f === "none" || f.id.trim()) out.push(this.addDepartment(f === "none" ? "" : f.id));
+    else out.push(el(`<p class="sys-note">Type the facility's FHIR id to add departments to it.</p>`));
+    return out;
+  }
+
+  /** Every department in one table, a heading row before each facility's (the owner, 2026-11-15:
+   * "Table of DEPs grouped into an EAF"). */
+  private placesTable(): HTMLElement[] {
+    const d = this.d;
+    const t = table("Departments by facility", Parts.DEPARTMENT_COLUMNS);
+    let i = 0;
+    const group = (f: FacilityRow | "none") => {
+      const depts = this.departments(f);
+      if (f === "none" && !depts.length) return;
+      const head = el(`<table><tbody><tr class="place-group"><td></td><td><span class="place-group-name"></span> <span class="sys-id-file"></span> <span class="prompt-count"></span></td></tr></tbody></table>`).querySelector("tr")!;
+      head.lastElementChild!.setAttribute("colspan", String(Parts.DEPARTMENT_COLUMNS.length));
+      const [name, code, count] = [...head.querySelectorAll<HTMLElement>("span")];
+      name.textContent = f === "none" ? "Not in a facility" : f.spoken || f.record || "A new facility";
+      code.textContent = f !== "none" && f.code ? `R EAF ${f.code}` : "";
+      count.textContent = String(depts.length);
+      t.body.append(this.wave(head, i++));
+      for (const r of depts) {
+        const [main, help] = this.departmentRow(r);
+        t.body.append(this.wave(main, i++), help);
+      }
+    };
+    d.facilities.forEach(group);
+    group("none");
+    return [t.wrap];
+  }
+
+  /** Import from Epic, right of the tabs (the owner's screenshot, 2026-11-15, and his B: "can
+   * dropdown a small panel with a cities/states box and explicit instruction to enter city, state
+   * or just state"). Edit only: an import fills the draft. The panel takes up to 5 searches, each
+   * checked as it is added (a known state; a city of letters), and suggests the states and the
+   * cities already in the page's addresses. */
+  importControl(): HTMLElement {
+    const ui = this.ui;
+    const wrap = el(`
+      <div class="place-import">
+        <div class="cfg-control"><button class="cfg-button place-import-open" type="button" aria-haspopup="dialog" aria-expanded="false">Import from Epic</button></div>
+        <div class="menu place-import-panel" role="dialog" aria-label="Import from Epic" hidden>
+          <div class="place-import-entry">
+            <button class="cfg-info" type="button" aria-expanded="false" aria-label="How to search"><span class="i-glyph" aria-hidden="true">i</span></button>
+          </div>
+          <div class="cfg-help place-import-help"><p class="cfg-help-text">Enter a city and its state, such as Verona, WI, or just a state, such as WI or Wisconsin. Press Enter to add each one, up to ${PLACE_SEARCHES}. Epic sends every facility and department it finds there.</p></div>
+          <div class="place-import-list" id="place-import-list" role="listbox" aria-label="Suggestions"></div>
+          <p class="place-import-problem" role="alert" hidden></p>
+          <div class="place-chips place-import-chips" aria-label="To search"></div>
+          <div class="tabs cfg-actions place-import-actions" role="group" aria-label="Import">
+            <button class="tab" type="button" data-act="cancel">Cancel</button>
+            <button class="tab cfg-save" type="button" data-act="import" disabled>Import</button>
+          </div>
+          <p class="sys-note place-import-say" role="status" hidden></p>
+        </div>
+      </div>`);
+    const open = wrap.querySelector<HTMLButtonElement>(".place-import-open")!;
+    const panel = wrap.querySelector<HTMLElement>(".place-import-panel")!;
+    // The Config tables' own text box (system.ts › field): its size, edge and rounding.
+    const box = field("A city and its state, or a state", "", this.l.cell, () => {});
+    box.classList.add("place-import-box");
+    wrap.querySelector(".place-import-entry")!.append(box);
+    const input = box.querySelector<HTMLTextAreaElement>("textarea")!;
+    input.placeholder = "City, State";
+    input.spellcheck = false;
+    input.setAttribute("autocomplete", "off");
+    input.setAttribute("aria-autocomplete", "list");
+    input.setAttribute("aria-controls", "place-import-list");
+    const info = wrap.querySelector<HTMLButtonElement>(".cfg-info")!;
+    const help = wrap.querySelector<HTMLElement>(".place-import-help")!;
+    // The help rolls down and up, as every "i" on Config does (config.css › .cfg-help).
+    info.addEventListener("click", () => {
+      const opened = !help.classList.contains("open");
+      help.classList.toggle("open", opened);
+      info.setAttribute("aria-expanded", String(opened));
+    });
+    const list = wrap.querySelector<HTMLElement>(".place-import-list")!;
+    const problem = wrap.querySelector<HTMLElement>(".place-import-problem")!;
+    const chips = wrap.querySelector<HTMLElement>(".place-import-chips")!;
+    const say = wrap.querySelector<HTMLElement>(".place-import-say")!;
+    const go = wrap.querySelector<HTMLButtonElement>('[data-act="import"]')!;
+    open.title = "Edit only: an import fills the page, and Save keeps it";
+
+    // The cities already in this hospital's addresses: after a first import, the next one is a
+    // pick, not a typing job.
+    const cities = citiesIn([...this.d.facilities, ...this.d.locations].map((r) => r.address));
+    type Suggestion = { value: string; detail: string };
+    let shown: Suggestion[] = [];
+    let active = -1;
+
+    const tell = (text: string) => {
+      problem.textContent = text;
+      problem.hidden = !text;
+    };
+    // Import greys, as Save does, while there is nothing to search.
+    const ready = () => (go.disabled = !ui.importEntries.length && !input.value.trim());
+    const drawChips = () => {
+      chips.replaceChildren(
+        ...ui.importEntries.map((entry) => {
+          const chip = el(`<span class="place-chip"><span></span><button class="place-chip-x" type="button">×</button></span>`);
+          chip.firstElementChild!.textContent = entry;
+          const x = chip.querySelector("button")!;
+          x.setAttribute("aria-label", `Remove ${entry}`);
+          x.addEventListener("click", () => {
+            ui.importEntries = ui.importEntries.filter((e) => e !== entry);
+            drawChips();
+            input.focus();
+          });
+          return chip;
+        }),
+      );
+      chips.hidden = !ui.importEntries.length;
+      ready();
+    };
+    const suggest = () => {
+      const q = input.value.trim().toLowerCase();
+      const out: Suggestion[] = [];
+      const push = (s: Suggestion) => {
+        if (out.length < SUGGESTIONS && !out.some((o) => o.value === s.value) && !ui.importEntries.includes(s.value)) out.push(s);
+      };
+      for (const c of cities) if (!q || c.toLowerCase().startsWith(q)) push({ value: c, detail: "In this hospital's addresses" });
+      if (q) {
+        for (const [code, name] of US_STATES) {
+          if (code.toLowerCase().startsWith(q) || name.toLowerCase().startsWith(q)) push({ value: code, detail: name });
+        }
+        const typed = placeSearch(input.value);
+        if (typed) push({ value: typed, detail: typed.includes(",") ? "A city and its state" : "A state" });
+      }
+      shown = out;
+      active = out.length && q ? 0 : -1;
+      list.replaceChildren(
+        ...out.map((s, i) => {
+          const r = el(`<div class="menu-row word-row" role="option"><span class="word-main"><span class="word-name"></span><span class="word-note"></span></span></div>`);
+          r.querySelector(".word-name")!.textContent = s.value;
+          r.querySelector(".word-note")!.textContent = s.detail;
+          r.setAttribute("aria-selected", String(i === active));
+          // A row keeps the box's focus: the choice is made on the press.
+          r.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            add(s.value);
+          });
+          return r;
+        }),
+      );
+      list.hidden = !out.length;
+    };
+    const mark = () => [...list.children].forEach((r, i) => r.setAttribute("aria-selected", String(i === active)));
+    const add = (text: string): boolean => {
+      const entry = placeSearch(text);
+      if (!entry) {
+        tell("That is not a state, or a city and its state. Try Verona, WI or WI.");
+        return false;
+      }
+      if (ui.importEntries.includes(entry)) {
+        tell(`${entry} is on the list already.`);
+        return false;
+      }
+      if (ui.importEntries.length >= PLACE_SEARCHES) {
+        tell(`Up to ${PLACE_SEARCHES} at a time.`);
+        return false;
+      }
+      ui.importEntries = [...ui.importEntries, entry];
+      input.value = "";
+      tell("");
+      drawChips();
+      suggest();
+      return true;
+    };
+    const outside = (e: MouseEvent) => {
+      if (!wrap.isConnected) return document.removeEventListener("mousedown", outside, true);
+      if (!wrap.contains(e.target as Node)) close();
+    };
+    const close = () => {
+      panel.hidden = true;
+      open.setAttribute("aria-expanded", "false");
+      document.removeEventListener("mousedown", outside, true);
+    };
+    const show = () => {
+      panel.hidden = false;
+      open.setAttribute("aria-expanded", "true");
+      drawChips();
+      suggest();
+      say.textContent = "";
+      say.hidden = true;
+      document.addEventListener("mousedown", outside, true);
+      input.focus();
+    };
+
+    open.addEventListener("click", () => (panel.hidden ? show() : close()));
+    input.addEventListener("input", () => {
+      tell("");
+      suggest();
+      ready();
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        if (!shown.length) return;
+        e.preventDefault();
+        active = (active + (e.key === "ArrowDown" ? 1 : -1) + shown.length) % shown.length;
+        mark();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (active >= 0 && shown[active]) add(shown[active].value);
+        else if (input.value.trim()) add(input.value);
+        else if (ui.importEntries.length) go.click();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        close();
+        open.focus();
+      } else if (e.key === "Backspace" && !input.value && ui.importEntries.length) {
+        ui.importEntries = ui.importEntries.slice(0, -1);
+        drawChips();
+        suggest();
+      }
+    });
+    panel.querySelector('[data-act="cancel"]')!.addEventListener("click", () => {
+      close();
+      open.focus();
+    });
+    go.addEventListener("click", () => {
+      // Text typed but not added yet goes in first, so Import does what the box shows.
+      if (input.value.trim() && !add(input.value)) return;
+      if (!ui.importEntries.length) return tell("Add a city and its state, or a state, first.");
+      ui.runImport(this.d, ui.importEntries, say, go);
+    });
+    return wrap;
+  }
+
+  places(): HTMLElement[] {
     const d = this.d;
     const out = heading(
       "Locations",
       d.locations.length,
-      "A visit at a place on this list says its spoken name. The first row is said when a record names no place. The FHIR id, the address and the phone are not used by calls yet.",
+      `${d.facilities.length} ${d.facilities.length === 1 ? "facility" : "facilities"} (Epic's EAF), each holding its departments (DEP). A visit at a department on this list says its spoken name; the first department is said when a record names no place.`,
     );
-    const t = table("Locations", ["The record's name", "Spoken name", "FHIR id", "Address", "Phone", ""]);
-    for (const r of d.locations) {
-      t.body.append(
-        ...row(
-          r.record || "A new location",
-          [
-            this.text("The record's name", r.record, (v) => (r.record = v)),
-            this.text("Spoken name", r.spoken, (v) => (r.spoken = v)),
-            this.text("FHIR id", r.id, (v) => (r.id = v)),
-            this.text("Address", r.address, (v) => (r.address = v)),
-            this.text("Phone", r.phone, (v) => (r.phone = v)),
-            this.moves(d.locations, r),
-          ],
-          [
-            ["The record's name:", "The Location's name as the record holds it, such as EMC Family Medicine."],
-            ["Spoken name:", "What the caller hears. Empty: the record's own words."],
-            ["FHIR id:", "Later: Epic's $find location-reference, for \"the north clinic\"."],
-          ],
-        ),
-      );
+    // What the last import did (counts only), until the next draw of a new draft.
+    if (this.ui.importSay) {
+      const said = el(`<p class="sys-note place-import-done" role="status"></p>`);
+      said.textContent = this.ui.importSay;
+      out.push(said);
     }
-    out.push(t.wrap, this.add("a location", d.locations, () => ({ record: "", spoken: "", id: "", address: "", phone: "" })));
+    const bar = tabBar(
+      "Show the locations as",
+      [
+        ["cards", "Cards"],
+        ["table", "Table"],
+      ],
+      this.ui.view,
+      (v) => this.ui.setView(v as PlacesView),
+    );
+    bar.el.classList.add("place-toggle");
+    this.ui.toggle = bar.el;
+    requestAnimationFrame(() => bar.place());
+    new ResizeObserver(() => bar.place()).observe(bar.el);
+    out.push(bar.el);
+    const stage = el(`<div class="place-stage"></div>`);
+    const open = this.ui.view === "cards" ? resolveOpen(d, this.ui.open) : null;
+    stage.append(...(this.ui.view === "table" ? this.placesTable() : open ? this.facility(open) : this.cards()));
+    if (this.ui.wave) stage.classList.add("place-wave");
+    this.ui.wave = false;
+    this.ui.stage = stage;
+    out.push(stage);
     return out;
   }
 

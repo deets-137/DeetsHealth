@@ -314,7 +314,21 @@ export type ReasonRow = { system: ReasonSystem; code: string; words: string[]; v
 export type TimeOfDayRow = { name: string; from: string; hours: number };
 export type HoursRow = { day: string; opens: string; closes: string };
 export type ClosedDayRow = { date: string; name: string };
-export type LocationRow = { record: string; spoken: string; id: string; address: string; phone: string };
+/** A facility (Epic's EAF; HOSPITAL-CONFIG.md §8.2): `id` the FHIR id, `code` the EAF ID. */
+export type FacilityRow = { record: string; spoken: string; id: string; code: string; address: string; phone: string };
+/** A department (Epic's DEP): `facility` the FHIR id of its facility ("" for none), `code` the
+ * DEP ID, `specialty` its ID in the specialty list, `hours` from Epic's directory. */
+export type LocationRow = {
+  record: string;
+  spoken: string;
+  id: string;
+  address: string;
+  phone: string;
+  facility: string;
+  code: string;
+  specialty: string;
+  hours: HoursRow[];
+};
 /** `code`: the specialty's ID in the hospital's specialty list (`specialty_list`). */
 export type SpecialtyRow = { code: string; spoken: string; words: string[] };
 export type HospitalValues = {
@@ -328,6 +342,7 @@ export type HospitalValues = {
   times_of_day: TimeOfDayRow[];
   hours: HoursRow[];
   closed_days: ClosedDayRow[];
+  facilities: FacilityRow[];
   locations: LocationRow[];
   specialty_list: string;
   specialties: SpecialtyRow[];
@@ -347,13 +362,39 @@ export type HospitalSettings = {
   active: HospitalValues;
   /** Every list and number, in the page's order. */
   keys: (keyof HospitalValues)[];
-  /** What ehr's hospital.rs allows: a cell's characters, a list's rows, a cell's words, the
-   * times of day, the search windows. */
-  limits: { cell: number; rows: number; words: number; times: number; windows: number };
+  /** What ehr's hospital.rs allows: a cell's characters, a list's rows (`places`: the
+   * facilities' and the departments'), a cell's words, the times of day, the search windows. */
+  limits: { cell: number; rows: number; places: number; words: number; times: number; windows: number };
 };
 export const hospitalSettings = (version = 0) =>
   get<HospitalSettings>(version ? `/agent/hospital?version=${version}` : "/agent/hospital");
 export const saveHospital = (values: HospitalValues) => saveSettings<HospitalSettings>("/agent/hospital", values);
+
+/** Places › Import from Epic (HOSPITAL-CONFIG.md §8): Epic's directory as the hospital's rows,
+ * not merged and not saved. Facts about the hospital, never protected data. */
+export type ImportedPlaces = {
+  values: Pick<HospitalValues, "facilities" | "locations" | "specialty_list" | "specialties">;
+  others: number;
+  other_specialty_lists: number;
+  reads: number;
+};
+export async function importPlaces(addresses: string[]): Promise<ImportedPlaces> {
+  let r: Response;
+  try {
+    r = await fetch(at("/agent/hospital/import-places"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ addresses }),
+    });
+  } catch {
+    throw new AgentDown("the agent's dev server is not running");
+  }
+  if (!r.ok) {
+    const body = (await r.json().catch(() => null)) as { detail?: unknown } | null;
+    throw new AgentDown(typeof body?.detail === "string" ? body.detail : "the import failed", statusOf(r));
+  }
+  return (await r.json()) as ImportedPlaces;
+}
 
 /** The last Record and test (dev_server.py › record_and_test): counts and names of kept
  * scripts only. */

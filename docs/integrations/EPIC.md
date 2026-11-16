@@ -477,6 +477,7 @@ All go from `ehr` (Rust) only, over `ehr`'s AWS-LC client (`ehr/src/epic.rs` `Ep
 | `ehr epic-book`: `Patient/{id}`, one `$find`, one `$book`, one `Appointment` read, two visit searches | `main.rs` › `epic_book`; `epic_ehr.rs` › `EpicEhr::probe_book` | by hand, only with the owner's go-ahead (a write; run once, 2026-11-15) | Camila Lopez's public test details | about 6, one write |
 | `GET metadata` and one `Patient` search | `main.rs` › `epic_check` | `ehr epic-check`, by hand | Camila Lopez's public test details | about 5 |
 | `ehr epic-locations` (the probe): one `Appointment` search, `Location/{id}` per department named, six `Location?…` searches | `main.rs` › `epic_locations` | by hand | Camila Lopez's public test FHIR id | about 11 |
+| `GET Location?address=<state>`, or `Location?address=<city>&address-state=<state>` (`Location.Search (Organizational Directory) (R4)`), then each page's `next` link | `epic_ehr.rs` › `EpicEhr::places` | Config › Hospital › Places › Import from Epic, by an analyst (HOSPITAL-CONFIG.md §8); never during a call | none: the state, or the city and state, typed | 1 per search typed (up to 5) (the sandbox: its 435 locations in one page); at most 50 pages |
 
 Not sent yet: `Patient.$match`, the medicine, refill and lab reads (R2–R4), `Practitioner` / `Location` reads, and booking (STU3 `$find`, `$book`). Each joins this table when it is built. The planned writes are booking and the held chart note (`DocumentReference.Create`, §2.1).
 

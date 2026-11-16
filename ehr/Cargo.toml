@@ -37,7 +37,7 @@ webpki-roots = "1"
 base64 = "0.22"
 # Epic's visit times (epic_ehr.rs): an instant to the place's local time, with the time zone
 # database built in (Windows has none that jiff reads).
-jiff = "0.2"
+jiff = "1.0"
 # The call store (store.rs; DATABASE.md): Postgres, migrations embedded in the binary. No TLS
 # feature yet: dev talks to 127.0.0.1. The cloud adds TLS on the same AWS-LC provider.
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "migrate", "macros"] }

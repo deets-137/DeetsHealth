@@ -96,6 +96,7 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `GetUserPhoto` | `get_user_photo` | `user_photo` |
 | `SetUserPhoto` | `set_user_photo` | `set_user_photo` |
 | `SeenOwner` | `seen_owner` | `seen_owner` |
+| `ImportPlaces` | `import_places` | `import_places` |
 
 `FileTestRun`, `AddAnnotation` and `ListAnnotations` are the kept scripts' runs and the
 annotations in the call store (DATABASE.md §8, §9): no handle; `FAILED_PRECONDITION` without a
@@ -105,6 +106,13 @@ production EHR, and `FileCall` files a record in the class its `call_start` name
 
 The three settings RPCs are the settings store (CONSOLE.md §7.3; `ehr/src/settings.rs`): no
 handle, no protected data, `FAILED_PRECONDITION` when `ehr` runs without a store.
+
+`ImportPlaces` is Config › Hospital › Places, Import from Epic (HOSPITAL-CONFIG.md §8): no
+handle, no protected data (a place is a fact about the hospital). It searches Epic's directory
+(`epic_ehr.rs › EpicEhr::places`) and answers with the hospital's rows; it saves nothing.
+`FAILED_PRECONDITION` when `ehr` does not serve Epic's sandbox. The message limit is 4 MiB each
+way (`main.rs › MESSAGE_LIMIT`, gRPC's own default; 64 KB until 2026-11-15), so a whole
+hospital's places fit in one `GetSettings`.
 
 The five user RPCs are the People list (ops/DEMO.md §3.5; `ehr/src/users.rs`, migration 0007):
 who may sign in to the console. No handle. A staff member's email and name are not patient

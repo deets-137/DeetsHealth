@@ -1201,6 +1201,272 @@ select.cfg-field {
   display: none;
 }
 
+/* ---------------------------------------------------------------- Places › Locations */
+
+/* Config › Hospital › Places (HOSPITAL-CONFIG.md §8.2; the owner, 2026-11-15): one card per
+   facility (1A), built from Teams › People's card (people.css: .people-card, .people-band,
+   .people-body, .people-line); a card opens by drilling in (2A); or every department in one
+   table, a heading row per facility. */
+.place-toggle {
+  align-self: flex-start;
+}
+
+.place-stage {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* As many cards to a row as fit, each the People card's width; one full-width column when the
+   panel is narrower than a card (a phone). */
+.place-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--card-width), 100%), var(--card-width)));
+  align-content: start;
+  gap: var(--gap);
+}
+
+/* The card is a button: the People card's look, a button's behavior. */
+.place-card {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--dur-hover) var(--ease);
+}
+
+.place-card:hover,
+.place-card:focus-visible {
+  border-color: var(--text-3);
+}
+
+/* No picture on a facility's card, so the band is a quarter of the People band. */
+.place-band {
+  height: calc(var(--card-band) / 4);
+}
+
+/* A facility an import added or changed, or one an older version changed: the accent edge. */
+.place-card[data-mark="new"],
+.place-card[data-mark="changed"],
+.place-card-changed {
+  border-color: var(--accent);
+}
+
+.place-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.place-chip {
+  padding: 0 var(--space-3);
+  border: var(--edge) solid var(--line);
+  border-radius: var(--radius-control);
+  font-size: var(--text-small);
+  color: var(--text-2);
+}
+
+.place-chip-more {
+  color: var(--text-3);
+}
+
+/* An import's mark after a row's name: New, Changed, Not in Epic. */
+.place-mark {
+  font-size: var(--text-small);
+  color: var(--accent);
+}
+
+.place-mark[data-mark="gone"] {
+  color: var(--text-3);
+}
+
+.place-back {
+  align-self: flex-start;
+}
+
+.place-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--text-panel);
+  font-weight: var(--weight-bold);
+  color: var(--title);
+}
+
+.place-subhead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-size);
+  font-weight: var(--weight-bold);
+  color: var(--title);
+}
+
+/* The Table view's heading row before each facility's departments. */
+.sys-table .place-group td {
+  padding-top: var(--space-4);
+  border-bottom: var(--edge) solid var(--line);
+  font-weight: var(--weight-bold);
+  color: var(--title);
+}
+
+.place-group .sys-id-file,
+.place-group .prompt-count {
+  font-weight: var(--weight-regular);
+}
+
+.place-hours {
+  font-size: var(--text-small);
+  color: var(--text-2);
+}
+
+/* Import from Epic: a button just right of the tabs (the owner's screenshot, 2026-11-15), and
+   under it a panel in the console's frosted menu (app.css › .menu): how to search, the box, the
+   suggestions (word-row, as the `{` list), what to search as chips, Cancel and Import. */
+.place-import {
+  position: relative;
+  align-self: center;
+  margin-right: auto;
+}
+
+.place-import-panel {
+  left: auto;
+  right: 0;
+  z-index: 30; /* over the tables under it */
+  width: min(var(--cfg-control), calc(100vw - 2 * var(--gap)));
+  /* One margin everywhere (the owner's screenshot, 2026-11-15, the blue lines): the space from
+     the Config frame's edge to its tab bar, inside the panel's edge and between its rows. */
+  padding: var(--canvas-pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--canvas-pad);
+  white-space: normal;
+}
+
+/* Under a narrow bar the button wraps to its own line, at the left: the panel opens from there. */
+@media (max-width: 720px) {
+  .place-import-panel {
+    left: 0;
+    right: auto;
+  }
+}
+
+.place-import-panel[hidden],
+.place-import-list[hidden],
+.place-import-problem[hidden],
+.place-import-chips[hidden],
+.place-import-say[hidden] {
+  display: none;
+}
+
+/* The "i", then the Config tables' own text box (system.ts › field); the help rolls down under
+   them, its words on the box's left edge (the owner, 2026-11-15: "move the help text to an info
+   button to the left of the textbox"). */
+.place-import-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.place-import-entry .cfg-info {
+  flex: none;
+}
+
+.place-import-box {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Closed, the help takes no room: the panel's gap closes over it. */
+.place-import-help:not(.open) {
+  margin-top: calc(-1 * var(--canvas-pad));
+}
+
+.place-import-help .cfg-help-text {
+  margin-left: calc(var(--info-size) + var(--space-3));
+}
+
+.place-import-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.place-import-problem {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--error);
+}
+
+.place-import-chips .place-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+}
+
+.place-chip-x {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  cursor: pointer;
+}
+
+.place-chip-x:hover,
+.place-chip-x:focus-visible {
+  color: var(--text);
+}
+
+/* Cancel | Import: Discard | Save's bar (.cfg-actions), at the panel's right edge. */
+.place-import-actions {
+  align-self: flex-end;
+}
+
+.place-import-say {
+  margin: 0;
+}
+
+/* The motion (the owner, 2026-11-15: "a gentle animation in line with the rest of
+   DeetsHealth"): the stage fades out as a page does when the nav changes (--dur-leave); the
+   next one comes in as Chat's wave, each part rising a few whole pixels and fading in a step
+   after the one before. Not held ("backwards"), so at rest nothing is transformed. */
+.place-stage.place-leaving {
+  opacity: 0;
+  transition: opacity var(--dur-leave) var(--ease);
+}
+
+.place-stage.place-wave [data-wave] {
+  animation: place-wave-in var(--dur-wave-in) var(--ease-wave) backwards;
+  animation-delay: calc(var(--wave-i, 0) * var(--wave-step));
+}
+
+@keyframes place-wave-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--wave-rise));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .place-stage.place-leaving {
+    opacity: 1;
+    transition: none;
+  }
+
+  .place-stage.place-wave [data-wave] {
+    animation: none;
+  }
+
+  .place-card {
+    transition: none;
+  }
+}
+
 /* ---------------------------------------------------------------- the `{` and " ." lists */
 
 /* word-picker.ts: the console's frosted menu (app.css › .menu), fixed to the window at the

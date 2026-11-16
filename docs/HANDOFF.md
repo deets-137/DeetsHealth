@@ -101,7 +101,15 @@ Nothing ships yet. The deploy is A2: a separate deploy per hospital in our cloud
 interface (VOICE-AGENT.md §7.2).
 
 ## Open now
-**Start here (2026-11-15, late afternoon).** **Built, desk test open, not committed: synthetic
+**Start here (2026-11-15, evening).** **Built, desk test open, not committed: Config › Hospital ›
+Places, Import from Epic** (HOSPITAL-CONFIG.md §8; desk test §6, steps 13 to 19). His forks:
+import all (analysts remove what is not needed), 1A one card per facility, the Table view grouped
+by facility, 2A drill in with the console's own motion, 3A two lists (`facilities` and
+`locations`). A new RPC `ImportPlaces` (one `Location?address=` search per state or city typed);
+the wire's message limit is 4 MiB; a visit's place is found by the Location's FHIR id first.
+What was decided inside his choices: §8.3. Restart `npm run dev` first (a new `ehr`).
+
+**Earlier (2026-11-15, late afternoon; committed in 7b090ff).** **Synthetic
 and real rows apart, the kept scripts' runs in the store, annotations in the store**
 (DATABASE.md §7 to §9; desk test §10). Migration 0010 moves the call tables to the schema
 `synthetic`, adds `real` from the same template, a role and a seal key per class

@@ -244,6 +244,7 @@ pub const HOSPITAL: &[Setting] = &[
     s("times_of_day", Kind::Hospital),
     s("hours", Kind::Hospital),
     s("closed_days", Kind::Hospital),
+    s("facilities", Kind::Hospital),
     s("locations", Kind::Hospital),
     s("specialty_list", Kind::Hospital),
     s("specialties", Kind::Hospital),

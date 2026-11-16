@@ -69,8 +69,10 @@ const EPIC_KEY: &str = "dev-certs/epic-nonprod-es384.key";
 
 /// The longest a request may run when the agent sends no deadline of its own.
 const REQUEST_LIMIT: Duration = Duration::from_secs(10);
-/// The largest message, either way. Every message in the contract is small.
-const MESSAGE_LIMIT: usize = 64 * 1024;
+/// The largest message, either way: gRPC's own default. A whole hospital's settings travel in
+/// one GetSettings, with up to 2,000 facilities and 2,000 departments (HOSPITAL-CONFIG.md §8.2);
+/// every other message is small.
+const MESSAGE_LIMIT: usize = 4 * 1024 * 1024;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -315,7 +317,7 @@ async fn epic_find() -> Result<(), String> {
     };
     let stu3 = reqwest::Url::parse(&epic.base().as_str().replace("/R4/", "/STU3/")).map_err(|_| "bad STU3 URL")?;
     let find = stu3.join("Appointment/$find").map_err(|_| "bad $find URL")?;
-    let start = jiff::Zoned::now().date().checked_add(jiff::Span::new().days(1)).map_err(|_| "date")?;
+    let start = jiff::ZonedDateTime::now().date().checked_add(jiff::Span::new().days(1)).map_err(|_| "date")?;
     let end = start.checked_add(jiff::Span::new().days(14)).map_err(|_| "date")?;
     let p = |name: &str, v: Value| {
         let mut o = v;

@@ -92,6 +92,31 @@ service Ehr {
   rpc SetUserPhoto(SetUserPhotoRequest) returns (SetUserPhotoReply);
   // The owner was seen: the console on the owner's PC (the launch token) stamps last seen.
   rpc SeenOwner(SeenOwnerRequest) returns (SeenOwnerReply);
+  // Config › Hospital › Places, Import from Epic (HOSPITAL-CONFIG.md §8): the hospital's
+  // facilities, departments and their specialties from the EHR's directory, as the hospital's
+  // rows. Saves nothing: the page merges them into its draft. FAILED_PRECONDITION when ehr does
+  // not serve an EHR with a directory; UNAVAILABLE while it is not answering; INVALID_ARGUMENT
+  // for a search the reply names. No field is protected data: a place is a fact about the
+  // hospital.
+  rpc ImportPlaces(ImportPlacesRequest) returns (ImportPlacesReply);
+}
+
+message ImportPlacesRequest {
+  // What to search by, one search each (1 to 5): a state ("WI") or a city and its state
+  // ("Verona, WI"); USPS state codes only (hospital.rs › PlaceSearch).
+  repeated string addresses = 1;
+}
+
+message ImportPlacesReply {
+  // The rows, as the hospital service keeps them (settings.rs): `facilities`, `locations`,
+  // `specialty_list`, `specialties`, each JSON.
+  repeated SettingValue values = 1;
+  // Locations that are neither a facility nor a department: counted, not kept.
+  int32 others = 2;
+  // Departments whose specialty is in another list: kept without a specialty.
+  int32 other_specialty_lists = 3;
+  // The reads it took.
+  int32 reads = 4;
 }
 
 // One person on the list. A staff member's identity, not a patient's, but marked: it never goes

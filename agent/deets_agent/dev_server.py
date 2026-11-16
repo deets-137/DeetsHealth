@@ -23,6 +23,8 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
 - `GET  /agent/hospital`, `POST /agent/hospital` — Config › Hospital (HOSPITAL-CONFIG.md): the
   hospital's lists and numbers, their versions and limits; a save makes a new active version
   that each call takes when it opens.
+- `POST /agent/hospital/import-places` — Places › Import from Epic (HOSPITAL-CONFIG.md §8): the
+  hospital's facilities, departments and specialties from Epic's directory; saves nothing.
 - `GET  /agent/resources?call=` — Cartesia's credits and Claude's dollars this cycle, counted
   from the records and the live calls, and one call's use (resources.py; CHAT.md §17).
 - `POST /agent/voice?ehr=local|epic` — the voice seat: a WebRTC offer in, the answer out; the
@@ -205,7 +207,7 @@ class LiveCall:
     by: str
     label: str | None
     tag: str | None
-    started: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
+    started: str = field(default_factory=lambda: datetime.now().astimezone().isoformat(timespec="seconds"))
     voice: Voice | None = None
     # When this call last called a tool. ehr sends a code by text during the tool's RPC, before
     # the `ehr` event is written, so the fake Twilio's text joins the call whose tool call is
@@ -552,6 +554,33 @@ def build_app(state: State) -> FastAPI:
             raise HTTPException(400, "values: every list and number of the hospital, once")
         await save_settings(state, "hospital", {k: values[k] for k in config.HOSPITAL_KEYS})
         return await hospital_view(state, 0)
+
+    @app.post("/agent/hospital/import-places")
+    async def import_places(request: Request):
+        """Config › Hospital › Places, Import from Epic (HOSPITAL-CONFIG.md §8): the hospital's
+        facilities, departments and specialties from Epic's directory, searched by each address
+        (a state or a city). Saves nothing: the page merges the rows into its draft, and Save
+        makes the version. One to a few reads to Epic per import. Facts about the hospital
+        only."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "not JSON") from None
+        addresses = body.get("addresses") if isinstance(body, dict) else None
+        if not isinstance(addresses, list) or not all(isinstance(a, str) for a in addresses):
+            raise HTTPException(400, "addresses: a list of states or cities")
+        if state.ehr is None:
+            raise HTTPException(409, "ehr is not up yet")
+        try:
+            return await state.ehr.import_places([a.strip() for a in addresses])
+        except EhrError as e:
+            if e.kind is ErrorKind.BAD_INPUT:
+                raise HTTPException(400, e.detail or "the addresses do not fit") from None
+            if e.kind is ErrorKind.NOT_ALLOWED_NOW:
+                raise HTTPException(409, "ehr does not serve Epic's sandbox: epic-client.json and the Epic key are not here") from None
+            if e.kind is ErrorKind.UNAVAILABLE:
+                raise HTTPException(503, "Epic's directory did not answer") from None
+            raise HTTPException(502, e.detail or "the import failed") from None
 
     @app.get("/agent/anthropic")
     async def anthropic_settings(version: int = 0):

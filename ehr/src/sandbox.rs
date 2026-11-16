@@ -63,7 +63,7 @@ pub struct Visit {
 /// fixture tests catch one first.
 pub fn local_now(zone: String) -> (String, String) {
     let tz = jiff::tz::TimeZone::get(&zone).unwrap_or(jiff::tz::TimeZone::UTC);
-    let now = jiff::Timestamp::now().to_zoned(tz);
+    let now = jiff::Timestamp::now().to_zoned_datetime(tz);
     (now.strftime("%Y-%m-%dT%H:%M").to_string(), now.strftime("%Z").to_string())
 }
 

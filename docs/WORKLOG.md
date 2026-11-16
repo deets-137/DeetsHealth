@@ -8,6 +8,39 @@ updated: 2026-11-15
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-15 (Windows, night) — Places: Import from Epic, facility cards, drill in
+- The talk first: the import route of HOSPITAL-CONFIG.md §8. His choices: import all, analysts
+  remove what is not needed ("we'll have to build better filters and UI ... when we get there");
+  one card per facility like Teams › People (1A); the Table view grouped by facility; a card
+  opens by drilling in (2A, after a mockup of 2A and 2B drawn from the real page), "with a gentle
+  animation in line with the rest of DeetsHealth"; two lists (3A).
+- Built (§8.2, §8.3): `facilities` and the department fields; `ImportPlaces` and
+  `EpicEhr::places`; `POST /agent/hospital/import-places`; the cards, the drill-in, the grouped
+  table, Import from Epic with its merge and marks. The motion reuses `--dur-leave` and Chat's
+  wave tokens; no new token. A visit's place is matched by FHIR id first. The message limit grew
+  from 64 KB to 4 MiB (a hospital's 2,000 departments fit). No Epic reads were made this sitting.
+- His first desk test: the page stayed on "Loading" (rows saved before the new fields; fixed by
+  `withRowDefaults`). Then his screenshots, saved: `hospital-places-toggle-2026-11-15.png` (the
+  toggle should slide: done) and `hospital-places-import-button-2026-11-15.png` (an Import
+  button right of the tabs: its fork brought to him). The "R DEP" prefix now shows only beside
+  an ID.
+- His B for the button: a dropdown panel with the instruction, guardrails and suggestions. Built
+  (§8.2): "City, ST" or a state only, checked in the page and again in ehr (`PlaceSearch`); a
+  city and its state search `address=<city>&address-state=<ST>`; suggestions from the states
+  list and the cities already in the page's addresses.
+- His note on the panel: the standard text box, the words behind an "i", "City, State",
+  Cancel | Import as Discard | Save. Done. His "Epic sandbox down?": yes, Epic's FHIR server
+  answered HTTP 503 at `smart-configuration` (checked twice, once by curl); not ours.
+- His screenshot `hospital-import-panel-margins-2026-11-15.png` (saved): one margin through the
+  panel, the blue lines' `--canvas-pad`. Done.
+- While building, another session (Datetime handling review) moved `jiff` to 1.0 in this
+  checkout; `ehr` did not build during its work (`to_zoned` is gone in 1.0). Once it was in:
+  ehr's 119 library tests pass, the agent's lint and 253 tests pass against a fresh ehr
+  (`target/check`), console `tsc` and docs:check clean. ehr's whole-crate tests wait for the
+  dev server to stop (it holds the ehr program).
+- Checks: `npm run check`, all 8 steps pass (ehr tests with 4 new; clippy on ehr's library and tests clean; console
+  `tsc`; the agent's lint and tests against a fresh ehr; docs:check). Not committed.
+
 ## 2026-11-15 (Windows, evening) — `task.verify` with backticks (his B)
 - His B: a backticked wording for `task.verify`, tested. The new words say that digits from the
   caller are the code, and to use `check_code` with them at once, in the same reply, without

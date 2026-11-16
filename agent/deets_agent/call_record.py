@@ -281,7 +281,7 @@ class CallRecord:
             inference_geo=config.INFERENCE_GEO,
             prompt_version=prompt_version,
             system_version=system_version,
-            started=datetime.now().isoformat(timespec="seconds"),
+            started=datetime.now().astimezone().isoformat(timespec="seconds"),
             **({"label": label} if label else {}),
             **({"started_by": started_by} if started_by else {}),
         )

@@ -44,6 +44,7 @@ pub const KEYS: &[&str] = &[
     "times_of_day",
     "hours",
     "closed_days",
+    "facilities",
     "locations",
     "specialty_list",
     "specialties",
@@ -59,6 +60,9 @@ pub const KEYS: &[&str] = &[
 pub const CELL_MAX: usize = 120;
 /// The most rows in one list.
 pub const ROWS_MAX: usize = 200;
+/// The most facilities, and the most departments: an import brings every one in (the owner,
+/// 2026-11-15), and the analysts remove what the agent does not need.
+pub const PLACES_MAX: usize = 2000;
 /// The most words (or members) in one cell of words.
 pub const WORDS_MAX: usize = 30;
 /// The most times of day: each is a word the model may pick.
@@ -112,10 +116,32 @@ pub struct TimeOfDayRow {
     pub hours: u8,
 }
 
-/// One place. `record` is the Location's name as the record holds it ("EMC Family Medicine");
-/// the visit says `spoken` instead. The first row is said when a record names no place. The
-/// id, address and phone are kept for later (`$find`'s `location-reference`, "where to go").
-#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+/// One facility (Epic's EAF): a building or campus that holds departments (HOSPITAL-CONFIG.md
+/// §8.2, the owner's 3A). `id` is the Location's FHIR id; `code` its EAF ID. Kept; a call says
+/// a department's words, never a facility's, yet.
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Default)]
+#[serde(deny_unknown_fields)]
+pub struct FacilityRow {
+    pub record: String,
+    #[serde(default)]
+    pub spoken: String,
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub code: String,
+    #[serde(default)]
+    pub address: String,
+    #[serde(default)]
+    pub phone: String,
+}
+
+/// One department (Epic's DEP), the place a visit is booked in. `record` is the Location's name
+/// as the record holds it ("EMC Family Medicine"); the visit says `spoken` instead. The first
+/// row is said when a record names no place. `id` is the FHIR id, `code` the DEP ID, `facility`
+/// the FHIR id of its facility (empty: none), `specialty` its ID in `specialty_list`. The id,
+/// address, phone, specialty and hours are kept for later (`$find`'s `location-reference`,
+/// "where to go").
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Default)]
 #[serde(deny_unknown_fields)]
 pub struct LocationRow {
     pub record: String,
@@ -127,6 +153,71 @@ pub struct LocationRow {
     pub address: String,
     #[serde(default)]
     pub phone: String,
+    #[serde(default)]
+    pub facility: String,
+    #[serde(default)]
+    pub code: String,
+    #[serde(default)]
+    pub specialty: String,
+    #[serde(default)]
+    pub hours: Vec<HoursRow>,
+}
+
+/// The USPS codes of the states, DC and the territories: what a directory search may name.
+pub const US_STATES: &[&str] = &[
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA",
+    "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX",
+    "UT", "VT", "VA", "WA", "WV", "WI", "WY", "AS", "GU", "MP", "PR", "VI",
+];
+
+/// One directory search (HOSPITAL-CONFIG.md §8.2): a state ("WI"), or a city and its state
+/// ("Verona, WI"). The page sends each in this form; anything else is refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaceSearch {
+    pub city: Option<String>,
+    pub state: String,
+}
+
+impl PlaceSearch {
+    /// "WI" or "Verona, WI": a known state code, and a city of letters, spaces, `.`, `'` and `-`
+    /// (at most 60). None for anything else.
+    pub fn parse(text: &str) -> Option<Self> {
+        let text = text.trim();
+        let (city, state) = match text.rsplit_once(',') {
+            Some((city, state)) => (Some(city.trim()), state.trim()),
+            None => (None, text),
+        };
+        if !US_STATES.contains(&state) {
+            return None;
+        }
+        let city = match city {
+            None => None,
+            Some(c) if !c.is_empty() && c.chars().count() <= 60 && c.chars().all(|ch| ch.is_alphabetic() || " .'-".contains(ch)) => {
+                Some(c.to_string())
+            }
+            Some(_) => return None,
+        };
+        Some(Self { city, state: state.to_string() })
+    }
+}
+
+/// What an EHR's directory says of the hospital's places (HOSPITAL-CONFIG.md §8): the rows an
+/// import offers the page, before it merges them into the draft. Each EHR's adapter builds it
+/// from its own directory (Epic: epic_ehr.rs › places).
+#[derive(Debug, Default, PartialEq)]
+pub struct Places {
+    pub facilities: Vec<FacilityRow>,
+    pub locations: Vec<LocationRow>,
+    /// The OID of the departments' specialty list; empty when no department named one.
+    pub specialty_list: String,
+    /// Each specialty the departments name, once: its ID and the directory's own words.
+    pub specialties: Vec<SpecialtyRow>,
+    /// Locations that are neither a facility nor a department (rooms, billing offices).
+    pub others: usize,
+    /// Departments whose specialty is in a second list: left without a specialty.
+    pub other_specialty_lists: usize,
+    /// The reads it took.
+    pub reads: usize,
 }
 
 /// One specialty (Epic's `specialties`), its ID in `specialty_list`. Kept; no call reads it yet.
@@ -221,6 +312,7 @@ pub struct Hospital {
     pub times_of_day: Vec<TimeOfDayRow>,
     pub hours: Vec<HoursRow>,
     pub closed_days: Vec<ClosedDayRow>,
+    pub facilities: Vec<FacilityRow>,
     pub locations: Vec<LocationRow>,
     pub specialties: Vec<SpecialtyRow>,
     /// How many slots the agent offers at a time.
@@ -265,8 +357,12 @@ fn words(list: &[String]) -> Result<(), &'static str> {
 }
 
 fn rows<T>(key: &str, list: &[T], each: impl Fn(&T) -> Result<(), String>) -> Result<(), String> {
-    if list.len() > ROWS_MAX {
-        return Err(format!("{key}: at most {ROWS_MAX} rows"));
+    rows_up_to(key, list, ROWS_MAX, each)
+}
+
+fn rows_up_to<T>(key: &str, list: &[T], max: usize, each: impl Fn(&T) -> Result<(), String>) -> Result<(), String> {
+    if list.len() > max {
+        return Err(format!("{key}: at most {max} rows"));
     }
     for (i, row) in list.iter().enumerate() {
         each(row).map_err(|e| format!("{key}: row {}: {e}", i + 1))?;
@@ -288,6 +384,39 @@ fn twice<T>(list: &[T], name: impl Fn(&T) -> &str) -> Option<usize> {
         seen.push(n);
     }
     None
+}
+
+/// The first row number that names a place an earlier row names: by the FHIR id when the row
+/// has one (exactly), else by the record's name (in any case). Two departments of one name in
+/// two facilities are two places when Epic gives each its id.
+fn twice_place<'a, T>(list: &'a [T], id_and_name: impl Fn(&'a T) -> (&'a str, &'a str)) -> Option<usize> {
+    let mut seen: Vec<String> = Vec::new();
+    for (i, row) in list.iter().enumerate() {
+        let (id, name) = id_and_name(row);
+        let key = if id.trim().is_empty() { format!("name:{}", name.trim().to_lowercase()) } else { format!("id:{}", id.trim()) };
+        if key == "name:" {
+            continue;
+        }
+        if seen.contains(&key) {
+            return Some(i + 1);
+        }
+        seen.push(key);
+    }
+    None
+}
+
+/// One day's hours: mon to sun, HH:MM, opening before closing.
+fn hours_row(h: &HoursRow) -> Result<(), String> {
+    if !["mon", "tue", "wed", "thu", "fri", "sat", "sun"].contains(&h.day.as_str()) {
+        return Err("the day is not mon to sun".into());
+    }
+    let (Some(o), Some(c)) = (minute_of(&h.opens), minute_of(&h.closes)) else {
+        return Err("a time is not HH:MM".into());
+    };
+    if o >= c {
+        return Err("it closes before it opens".into());
+    }
+    Ok(())
 }
 
 fn field<T: DeserializeOwned>(key: &str, value: &Value) -> Result<T, String> {
@@ -382,18 +511,7 @@ pub fn check_key(key: &str, value: &Value) -> Result<(), String> {
         }
         "hours" => {
             let list: Vec<HoursRow> = field(key, value)?;
-            rows(key, &list, |h| {
-                if !["mon", "tue", "wed", "thu", "fri", "sat", "sun"].contains(&h.day.as_str()) {
-                    return Err("the day is not mon to sun".into());
-                }
-                let (Some(o), Some(c)) = (minute_of(&h.opens), minute_of(&h.closes)) else {
-                    return Err("a time is not HH:MM".into());
-                };
-                if o >= c {
-                    return Err("it closes before it opens".into());
-                }
-                Ok(())
-            })
+            rows(key, &list, hours_row)
         }
         "closed_days" => {
             let list: Vec<ClosedDayRow> = field(key, value)?;
@@ -405,22 +523,48 @@ pub fn check_key(key: &str, value: &Value) -> Result<(), String> {
                 Ok(())
             })
         }
+        "facilities" => {
+            let list: Vec<FacilityRow> = field(key, value)?;
+            rows_up_to(key, &list, PLACES_MAX, |f| {
+                for (what, text, needed) in [
+                    ("the record's name", &f.record, true),
+                    ("the spoken name", &f.spoken, false),
+                    ("the FHIR id", &f.id, false),
+                    ("the EAF ID", &f.code, false),
+                    ("the address", &f.address, false),
+                    ("the phone", &f.phone, false),
+                ] {
+                    cell(text, needed).map_err(|e| format!("{what} {e}"))?;
+                }
+                Ok(())
+            })?;
+            match twice_place(&list, |f| (&f.id, &f.record)) {
+                Some(n) => Err(format!("{key}: row {n}: the facility is there twice")),
+                None => Ok(()),
+            }
+        }
         "locations" => {
             let list: Vec<LocationRow> = field(key, value)?;
-            rows(key, &list, |l| {
+            rows_up_to(key, &list, PLACES_MAX, |l| {
                 for (what, text, needed) in [
                     ("the record's name", &l.record, true),
                     ("the spoken name", &l.spoken, false),
                     ("the FHIR id", &l.id, false),
                     ("the address", &l.address, false),
                     ("the phone", &l.phone, false),
+                    ("the facility", &l.facility, false),
+                    ("the DEP ID", &l.code, false),
+                    ("the specialty", &l.specialty, false),
                 ] {
                     cell(text, needed).map_err(|e| format!("{what} {e}"))?;
                 }
-                Ok(())
+                if l.hours.len() > 14 {
+                    return Err("the hours: at most 14 rows".into());
+                }
+                l.hours.iter().try_for_each(hours_row).map_err(|e| format!("the hours: {e}"))
             })?;
-            match twice(&list, |l| &l.record) {
-                Some(n) => Err(format!("{key}: row {n}: the record's name is there twice")),
+            match twice_place(&list, |l| (&l.id, &l.record)) {
+                Some(n) => Err(format!("{key}: row {n}: the department is there twice")),
                 None => Ok(()),
             }
         }
@@ -499,6 +643,18 @@ impl Hospital {
                 return Err(format!("reasons: row {}: the hospital's list needs its OID", i + 1));
             }
         }
+        let facilities: Vec<FacilityRow> = field("facilities", get("facilities"))?;
+        let locations: Vec<LocationRow> = field("locations", get("locations"))?;
+        // A department's facility and specialty name rows elsewhere: each must be there.
+        for (i, l) in locations.iter().enumerate() {
+            let f = l.facility.trim();
+            if !f.is_empty() && !facilities.iter().any(|x| x.id.trim() == f) {
+                return Err(format!("locations: row {}: its facility is not on the facility list", i + 1));
+            }
+            if !l.specialty.trim().is_empty() && specialty_list.is_empty() {
+                return Err(format!("locations: row {}: a specialty ID needs the specialty list's OID", i + 1));
+            }
+        }
         Ok(Self {
             groups: VisitGroups::new(&visit_groups),
             visit_groups,
@@ -512,7 +668,8 @@ impl Hospital {
             times_of_day: field("times_of_day", get("times_of_day"))?,
             hours: field("hours", get("hours"))?,
             closed_days: field("closed_days", get("closed_days"))?,
-            locations: field("locations", get("locations"))?,
+            facilities,
+            locations,
             specialties,
             slots_offered: n("slots_offered") as usize,
             narrow_over: n("narrow_over") as usize,
@@ -636,11 +793,15 @@ impl Hospital {
         self.groups.of(visit_type)
     }
 
-    /// The words for a visit's place: the row's spoken name for the record's Location name, the
-    /// record's own words for a place not on the list, and the first row's when the record
-    /// names none.
-    pub fn place(&self, record: Option<&str>) -> String {
+    /// The words for a visit's place: the row's spoken name for the record's Location (by its
+    /// FHIR id first, exactly; then by its name, in any case), the record's own words for a
+    /// place not on the list, and the first row's when the record names none.
+    pub fn place(&self, id: Option<&str>, record: Option<&str>) -> String {
         let spoken = |l: &LocationRow| if l.spoken.trim().is_empty() { l.record.clone() } else { l.spoken.clone() };
+        let id = id.map(str::trim).filter(|i| !i.is_empty());
+        if let Some(row) = id.and_then(|i| self.locations.iter().find(|l| l.id.trim() == i)) {
+            return spoken(row);
+        }
         match record.map(str::trim).filter(|r| !r.is_empty()) {
             Some(r) => self.locations.iter().find(|l| l.record.trim().eq_ignore_ascii_case(r)).map(spoken).unwrap_or_else(|| r.to_string()),
             None => self.locations.first().map(spoken).unwrap_or_default(),
@@ -792,10 +953,60 @@ mod tests {
             ]),
         )])
         .unwrap();
-        assert_eq!(h.place(Some("emc family medicine")), "the family medicine clinic");
-        assert_eq!(h.place(Some("North Lab")), "North Lab");
-        assert_eq!(h.place(None), "Main Street Clinic");
-        assert_eq!(h.place(Some("  ")), "Main Street Clinic");
+        assert_eq!(h.place(None, Some("emc family medicine")), "the family medicine clinic");
+        assert_eq!(h.place(None, Some("North Lab")), "North Lab");
+        assert_eq!(h.place(None, None), "Main Street Clinic");
+        assert_eq!(h.place(None, Some("  ")), "Main Street Clinic");
+    }
+
+    #[test]
+    fn a_place_is_found_by_its_fhir_id_first() {
+        let facilities = json!([{"record": "EHS Hospital", "id": "f1"}, {"record": "EHS Clinic", "id": "f2"}]);
+        let locations = json!([
+            {"record": "Family Medicine", "id": "d1", "facility": "f1", "spoken": "the hospital's family clinic"},
+            {"record": "Family Medicine", "id": "d2", "facility": "f2", "spoken": "the north family clinic"}
+        ]);
+        let h = Hospital::from_pairs([("facilities", &facilities), ("locations", &locations)]).expect("two of one name, two ids");
+        assert_eq!(h.place(Some("d2"), Some("Family Medicine")), "the north family clinic");
+        // An id not on the list: the name decides.
+        assert_eq!(h.place(Some("d9"), Some("family medicine")), "the hospital's family clinic");
+    }
+
+    #[test]
+    fn a_department_names_a_facility_on_the_list() {
+        let facilities = json!([{"record": "EHS Hospital", "id": "f1"}]);
+        let stray = json!([{"record": "Cardiology", "id": "d1", "facility": "f9"}]);
+        let e = Hospital::from_pairs([("facilities", &facilities), ("locations", &stray)]).err().unwrap();
+        assert_eq!(e, "locations: row 1: its facility is not on the facility list");
+        let none = json!("");
+        let coded = json!([{"record": "Cardiology", "specialty": "4"}]);
+        let no_specialties = json!([]);
+        let e = Hospital::from_pairs([("specialty_list", &none), ("specialties", &no_specialties), ("locations", &coded)]).err().unwrap();
+        assert!(e.starts_with("locations: row 1"), "{e}");
+        // The same id twice is one place twice.
+        let twice = json!([{"record": "A", "id": "d1"}, {"record": "B", "id": "d1"}]);
+        assert!(check_key("locations", &twice).is_err());
+        // Hours are checked as the hospital's are.
+        let late = json!([{"record": "A", "hours": [{"day": "mon", "opens": "17:00", "closes": "08:00"}]}]);
+        assert!(check_key("locations", &late).unwrap_err().starts_with("locations: row 1: the hours"));
+    }
+
+    #[test]
+    fn a_directory_search_is_a_state_or_a_city_and_state() {
+        assert_eq!(PlaceSearch::parse(" WI "), Some(PlaceSearch { city: None, state: "WI".into() }));
+        assert_eq!(PlaceSearch::parse("Verona, WI"), Some(PlaceSearch { city: Some("Verona".into()), state: "WI".into() }));
+        assert_eq!(PlaceSearch::parse("St. Mary's, PA").unwrap().city.as_deref(), Some("St. Mary's"));
+        for bad in ["", "wi", "Wisconsin", "Verona", "Verona, ZZ", ", WI", "Ver0na, WI", "a&b, WI"] {
+            assert_eq!(PlaceSearch::parse(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_version_from_before_the_facilities_still_fits() {
+        // Its locations have none of the new fields, and it has no facilities key.
+        let old = json!([{"record": "EMC Cardiology", "spoken": "", "id": "", "address": "", "phone": ""}]);
+        let h = Hospital::from_pairs([("locations", &old)]).expect("an old version");
+        assert!(h.locations[0].facility.is_empty() && h.locations[0].hours.is_empty());
     }
 
     #[test]

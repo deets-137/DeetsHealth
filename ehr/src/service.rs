@@ -11,7 +11,7 @@ use tonic::{Request, Response, Status};
 use crate::{
     edge,
     epic_ehr::{EpicEhr, EpicSandbox},
-    hospital::Hospital,
+    hospital::{Hospital, PlaceSearch},
     proto::v1::{self as pb, ehr_server::Ehr},
     scheduler::{BookResult, FoundSlots, FoundVisits, Scheduler, SchedulerDown, SlotId, SlotWish, VisitAsk},
     visit_about::BookNote,
@@ -861,6 +861,37 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let store = self.settings_store()?;
         users::seen_owner(store).await.map_err(users_status)?;
         Ok(Response::new(pb::SeenOwnerReply {}))
+    }
+
+    async fn import_places(&self, req: Request<pb::ImportPlacesRequest>) -> Result<Response<pb::ImportPlacesReply>, Status> {
+        let given = req.into_inner().addresses;
+        let searches: Option<Vec<PlaceSearch>> = given.iter().map(|a| PlaceSearch::parse(a)).collect();
+        let searches = searches.filter(|s| (1..=5).contains(&s.len())).ok_or_else(|| {
+            Status::invalid_argument("addresses: 1 to 5, each a state (WI) or a city and its state (Verona, WI)")
+        })?;
+        // Epic's sandbox is the one directory ehr serves today; each EHR's adapter gets its own.
+        let epic = self.epic()?;
+        let places = epic.places(&searches).await.map_err(|e| {
+            if e.contains("more than") {
+                Status::resource_exhausted("Epic's directory returned more than an import holds")
+            } else {
+                Status::unavailable("Epic's directory search failed")
+            }
+        })?;
+        let json = |v: serde_json::Value| v.to_string();
+        let values = [
+            ("facilities", json(serde_json::json!(places.facilities))),
+            ("locations", json(serde_json::json!(places.locations))),
+            ("specialty_list", json(serde_json::json!(places.specialty_list))),
+            ("specialties", json(serde_json::json!(places.specialties))),
+        ];
+        let count = |n: usize| i32::try_from(n).unwrap_or(i32::MAX);
+        Ok(Response::new(pb::ImportPlacesReply {
+            values: values.into_iter().map(|(key, value)| pb::SettingValue { key: key.to_string(), value }).collect(),
+            others: count(places.others),
+            other_specialty_lists: count(places.other_specialty_lists),
+            reads: count(places.reads),
+        }))
     }
 }
 

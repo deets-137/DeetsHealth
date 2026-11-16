@@ -23,7 +23,7 @@ use serde_json::{json, Value};
 
 use crate::{
     epic::Epic,
-    hospital::{Hospital, VisitTypeRow},
+    hospital::{FacilityRow, Hospital, HoursRow, LocationRow, PlaceSearch, Places, SpecialtyRow, VisitTypeRow, PLACES_MAX},
     scheduler::{BookResult, FoundSlots, FoundVisits, Scheduler, SchedulerDown, Slot, SlotId, SlotWish, VisitAsk, VisitStatus},
     session::PatientKey,
     verify::{Candidate, Claimed, Down, Patients},
@@ -123,6 +123,47 @@ impl EpicEhr {
             }
         }
         Ok(json!({ "place": list.place, "patients": patients, "visits": visits, "more": more }))
+    }
+
+    /// The hospital's places from Epic's directory (HOSPITAL-CONFIG.md §8; EPIC.md §6):
+    /// `Location.Search (Organizational Directory) (R4)`, one search per entry of `searches`,
+    /// each search's `next` pages followed. A state searches `address=<state>`; a city and its
+    /// state search `address=<city>` and `address-state=<state>` (Epic's search takes `address`;
+    /// it filters by `address-state` after, EPIC.md §2.2). Facilities (EAF) and departments (DEP)
+    /// with their specialties and hours; anything else is counted, not kept. A location is a fact
+    /// about the hospital, never a patient's. Errors name a status or a count, never a value.
+    pub async fn places(&self, searches: &[PlaceSearch]) -> Result<Places, String> {
+        let mut found: Vec<Value> = Vec::new();
+        let mut reads = 0usize;
+        for search in searches {
+            let mut url = self.epic.base().join("Location").map_err(|_| "bad URL")?;
+            match &search.city {
+                Some(city) => {
+                    url.query_pairs_mut().append_pair("address", city).append_pair("address-state", &search.state);
+                }
+                None => {
+                    url.query_pairs_mut().append_pair("address", &search.state);
+                }
+            }
+            let mut next = Some(url);
+            while let Some(page) = next.take() {
+                if reads >= PLACES_PAGES {
+                    return Err(format!("Location search: more than {PLACES_PAGES} pages"));
+                }
+                reads += 1;
+                let bundle = self.epic.read(page).await.map_err(|e| e.to_string())?;
+                for l in entries(&bundle, "Location") {
+                    let id = l["id"].as_str().unwrap_or_default();
+                    if !id.is_empty() && !found.iter().any(|f| f["id"].as_str() == Some(id)) {
+                        found.push(l.clone());
+                    }
+                }
+                next = next_link(&bundle).and_then(|u| reqwest::Url::parse(&u).ok());
+            }
+        }
+        let mut places = places_from(&found)?;
+        places.reads = reads;
+        Ok(places)
     }
 
     /// `ehr epic-book`: one booking for a public test patient, by the call's own code. Prints
@@ -297,7 +338,7 @@ impl EpicScheduler {
         let at = |day: &Shielded<String>, plus: i64| -> Result<Timestamp, SchedulerDown> {
             let d: jiff::civil::Date = day.reveal(pass).parse().map_err(|_| SchedulerDown)?;
             let d = d.checked_add(jiff::Span::new().days(plus)).map_err(|_| SchedulerDown)?;
-            Ok(d.to_zoned(h.tz().clone()).map_err(|_| SchedulerDown)?.timestamp())
+            Ok(d.to_zoned_datetime(h.tz().clone()).map_err(|_| SchedulerDown)?.timestamp())
         };
         let now = Timestamp::now().round(jiff::Unit::Second).map_err(|_| SchedulerDown)?;
         let start = match &wish.earliest_day {
@@ -438,7 +479,7 @@ impl Scheduler for EpicScheduler {
             Some(r) => {
                 let at = |day: &Shielded<String>| -> Result<Timestamp, SchedulerDown> {
                     let d: jiff::civil::Date = day.reveal(&pass).parse().map_err(|_| SchedulerDown)?;
-                    Ok(d.to_zoned(h.tz().clone()).map_err(|_| SchedulerDown)?.timestamp())
+                    Ok(d.to_zoned_datetime(h.tz().clone()).map_err(|_| SchedulerDown)?.timestamp())
                 };
                 search(at(&r.from)?, at(&r.to)?, ANY).await.map_err(|_| SchedulerDown)?
             }
@@ -484,6 +525,8 @@ struct Visit {
     clinician: String,
     /// The Location's name, as the record holds it; none when it names no place.
     place: Option<String>,
+    /// The Location's FHIR id: the hospital's list matches it first.
+    place_id: Option<String>,
     /// `serviceType`: Epic's visit type ("MyChart Video Visit").
     visit_type: Option<String>,
     /// `reasonCode`: the reason for the visit, when the scheduler entered one.
@@ -506,7 +549,7 @@ impl Visit {
             starts_at: Shielded::new(self.starts_at),
             minutes: self.minutes,
             clinician: Shielded::new(self.clinician),
-            place: Shielded::new(h.place(self.place.as_deref())),
+            place: Shielded::new(h.place(self.place_id.as_deref(), self.place.as_deref())),
             about,
             csn: self.csn.map(Shielded::new),
             status: self.status,
@@ -604,7 +647,7 @@ fn ended(end: &Value, now: Timestamp) -> bool {
         return t <= now;
     }
     match end.parse::<jiff::civil::Date>() {
-        Ok(day) => day < now.to_zoned(TimeZone::UTC).date(),
+        Ok(day) => day < now.to_zoned_datetime(TimeZone::UTC).date(),
         Err(_) => true,
     }
 }
@@ -628,7 +671,7 @@ fn appointment(a: &Value, tz: &TimeZone, now: Timestamp) -> Option<(Timestamp, V
         let end: Timestamp = a["end"].as_str()?.parse().ok()?;
         u32::try_from(end.duration_since(start).as_mins()).ok()
     })?;
-    let local = start.to_zoned(tz.clone());
+    let local = start.to_zoned_datetime(tz.clone());
     Some((
         start,
         Visit {
@@ -637,6 +680,7 @@ fn appointment(a: &Value, tz: &TimeZone, now: Timestamp) -> Option<(Timestamp, V
             minutes,
             clinician: actor(a, "Practitioner/").unwrap_or_default(),
             place: actor(a, "Location/"),
+            place_id: actor_id(a, "Location/"),
             // The visit type's words, else the visit's short subject line (EPIC.md §7.3).
             visit_type: concept_words(&a["serviceType"][0])
                 .or_else(|| a["description"].as_str().map(str::to_string)),
@@ -688,10 +732,10 @@ fn proposed(a: &Value, h: &Hospital) -> Option<Slot> {
     let group = h.group_of(&about, visit_type.as_deref());
     Some(Slot {
         id: SlotId(format!("epic-proposed-{}@{}", a["id"].as_str()?, start)),
-        starts_at: Shielded::new(start.to_zoned(zone).strftime("%Y-%m-%dT%H:%M").to_string()),
+        starts_at: Shielded::new(start.to_zoned_datetime(zone).strftime("%Y-%m-%dT%H:%M").to_string()),
         minutes,
         clinician: Shielded::new(actor(a, "Practitioner/").unwrap_or_default()),
-        place: Shielded::new(h.place(actor(a, "Location/").as_deref())),
+        place: Shielded::new(h.place(actor_id(a, "Location/").as_deref(), actor(a, "Location/").as_deref())),
         about,
         csn: None,
         status: VisitStatus::Upcoming,
@@ -712,6 +756,180 @@ fn actor(a: &Value, kind: &str) -> Option<String> {
             actor["reference"].as_str().is_some_and(|r| r.starts_with(kind) || r.contains(&format!("/{kind}")))
         })
         .and_then(|actor| actor["display"].as_str())
+        .map(str::to_string)
+}
+
+/// The most pages one import reads: the sandbox's 435 locations came in one.
+const PLACES_PAGES: usize = 50;
+/// A department's master file (DEP: 68 69 80) and a facility's (EAF: 69 65 70), as the end of
+/// an identifier's system (EPIC.md §2.2; HOSPITAL-CONFIG.md §2.10).
+const DEP_SYSTEM: &str = ".7.2.686980";
+const EAF_SYSTEM: &str = ".7.2.696570";
+
+/// A search Bundle's `next` link.
+fn next_link(bundle: &Value) -> Option<String> {
+    bundle["link"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|l| l["relation"] == "next")
+        .and_then(|l| l["url"].as_str())
+        .map(str::to_string)
+}
+
+/// Directory text in one cell: one line, at most the hospital's cell length.
+fn cell_text(s: &str) -> String {
+    let one: String = s.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+    one.trim().chars().take(crate::hospital::CELL_MAX).collect()
+}
+
+/// The ID of the identifier whose system ends with `file`.
+fn record_id(l: &Value, file: &str) -> Option<String> {
+    l["identifier"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|i| i["system"].as_str().is_some_and(|s| s.ends_with(file)))
+        .and_then(|i| i["value"].as_str())
+        .map(cell_text)
+}
+
+/// "1 Main St, Verona, WI 53593": the lines, the city, the state and the postal code.
+fn address_text(a: &Value) -> String {
+    let mut parts: Vec<String> = a["line"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect();
+    if let Some(city) = a["city"].as_str() {
+        parts.push(city.to_string());
+    }
+    let state_zip = [a["state"].as_str(), a["postalCode"].as_str()].into_iter().flatten().collect::<Vec<_>>().join(" ");
+    if !state_zip.is_empty() {
+        parts.push(state_zip);
+    }
+    cell_text(&parts.join(", "))
+}
+
+/// The first phone number in `telecom`.
+fn phone_text(l: &Value) -> String {
+    l["telecom"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|t| t["system"] == "phone")
+        .and_then(|t| t["value"].as_str())
+        .map(cell_text)
+        .unwrap_or_default()
+}
+
+/// `hoursOfOperation` as the hospital's hours rows: one per day, "08:00:00" read as "08:00"; all
+/// day is 00:00 to 23:59. A row that does not fit is left out. At most 14.
+fn hours_rows(l: &Value) -> Vec<HoursRow> {
+    let hhmm = |t: &Value| t.as_str().and_then(|s| s.get(..5)).map(str::to_string);
+    let mut out = Vec::new();
+    for h in l["hoursOfOperation"].as_array().into_iter().flatten() {
+        let (opens, closes) = if h["allDay"] == true {
+            (Some("00:00".to_string()), Some("23:59".to_string()))
+        } else {
+            (hhmm(&h["openingTime"]), hhmm(&h["closingTime"]))
+        };
+        let (Some(opens), Some(closes)) = (opens, closes) else { continue };
+        for day in h["daysOfWeek"].as_array().into_iter().flatten().filter_map(Value::as_str) {
+            let row = HoursRow { day: day.to_string(), opens: opens.clone(), closes: closes.clone() };
+            if crate::hospital::check_key("hours", &json!([row])).is_ok() && out.len() < 14 {
+                out.push(row);
+            }
+        }
+    }
+    out
+}
+
+/// The department's specialty: its system and code, and the directory's words.
+fn specialty_of(l: &Value) -> Option<(String, String, String)> {
+    l["extension"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|e| e["url"].as_str().is_some_and(|u| u.ends_with("/specialty")))
+        .flat_map(|e| e["valueCodeableConcept"]["coding"].as_array().cloned().unwrap_or_default())
+        .find_map(|c| {
+            let system = c["system"].as_str().filter(|s| s.starts_with("urn:oid:"))?;
+            let code = c["code"].as_str().filter(|s| !s.is_empty())?;
+            Some((system.to_string(), cell_text(code), cell_text(c["display"].as_str().unwrap_or(code))))
+        })
+}
+
+/// The import's rows from the Locations a search returned: a facility has an EAF identifier, a
+/// department a DEP identifier and, mostly, `partOf` its facility. Facilities sorted by name;
+/// departments by their facility's name, then their own.
+fn places_from(found: &[Value]) -> Result<Places, String> {
+    let mut p = Places::default();
+    for l in found {
+        let id = cell_text(l["id"].as_str().unwrap_or_default());
+        let record = cell_text(l["name"].as_str().unwrap_or_default());
+        if id.is_empty() || record.is_empty() {
+            p.others += 1;
+            continue;
+        }
+        if let Some(code) = record_id(l, DEP_SYSTEM) {
+            let facility = l["partOf"]["reference"].as_str().and_then(|r| r.rsplit('/').next()).map(cell_text).unwrap_or_default();
+            let mut specialty = String::new();
+            if let Some((system, code, words)) = specialty_of(l) {
+                if p.specialty_list.is_empty() {
+                    p.specialty_list = system.clone();
+                }
+                if system == p.specialty_list {
+                    if !p.specialties.iter().any(|s| s.code == code) {
+                        p.specialties.push(SpecialtyRow { code: code.clone(), spoken: words.to_lowercase(), words: vec![] });
+                    }
+                    specialty = code;
+                } else {
+                    p.other_specialty_lists += 1;
+                }
+            }
+            p.locations.push(LocationRow {
+                record,
+                id,
+                code,
+                facility,
+                specialty,
+                address: address_text(&l["address"]),
+                phone: phone_text(l),
+                hours: hours_rows(l),
+                ..LocationRow::default()
+            });
+        } else if let Some(code) = record_id(l, EAF_SYSTEM) {
+            p.facilities.push(FacilityRow { record, id, code, address: address_text(&l["address"]), phone: phone_text(l), ..FacilityRow::default() });
+        } else {
+            p.others += 1;
+        }
+    }
+    if p.facilities.len() > PLACES_MAX || p.locations.len() > PLACES_MAX {
+        return Err(format!("Location search: more than {PLACES_MAX} facilities or departments"));
+    }
+    // A department whose facility the search did not return keeps none.
+    for l in &mut p.locations {
+        if !l.facility.is_empty() && !p.facilities.iter().any(|f| f.id == l.facility) {
+            l.facility.clear();
+        }
+    }
+    let lower = |s: &str| s.to_lowercase();
+    p.facilities.sort_by_key(|f| lower(&f.record));
+    let facility_name = |id: &str, fs: &[FacilityRow]| fs.iter().find(|f| f.id == id).map(|f| lower(&f.record)).unwrap_or_else(|| "\u{10ffff}".into());
+    let fs = p.facilities.clone();
+    p.locations.sort_by_key(|l| (facility_name(&l.facility, &fs), lower(&l.record)));
+    p.specialties.sort_by_key(|s| lower(&s.spoken));
+    Ok(p)
+}
+
+/// A participant's FHIR id, by the kind of its reference ("Location/"): the last part of the
+/// reference, relative or absolute.
+fn actor_id(a: &Value, kind: &str) -> Option<String> {
+    a["participant"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|p| p["actor"]["reference"].as_str())
+        .find(|r| r.starts_with(kind) || r.contains(&format!("/{kind}")))
+        .and_then(|r| r.rsplit('/').next())
+        .filter(|id| !id.is_empty())
         .map(str::to_string)
 }
 
@@ -831,6 +1049,54 @@ mod tests {
     fn the_list_parses() {
         let list = sandbox_list_file();
         assert!(!list.patients.is_empty());
+    }
+
+    /// The shapes the sandbox returned on 2026-11-15 (EPIC.md §2.2), with made-up values.
+    #[test]
+    fn an_import_splits_facilities_from_departments() {
+        let eaf = "urn:oid:1.2.840.114350.1.13.0.1.7.2.696570";
+        let dep = "urn:oid:1.2.840.114350.1.13.0.1.7.2.686980";
+        let spec = "urn:oid:1.2.840.114350.1.13.0.1.7.10.686980.110";
+        let specialty = |code: &str, words: &str| {
+            json!([{"url": "http://open.epic.com/FHIR/StructureDefinition/extension/specialty",
+                    "valueCodeableConcept": {"coding": [{"system": spec, "code": code, "display": words}]}}])
+        };
+        let found = vec![
+            json!({"resourceType": "Location", "id": "f1", "name": "EHS Hospital",
+                   "identifier": [{"system": eaf, "value": "101"}, {"system": "urn:oid:2.16.840.1.113883.4.4", "value": "x"}],
+                   "address": {"line": ["1 Main St"], "city": "Verona", "state": "WI", "postalCode": "53593"},
+                   "telecom": [{"system": "phone", "value": "608-555-0100"}]}),
+            json!({"resourceType": "Location", "id": "d2", "name": "EMC Family Medicine",
+                   "identifier": [{"system": dep, "value": "1003"}], "partOf": {"reference": "Location/f1"},
+                   "extension": specialty("9", "Family Medicine"),
+                   "hoursOfOperation": [{"daysOfWeek": ["mon", "tue"], "openingTime": "08:00:00", "closingTime": "17:00:00"}]}),
+            json!({"resourceType": "Location", "id": "d1", "name": "EMC Cardiology",
+                   "identifier": [{"system": dep, "value": "1002"}], "partOf": {"reference": "Location/f1"},
+                   "extension": specialty("4", "Cardiology")}),
+            json!({"resourceType": "Location", "id": "d3", "name": "Lab Annex",
+                   "identifier": [{"system": dep, "value": "1004"}], "partOf": {"reference": "Location/f9"}}),
+            json!({"resourceType": "Location", "id": "r1", "name": "Room 4"}),
+        ];
+        let p = places_from(&found).unwrap();
+        assert_eq!(p.facilities.len(), 1);
+        assert_eq!(p.facilities[0].code, "101");
+        assert_eq!(p.facilities[0].address, "1 Main St, Verona, WI 53593");
+        assert_eq!(p.facilities[0].phone, "608-555-0100");
+        let names: Vec<&str> = p.locations.iter().map(|l| l.record.as_str()).collect();
+        assert_eq!(names, ["EMC Cardiology", "EMC Family Medicine", "Lab Annex"], "by facility, then name; no facility last");
+        assert_eq!(p.locations[1].facility, "f1");
+        assert_eq!(p.locations[1].specialty, "9");
+        assert_eq!(p.locations[1].hours.len(), 2);
+        assert_eq!(p.locations[1].hours[0].opens, "08:00");
+        assert!(p.locations[2].facility.is_empty(), "a facility the search did not return is cleared");
+        assert_eq!(p.specialty_list, spec);
+        let spoken: Vec<&str> = p.specialties.iter().map(|s| s.spoken.as_str()).collect();
+        assert_eq!(spoken, ["cardiology", "family medicine"]);
+        assert_eq!(p.others, 1);
+        // What it builds fits the hospital's checks.
+        for (key, value) in [("facilities", json!(p.facilities)), ("locations", json!(p.locations))] {
+            crate::hospital::check_key(key, &value).unwrap();
+        }
     }
 
     /// The shapes Epic's sandbox sent on 2026-11-12 (EPIC.md §5.2), cut to the fields read.
