@@ -33,6 +33,7 @@ pub mod seal_key;
 pub mod service;
 pub mod session;
 pub mod settings;
+pub mod sql;
 pub mod store;
 pub mod texts;
 pub mod transport;

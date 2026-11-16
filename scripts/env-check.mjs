@@ -9,8 +9,10 @@
 // It exits 1 only when a "(needed)" group is incomplete.
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { protocPaths } from "./protoc.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -98,6 +100,15 @@ const id = tunnelId();
 if (id) {
   const ok = existsSync(join(homedir(), ".cloudflared", `${id}.json`));
   console.log(`  ${(ok ? "ok " : "off").padEnd(7)} ~/.cloudflared/<tunnel id>.json — the tunnel's credentials (only on the demo machine)`);
+}
+
+// Not a secret, but per machine too: the pinned protoc that ehr's build runs (DEPENDENCIES.md §5).
+// npm run dev and npm run check fetch it themselves; a plain cargo build does not.
+console.log("Build tools (per machine):");
+{
+  const { bin } = protocPaths();
+  const ok = existsSync(bin);
+  console.log(`  ${(ok ? "ok " : "off").padEnd(7)} ${relative(root, bin).replaceAll("\\", "/")} — Google's protoc for ehr's build (node scripts/protoc.mjs)`);
 }
 
 process.exit(failed ? 1 : 0);

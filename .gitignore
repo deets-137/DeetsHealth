@@ -8,6 +8,8 @@ logs
 # Rust
 /target/
 archive/src-tauri/target/
+# The pinned protoc for ehr/build.rs (scripts/protoc.mjs; DEPENDENCIES.md §5)
+/.protoc/
 
 # Secrets and PHI — never commit
 .env*

@@ -210,7 +210,7 @@ None.
 | Crate | Job | Third-party? |
 |---|---|---|
 | `windows` (more features) | CNG, DPAPI | Microsoft; already in the tree |
-| `reqwest` 0.12 (`native-tls`, `gzip`) | HTTP; TLS by SChannel on Windows, by the browser on the web | third-party |
+| `reqwest` 0.13 (`gzip`, `form`; `native-tls` through core's default feature of that name, which `ehr` turns off) | HTTP; TLS by SChannel on Windows, by the browser on the web | third-party |
 | `serde_json` | reading FHIR and SMART replies | third-party |
 | `rusqlite` (bundled) | SQLite; holds sealed values only | third-party over public-domain SQLite |
 | `zeroize` | memory wipe | RustCrypto |
@@ -298,8 +298,9 @@ Where this part and the design above disagree, this part is the code.
   erase, a copy of the file taken before cannot be opened. Wasm, clippy, release check clean.
 
 **Stage 4** (built 2026-09-21): sign-in.
-- **`core/src/net.rs`:** `SitePass` (the third pass) and `Net`, a reqwest 0.12 client: HTTPS
-  only, TLS 1.2 or later through `native-tls` (SChannel), **no redirects**, gzip, 30 s
+- **`core/src/net.rs`:** `SitePass` (the third pass) and `Net`, a reqwest 0.13 client: HTTPS
+  only, TLS 1.2 or later through `native-tls` (SChannel; core's default `native-tls` feature,
+  which `ehr` turns off because it never uses `Net`), **no redirects**, gzip, 30 s
   timeout. `get_json` / `post_form` take shielded URLs and tokens; a reply's body is
   shielded on arrival (`Reply`, with its status and `Retry-After`). `parse_reply` and
   `parse_link` are the only places a reply or a returning link is read; `open_in_browser`

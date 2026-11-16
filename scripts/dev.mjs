@@ -27,16 +27,88 @@
 // tunnel's credentials file; without them it stays off and says which is missing.
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { connect, createServer } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { DATABASE, PG_MAJOR, ensurePostgres, ingest } from "./postgres.mjs";
+import { ensureProtoc } from "./protoc.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const demoDir = join(root, "console", "dist-demo");
+
+// --- The start's clock (HANDOFF.md › Run it; the owner, 2026-11-16: "print and keep") ---
+// Each step of the start is timed. When the start is ready (or fails), one line sums it up, and
+// one JSON line goes to logs/dev-start.jsonl (git-ignored): when, the commit, each step's time,
+// how it ended. Step names and times only, never a value from a call or a record. A step much
+// slower than its median over the last starts says so.
+const startLog = join(root, "logs", "dev-start.jsonl");
+const startedAt = performance.now();
+const steps = [];
+let startRecorded = false;
+
+/** Runs `fn` (sync or async) and keeps its time under `name`, even when it throws. */
+async function timed(name, fn) {
+  const t = performance.now();
+  try {
+    return await fn();
+  } finally {
+    steps.push({ name, ms: Math.round(performance.now() - t) });
+  }
+}
+
+const secs = (ms) => `${(ms / 1000).toFixed(1)} s`;
+
+/** The last `n` starts that got to ready, oldest first. */
+function pastStarts(n) {
+  try {
+    return readFileSync(startLog, "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l))
+      .filter((s) => s.outcome === "ready")
+      .slice(-n);
+  } catch {
+    return [];
+  }
+}
+
+/** Prints the summary and appends the start to the log, once. `outcome`: "ready" or why not. */
+function recordStart(outcome) {
+  if (startRecorded) return;
+  startRecorded = true;
+  const total = Math.round(performance.now() - startedAt);
+  const past = pastStarts(20);
+  if (outcome === "ready") {
+    console.log(`[dev] ready in ${secs(total)}: ${steps.map((s) => `${s.name} ${secs(s.ms)}`).join(" · ")}`);
+    // Slower than usual: at least 5 past starts, and twice the median and 5 s over it.
+    for (const s of steps) {
+      const times = past.map((p) => p.steps?.[s.name]).filter((v) => typeof v === "number").sort((a, b) => a - b);
+      if (times.length < 5) continue;
+      const median = times[Math.floor(times.length / 2)];
+      if (s.ms > 2 * median && s.ms > median + 5_000) {
+        console.log(`[dev] slower than usual: ${s.name} ${secs(s.ms)} (median ${secs(median)} over the last ${times.length} starts)`);
+      }
+    }
+  }
+  const commit = spawnSync("git", ["rev-parse", "--short", "HEAD"], { cwd: root, encoding: "utf8" }).stdout?.trim() || null;
+  const line = {
+    at: new Date().toISOString(),
+    commit,
+    outcome,
+    total_ms: total,
+    steps: Object.fromEntries(steps.map((s) => [s.name, s.ms])),
+    demo: Boolean(tunnel),
+  };
+  try {
+    mkdirSync(dirname(startLog), { recursive: true });
+    appendFileSync(startLog, `${JSON.stringify(line)}\n`);
+  } catch (e) {
+    console.error(`[dev] the start log could not be written: ${e.code ?? e.message}`);
+  }
+}
 
 /** One value from the repo's .env, read here only for the demo's tunnel id; the agent reads
  * its own settings from the file. Nothing else in .env is loaded into this process. */
@@ -132,7 +204,7 @@ async function demoTunnel() {
   return { id, creds, origin: envValue("DEETS_DEMO_ORIGIN") };
 }
 
-const demoCheck = await demoTunnel();
+const demoCheck = await timed("demo check", demoTunnel);
 const tunnel = demoCheck.id ? demoCheck : null;
 if (demoCheck.off) console.log(`[demo] off: ${demoCheck.off}`);
 
@@ -170,7 +242,7 @@ async function listening(port, ms) {
 }
 
 // The dev database. Nothing reads it yet, so a machine without Postgres goes on without it.
-const db = await ensurePostgres();
+const db = await timed("db", ensurePostgres);
 if (db.error) console.error(`[db] ${db.error}. Going on without the database.`);
 else console.log(`[db] Postgres ${PG_MAJOR} on 127.0.0.1:${db.port}, database ${DATABASE}${db.started ? " (started)" : ""}`);
 
@@ -182,17 +254,31 @@ const origins = [`http://localhost:${webPort}`, `http://127.0.0.1:${webPort}`];
 // Build ehr first: the agent starts target/debug's binary, and an old one ignores the fake
 // Twilio's settings, so a test call would send no text (CHAT.md §8). Cargo builds only what
 // changed. It fails while an old ehr still runs, because Windows locks a running .exe.
-const built = spawnSync("cargo", ["build", "-p", "deetshealth-ehr", "--quiet"], { cwd: root, stdio: "inherit" });
+// Its build runs Google's pinned protoc (DEPENDENCIES.md §5): fetched once, then no network.
+try {
+  await timed("protoc", ensureProtoc);
+} catch (e) {
+  console.error(`[dev] ${e.message}`);
+  recordStart("protoc failed");
+  process.exit(1);
+}
+// Cargo prints nothing with --quiet; this line says what the wait is. A build after a change to
+// Cargo.lock (a dependency moved) can take minutes; a usual one, seconds.
+console.log("[dev] building ehr…");
+const built = await timed("ehr build", () =>
+  spawnSync("cargo", ["build", "-p", "deetshealth-ehr", "--quiet"], { cwd: root, stdio: "inherit" }),
+);
 if (built.status !== 0) {
   console.error(
     "[dev] ehr did not build. If the error says the file is in use, an older dev server or an " +
       "ehr it left behind is still running: stop it (Task Manager › deetshealth-ehr.exe) and run npm run dev again.",
   );
+  recordStart("ehr build failed");
   process.exit(1);
 }
 // File the call records into the store (DATABASE.md): idempotent, so only new or changed ones.
 if (!db.error) {
-  const filed = ingest(db);
+  const filed = await timed("ingest", () => ingest(db));
   if (filed.error) console.error(`[db] ${filed.error}`);
   else {
     for (const note of filed.notes) console.log(`[db] ${note}`);
@@ -201,9 +287,12 @@ if (!db.error) {
 }
 // The agent's gRPC code for ehr's contract is generated, not committed: make it again, so a
 // changed contract never meets old code (EHR-SERVICE.md §3).
-const proto = spawnSync("uv", ["run", "python", "scripts/gen_proto.py"], { cwd: join(root, "agent"), stdio: "ignore" });
+const proto = await timed("agent proto", () =>
+  spawnSync("uv", ["run", "python", "scripts/gen_proto.py"], { cwd: join(root, "agent"), stdio: "ignore" }),
+);
 if (proto.status !== 0) {
   console.error("[dev] the agent's gRPC code did not generate: run `uv run python scripts/gen_proto.py` in agent/");
+  recordStart("agent proto failed");
   process.exit(1);
 }
 
@@ -225,6 +314,7 @@ const exited = (c, ms) =>
 const stop = async (code = 0) => {
   if (stopping) return;
   stopping = true;
+  recordStart(code ? "stopped before ready (an error)" : "stopped before ready");
   // The tunnel first, so Cloudflare sends nothing more to an agent that is going away. On
   // Windows, Ctrl+C reaches every child at once too; this order still holds for the kills.
   const order = [...children].sort((a, b) => Number(b === tunnelChild) - Number(a === tunnelChild));
@@ -274,24 +364,27 @@ agent.on("exit", (code) => {
 });
 
 // Wait for the agent's first line ("agent dev server on ..."), then pass its output through.
-await new Promise((ok, fail) => {
-  let seen = "";
-  const timer = setTimeout(() => fail(new Error("the agent dev server did not start in 60 s")), 60_000);
-  agent.stdout.on("data", (chunk) => {
-    process.stdout.write(`[agent] ${chunk}`);
-    seen += chunk;
-    if (seen.includes("agent dev server on")) {
-      clearTimeout(timer);
-      ok();
-    }
-  });
-})
+await timed("agent start", () =>
+  new Promise((ok, fail) => {
+    let seen = "";
+    const timer = setTimeout(() => fail(new Error("the agent dev server did not start in 60 s")), 60_000);
+    agent.stdout.on("data", (chunk) => {
+      process.stdout.write(`[agent] ${chunk}`);
+      seen += chunk;
+      if (seen.includes("agent dev server on")) {
+        clearTimeout(timer);
+        ok();
+      }
+    });
+  }),
+)
   // The line comes before the agent listens: it then starts ehr and syncs the prompt file and
   // Cloudflare's group, and only after that opens its port. Vite and the tunnel wait for the
   // port, so the page's first requests never meet a closed one (ECONNREFUSED, 2026-11-14).
-  .then(() => listening(agentPort, 90_000))
+  .then(() => timed("agent port", () => listening(agentPort, 90_000)))
   .catch((e) => {
     console.error(`[dev] the agent dev server: ${e.message}`);
+    recordStart("agent failed");
     stop(1);
   });
 if (stopping) await new Promise(() => {}); // stop() exits the process
@@ -306,6 +399,8 @@ const vite = spawn(process.execPath, [viteBin, "console", "--port", String(webPo
 });
 children.push(vite);
 vite.on("exit", (code) => stop(code ?? 0));
+// Timed while the demo's parts start below; the summary waits for it.
+const viteReady = timed("vite", () => listening(webPort, 60_000));
 
 if (tunnel) {
   // 6. The demo build, under /demo/, again on each save. The agent serves it as it lands, and
@@ -355,3 +450,9 @@ if (tunnel) {
   });
   console.log(`[demo] on: ${tunnel.origin}/demo/ (Access sign-in; npm run dev -- --no-demo to keep it off)`);
 }
+
+// The start is ready when Vite listens: the summary line and the start log (top of this file).
+viteReady.then(
+  () => recordStart("ready"),
+  (e) => recordStart(`vite failed: ${e.message}`),
+);

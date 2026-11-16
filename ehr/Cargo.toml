@@ -7,8 +7,10 @@ edition = "2021"
 
 # docs/architecture/EHR-SERVICE.md.
 [dependencies]
-# Shielded<T> and the wire edge's pass (core/src/wire.rs).
-deetshealth-core = { path = "../core" }
+# Shielded<T> and the wire edge's pass (core/src/wire.rs). Without core's default `native-tls`:
+# ehr never uses core's `Net`, and that feature would link OpenSSL on Linux. One TLS stack here,
+# rustls on AWS-LC (DEPENDENCIES.md §5, item 6).
+deetshealth-core = { path = "../core", default-features = false }
 # The gRPC server and the generated code. `tls-connect-info` lets tonic serve our own TLS
 # streams; tonic builds no TLS config of its own (transport.rs does).
 tonic = { version = "0.14", default-features = false, features = ["codegen", "router", "transport", "tls-connect-info"] }
@@ -23,24 +25,26 @@ rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", 
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs"] }
 rustls-pki-types = { version = "1", features = ["std"] }
 # Handles and slot tokens: 128 bits from the OS's random source.
-getrandom = "0.3"
+getrandom = "0.4"
 # Wipes a session's secrets when it closes.
 zeroize = "1"
 # The sandbox fixture (ehr/fixtures/sandbox.json).
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # The text message (texts.rs): Twilio's Messages API over rustls on the same AWS-LC provider
-# as the wire, with Mozilla's roots. No provider of reqwest's own, so no ring.
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-manual-roots-no-provider", "json"] }
+# as the wire, with Mozilla's roots. No provider of reqwest's own, so no ring. `form` for the
+# Twilio request and Epic's token request (opt-in since 0.13).
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "json", "form"] }
 webpki-roots = "1"
 # The Epic sign-in's JWT (epic.rs): base64url, no padding.
-base64 = "0.22"
+base64 = "0.23"
 # Epic's visit times (epic_ehr.rs): an instant to the place's local time, with the time zone
 # database built in (Windows has none that jiff reads).
 jiff = "1.0"
 # The call store (store.rs; DATABASE.md): Postgres, migrations embedded in the binary. No TLS
 # feature yet: dev talks to 127.0.0.1. The cloud adds TLS on the same AWS-LC provider.
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "postgres", "migrate", "macros"] }
+# Since 0.9 a query is `&'static str` only; SQL built at run time goes through `sql.rs`.
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "postgres", "migrate", "macros"] }
 # Sealing the store's protected columns (seal_key.rs): AES-256-GCM and SHA-256 from AWS-LC, the
 # provider the wire already uses. Under `fips`, its FIPS module.
 aws-lc-rs = "1"
@@ -50,8 +54,9 @@ aws-lc-rs = "1"
 fips = ["rustls/fips", "aws-lc-rs/fips"]
 
 [build-dependencies]
-# build.rs: protoc without an install, the generated code, the walk over the descriptors.
-protoc-bin-vendored = "3"
+# build.rs: the generated code, the walk over the descriptors, and the protoc pin
+# (ehr/protoc.json: Google's own protoc, fetched by scripts/protoc.mjs; DEPENDENCIES.md §5).
+serde_json = "1"
 tonic-prost-build = "0.14"
 prost = "0.14"
 prost-types = "0.14"

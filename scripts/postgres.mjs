@@ -17,6 +17,8 @@ import { createServer } from "node:net";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { ensureProtoc } from "./protoc.mjs";
+
 // AWS RDS has served 18 since November 2025, standard support to February 2031 (DATABASE.md §3).
 export const PG_MAJOR = 18;
 export const DATABASE = "deetshealth_dev";
@@ -204,6 +206,13 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     const db = await ensurePostgres();
     if (db.error) {
       console.log(`[db] ${db.error}`);
+      process.exit(1);
+    }
+    // ehr's build runs Google's pinned protoc (DEPENDENCIES.md §5).
+    try {
+      await ensureProtoc();
+    } catch (e) {
+      console.log(`[db] ${e.message}`);
       process.exit(1);
     }
     // Its own target folder: a running dev server holds target/debug's ehr binary, which an

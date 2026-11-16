@@ -39,10 +39,13 @@ fn net<E>(_: E) -> CoreError {
 impl Net {
     pub fn new() -> Result<Self, CoreError> {
         let b = reqwest::Client::builder();
+        // Without the `native-tls` feature (ehr's build) there is no TLS backend of core's own;
+        // `https_only` then refuses every request.
+        #[cfg(all(not(target_arch = "wasm32"), feature = "native-tls"))]
+        let b = b.min_tls_version(reqwest::tls::Version::TLS_1_2);
         #[cfg(not(target_arch = "wasm32"))]
         let b = b
             .https_only(true)
-            .min_tls_version(reqwest::tls::Version::TLS_1_2)
             .redirect(reqwest::redirect::Policy::none())
             .timeout(std::time::Duration::from_secs(30))
             .user_agent(concat!("DeetsHealth/", env!("CARGO_PKG_VERSION")));

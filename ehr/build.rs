@@ -1,7 +1,10 @@
 //! Generates the gRPC code from `proto/deets/ehr/v1/ehr.proto` (EHR-SERVICE.md §3), and makes
 //! the PHI tag real in Rust (§4).
 //!
-//! 1. The vendored `protoc` writes the contract's descriptors, so nothing is installed by hand.
+//! 1. Google's own `protoc`, pinned by SHA-256 in `ehr/protoc.json`, writes the contract's
+//!    descriptors. `scripts/protoc.mjs` puts it in `/.protoc/<version>/`; `npm run dev` and
+//!    `npm run check` run that first. `PROTOC` and `PROTOC_INCLUDE` name another copy (a deploy
+//!    image's). Either way its version must be the pinned one (DEPENDENCIES.md §5).
 //! 2. This file walks the descriptor bytes itself and lists every field marked `(phi)` or
 //!    `(secret)`. (`prost-types` drops unknown extensions, so it cannot see the marks.)
 //! 3. Each message with a marked field loses `prost`'s derived `Debug`. `redacted.rs` gives it
@@ -23,8 +26,7 @@ const LABEL_REPEATED: u64 = 3;
 fn main() {
     println!("cargo:rerun-if-changed=proto");
     let out = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let protoc = protoc_bin_vendored::protoc_bin_path().unwrap();
-    let wkt = protoc_bin_vendored::include_path().unwrap();
+    let (protoc, wkt) = pinned_protoc();
     let fds_path = out.join("ehr.fds");
 
     let status = Command::new(&protoc)
@@ -34,7 +36,7 @@ fn main() {
         .arg(format!("-I{}", wkt.display()))
         .arg(PROTO)
         .status()
-        .expect("run the vendored protoc");
+        .expect("run protoc");
     assert!(status.success(), "protoc failed on {PROTO}");
 
     let bytes = fs::read(&fds_path).unwrap();
@@ -47,6 +49,43 @@ fn main() {
         .unwrap();
 
     fs::write(out.join("redacted.rs"), redacted_rs(&messages)).unwrap();
+}
+
+/// The pinned `protoc` and its include folder (the well-known types). Stops the build with the
+/// command to run when it is missing, and when its version is not the pinned one.
+fn pinned_protoc() -> (PathBuf, PathBuf) {
+    println!("cargo:rerun-if-changed=protoc.json");
+    println!("cargo:rerun-if-env-changed=PROTOC");
+    println!("cargo:rerun-if-env-changed=PROTOC_INCLUDE");
+    let pin: serde_json::Value = serde_json::from_str(&fs::read_to_string("protoc.json").unwrap()).unwrap();
+    let version = pin["version"].as_str().expect("protoc.json: version");
+
+    let (protoc, include) = match env::var_os("PROTOC") {
+        Some(p) => {
+            let include = env::var_os("PROTOC_INCLUDE").expect("PROTOC is set: set PROTOC_INCLUDE to its include folder too");
+            (PathBuf::from(p), PathBuf::from(include))
+        }
+        None => {
+            let dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("..").join(".protoc").join(version);
+            let exe = if cfg!(windows) { "protoc.exe" } else { "protoc" };
+            (dir.join("bin").join(exe), dir.join("include"))
+        }
+    };
+    println!("cargo:rerun-if-changed={}", protoc.display());
+    assert!(
+        protoc.exists(),
+        "protoc {version} is not installed at {}. Run once: node scripts/protoc.mjs",
+        protoc.display()
+    );
+    let said = Command::new(&protoc).arg("--version").output().expect("run protoc --version");
+    let said = String::from_utf8_lossy(&said.stdout);
+    assert_eq!(
+        said.trim(),
+        format!("libprotoc {version}"),
+        "{} is not the pinned protoc {version} (ehr/protoc.json)",
+        protoc.display()
+    );
+    (protoc, include)
 }
 
 /// One message of the contract, with the fields the marks name.

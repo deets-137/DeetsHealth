@@ -2,7 +2,7 @@
 status: designed
 desk_test: none
 sources: [core/src/shielded.rs, core/src/seal.rs, ehr/src/seal_key.rs, ehr/src/store.rs, ehr/src/verify.rs, ehr/src/transport.rs, ehr/build.rs, ehr/migrations/0001_calls.sql, ehr/migrations/0007_users.sql, ehr/migrations/0008_user_profile.sql, agent/deets_agent/redact.py, agent/deets_agent/access.py]
-updated: 2026-11-14
+updated: 2026-11-16
 ---
 # DeetsHealth — Security and privacy (the phone agent)
 
@@ -221,6 +221,41 @@ The full map of laws, guidance and standards, and what each asks of us: REGULATI
 - The list of verification questions that reveal nothing (§4.4), and their wording.
 - The roles and retention values (§4.7, §4.10): drafts.
 - How a hospital approves our emergency support access (§4.10).
+
+### 7.1 Watch list: dependencies and the build
+> **Part:** project · 2026-11-16 · a draft for the owner to edit. Threat 6 of §3, from the
+> dependency review (DEPENDENCIES.md §4–§5). Each item: the risk, what holds it now, what to
+> watch.
+
+1. **Pipecat runs where the protected data is.** The call loop holds the audio and the
+   transcript, and Pipecat brings 76 Python packages into that process (`onnxruntime`, `openai`,
+   `pillow`, `aiortc` among them). It also sets our ranges for the Anthropic SDK (1.x) and
+   `protobuf` (below 7), so a fix in those can wait on Pipecat. Holds now: known publishers;
+   `uv.lock` pins every wheel by hash. Watch: Pipecat's releases and advisories; check the
+   tree at each Pipecat major.
+2. **No audit for Rust or Python yet.** `npm audit` runs (console, JWKS worker). `cargo audit`
+   and `pip-audit` have never run (DEPENDENCIES.md §6). Watch: run both before the first real
+   call, then on a schedule.
+3. **Tools that run with the owner's sign-ins.** `cf` (the deploy CLI) runs on the owner's PC
+   with his Cloudflare sign-in; its beta.19 bundled `undici` with a TLS-check bypass (fixed in
+   beta.32). The npm name `cf` had an owner before Cloudflare. Holds now: exact pins; npm runs no
+   install script that is not allowed. Watch: `npm audit` in `ehr/jwks-worker` at each bump;
+   never a version range on `cf`.
+4. **Binaries the build runs.** `ehr/build.rs` runs `protoc`: Google's release, pinned by
+   SHA-256, trusted on the first fetch from the digest GitHub publishes. Holds now: the hash
+   check before unpacking; `build.rs` refuses another version. Watch: the deploy image sets
+   `PROTOC` to a copy it checked; the FIPS build's own tools (CMake, Go, NASM) come from known
+   sources in that image.
+5. **One TLS stack in `ehr`, kept by a feature flag.** `ehr` is rustls on AWS-LC (FIPS in the
+   `fips` build). Cargo turns on a feature for the whole build when any crate asks for it, so a
+   new dependency can bring `native-tls` and OpenSSL back without a word (it did until
+   2026-11-16). Watch: `cargo tree -p deetshealth-ehr -e normal --target all -i openssl-sys`
+   finds nothing; a check in `npm run check` would make it automatic.
+6. **SQL text from code only.** `ehr/src/sql.rs` holds the one `AssertSqlSafe` in `ehr/src`
+   (DATABASE.md §4a). Watch: any new `AssertSqlSafe` outside it is a review stop.
+7. **The console's dev server stays local.** Vite 6 is a major behind; its dev server has had
+   file-read advisories. Holds now: the demo serves a built copy, never the dev server
+   (docs/ops/DEMO.md §3.2). Watch: never `--host`; vite 8 is the next console update.
 
 ## 8. As built
 > **Part:** built · 2026-11-14. Where this disagrees with the design above, this is the code.

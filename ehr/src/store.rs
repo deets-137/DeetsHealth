@@ -28,6 +28,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use zeroize::Zeroizing;
 
 use crate::seal_key::{AwsLc, SealKey};
+use crate::sql::Sql;
 
 /// The migrations in `ehr/migrations/`, embedded in the binary: the same files in dev and in the
 /// cloud.
@@ -325,24 +326,32 @@ async fn reseal_tables(
     tables: &[&SealedTable],
 ) -> Result<Resealed, String> {
     let mut out = Resealed::default();
-    let byte = format!("'\\x{CURRENT_FORMAT:02x}'::bytea");
     for t in tables {
+        let columns = || t.columns.iter().map(|c| Sql::new().text(c));
+        let select = Sql::new().text("SELECT ").text(t.row).text(" AS k, ").join(columns(), ", ").text(" FROM ").text(t.table);
         let select = if old_key.is_some() {
-            format!("SELECT {} AS k, {} FROM {} FOR UPDATE", t.row, t.columns.join(", "), t.table)
+            select.text(" FOR UPDATE")
         } else {
-            let old: Vec<String> = t
-                .columns
-                .iter()
-                .map(|c| {
-                    format!(
-                        "((substring({c} FROM 1 FOR 1) < {byte} OR substring({c} FROM 1 FOR 1) > {byte}) AND length({c}) > 0)"
-                    )
-                })
-                .collect();
-            format!("SELECT {} AS k, {} FROM {} WHERE {} FOR UPDATE", t.row, t.columns.join(", "), t.table, old.join(" OR "))
+            // A value is old when its first byte (the format) is not the current one.
+            let old = t.columns.iter().map(|c| {
+                let first = || Sql::new().text("substring(").text(c).text(" FROM 1 FOR 1)");
+                Sql::new()
+                    .text("((")
+                    .part(first())
+                    .text(" < ")
+                    .byte(CURRENT_FORMAT)
+                    .text(" OR ")
+                    .part(first())
+                    .text(" > ")
+                    .byte(CURRENT_FORMAT)
+                    .text(") AND length(")
+                    .text(c)
+                    .text(") > 0)")
+            });
+            select.text(" WHERE ").join(old, " OR ").text(" FOR UPDATE")
         };
         let mut tx = pool.begin().await.map_err(|e| db("begin a reseal", e))?;
-        let rows = sqlx::query(&select).fetch_all(&mut *tx).await.map_err(|e| db("find the older values", e))?;
+        let rows = sqlx::query(select).fetch_all(&mut *tx).await.map_err(|e| db("find the older values", e))?;
         if rows.is_empty() {
             continue;
         }
@@ -395,18 +404,23 @@ async fn reseal_tables(
             continue;
         }
         // One UPDATE for the table: the new values join the rows by their key.
-        let sets: Vec<String> = t.columns.iter().enumerate().map(|(i, c)| format!("{c} = v.n{i}")).collect();
-        let arrays: Vec<String> = (0..t.columns.len()).map(|i| format!("${}::bytea[]", i + 2)).collect();
-        let names: Vec<String> = (0..t.columns.len()).map(|i| format!("n{i}")).collect();
-        let update = format!(
-            "UPDATE {} SET {} FROM unnest($1::text[], {}) AS v(k, {}) WHERE {} = v.k",
-            t.table,
-            sets.join(", "),
-            arrays.join(", "),
-            names.join(", "),
-            t.row
-        );
-        let mut q = sqlx::query(&update).bind(keys);
+        let n = t.columns.len();
+        let sets = t.columns.iter().enumerate().map(|(i, c)| Sql::new().text(c).text(" = v.n").num(i));
+        let arrays = (0..n).map(|i| Sql::new().text("$").num(i + 2).text("::bytea[]"));
+        let names = (0..n).map(|i| Sql::new().text("n").num(i));
+        let update = Sql::new()
+            .text("UPDATE ")
+            .text(t.table)
+            .text(" SET ")
+            .join(sets, ", ")
+            .text(" FROM unnest($1::text[], ")
+            .join(arrays, ", ")
+            .text(") AS v(k, ")
+            .join(names, ", ")
+            .text(") WHERE ")
+            .text(t.row)
+            .text(" = v.k");
+        let mut q = sqlx::query(update).bind(keys);
         for column in values {
             q = q.bind(column);
         }
@@ -688,8 +702,8 @@ impl ClassStore {
             // cannot name the other class's tables (Postgres refuses).
             .after_connect(move |conn, _| {
                 Box::pin(async move {
-                    sqlx::query(&format!("SET ROLE {role}")).execute(&mut *conn).await?;
-                    sqlx::query(&format!("SET search_path TO {schema}")).execute(&mut *conn).await?;
+                    sqlx::query(Sql::new().text("SET ROLE ").text(role)).execute(&mut *conn).await?;
+                    sqlx::query(Sql::new().text("SET search_path TO ").text(schema)).execute(&mut *conn).await?;
                     Ok(())
                 })
             })
@@ -789,7 +803,7 @@ impl ClassStore {
 
         // A changed record is filed again, whole: its rows below are worked out afresh.
         for table in ["transcript_lines", "call_events", "tool_calls", "staff_flags", "review_flags"] {
-            sqlx::query(&format!("DELETE FROM {table} WHERE call_id = $1"))
+            sqlx::query(Sql::new().text("DELETE FROM ").text(table).text(" WHERE call_id = $1"))
                 .bind(id)
                 .execute(&mut *tx)
                 .await

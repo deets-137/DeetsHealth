@@ -9,7 +9,13 @@ use deetshealth_ehr::{
     store::{DataClass, Store, StoreKeys},
 };
 use serde_json::json;
-use sqlx::{Connection, PgConnection};
+use sqlx::{AssertSqlSafe, Connection, PgConnection};
+
+/// SQL this test joins at run time: a database name from its own process id, a table from
+/// `sealed_in`. Test code only; ehr's own code joins SQL through `ehr/src/sql.rs`.
+fn sql(text: String) -> AssertSqlSafe<String> {
+    AssertSqlSafe(text)
+}
 
 const RECORD: &str = r#"{"t_ms": 0, "kind": "call_start", "schema_version": 3, "source": "typed", "started": "2026-11-12T13:00:00"}
 {"t_ms": 10, "kind": "agent", "text": "Hello, you've reached Main Street Clinic."}
@@ -41,8 +47,8 @@ async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
     };
     let mut admin = PgConnection::connect(&url).await.unwrap();
     let name = format!("deets_store_test_{}", std::process::id());
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE IF EXISTS {name}"))).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("CREATE DATABASE {name}"))).execute(&mut admin).await.unwrap();
     let base = url.rsplit_once('/').unwrap().0;
     let test_url = format!("{base}/{name}");
 
@@ -143,7 +149,7 @@ async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
     }
 
     store.close().await;
-    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
 }
 
 /// The People list (users.rs; docs/ops/DEMO.md §3.5): the owner from the first seed, an add by
@@ -158,8 +164,8 @@ async fn the_people_list_seals_guards_the_owner_and_keeps_removed_rows() {
     };
     let mut admin = PgConnection::connect(&url).await.unwrap();
     let name = format!("deets_users_test_{}", std::process::id());
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE IF EXISTS {name}"))).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("CREATE DATABASE {name}"))).execute(&mut admin).await.unwrap();
     let base = url.rsplit_once('/').unwrap().0;
     let store = Store::connect(&format!("{base}/{name}"), keys()).await.unwrap();
     let pool = store.pool();
@@ -205,7 +211,7 @@ async fn the_people_list_seals_guards_the_owner_and_keeps_removed_rows() {
     assert_eq!((back.name.as_str(), back.added_by.as_str()), ("Priya S.", "dash@example.com"));
 
     store.close().await;
-    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
 }
 
 /// The associated data of formats 1 and 2, built by hand: the old domain, then the place, each
@@ -245,8 +251,8 @@ async fn an_older_store_is_sealed_again_in_the_current_format() {
     };
     let mut admin = PgConnection::connect(&url).await.unwrap();
     let name = format!("deets_reseal_test_{}", std::process::id());
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE IF EXISTS {name}"))).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("CREATE DATABASE {name}"))).execute(&mut admin).await.unwrap();
     let base = url.rsplit_once('/').unwrap().0;
     let test_url = format!("{base}/{name}");
     let store = Store::connect(&test_url, keys()).await.unwrap();
@@ -291,14 +297,14 @@ async fn an_older_store_is_sealed_again_in_the_current_format() {
     for (schema_name, with) in [("public", key()), ("synthetic", test_key())] {
         for t in sealed_in(schema_name) {
             let table = format!("{schema_name}.{}", t.table);
-            let rows = sqlx::query(&format!("SELECT {} AS k, {} FROM {table}", t.row, t.columns.join(", "))).fetch_all(pool).await.unwrap();
+            let rows = sqlx::query(sql(format!("SELECT {} AS k, {} FROM {table}", t.row, t.columns.join(", ")))).fetch_all(pool).await.unwrap();
             for r in rows {
                 let k: String = r.get("k");
                 for column in t.columns {
                     let Some(bytes) = r.get::<Option<Vec<u8>>, _>(*column) else { continue };
                     assert!(is_current(&bytes));
                     let plain = open(&AwsLc, &with, &Place { table: t.table, row: &k, column }, &bytes).unwrap();
-                    sqlx::query(&format!("UPDATE {table} SET {column} = $1 WHERE {} = $2", t.row))
+                    sqlx::query(sql(format!("UPDATE {table} SET {column} = $1 WHERE {} = $2", t.row)))
                         .bind(seal_format_2(&with, t.table, &k, column, &plain))
                         .bind(&k)
                         .execute(pool)
@@ -327,7 +333,7 @@ async fn an_older_store_is_sealed_again_in_the_current_format() {
         for t in sealed_in(schema_name) {
             for column in t.columns {
                 let values: Vec<Option<Vec<u8>>> =
-                    sqlx::query_scalar(&format!("SELECT {column} FROM {schema_name}.{}", t.table)).fetch_all(pool).await.unwrap();
+                    sqlx::query_scalar(sql(format!("SELECT {column} FROM {schema_name}.{}", t.table))).fetch_all(pool).await.unwrap();
                 current += values.iter().flatten().filter(|b| is_current(b)).count();
             }
         }
@@ -348,7 +354,7 @@ async fn an_older_store_is_sealed_again_in_the_current_format() {
     assert_eq!(users::photo(&store, &id).await.unwrap().unwrap().as_slice(), webp.as_slice());
 
     store.close().await;
-    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
 }
 
 /// Synthetic and real kept apart (DATABASE.md §7): the class pool sees its schema only, the
@@ -363,8 +369,8 @@ async fn synthetic_and_real_rows_are_kept_apart() {
     };
     let mut admin = PgConnection::connect(&url).await.unwrap();
     let name = format!("deets_class_test_{}", std::process::id());
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE IF EXISTS {name}"))).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("CREATE DATABASE {name}"))).execute(&mut admin).await.unwrap();
     let base = url.rsplit_once('/').unwrap().0;
     let test_url = format!("{base}/{name}");
     let store = Store::connect(&test_url, keys()).await.unwrap();
@@ -424,7 +430,7 @@ async fn synthetic_and_real_rows_are_kept_apart() {
     assert_eq!(marked, 1, "the move is done once");
 
     store.close().await;
-    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
 }
 
 /// The kept scripts' runs (DATABASE.md §8): a run files its draws; a passing replay draw with the
@@ -440,8 +446,8 @@ async fn a_test_run_files_its_draws_and_reuses_a_same_shape_record() {
     };
     let mut admin = PgConnection::connect(&url).await.unwrap();
     let name = format!("deets_runs_test_{}", std::process::id());
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE IF EXISTS {name}"))).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("CREATE DATABASE {name}"))).execute(&mut admin).await.unwrap();
     let base = url.rsplit_once('/').unwrap().0;
     let store = Store::connect(&format!("{base}/{name}"), keys()).await.unwrap();
     let synthetic = store.synthetic();
@@ -512,7 +518,7 @@ async fn a_test_run_files_its_draws_and_reuses_a_same_shape_record() {
     assert_eq!(runs, 8, "the runs themselves are kept (the refused one rolled back)");
 
     store.close().await;
-    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
 }
 
 /// Annotations from the console (DATABASE.md §9): filed once in the call's class, sealed, read
@@ -527,8 +533,8 @@ async fn an_annotation_is_filed_once_and_read_back() {
     };
     let mut admin = PgConnection::connect(&url).await.unwrap();
     let name = format!("deets_notes_test_{}", std::process::id());
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE IF EXISTS {name}"))).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("CREATE DATABASE {name}"))).execute(&mut admin).await.unwrap();
     let base = url.rsplit_once('/').unwrap().0;
     let store = Store::connect(&format!("{base}/{name}"), keys()).await.unwrap();
     store.file_record("typed_a", RECORD.as_bytes()).await.unwrap();
@@ -559,7 +565,7 @@ async fn an_annotation_is_filed_once_and_read_back() {
     assert!(store.class_of_call("typed_zzz").await.unwrap().is_none());
 
     store.close().await;
-    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
 }
 
 /// A person's card (users.rs › update, the picture; migration 0008): the old name split, a save
@@ -574,8 +580,8 @@ async fn a_card_saves_sealed_moves_its_email_and_keeps_a_picture() {
     };
     let mut admin = PgConnection::connect(&url).await.unwrap();
     let name = format!("deets_cards_test_{}", std::process::id());
-    sqlx::query(&format!("DROP DATABASE IF EXISTS {name}")).execute(&mut admin).await.unwrap();
-    sqlx::query(&format!("CREATE DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE IF EXISTS {name}"))).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("CREATE DATABASE {name}"))).execute(&mut admin).await.unwrap();
     let base = url.rsplit_once('/').unwrap().0;
     let store = Store::connect(&format!("{base}/{name}"), keys()).await.unwrap();
     let pool = store.pool();
@@ -680,5 +686,5 @@ async fn a_card_saves_sealed_moves_its_email_and_keeps_a_picture() {
     assert_eq!(users::photo(&store, &gone).await.err(), Some(UsersError::NotFound));
 
     store.close().await;
-    sqlx::query(&format!("DROP DATABASE {name}")).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
 }

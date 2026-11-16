@@ -8,6 +8,51 @@ updated: 2026-11-15
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-16 (Windows, small hours) — the major updates: verdicts, then the Rust batch
+- Each major update tried in a scratch worktree (removed after); the verdicts are
+  [DEPENDENCIES.md](architecture/DEPENDENCIES.md) §4: take sqlx 0.9, reqwest 0.13,
+  getrandom 0.4, base64 0.23, vite 8 and TypeScript 7; skip rusqlite; protobuf 7 and anthropic 2
+  wait on Pipecat.
+- Found: `ehr`'s Linux build linked OpenSSL through `core`'s reqwest `native-tls` (§5, item 6).
+- His go-ahead, the Rust batch: `native-tls` is now `core`'s default feature and `ehr` turns it
+  off (no `native-tls`, `hyper-tls`, `openssl-sys` or `ring` left in `ehr`); reqwest 0.13 (`form`
+  is opt-in; `rustls-no-provider`); getrandom 0.4 (0.3 gone from the lock); base64 0.23.
+  `npm run check -- core ehr agent --full` passed (9 steps, clippy included); `db:test` passed.
+- He desk-tested the batch (good). Then sqlx 0.8 → 0.9: its 11 runtime queries fixed by type.
+  Fixed text by `concat!` (settings' version columns, users' UTC times); every joined query
+  through the new `ehr/src/sql.rs` (`Sql`: `&'static str`, numbers and bytes only, the one
+  `AssertSqlSafe` in `ehr/src`); `settings::get`/`save` take `table: &'static str`. The store
+  test's 24 joined queries go through its own local helper. ehr tests (121 + 11), clippy, the
+  agent check and `db:test` (reseal, settings, users on Postgres) passed. Rules in DATABASE.md
+  §4a.
+- Next: vite 8 and TypeScript 7 once the console work in flight lands.
+- He saw `npm run dev` wait long after the db line. The cause: cargo's silent `ehr` rebuild
+  after the dependency changes, not Postgres. Nothing timed the start. His choice: print and
+  keep. Built in `scripts/dev.mjs`: each step timed, a `ready in` summary, a `slower than
+  usual` note, `logs/dev-start.jsonl`, a `building ehr…` line (HANDOFF.md › Run it). Not run
+  yet: his dev server held the terminal.
+
+## 2026-11-15 (Windows, late night) — jiff 1.0, timestamps with offsets, the dependency list
+- jiff 0.2 → 1.0 in `ehr` (released today): the rename `to_zoned` → `to_zoned_datetime` and
+  `Zoned` → `ZonedDateTime`, seven call sites. No other break.
+- The agent's `started` and annotation `at` stamps now carry the UTC offset (`.astimezone()`):
+  `call_record.py`, `catalog.py`, `dev_server.py`. The recording's file name (the call id) keeps
+  its form.
+- The safe updates inside every range: `cargo update` (tonic 0.14.9, prost 0.14.6, tokio
+  1.54.1, aws-lc-rs 1.19.0, …), `uv lock --upgrade` (fastapi 0.163.1, grpcio 1.85.1, …; Pipecat
+  also moved pillow to 13 and onnxruntime to 1.32), `npm update` (vite 6.4.6).
+- New: [DEPENDENCIES.md](architecture/DEPENDENCIES.md), every direct dependency with its source
+  and versions, the majors not taken, and a trust review. Found: the JWKS worker's `cf`
+  1.0.0-beta.19 bundles `undici` and `zod` with high-severity advisories (fixed in beta.32).
+- His go-ahead: bumped `cf` to beta.32 and `@cloudflare/vite-plugin` to beta.v.17; `npm audit`
+  0, the worker builds. Then the trust review's items (DEPENDENCIES.md §5):
+  - `protoc-bin-vendored` replaced by Google's own protoc 36.2, pinned by SHA-256
+    (`ehr/protoc.json`, `scripts/protoc.mjs`, `build.rs`'s version check); `dev`, `check`,
+    `db:test` fetch it first; `env:check` shows it. Both failure paths tested.
+  - Pipecat's `openai`, `onnxruntime`, `pillow`: hard requirements; a replay call loads
+    `onnxruntime` (Pipecat's smart-turn module) and `pillow`. Kept.
+  - `pyjwt`, `base64`, `python-dotenv`: usage reviewed, no change.
+
 ## 2026-11-15 (Windows, night) — Places: Import from Epic, facility cards, drill in
 - The talk first: the import route of HOSPITAL-CONFIG.md §8. His choices: import all, analysts
   remove what is not needed ("we'll have to build better filters and UI ... when we get there");

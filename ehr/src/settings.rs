@@ -15,6 +15,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::Value;
 use sqlx::{PgPool, Row};
 
+use crate::sql::Sql;
+
 /// What one setting may hold.
 #[derive(Clone, Copy, Debug)]
 pub enum Kind {
@@ -637,9 +639,14 @@ fn db(step: &str, e: sqlx::Error) -> String {
     format!("settings: {step} failed {code}").trim_end().to_string()
 }
 
-const VERSION_COLUMNS: &str = "v.id, to_char(v.day, 'YYYY-MM-DD') AS day, v.seq, \
-    to_char(v.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at, v.created_by, \
-    (v.id = (SELECT a.version_id FROM setting_activations a WHERE a.service = v.service ORDER BY a.id DESC LIMIT 1)) AS active";
+/// A version's columns. A macro, so `concat!` makes each query one `&'static str` (sql.rs).
+macro_rules! version_columns {
+    () => {
+        "v.id, to_char(v.day, 'YYYY-MM-DD') AS day, v.seq, \
+         to_char(v.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') AS created_at, v.created_by, \
+         (v.id = (SELECT a.version_id FROM setting_activations a WHERE a.service = v.service ORDER BY a.id DESC LIMIT 1)) AS active"
+    };
+}
 
 fn version(row: &sqlx::postgres::PgRow) -> Version {
     Version {
@@ -654,8 +661,10 @@ fn version(row: &sqlx::postgres::PgRow) -> Version {
 
 /// Every version of a service, newest first, the Default version (number 0) last.
 pub async fn versions(pool: &PgPool, service: &str) -> Result<Vec<Version>, String> {
-    let rows = sqlx::query(&format!(
-        "SELECT {VERSION_COLUMNS} FROM setting_versions v WHERE v.service = $1 ORDER BY (v.seq = 0), v.id DESC"
+    let rows = sqlx::query(concat!(
+        "SELECT ",
+        version_columns!(),
+        " FROM setting_versions v WHERE v.service = $1 ORDER BY (v.seq = 0), v.id DESC"
     ))
         .bind(service)
         .fetch_all(pool)
@@ -665,17 +674,20 @@ pub async fn versions(pool: &PgPool, service: &str) -> Result<Vec<Version>, Stri
 }
 
 /// One version and its values: the active one when `id` is 0. None when there is none.
-pub async fn get(pool: &PgPool, service: &str, table: &str, id: i64) -> Result<Option<(Version, Vec<(String, String)>)>, String> {
+/// `table` is a service's table from [`service`]: text in the code, never from a request.
+pub async fn get(pool: &PgPool, service: &str, table: &'static str, id: i64) -> Result<Option<(Version, Vec<(String, String)>)>, String> {
     let row = if id == 0 {
-        sqlx::query(&format!(
-            "SELECT {VERSION_COLUMNS} FROM setting_versions v WHERE v.service = $1 AND v.id = \
+        sqlx::query(concat!(
+            "SELECT ",
+            version_columns!(),
+            " FROM setting_versions v WHERE v.service = $1 AND v.id = \
              (SELECT a.version_id FROM setting_activations a WHERE a.service = $1 ORDER BY a.id DESC LIMIT 1)"
         ))
         .bind(service)
         .fetch_optional(pool)
         .await
     } else {
-        sqlx::query(&format!("SELECT {VERSION_COLUMNS} FROM setting_versions v WHERE v.service = $1 AND v.id = $2"))
+        sqlx::query(concat!("SELECT ", version_columns!(), " FROM setting_versions v WHERE v.service = $1 AND v.id = $2"))
             .bind(service)
             .bind(id)
             .fetch_optional(pool)
@@ -684,7 +696,7 @@ pub async fn get(pool: &PgPool, service: &str, table: &str, id: i64) -> Result<O
     .map_err(|e| db("get", e))?;
     let Some(row) = row else { return Ok(None) };
     let v = version(&row);
-    let values = sqlx::query(&format!("SELECT key, value::text AS value FROM {table} WHERE version_id = $1 ORDER BY key"))
+    let values = sqlx::query(Sql::new().text("SELECT key, value::text AS value FROM ").text(table).text(" WHERE version_id = $1 ORDER BY key"))
         .bind(v.id)
         .fetch_all(pool)
         .await
@@ -715,7 +727,7 @@ pub enum SaveError {
 pub async fn save(
     pool: &PgPool,
     service: &str,
-    table: &str,
+    table: &'static str,
     values: &[(&str, Value)],
     by: &str,
     seed: bool,
@@ -752,7 +764,7 @@ pub async fn save(
     .map_err(|e| SaveError::Db(db("version", e)))?;
     let activate = !seed || !has_active;
     for (key, value) in values {
-        sqlx::query(&format!("INSERT INTO {table} (version_id, key, value) VALUES ($1, $2, $3::jsonb)"))
+        sqlx::query(Sql::new().text("INSERT INTO ").text(table).text(" (version_id, key, value) VALUES ($1, $2, $3::jsonb)"))
             .bind(id)
             .bind(key)
             .bind(value.to_string())

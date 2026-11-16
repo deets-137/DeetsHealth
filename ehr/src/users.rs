@@ -218,24 +218,36 @@ fn opened(store: &Store, row: &str, column: &str, bytes: &[u8]) -> Result<Zeroiz
     store.open(TABLE, row, column, bytes).map_err(|_| UsersError::Store("users: opening".into()))
 }
 
-const TIME: &str = r#"'YYYY-MM-DD"T"HH24:MI:SS"Z"'"#;
+/// A timestamp column as UTC text. A macro, so `concat!` keeps the query one `&'static str`
+/// (sql.rs).
+macro_rules! utc {
+    ($column:literal) => {
+        concat!("to_char(", $column, r#" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')"#)
+    };
+}
 
 /// Everyone on the list now (not removed): the owner first, then by when they were added.
 pub async fn list(store: &Store) -> Result<Vec<User>, UsersError> {
-    let sql = format!(
+    let sql = concat!(
         "SELECT u.id::text AS id, u.email_hash, u.email, u.name, u.owner,
                 u.first_name, u.last_name, u.phone, u.phone_verified, u.source,
                 a.email_hash AS by_hash, a.name AS by_name, a.email AS by_email,
                 a.first_name AS by_first, a.last_name AS by_last,
-                to_char(u.added_at AT TIME ZONE 'UTC', {TIME}) AS added_at,
-                to_char(u.last_seen_at AT TIME ZONE 'UTC', {TIME}) AS last_seen_at,
-                to_char(p.updated_at AT TIME ZONE 'UTC', {TIME}) AS photo_at
+                ",
+        utc!("u.added_at"),
+        " AS added_at,
+                ",
+        utc!("u.last_seen_at"),
+        " AS last_seen_at,
+                ",
+        utc!("p.updated_at"),
+        " AS photo_at
          FROM users u LEFT JOIN users a ON a.id = u.added_by
               LEFT JOIN user_photos p ON p.user_id = u.id
          WHERE u.removed_at IS NULL
          ORDER BY u.owner DESC, u.added_at, u.id"
     );
-    let rows = sqlx::query(&sql).fetch_all(store.pool()).await.map_err(store_err("list"))?;
+    let rows = sqlx::query(sql).fetch_all(store.pool()).await.map_err(store_err("list"))?;
     let mut out = Vec::with_capacity(rows.len());
     for r in rows {
         let row = Store::hex(&r.get::<Vec<u8>, _>("email_hash"));

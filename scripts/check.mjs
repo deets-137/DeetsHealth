@@ -21,6 +21,8 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { ensureProtoc } from "./protoc.mjs";
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT = join(ROOT, "agent");
 const WORKER = join(ROOT, "ehr", "jwks-worker");
@@ -57,7 +59,7 @@ const SCOPES = {
 	},
 	ehr: {
 		about: "the ehr service: its tests",
-		match: [/^ehr\/(?!jwks-worker\/)/, /^Cargo\.(toml|lock)$/, /^\.cargo\//],
+		match: [/^ehr\/(?!jwks-worker\/)/, /^Cargo\.(toml|lock)$/, /^\.cargo\//, /^scripts\/protoc\.mjs$/],
 		needs: ["core"],
 		steps: [["ehr tests", "cargo", ["test", "-q", "-p", "deetshealth-ehr"]]],
 		full: [["ehr lints", "cargo", ["clippy", "-q", "-p", "deetshealth-ehr", "--all-targets", "--", "-D", "warnings"]]],
@@ -182,6 +184,15 @@ if (reasons.has("agent") && !existsSync(join(ROOT, "dev-certs"))) {
 if (reasons.has("keys") && !existsSync(join(WORKER, "node_modules"))) {
 	console.error("check: the key-set Worker is not installed. Run once: cd ehr/jwks-worker && npm install");
 	process.exit(1);
+}
+// ehr's build runs Google's pinned protoc (DEPENDENCIES.md §5): fetch it before any cargo step.
+if (plan.some(({ step }) => step[1] === "cargo")) {
+	try {
+		await ensureProtoc({ quiet: true });
+	} catch (e) {
+		console.error(`check: ${e.message}`);
+		process.exit(1);
+	}
 }
 
 // --- run ---

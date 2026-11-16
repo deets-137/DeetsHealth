@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-15
+updated: 2026-11-16
 ---
 # DeetsHealth — Handoff
 
@@ -16,6 +16,20 @@ updated: 2026-11-15
 starts the agent's dev server and Vite, each on a free port, and prints the address (1420 or the
 next free one). It needs `ehr` built, the dev certificates and `uv sync` (below). `npm run dev:web`
 starts the console alone. **The typed call**: see AGENT.md §1. Nothing else runs end to end yet.
+
+**`ehr`'s build runs Google's `protoc`**, pinned by SHA-256 in `ehr/protoc.json`
+([architecture/DEPENDENCIES.md](architecture/DEPENDENCIES.md) §5). `npm run dev`, `npm run check`
+and `npm run db:test` fetch it into `.protoc/` (git-ignored) on the first run. A plain
+`cargo build`, or rust-analyzer, on a fresh clone needs `node scripts/protoc.mjs` once first.
+
+**The start's clock** (the owner, 2026-11-16: "print and keep"). `npm run dev` times each step:
+`demo check`, `db`, `protoc`, `ehr build`, `ingest`, `agent proto`, `agent start`, `agent port`,
+`vite`. When Vite listens it prints `[dev] ready in N s: …` with every step, and a
+`slower than usual` line for a step over twice its median and 5 s over it (needs 5 past
+starts). Each start, also a failed or stopped one, appends one JSON line to
+`logs/dev-start.jsonl` (git-ignored, per machine): `at`, `commit`, `outcome`, `total_ms`,
+`steps`, `demo`. Step names and times only. `[dev] building ehr…` marks cargo's silent wait;
+after a dependency change that build can take minutes.
 
 **The dev database** ([architecture/DATABASE.md](architecture/DATABASE.md) §3): install Postgres
 at the pinned major version once (`PG_MAJOR` in `scripts/postgres.mjs`): on Windows, EDB's

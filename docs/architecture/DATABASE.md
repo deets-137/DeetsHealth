@@ -174,6 +174,12 @@ Plain columns hold no protected data; sealed columns are bytes under `seal.rs`.
   The tests' `ehr` runs without a store (`running_ehr(store=False)`), so a test never writes
   the dev database. If the store is missing or down, the call is still served; it is filed by
   the next `ehr ingest`.
+- **SQL is text from the code only** (sqlx 0.9, 2026-11-16; DEPENDENCIES.md §4): a query is a
+  `&'static str`, with `concat!` for a fixed fragment shared by several queries. A query joined
+  from pieces (a class's schema and role, a table, its sealed columns, a `$n`) goes through
+  `ehr/src/sql.rs`'s `Sql`, which takes `&'static str`, numbers and bytes only, never a
+  `String`. Every value is a `$n` bind. A new `AssertSqlSafe` in `ehr/src` outside `sql.rs` is a
+  review stop.
 - **One hash for both paths:** the hash is over the record's canonical form (non-empty lines,
   no `\r`), so a record read from disk with Windows line ends and the same record streamed over
   `FileCall` are one record. The ingest skips what the live path filed.

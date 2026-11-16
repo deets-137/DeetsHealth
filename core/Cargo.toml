@@ -15,9 +15,12 @@ subtle = { version = "2", default-features = false }
 # The desktop store (store/sqlite.rs): SQLite compiled in, the version DeetsMusic uses. Holds
 # sealed values only. Behind a feature, so the wasm build never pulls it in.
 rusqlite = { version = "0.32", features = ["bundled"], optional = true }
-# HTTP to the site (net.rs). TLS through the OS: SChannel on Windows (native-tls), the
-# browser's fetch on the web. gzip keeps replies small. No rustls, no bundled crypto.
-reqwest = { version = "0.12", default-features = false, features = ["native-tls", "gzip"] }
+# HTTP to the site (net.rs). TLS through the OS: SChannel on Windows (the `native-tls`
+# feature), the browser's fetch on the web. gzip keeps replies small; `form` for the token
+# request. No rustls, no bundled crypto. The TLS backend is a feature, on by default: `ehr` turns
+# it off, because it never uses `Net` and would otherwise link OpenSSL on Linux (DEPENDENCIES.md
+# §5, item 6).
+reqwest = { version = "0.13", default-features = false, features = ["gzip", "form"] }
 # Reading FHIR and SMART replies (net::parse_reply). preserve_order: the raw resource keeps the
 # site's own key order (DATA-MODEL.md §2: store what the site gives, as it gives it).
 serde_json = { version = "1", features = ["preserve_order"] }
@@ -36,6 +39,9 @@ ts-rs = { version = "12", optional = true }
 serde_json = "1"
 
 [features]
+default = ["native-tls"]
+# TLS for `Net` through the OS (SChannel on Windows, OpenSSL on Linux). The patient app's.
+native-tls = ["reqwest/native-tls"]
 sqlite = ["dep:rusqlite"]
 # The dev inspector (dev.rs): reads a sealed store for the developer. Never in a release.
 dev = ["sqlite"]

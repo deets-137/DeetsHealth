@@ -1,0 +1,12 @@
+{
+  "about": "The protoc that ehr/build.rs runs: Google's own release, pinned by SHA-256 (DEPENDENCIES.md §5). scripts/protoc.mjs fetches it into /.protoc/. The hashes are the digests GitHub publishes for each release asset.",
+  "version": "36.2",
+  "release": "https://github.com/protocolbuffers/protobuf/releases/download/v36.2/",
+  "assets": {
+    "win32-x64": { "file": "protoc-36.2-win64.zip", "sha256": "f0c128dc0d8492eceece83bb459a4c0e316764b929ffbf1aa416357fd644edd3" },
+    "linux-x64": { "file": "protoc-36.2-linux-x86_64.zip", "sha256": "121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278" },
+    "linux-arm64": { "file": "protoc-36.2-linux-aarch_64.zip", "sha256": "8b8f18bd2b30346efbc698dd5a73dd7c805f3ef8380f6dfc95c768f3f1852f6a" },
+    "darwin-arm64": { "file": "protoc-36.2-osx-aarch_64.zip", "sha256": "9cd98a532c5c5e0c4161314de0225de27e4c8a323917b6ea7b1b714d3ae23466" },
+    "darwin-x64": { "file": "protoc-36.2-osx-x86_64.zip", "sha256": "228cc7add4616cc14ca5e80dee83209d44449a7aee95a914ae748fa374efb078" }
+  }
+}
