@@ -115,6 +115,23 @@ Nothing ships yet. The deploy is A2: a separate deploy per hospital in our cloud
 interface (VOICE-AGENT.md §7.2).
 
 ## Open now
+**Dependencies (2026-11-16; committed `c62816a`).** The list, its verdicts and the trust review
+are DEPENDENCIES.md; the watch list is SECURITY.md §7.1. Open:
+- **His desk test of sqlx 0.9:** save and reload a version on Config › Agent, System or
+  Hospital; open Teams › People; one typed call filed in the store. Restart `npm run dev` first.
+  The start's clock (Run it) shows on that start; the first one after a dependency change is a
+  long `ehr build`.
+- **vite 8 and TypeScript 7 for the console** (DEPENDENCIES.md §4): tried clean in a worktree;
+  waits for the console work in flight, then his desk test of `npm run dev` and the demo build.
+- **`cargo audit` and `pip-audit` have never run** (DEPENDENCIES.md §6; Claude's sandbox may not
+  install them). His terminal, once: `cargo install cargo-audit --locked && cargo audit`, and
+  `pip-audit` as in §6.
+- **A check that `ehr` has no OpenSSL** (SECURITY.md §7.1, item 5): today a `cargo tree` by hand;
+  a step in `npm run check` would make it automatic. Not built.
+- Waiting on Pipecat: `protobuf` 7 and the Anthropic SDK 2.x. Skipped: rusqlite (leaves with the
+  patient app's code). For the deploy image (not built): `PROTOC` set to a checked copy, and
+  the FIPS build's tools from known sources.
+
 **Start here (2026-11-15, evening).** **Built, desk test open, not committed: Config › Hospital ›
 Places, Import from Epic** (HOSPITAL-CONFIG.md §8; desk test §6, steps 13 to 19). His forks:
 import all (analysts remove what is not needed), 1A one card per facility, the Table view grouped
