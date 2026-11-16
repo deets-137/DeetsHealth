@@ -317,7 +317,7 @@ p {
 
 /* Each swatch shows its own theme, whatever theme is on, so it reads paints, not roles. */
 .swatch--dark {
-  background: linear-gradient(135deg, var(--paint-black) 50%, var(--paint-silver) 50%);
+  background: linear-gradient(135deg, var(--paint-charcoal) 50%, var(--paint-silver) 50%);
 }
 
 .swatch--light {

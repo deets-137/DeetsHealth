@@ -6,7 +6,7 @@
    `npm run tokens` lists these in docs/architecture/TOKENS.md. */
 
 :root {
-  --bg: var(--paint-black); /* the page's base color, under the backdrop */
+  --bg: var(--paint-charcoal); /* the page's base color, under the backdrop */
   --text: var(--paint-white); /* body text */
   --text-2: rgba(255, 255, 255, 0.72); /* secondary text */
   --text-3: rgba(255, 255, 255, 0.56); /* hints and empty states; still 4.5:1 or more on a panel */
@@ -39,6 +39,10 @@
   --bubble-agent: rgba(255, 255, 255, 0.1); /* the agent's bubble */
   --bubble-caller: var(--accent); /* the caller's bubble */
   --on-bubble-caller: var(--on-accent);
+  /* A card's fill (Teams › People, Config › Hospital › Places): a tint that lifts the card one
+     step above whatever it sits on, so its band (--theme-color) reads darker than its body
+     (the owner, 2026-11-15: option 1, a tint per theme). */
+  --card: rgba(255, 255, 255, 0.07);
   --go: var(--paint-forest); /* Start, Play, Send */
   --stop: var(--paint-scarlet); /* End call, Stop */
   --on-call-button: var(--paint-white); /* text on --go and --stop */
@@ -85,6 +89,7 @@
 
   --canvas: rgba(222, 207, 178, 0.85); /* coffee beige */
   --bubble-agent: rgba(253, 246, 227, 0.75);
+  --card: rgba(253, 246, 227, 0.45); /* cream over the coffee beige */
   --go: var(--paint-grass);
   --stop: var(--paint-burgundy);
   --theme-color: var(--paint-solar-orange);
@@ -119,6 +124,7 @@
 
   --canvas: rgba(5, 13, 30, 0.85); /* deep navy */
   --bubble-agent: rgba(191, 211, 242, 0.1);
+  --card: rgba(191, 211, 242, 0.08); /* moon blue over the deep navy */
   --go: var(--paint-turquoise);
   --stop: var(--paint-purple);
   --theme-color: var(--paint-navy);

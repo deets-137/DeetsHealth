@@ -6,7 +6,9 @@
    `npm run tokens` lists these in docs/architecture/TOKENS.md. */
 
 :root {
-  /* Dark */
+  /* Dark: a charcoal base (the owner, 2026-11-15: option B), so the pure black of a card's
+     band and the chat canvas reads darker than the page and its panels. */
+  --paint-charcoal: #121212;
   --paint-black: #000000;
   --paint-white: #ffffff;
   --paint-silver: #e8e8e8;

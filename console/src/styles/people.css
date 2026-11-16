@@ -27,6 +27,7 @@
   flex-direction: column;
   border: var(--edge) solid var(--line);
   border-radius: var(--radius);
+  background: var(--card); /* one step above the surface under it (themes.css › --card) */
   overflow: hidden; /* the band follows the card's round corners */
   text-align: left;
 }

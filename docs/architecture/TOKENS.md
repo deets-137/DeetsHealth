@@ -14,8 +14,8 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 
 | Tier | File | Count |
 |---|---|---|
-| Palette (raw paints) | palette.css | 18 |
-| Theme (color roles) | themes.css | 35 roles · 3 themes (dark, light, moonlight) |
+| Palette (raw paints) | palette.css | 19 |
+| Theme (color roles) | themes.css | 36 roles · 3 themes (dark, light, moonlight) |
 | Skin (everything else) | skin.css base block | 119 tokens · overrides:  |
 
 ## Theme roles
@@ -24,7 +24,7 @@ The `:root` value is Dark's, and the fallback when a theme does not map the role
 
 | Role | `:root` | Set by | Meaning |
 |---|---|---|---|
-| `--bg` | `var(--paint-black)` | light, moonlight | the page's base color, under the backdrop |
+| `--bg` | `var(--paint-charcoal)` | light, moonlight | the page's base color, under the backdrop |
 | `--text` | `var(--paint-white)` | light, moonlight | body text |
 | `--text-2` | `rgba(255, 255, 255, 0.72)` | light, moonlight | secondary text |
 | `--text-3` | `rgba(255, 255, 255, 0.56)` | light, moonlight | hints and empty states; still 4.5:1 or more on a panel |
@@ -51,6 +51,7 @@ The `:root` value is Dark's, and the fallback when a theme does not map the role
 | `--bubble-agent` | `rgba(255, 255, 255, 0.1)` | light, moonlight | the agent's bubble |
 | `--bubble-caller` | `var(--accent)` | — | the caller's bubble |
 | `--on-bubble-caller` | `var(--on-accent)` | — |  |
+| `--card` | `rgba(255, 255, 255, 0.07)` | light, moonlight | A card's fill (Teams › People, Config › Hospital › Places): a tint that lifts the card one step above whatever it sits on, so its band (--theme-color) reads darker than its body (the owner, 2026-11-15: option 1, a tint per theme). |
 | `--go` | `var(--paint-forest)` | light, moonlight | Start, Play, Send |
 | `--stop` | `var(--paint-scarlet)` | light, moonlight | End call, Stop |
 | `--on-call-button` | `var(--paint-white)` | — | text on --go and --stop |
@@ -227,6 +228,7 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 
 | Paint | Value |
 |---|---|
+| `--paint-charcoal` | `#121212` |
 | `--paint-black` | `#000000` |
 | `--paint-white` | `#ffffff` |
 | `--paint-silver` | `#e8e8e8` |

@@ -8,6 +8,26 @@ updated: 2026-11-15
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-15 (Windows, night) — Dark theme: a charcoal base discussed
+- He asked for the color roles of each theme, then for a charcoal base in Dark in place of
+  pure black: the facility card's band (`--theme-color`, black) is lost on a black page, and
+  he wants it to stay darker than the card. Compared on a throwaway page: black, `#181818`,
+  `#121212`, warm `#16140f`. His choice: B, `#121212`.
+- Built: `--paint-charcoal` in palette.css; Dark's `--bg` reads it. The band, the chat canvas
+  and `--on-accent` stay pure black. The Dark swatch in the theme menu, its hint ("White on
+  charcoal"), the manifest's colors and index.html's `theme-color` follow. CONSOLE.md › The
+  look records it; TOKENS.md regenerated.
+- Desk test: the page reads lighter, but the cards are still near black: they have no fill
+  and sit on `--canvas` (`.cfg-frame`), not on the panel glass. His choice of three (a tint
+  role, a solid paint, a lighter canvas): a tint. Built: `--card` in themes.css (Dark white
+  0.07, Light cream 0.45, Moonlight moon blue 0.08), the fill of `.people-card` and
+  `.place-card`; CONSOLE.md › The look records it.
+  Saved: `docs/architecture/images/hospital-places-cards-charcoal-2026-11-15.png`.
+- Saved: `docs/architecture/images/hospital-places-cards-moonlight-2026-11-15.png`,
+  `hospital-places-cards-dark-2026-11-15.png`, `hospital-places-cards-light-2026-11-15.png`
+  (Places › Cards in each theme, after an import; sandbox facilities only).
+
+
 ## 2026-11-16 (Windows, small hours) — the major updates: verdicts, then the Rust batch
 - Each major update tried in a scratch worktree (removed after); the verdicts are
   [DEPENDENCIES.md](architecture/DEPENDENCIES.md) §4: take sqlx 0.9, reqwest 0.13,

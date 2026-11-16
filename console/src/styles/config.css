@@ -1230,7 +1230,7 @@ select.cfg-field {
 /* The card is a button: the People card's look, a button's behavior. */
 .place-card {
   padding: 0;
-  background: transparent;
+  background: var(--card); /* a button's own fill would hide the People card's */
   color: inherit;
   font: inherit;
   cursor: pointer;

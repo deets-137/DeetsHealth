@@ -8,7 +8,7 @@ import { setHtml } from "./pages/page";
 export type Theme = "dark" | "light" | "moonlight";
 
 export const THEMES: { id: Theme; name: string; about: string }[] = [
-  { id: "dark", name: "Dark", about: "White on black" },
+  { id: "dark", name: "Dark", about: "White on charcoal" },
   { id: "light", name: "Light", about: "Coffee on Solarized cream, with orange" },
   { id: "moonlight", name: "Moonlight", about: "White on navy, with moon blue" },
 ];
