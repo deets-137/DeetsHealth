@@ -8,6 +8,20 @@ updated: 2026-11-19
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-19 (Windows) — the wall's refusals in the audit trail
+- His words: "Yes, fix it" (the gap in AUDIT.md §7: a 403 from the dev server's own wall wrote
+  no row).
+- Built: `dev_server.py › record_refusal`, called by the HTTP wall and `ws_principal`, sends
+  `LogAccess` as the person with the route's lever and level; `ehr` writes the refused row.
+  `ehr` takes a new object kind `route` (`service.rs › log_access`), whose id may hold the
+  pattern's braces. The Audit Logs page names it "Route: POST". AUDIT.md §2, §3, §6, §7.
+- Decided inside his ask: the row names the route's pattern, never the filled-in path; one row
+  per person and route a minute (`REFUSAL_EVERY_S`, 60 s), so a page that asks again and again
+  writes one row; someone not on the list writes no row (no id; Cloudflare Access has them).
+- Tests: `test_roles.py` (2 new checks). Desk test: as a guest with a Junior Analyst's role,
+  open the Watch socket or save on Config › Agent; Audit Logs › Security shows one
+  "Route: …" row, Refused, with the lever lacked. Not verified in a browser.
+
 ## 2026-11-18 (Windows) — the Test button shows its progress
 - His words: "I pressed test, no feedback or progress bar? Can we color the button as if it was
   a progress bar so we know its running please?"

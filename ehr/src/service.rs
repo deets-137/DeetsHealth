@@ -1471,10 +1471,16 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             "recording" => Some("recording"),
             "test_run" => Some("test_run"),
             "export" => Some("export"),
-            _ => return Err(Status::invalid_argument("object_kind: page, call, recording, test_run or export")),
+            // A dev-server route its wall refused; the id is the route's pattern, never a path
+            // a request filled in (`/agent/calls/{call_id}`).
+            "route" => Some("route"),
+            _ => return Err(Status::invalid_argument("object_kind: page, call, recording, test_run, export or route")),
         };
+        let braces_ok = kind == Some("route");
         let id_ok = r.object_id.len() <= 64
-            && r.object_id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '/'));
+            && r.object_id
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '/') || (braces_ok && matches!(c, '{' | '}')));
         if !id_ok {
             return Err(Status::invalid_argument("object_id: an id of at most 64 characters"));
         }

@@ -159,7 +159,7 @@ the branch `archive/patient-app`.
 - `AUDIT.md` — the staff audit trail and the Audit Logs page (built 2026-11-18, desk test
   passed): what a row holds and never holds, every action word and what writes it (a new
   change or look adds its row there), the hash chain and its check, reading it, what is open
-  (the dev server's own refusals are not recorded yet; the page's look; retention; export).
+  (the page's look; retention; export).
 - `HOSPITAL-CONFIG.md` — Config › Hospital (built): the hospital's own lists and numbers
   (visit types, groups, reasons as codes, the time zone, times of day, hours, closed days,
   locations, specialties, how slots are offered and visits found), one hospital for every EHR

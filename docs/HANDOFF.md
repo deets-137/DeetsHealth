@@ -118,8 +118,8 @@ interface (VOICE-AGENT.md §7.2).
 **Roles and the audit trail: built 2026-11-18 (`0f417e0`), desk test passed 2026-11-19**
 ("looks good for now"). docs/architecture/ACCESS-ROLES.md (moved from `docs/ideas/`; §5.1, §6
 "As built" for each hand-over); DATABASE.md §11; EHR-SERVICE.md §3 "Who is asking"; DEV-API.md
-§2a; CONSOLE.md §13; the trail and the Audit Logs page: AUDIT.md (one gap there, §7: the dev
-server's own 403s write no row). A new route needs its row in `ROUTE_NEEDS` and DEV-API.md §2a (the server
+§2a; CONSOLE.md §13; the trail and the Audit Logs page: AUDIT.md (the dev server's own 403s
+write a `route.*` row since 2026-11-19, once a minute per person and route). A new route needs its row in `ROUTE_NEEDS` and DEV-API.md §2a (the server
 will not start without it); a new RPC its row in `RPC_LEVERS`. Demo guests need a role: grant
 it on Security › Auth. Open, his: the Audit Logs page's own look (a fork; a plain table stands
 in); what PHI Edit allows beyond View; whether Test gets its own lever (ACCESS-ROLES.md §7); staff

@@ -193,6 +193,9 @@ ROUTE_NEEDS: dict[tuple[str, str], tuple[str, str] | str | None] = {
 }
 # A live watch asks again this often whether its viewer still holds PHI View.
 WATCH_RECHECK_S = 15.0
+# A refusal by the wall is written to the audit trail once per person and route in this many
+# seconds (AUDIT.md §3): a page that asks again and again writes one row, not one a second.
+REFUSAL_EVERY_S = 60.0
 # The largest picture the People routes take (ehr's users.rs › MAX_PHOTO).
 MAX_PHOTO = 256 * 1024
 # The demo's base path (docs/ops/DEMO.md §3.1): the built console and its routes under it.
@@ -327,6 +330,8 @@ class State:
         # The live calls by id, oldest first (docs/ops/DEMO.md §3.6: several at once).
         self.lives: dict[str, LiveCall] = {}
         self.watchers: set[asyncio.Queue] = set()
+        # The wall's refusals last written to the audit trail, by (person, method, route).
+        self.refusals: dict[tuple[str, str, str], float] = {}
         # Epic mode (CHAT.md §13): whether ehr was given Epic's sandbox, and the last Epic list
         # with the time it was read.
         self.epic = bool(epic_env())
@@ -365,9 +370,9 @@ class State:
                 q.put_nowait(text)
 
 
-def route_need(app: FastAPI, scope) -> tuple[bool, tuple[str, str] | str | None]:
-    """The need of the route this request reaches: (found, need). Not found: no route (404
-    follows), or a route `build_app` would have refused."""
+def route_of(app: FastAPI, scope) -> tuple[str, str] | None:
+    """The (method, pattern) of the route this request reaches, as ROUTE_NEEDS names it; None
+    when no route matches (404 follows)."""
     from starlette.routing import Match
 
     method = "WS" if scope["type"] == "websocket" else scope.get("method", "GET")
@@ -376,11 +381,31 @@ def route_need(app: FastAPI, scope) -> tuple[bool, tuple[str, str] | str | None]
         if match is Match.FULL:
             key = (method, getattr(route, "path", ""))
             if key in ROUTE_NEEDS:
-                return True, ROUTE_NEEDS[key]
+                return key
             # HEAD is GET's.
             if method == "HEAD" and ("GET", key[1]) in ROUTE_NEEDS:
-                return True, ROUTE_NEEDS[("GET", key[1])]
-    return False, None
+                return ("GET", key[1])
+    return None
+
+
+async def record_refusal(state: State, user_id: str, route: tuple[str, str], need: tuple[str, str]) -> None:
+    """Write the wall's refusal of `route` to the audit trail (AUDIT.md §3), as the person:
+    ehr's LogAccess checks their levels again and writes a refused row with the lever and level
+    they lack. The row names the route's pattern, never the path the request filled in. At most
+    once per person and route in REFUSAL_EVERY_S."""
+    now = time.monotonic()
+    key = (user_id, *route)
+    if now - state.refusals.get(key, -REFUSAL_EVERY_S) < REFUSAL_EVERY_S:
+        return
+    state.refusals[key] = now
+    if len(state.refusals) > 1000:  # forget the old ones; a person and route come back in a minute
+        state.refusals = {k: t for k, t in state.refusals.items() if now - t < REFUSAL_EVERY_S}
+    method, pattern = route
+    token = ACTOR.set(user_id)
+    try:
+        await _look(state, need[0], need[1], f"route.{method.lower()}", "route", pattern[:64])
+    finally:
+        ACTOR.reset(token)
 
 
 def check_route_needs(app: FastAPI) -> None:
@@ -443,8 +468,11 @@ def build_app(state: State) -> FastAPI:
             return JSONResponse({"error": "ehr did not say who you are"}, status_code=503)
         if principal is None:
             return JSONResponse({"error": "forbidden"}, status_code=403)
-        found, need = route_need(app, request.scope)
-        if found and isinstance(need, tuple) and not principal.may(*need):
+        route = route_of(app, request.scope)
+        need = ROUTE_NEEDS[route] if route else None
+        if route and isinstance(need, tuple) and not principal.may(*need):
+            if principal.user_id:
+                await record_refusal(state, principal.user_id, route, need)
             return JSONResponse({"error": "forbidden", "lever": need[0], "level": need[1]}, status_code=403)
         request.state.principal = principal
         request.state.who = OWNER if principal.owner else principal.email
@@ -819,8 +847,11 @@ def build_app(state: State) -> FastAPI:
             principal = await state.identity.who(ws.headers)
         except IdentityDown:
             principal = None
-        _, need = route_need(app, ws.scope)
+        route = route_of(app, ws.scope)
+        need = ROUTE_NEEDS[route] if route else None
         if principal is None or (isinstance(need, tuple) and not principal.may(*need)):
+            if principal is not None and principal.user_id and route and isinstance(need, tuple):
+                await record_refusal(state, principal.user_id, route, need)
             await ws.close(code=1008)
             return None
         ACTOR.set(principal.user_id)

@@ -48,7 +48,13 @@ const ACTION: Record<string, string> = {
   "call.watch": "Live calls watched",
   "test.run": "Test run",
 };
-const actionWords = (a: string) => ACTION[a] ?? (a.startsWith("rpc.") ? `Asked: ${a.slice(4).replace(/_/g, " ")}` : a);
+const actionWords = (a: string) =>
+  ACTION[a] ??
+  (a.startsWith("rpc.")
+    ? `Asked: ${a.slice(4).replace(/_/g, " ")}`
+    : a.startsWith("route.")
+      ? `Route: ${a.slice(6).toUpperCase()}` // the dev server's wall (AUDIT.md §3)
+      : a);
 
 export function auditPage(): Page {
   return {

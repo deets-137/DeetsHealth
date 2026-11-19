@@ -47,6 +47,8 @@ class RolesEhr:
 
     def __init__(self) -> None:
         self.asked: list[tuple[str, str | None]] = []
+        # Each LogAccess: (lever, level, action, kind, id).
+        self.looks: list[tuple[str, str, str, str, str]] = []
         self.analyst = {"agent": "view", "rules": "view", "testing": "edit", "analytics": "view"}
 
     async def seen_owner(self):
@@ -79,6 +81,7 @@ class RolesEhr:
 
     async def log_access(self, lever, level, action, kind="", object_id="", data_class=""):
         self.asked.append((f"LogAccess {action}", ACTOR.get()))
+        self.looks.append((lever, level, action, kind, object_id))
         return True
 
 
@@ -161,10 +164,29 @@ def test_a_transcript_read_is_recorded(tmp_path):
     assert not any(a.startswith("LogAccess") for a, _ in state.ehr.asked)  # type: ignore[union-attr]
 
 
+def test_the_wall_s_refusal_is_recorded_once_a_minute(tmp_path):
+    state, c = make(tmp_path)
+    assert c.post("/agent/prompt", headers=ANALYST, json={"values": {}}).status_code == 403
+    assert c.post("/agent/prompt", headers=ANALYST, json={"values": {}}).status_code == 403
+    # One row as the analyst: the lever and level they lack, the route's pattern.
+    assert state.ehr.looks == [("agent", "edit", "route.post", "route", "/agent/prompt")]  # type: ignore[union-attr]
+    assert ("LogAccess route.post", ANALYST_ID) in state.ehr.asked  # type: ignore[union-attr]
+    # A route with an id in it is named by its pattern, never the id the request sent.
+    assert c.delete("/agent/people/someone-else", headers=ANALYST).status_code == 403
+    assert state.ehr.looks[-1][4] == "/agent/people/{person_id}"  # type: ignore[union-attr]
+    # An allowed request writes no refusal; someone not on the list has no id to write.
+    before = len(state.ehr.looks)  # type: ignore[union-attr]
+    c.get("/agent/prompt", headers=ANALYST)
+    state.access.email_now = "stranger@example.com"  # type: ignore[union-attr]
+    c.get("/agent/people", headers=ANALYST)
+    assert len(state.ehr.looks) == before  # type: ignore[union-attr]
+
+
 def test_a_watch_needs_phi_view(tmp_path):
-    _, c = make(tmp_path)
+    state, c = make(tmp_path)
     with pytest.raises(WebSocketDisconnect) as e, c.websocket_connect("/agent/watch", headers=ANALYST) as ws:
         ws.receive_text()
     assert e.value.code == 1008
+    assert state.ehr.looks == [("phi", "view", "route.ws", "route", "/agent/watch")]  # type: ignore[union-attr]
     with c.websocket_connect("/agent/watch", headers=OWNER_HEADERS) as ws:
         assert '"hello"' in ws.receive_text()

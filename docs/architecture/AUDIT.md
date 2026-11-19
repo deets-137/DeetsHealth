@@ -36,7 +36,7 @@ synthetic data does not touch it (DATABASE.md §7, §11).
 | `roles`, `roles_version` | The ids of the actor's live roles at that moment, and the active roles version. With the versions in the store, a reader sees what each role allowed on that day. |
 | `lever`, `level` | The lever and level the action used, or lacked when it was refused. |
 | `action` | What was done: one word of §3. |
-| `object_kind`, `object_id` | What it touched: `settings` and the service, `person` and their id, `page` and its id, `call` and its id, `test_run`. An id only. |
+| `object_kind`, `object_id` | What it touched: `settings` and the service, `person` and their id, `page` and its id, `call` and its id, `test_run`, `route` and its pattern (`/agent/people/{person_id}`). An id or a pattern only. |
 | `data_class` | `synthetic` or `real`, for a row about one call. |
 | `fields` | The names of the fields that changed (`task.verify`, `phone`, `role:intern`). Names only, never a value. |
 | `before_version`, `after_version` | The versions before and after a change: a settings version, or a person's card version (`user_card_versions`). The values are read from those versions, not from the row. |
@@ -79,10 +79,19 @@ the last manager) is the change's own action word with `allowed` false.
 | `transcript.view` | `GET /agent/calls/{id}` (a call's events) | Testing View |
 | `call.watch` | `WS /agent/watch` opened (another person's live call) | PHI View |
 | `test.run` | `POST /agent/prompt/record` (it spends tokens) | Agent Edit |
+| `route.get`, `route.post`, `route.patch`, `route.put`, `route.delete`, `route.ws` | the dev server's wall, when it refuses a route (`dev_server.py › record_refusal`; the HTTP wall and `ws_principal`) | the route's row in `ROUTE_NEEDS`; always refused |
 
-**Not written today** (see §7): a refusal by the dev server's own wall (a route your role does not
-allow, refused before any request reaches `ehr`); a sign-in; a recording played or an export
-(neither exists yet).
+> **Part:** built · 2026-11-19 (the `route.*` rows)
+
+**The wall's refusals:** the dev server answers 403 (or closes a socket with 1008) before the
+request reaches `ehr`. Before it answers, it sends `LogAccess` as the person, with the lever and
+level the route needs; `ehr` checks their levels again and writes the refused row. The row names
+the route's pattern (`/agent/calls/{call_id}`), never the path the request filled in, so no id
+from the request reaches the trail. One row per person and route a minute (`REFUSAL_EVERY_S`):
+a page that asks again and again writes one row, not a flood. Someone not on the list has no id
+to write; Cloudflare Access records them. The page shows these as "Route: POST" on Security.
+
+**Not written today** (see §7): a sign-in; a recording played or an export (neither exists yet).
 
 ## 4. The chain
 > **Part:** built · 2026-11-18 · `audit.rs › write`, `digest`, `verify`
@@ -131,15 +140,13 @@ allow, refused before any request reaches `ehr`); a sign-in; a recording played 
 - `ehr/tests/store.rs` (`npm run db:test`): a settings save's row (fields, versions); the card
   saves' rows and that no value reaches the trail; grants, refusals and the rows through the gRPC
   service; the triggers; a row changed with the trigger off, found by `verify` at that row.
-- `agent/tests/test_roles.py`: a transcript read with no such call writes nothing.
+- `agent/tests/test_roles.py`: a transcript read with no such call writes nothing; the wall's
+  refusal writes one row a minute, as the person, with the route's pattern; a refused watch
+  writes `route.ws`.
 - **Desk test** (passed 2026-11-19): CONSOLE.md §13.1, step 7. Make a change, a grant and a
   refusal; each is a row on its view; Check chain reads "Every row is as written".
 
 ## 7. Open
-- **The dev server's own refusals are not recorded.** A route refused by the wall
-  (`dev_server.py › ROUTE_NEEDS`) answers 403 before any request reaches `ehr`, so no row is
-  written. §5.1 of ACCESS-ROLES.md asks for each refusal. The fix: the wall records it through
-  `LogAccess` (or a refusal RPC) before it answers. Not built.
 - **The page's own look:** the owner's fork; the plain table stands in.
 - **Retention:** rows are never deleted. SECURITY.md's draft is 6 years (HIPAA's record rule;
   STAFF-SIGN-IN.md, M5).
