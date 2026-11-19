@@ -115,14 +115,14 @@ Nothing ships yet. The deploy is A2: a separate deploy per hospital in our cloud
 interface (VOICE-AGENT.md §7.2).
 
 ## Open now
-**Roles and the audit trail: all three hand-overs built 2026-11-18, not committed**
-(docs/ideas/ACCESS-ROLES.md §5.1, §6 "As built" for each, §8.5 checkpoint 5; DATABASE.md §11;
-EHR-SERVICE.md §3 "Who is asking"; DEV-API.md §2a; CONSOLE.md §13). `ehr`, the dev server and
-the console enforce roles; `npm run check:all` (15 steps) and `npm run db:test` pass. **His
-desk test: CONSOLE.md §13.1** (restart `npm run dev` first: migrations 0011 and 0012 run, his row
-gets Deets, Edit on every lever). Demo guests have no role after the restart: grant each one on
-Security › Auth. Open, his: the Audit Logs page's own look (a fork; a plain table stands in);
-what PHI Edit allows beyond View; whether Test gets its own lever (ACCESS-ROLES.md §7).
+**Roles and the audit trail: built 2026-11-18 (`0f417e0`), desk test passed 2026-11-19**
+("looks good for now"). docs/architecture/ACCESS-ROLES.md (moved from `docs/ideas/`; §5.1, §6
+"As built" for each hand-over); DATABASE.md §11; EHR-SERVICE.md §3 "Who is asking"; DEV-API.md
+§2a; CONSOLE.md §13. A new route needs its row in `ROUTE_NEEDS` and DEV-API.md §2a (the server
+will not start without it); a new RPC its row in `RPC_LEVERS`. Demo guests need a role: grant
+it on Security › Auth. Open, his: the Audit Logs page's own look (a fork; a plain table stands
+in); what PHI Edit allows beyond View; whether Test gets its own lever (ACCESS-ROLES.md §7); staff
+sign-in as the next source (ideas/STAFF-SIGN-IN.md).
 
 **The kept scripts, recorded again 2026-11-18 (his Test press): green, committed 2026-11-18**
 with the new replies in `agent/tests/replays/`, and with the Test button's progress bar

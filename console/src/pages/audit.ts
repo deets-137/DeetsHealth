@@ -1,4 +1,4 @@
-// Audit Logs (CONSOLE.md §3; docs/ideas/ACCESS-ROLES.md §5.1): one panel with its own nav
+// Audit Logs (CONSOLE.md §3; docs/architecture/ACCESS-ROLES.md §5.1): one panel with its own nav
 // (subnav.ts), at the nav's foot between Security and Settings. The owner's three views
 // (2026-11-13): Config, Calls, Security. Each is the audit trail's rows of its kind, newest first,
 // as a plain table in Auth's look: the page's own look is a fork for the owner (§6, part 3,

@@ -739,7 +739,7 @@ async fn a_card_saves_sealed_moves_its_email_and_keeps_a_picture() {
     sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
 }
 
-/// Roles and the audit trail (docs/ideas/ACCESS-ROLES.md §5, §5.1; migrations 0011, 0012): a
+/// Roles and the audit trail (docs/architecture/ACCESS-ROLES.md §5, §5.1; migrations 0011, 0012): a
 /// grant and a revoke with their rows, each rule's refusal, a roles save that would drop a held
 /// role, rows that cannot be changed, and a changed row found by `verify`.
 #[tokio::test]

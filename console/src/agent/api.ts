@@ -556,7 +556,7 @@ export type Person = {
   source: string;
   /** When the picture was saved; null when there is none. */
   photo_at: string | null;
-  /** Their live roles, by id (docs/ideas/ACCESS-ROLES.md). */
+  /** Their live roles, by id (docs/architecture/ACCESS-ROLES.md). */
   role_ids: string[];
 };
 
@@ -599,7 +599,7 @@ async function peopleChange(method: "POST" | "PATCH" | "PUT" | "DELETE", path: s
   return reply;
 }
 
-// ---- access by role and the audit trail (docs/ideas/ACCESS-ROLES.md §5, §5.1, §6) ----
+// ---- access by role and the audit trail (docs/architecture/ACCESS-ROLES.md §5, §5.1, §6) ----
 
 /** The levers, in access.rs's order. */
 export const LEVERS = [

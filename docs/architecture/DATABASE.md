@@ -448,8 +448,8 @@ Restart `npm run dev` first: its `ehr` and the migration are new.
    shows the last run's draws (`reused` true for a passing replay draw that matched the last one).
 
 ## 11. Roles and the staff audit trail (migrations 0011, 0012)
-> **Part:** built · 2026-11-18 · Hand-over 1 of docs/ideas/ACCESS-ROLES.md §6 (the rules: §5,
-> §5.1). Not wired to the agent or the console yet.
+> **Part:** built · 2026-11-18 · desk test passed 2026-11-19. Hand-over 1 of ACCESS-ROLES.md §6
+> (the rules: §5, §5.1); the dev server and the console use it (Hand-overs 2 and 3).
 
 All in `public`, under the hospital key where sealed. Nothing here is reset with the synthetic
 data.

@@ -76,7 +76,7 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 | `GET /agent/people/{person_id}/photo` | `person_photo` | `personPhoto()` | the person's picture, `image/webp`, `cache-control: no-store` (a face is PII); 404 when there is none |
 | `PUT /agent/people/{person_id}/photo` | `set_person_photo` | `setPersonPhoto()` | the body is the 256 px WebP the console made (`content-type: image/webp`, else 415; at most 256 KB, else 400); sealed in the store through `SetUserPhoto`. The view again |
 | `DELETE /agent/people/{person_id}/photo` | `clear_person_photo` | `setPersonPhoto()` | with `null`: deletes the picture (`SetUserPhoto` with none). The view again |
-| `GET /agent/me` | `me` | `me()` | who you are (docs/ideas/ACCESS-ROLES.md §5): `{user_id, door, role_ids, roles_version, levels, store}`; `levels` names every lever (`none`, `view`, `edit`). `store` false without a roles store: then the launch token has Edit everywhere. Never the email |
+| `GET /agent/me` | `me` | `me()` | who you are (docs/architecture/ACCESS-ROLES.md §5): `{user_id, door, role_ids, roles_version, levels, store}`; `levels` names every lever (`none`, `view`, `edit`). `store` false without a roles store: then the launch token has Edit everywhere. Never the email |
 | `POST /agent/log` | `log_look` | `logLook()` | `{lever, level, action, object_kind?, object_id?}`: a look that changes nothing (a page opened), recorded in the audit trail through `ehr`'s `LogAccess`, allowed or refused. `{allowed}`. 400 for words `ehr` does not take |
 | `GET /agent/roles` | `roles` | `roles()` | Security › Roles: the `roles` versions, one version's roles (`?version=`), the active roles, the levers and levels in `access.rs`'s order. 404 for a version that does not exist; 409 without a store |
 | `POST /agent/roles` | `save_roles` | `saveRoles()` | `{roles}`, the whole list, as a new active version through `SaveSettings` (`access.rs` checks it). 400 names the role's place; 409 names the rule it breaks (a role in use removed, a conflict, no one left to manage the console). Everyone's levels are read again |
@@ -89,7 +89,7 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 | `GET /demo/{path:path}` | `demo_page` | none: the browser | the demo build (`--static`, ops/DEMO.md §3.1): a file under its folder, `index.html` for `/demo/`. Hashed assets cached a year, the rest `no-store` (CONSOLE.md §5.2). 404 for a dotfile, a path outside the folder, a missing file, or outside the demo |
 
 ## 2a. What each route needs
-> **Part:** built · 2026-11-18 · docs/ideas/ACCESS-ROLES.md §7 (the owner's to edit)
+> **Part:** built · 2026-11-18 · docs/architecture/ACCESS-ROLES.md §7 (the owner's to edit)
 
 The wall checks this before a route runs (`dev_server.py › ROUTE_NEEDS`), and the server does
 not start with a route missing from it. A refusal is 403 `{error: "forbidden", lever, level}`.

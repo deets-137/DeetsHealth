@@ -143,7 +143,7 @@ number of requests to Epic does not grow.
 | Config › Agent | `settings.agent` keyed by version; the Test status is a poll on it while a run is `running` | `agent.ts` `follow()` |
 | Config › Cartesia's credits | `resources` keyed `null` | read once |
 | Config › Cartesia's voice list | `cartesia.voices` (`leaves`: it reaches Cartesia); Refresh is its write | as built 2026-11-16 (CONSOLE.md §7.8) |
-| The nav and every page's access | `me` (`focus`), read by `access.ts` only; a grant, revoke or roles save reads it again (`accessChanged`) | as built 2026-11-18 (docs/ideas/ACCESS-ROLES.md §6, Hand-over 3) |
+| The nav and every page's access | `me` (`focus`), read by `access.ts` only; a grant, revoke or roles save reads it again (`accessChanged`) | as built 2026-11-18 (docs/architecture/ACCESS-ROLES.md §6, Hand-over 3) |
 | Security › Roles | `roles` keyed by version; Save is its write | as built 2026-11-18 |
 | Audit Logs | `audit` keyed `all` (the newest 100 rows); older pages and Check chain by `once` (`audit`, `audit.verify`) | as built 2026-11-18 |
 | Chat | `health`, `catalog`, `sandbox` keyed by EHR, `resources` keyed by call (a poll while a call is live); a call's events by `once` (never kept: as built) | each read on its own; `RESOURCES_LIVE_MS` timer |

@@ -71,7 +71,7 @@
   color: var(--text-3);
 }
 
-/* "View only" (docs/ideas/ACCESS-ROLES.md §5, fork 3A): your role reads this page and cannot
+/* "View only" (docs/architecture/ACCESS-ROLES.md §5, fork 3A): your role reads this page and cannot
    change it. On Config's title row and Security › Auth's. A role chip's look. */
 .view-only {
   flex: none;

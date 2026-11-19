@@ -93,7 +93,7 @@ in B (the hospital's cloud account).
 
 ## 7. Not now (each waits for its own work)
 > **Part:** idea · 2026-11-13 — the editor's design is now built (CONSOLE.md §9); the rest waits.
-- Who may edit which sections (ideas/ACCESS-ROLES.md, the owner's design).
+- Who may edit which sections (ACCESS-ROLES.md: built 2026-11-18, the Agent lever covers every section; per section is later).
 - Whether a deploy needs the kept scripts to pass before a version becomes current.
 - The editor's design: its place in the nav, one box for the whole file or one per section,
   the save control.

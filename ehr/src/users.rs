@@ -5,7 +5,7 @@
 //! `SealKey::lookup`). A removal sets `removed_at` and keeps the row for the audit log. Every
 //! error is a fixed string; none carries an email or a name.
 //!
-//! Who may change whom is access.rs's (docs/ideas/ACCESS-ROLES.md §5): the caller checks it
+//! Who may change whom is access.rs's (docs/architecture/ACCESS-ROLES.md §5): the caller checks it
 //! first (service.rs). Each change here writes its audit row in the same transaction (audit.rs;
 //! §5.1), and each card save keeps the card as saved in `user_card_versions`, so a change has a
 //! before and an after. `who`: the person making the change, or None for the system.
@@ -681,7 +681,7 @@ pub async fn admit(store: &Store, email: &str) -> Result<Option<String>, UsersEr
 /// Brings in the emails already in Cloudflare's group that the list does not have (people added
 /// in Cloudflare's dashboard), with their email as their name until someone renames them. On an
 /// empty list with exactly one email, that person is the owner: the group was made with the
-/// owner's email alone (DEMO.md §7), and gets Deets (docs/ideas/ACCESS-ROLES.md §5); everyone
+/// owner's email alone (DEMO.md §7), and gets Deets (docs/architecture/ACCESS-ROLES.md §5); everyone
 /// else comes in with no role. Returns how many were added. A removed person is not brought
 /// back: the agent takes them out of the group instead.
 pub async fn seed(store: &Store, emails: &[String]) -> Result<u32, UsersError> {

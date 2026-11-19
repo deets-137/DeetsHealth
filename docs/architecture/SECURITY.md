@@ -186,7 +186,9 @@ call loop; the sealed store.
 - **Roles (a draft for the owner to edit):** admin (settings, recording rules, roles),
   supervisor (call log, transcripts), viewer (call log and dashboards, no transcripts), auditor
   (the audit trail). These are examples only: each role is custom, named by the hospital and
-  built from levers (the owner, 2026-11-12; open ended, ideas/ACCESS-ROLES.md).
+  built from levers (the owner, 2026-11-12). Built 2026-11-18 with the templates of
+  ACCESS-ROLES.md §4, enforced in `ehr` and the dev server, every change and refusal in a chained
+  audit trail (ACCESS-ROLES.md §5, §5.1).
 - **Each transcript view, recording play and export is a row in the audit trail.**
 - **Our own staff have no standing access to a hospital's protected data.** Support uses
   time-limited emergency access that the hospital approves and that is audited.
@@ -314,8 +316,10 @@ Every value in the system is still synthetic (§4.8). No BAA is signed and no re
 
 **Not built**
 - The call back and the random chart question (§4.4).
-- Staff single sign-on, roles and emergency access (§4.10). `users.role` is not read.
-- The audit trail: the `audit` table is in the schema, and nothing writes to it.
+- Staff single sign-on and emergency access (§4.10). Roles are built (2026-11-18,
+  ACCESS-ROLES.md): `ehr` and the dev server refuse what a person's roles do not allow.
+- The audit trail's write-once copy and its export to a hospital's SIEM. The trail itself is
+  built (2026-11-18, DATABASE.md §11): every staff change, refusal and look, hash-chained.
 - Retention and deletion (§4.7).
 - A panic hook in `ehr` (§4.5). Designed: EHR-SERVICE.md §7a.
 - Recordings: none are kept.

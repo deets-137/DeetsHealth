@@ -1,4 +1,4 @@
-//! The staff audit trail (docs/ideas/ACCESS-ROLES.md §5.1; migration 0012).
+//! The staff audit trail (docs/architecture/ACCESS-ROLES.md §5.1; migration 0012).
 //!
 //! Each row records who did what with their access, or was refused: the person, their roles and
 //! the roles version, the lever and level, the action, the object (an id only), the names of the

@@ -1,16 +1,18 @@
 ---
-status: idea
-desk_test: none
-sources: [console/src/pages/roles.ts]
-updated: 2026-11-18
+status: built
+desk_test: passed 2026-11-19
+sources: [ehr/migrations/0011_roles.sql, ehr/migrations/0012_audit.sql, ehr/src/access.rs, ehr/src/audit.rs, ehr/src/service.rs, agent/deets_agent/identity.py, agent/deets_agent/dev_server.py, console/src/access.ts, console/src/nav.ts, console/src/pages/roles.ts, console/src/pages/auth.ts, console/src/pages/audit.ts]
+updated: 2026-11-19
 ---
-# DeetsHealth — Access levels by role (idea)
+# DeetsHealth — Access levels by role
 
-> Not built, and open ended on purpose. **The owner designs and builds this** (2026-11-12).
-> This doc holds his direction, his decisions, and a place to collect the levers as they
-> appear. Since 2026-11-14 it also holds his first role templates (§4), as a draft. Since
-> 2026-11-15 it holds his forks on enforcing roles (§5) and the scope of the build (§6). Since
-> 2026-11-18 it holds the audit trail with the roles (§5.1).
+> **Built 2026-11-18, all three hand-overs (§6 "As built"); the owner's desk test passed
+> 2026-11-19** ("looks good for now"). Moved from `docs/ideas/` the same day. **The owner designs
+> this** (2026-11-12): his direction, his decisions, and a place to collect the levers as they
+> appear. §4: his role templates. §5: his forks on enforcing roles. §5.1: the audit trail with
+> the roles. §6: the build and what was decided inside it. §7: the routes' levers, his to edit.
+> Open, his: the Audit Logs page's look; what PHI Edit allows beyond View; whether Test gets a
+> lever of its own; staff sign-in as the next source (STAFF-SIGN-IN.md).
 
 ## 1. Terms
 - **Role** — a set of access that a hospital creates and names itself.
@@ -45,8 +47,8 @@ refuse, with a link to where it appears.
 - Approve a change to what callers hear (STAFF-SIGN-IN.md §5, M8).
 
 ## 4. The templates (a draft, 2026-11-14)
-> **Part:** idea · 2026-11-14 — shown on Security › Roles (`console/src/pages/roles.ts`),
-> not wired to a store.
+> **Part:** built · 2026-11-18 · desk test passed 2026-11-19 — the Default roles version
+> (migration 0011), edited on Security › Roles (`console/src/pages/roles.ts`).
 
 **Decided (the owner, 2026-11-14):** each lever has three levels: **None**, **View**, **Edit**.
 (Not chosen: on / off, and a fourth level, Propose, where a change waits for approval.)
@@ -95,7 +97,7 @@ Edit on every lever, so it covers every template and its holder may grant any of
 fork of §6 "As built"). Until 2026-11-18 Deets had PHI None.
 
 ## 5. Enforcing roles: the forks and the answers
-> **Part:** designed · 2026-11-15 · the owner
+> **Part:** built · 2026-11-18 · desk test passed 2026-11-19 · the owner's forks
 
 Brought 2026-11-15. **Enforce** means the server refuses a request that the user's roles do
 not allow, not only the console's screen.
@@ -146,7 +148,7 @@ not allow, not only the console's screen.
   M6) wait for a hospital deploy.
 
 ### 5.1 The audit trail, with the roles
-> **Part:** designed · 2026-11-18 · the owner's ask, Claude's design (no fork left)
+> **Part:** built · 2026-11-18 · desk test passed 2026-11-19 · the owner's ask, Claude's design (no fork left)
 
 **His ask (2026-11-18):** "integrating audit trails with our RBAC build, ie tracking which user
 made a change, what change, and what they did with their role logged as well as time". The
@@ -194,7 +196,7 @@ kept (SECURITY.md's draft: 6 years), the write-once copy and the SIEM export (at
 what an exported row may carry (STAFF-SIGN-IN.md §8).
 
 ## 6. The build, scoped
-> **Part:** designed · 2026-11-15 · not started
+> **Part:** built · 2026-11-18 (commit `0f417e0`) · desk test passed 2026-11-19
 
 **One build, all three parts at once** (the owner, 2026-11-15: "can aim to build all three
 handovers at once and test along the path at reasonable points"), locally on this PC. The
@@ -361,8 +363,9 @@ Decided inside his choices (Claude, 2026-11-18; listed so nothing ships unseen):
 Staff sign-in (STAFF-SIGN-IN.md §10) as a new source behind the seam: OIDC on an Entra test
 tenant first.
 
-## 7. Draft: each route's lever (for the owner to edit)
-> **Part:** idea · 2026-11-15 — Claude's draft
+## 7. Each route's lever (for the owner to edit)
+> **Part:** built · 2026-11-18 — Claude's draft, built as drafted (`dev_server.py ›
+> ROUTE_NEEDS`; DEV-API.md §2a is the table as built). Edit both together.
 
 | Route | Lever and level |
 |---|---|
@@ -391,8 +394,8 @@ Also in the code but not in the ledger yet: `GET /agent/hospital` and `POST /age
 (the hospital settings, uncommitted on 2026-11-15). Draft: Rules View and Rules Edit.
 
 ## 8. The code map
-> **Part:** designed · 2026-11-15 · read against the tree of 2026-11-15 (main at `8a4e234`,
-> with the uncommitted hospital settings work)
+> **Part:** built · 2026-11-18 · the plan as it was read against the tree of 2026-11-15 (main
+> at `8a4e234`). Where the build differs, §6's "As built" notes say so; they are the code.
 
 Every file to add or change, by part. "New" is a file to add. A name in backticks is a symbol
 in the code today, unless it is marked new.

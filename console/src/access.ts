@@ -1,4 +1,4 @@
-// What you may do in the console (docs/ideas/ACCESS-ROLES.md §5, §6 Hand-over 3). Every page and
+// What you may do in the console (docs/architecture/ACCESS-ROLES.md §5, §6 Hand-over 3). Every page and
 // the nav ask here; none reads the `me` store itself. The server refuses what a role does not
 // allow either way (dev_server.py › ROUTE_NEEDS, ehr's RPC_LEVERS): this only keeps the console
 // from offering it.

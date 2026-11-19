@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-18
+updated: 2026-11-19
 ---
 # DeetsHealth — Work log
 
@@ -63,6 +63,13 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   built".
 - Checks: `npm run check:all` (15 steps, lints too) and `npm run db:test` pass. Not committed;
   not run in a browser.
+- His word: "Commit now." Committed `0f417e0` (the three hand-overs, 46 files).
+- 2026-11-19, his word: "cool looks good for now. let's update all our docs, mark desk test done,
+  and commit/push". The roles desk test (CONSOLE.md §13.1) is passed. ACCESS-ROLES.md moved to
+  `docs/architecture/` (built; `docs-move.mjs`), its parts marked built; SECURITY.md (roles and the
+  trail no longer "not built"), FUTURE-SETTINGS.md, PROMPT-EDITOR.md, DEMO.md, DATABASE.md §11,
+  CONSOLE.md §3 and §13, HANDOFF.md and CLAUDE.md's doc list follow. The migrations keep their old
+  path in a comment: sqlx checksums them, and they have run.
 - Checks: 143 unit tests, 8 store tests, clippy, cargo-deny bans pass. `docs:check` 13 fails
   on the six new RPCs (no agent method yet), as checkpoint 2 expects. Not committed.
 

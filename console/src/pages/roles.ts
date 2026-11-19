@@ -1,4 +1,4 @@
-// Security › Roles (docs/ideas/ACCESS-ROLES.md; the owner, 2026-11-14 for the look, 2026-11-15
+// Security › Roles (docs/architecture/ACCESS-ROLES.md; the owner, 2026-11-14 for the look, 2026-11-15
 // for the rules): the roles as tables, in Auth's look (auth.css), wired to the `roles` store
 // (Hand-over 3, 2026-11-18).
 //

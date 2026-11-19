@@ -48,7 +48,7 @@ hospital or a patient that the agent can do any of these things. The patient app
   the command line, a remote MCP server), under the same sign-in, roles and audit trail. The
   CLI first, for us to debug; the MCP server later, for a hospital's analysts. No protected
   data through MCP unless the hospital turns it on for one client its own BAA covers.
-- **Access levels by role** (the owner, 2026-11-12): [ACCESS-ROLES.md](ACCESS-ROLES.md).
+- **Access levels by role** (the owner, 2026-11-12): [ACCESS-ROLES.md](../architecture/ACCESS-ROLES.md).
   Open ended; the owner designs and builds it. Each role is custom: a hospital creates and
   names it, built from levers that become clear as we build. The doc collects the levers.
 - **Staff sign-in and access control** (the owner, 2026-11-12: "keep it in ideas/ until we

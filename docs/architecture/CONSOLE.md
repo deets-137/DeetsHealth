@@ -104,9 +104,9 @@ web app cannot do.
   - Security: **Auth**, **Roles**. Auth is built (2026-11-14, `pages/auth.ts`): who may sign
     in as a table that can be edited, a panel under each row (ops/DEMO.md §7). Roles (2026-11-14, `pages/roles.ts`,
     `styles/roles.css`) is the role templates as a table in Auth's look: one row per role, one
-    column per lever, each cell None, View or Edit ([ideas/ACCESS-ROLES.md](../ideas/ACCESS-ROLES.md)
-    §4). A click on a cell moves it to the next level. Nothing is saved: a reload puts back
-    the draft. Two tables, each with its title above it: **Customer** (the hospital's six
+    column per lever, each cell None, View or Edit ([ACCESS-ROLES.md](ACCESS-ROLES.md)
+    §4). A click on a cell moves it to the next level. *(Since 2026-11-18 the tables read the
+    roles store and Save makes a new version: §13.)* Two tables, each with its title above it: **Customer** (the hospital's six
     roles), then **DeetsHealth Team** (our two); no page title and no status line (the owner's
     sketch, 2026-11-14). **Add** at the right of each title (the owner, 2026-11-14) puts a new
     role at that table's foot: its name the placeholder "Role name", every lever None, its
@@ -1020,7 +1020,7 @@ Sonic: 1 credit per character"](images/config-rates-2026-11-13.png)
   ran and the tests pass.
 
 ### 9.4 Open
-- Who may edit which sections (ideas/ACCESS-ROLES.md); each hospital's own sections on top of
+- Who may edit which sections (ACCESS-ROLES.md: today the Agent lever covers every section); each hospital's own sections on top of
   ours; an analyst's draft and its test before it is used (PROMPT-EDITOR.md §7, §8).
 - **Make active** for an older version, as on the other pages (§7.6).
 - The old replies Record and test leaves behind (each changed request is a new file in
@@ -1242,7 +1242,7 @@ with DeetsMusic's build list (CLAUDE.md › Working style).
    row, with a 118-option select in each.
 
 ## 13. Access by role in the console
-> **Part:** built · 2026-11-18 · desk test open. docs/ideas/ACCESS-ROLES.md §6, Hand-over 3;
+> **Part:** built · 2026-11-18 · desk test passed 2026-11-19. ACCESS-ROLES.md §6, Hand-over 3;
 > the owner's fork 3A (2026-11-15): None hides, View reads with a "View only" mark, Edit edits.
 
 - **One place asks:** `access.ts` reads the `me` store (`GET /agent/me`) and answers `may(lever,

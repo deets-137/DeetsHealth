@@ -1,4 +1,4 @@
-// "No role yet" (docs/ideas/ACCESS-ROLES.md §5: deny by default). A person on the list who holds
+// "No role yet" (docs/architecture/ACCESS-ROLES.md §5: deny by default). A person on the list who holds
 // no role sees this page and Settings only, until someone with Roles Edit grants one on
 // Security › Auth. The nav moves here, and away again, on its own (nav.ts, access.ts).
 import { el, type Page } from "./page";

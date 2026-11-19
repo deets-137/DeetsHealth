@@ -83,7 +83,7 @@ async fn ledgered<T: Send + 'static>(
     .map_err(|_| Status::internal("the EHR request stopped"))
 }
 
-/// What an RPC needs from its caller (docs/ideas/ACCESS-ROLES.md §5, §8.1).
+/// What an RPC needs from its caller (docs/architecture/ACCESS-ROLES.md §5, §8.1).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Need {
     /// The call loop: no person. A call is bound to its caller by its handle (session.rs).
@@ -243,7 +243,7 @@ impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
         status
     }
 
-    /// The gate every RPC passes first (docs/ideas/ACCESS-ROLES.md §5): who the request names
+    /// The gate every RPC passes first (docs/architecture/ACCESS-ROLES.md §5): who the request names
     /// (`deets-actor`) and whether they hold what `rpc` needs (`RPC_LEVERS`). Some(person) for a
     /// person; None where no person is needed or the agent acts on its own. ehr reads the
     /// person's levels from the store itself, never from the request. A refusal is audited.
@@ -2402,7 +2402,7 @@ mod tests {
     }
 
     /// Every `rpc` in ehr.proto has its row in RPC_LEVERS, and every row names an RPC that
-    /// exists (docs/ideas/ACCESS-ROLES.md §8.1).
+    /// exists (docs/architecture/ACCESS-ROLES.md §8.1).
     #[test]
     fn every_rpc_names_what_it_needs() {
         let proto = include_str!("../proto/deets/ehr/v1/ehr.proto");

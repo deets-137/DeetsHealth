@@ -27,7 +27,7 @@ updated: 2026-11-14
 ## 1. The owner's choices (2026-11-13)
 - "imagine my friends are analysts and I want to give them full demo / full access."
 - "pretend they are like me in terms of access. We can worry more when we set up RBAC." No
-  spend cap for now. Roles come with staff sign-in ([ideas/ACCESS-ROLES.md](../ideas/ACCESS-ROLES.md)).
+  spend cap for now. Roles came on 2026-11-18 ([ACCESS-ROLES.md](../architecture/ACCESS-ROLES.md)): a guest now needs one (§3.5).
 - **Several calls at once** (fork A): "this can help us test the PHI tab with each analyst / me
   spectating each others and also testing their own."
 - **The address:** "deetshealth.deets.solutions/demo".
@@ -432,7 +432,7 @@ and the view as drafted, "will mess with it more when we implement RBAC"):
   - The email is **editable**. Save asks "Confirm?" first when the email changed: it moves who
     can sign in. Then the group is written again and the old email's Access sessions end.
     Another person's email, or a removed person's, is refused.
-- **Since roles (2026-11-18; docs/ideas/ACCESS-ROLES.md §6, Hand-over 2):** a guest is no
+- **Since roles (2026-11-18; docs/architecture/ACCESS-ROLES.md §6, Hand-over 2):** a guest is no
   longer "like the owner". A new guest has no role and gets only `GET /agent/me` and
   `GET /agent/health` until someone with Roles Edit grants one; adding a guest needs People Edit;
   editing a card needs People Edit and the person at or below you (DEV-API.md §2a). The owner

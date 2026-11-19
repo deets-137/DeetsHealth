@@ -1,4 +1,4 @@
-//! Roles and what they allow (docs/ideas/ACCESS-ROLES.md §4, §5; migration 0011).
+//! Roles and what they allow (docs/architecture/ACCESS-ROLES.md §4, §5; migration 0011).
 //!
 //! A role is a set of **levels**, one per **lever** (None < View < Edit). A person holds any
 //! number of roles; on each lever they have the highest level of their live roles (the owner's

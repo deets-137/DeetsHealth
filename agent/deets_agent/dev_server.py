@@ -138,7 +138,7 @@ TOKEN_HEADER = "x-deets-token"
 # launch token; else a guest's email. What they may do is `Principal`'s (identity.py).
 OWNER = "owner"
 
-# What each route needs (docs/ideas/ACCESS-ROLES.md §7; DEV-API.md §2a, which a test compares): a
+# What each route needs (docs/architecture/ACCESS-ROLES.md §7; DEV-API.md §2a, which a test compares): a
 # lever and a level, or None for any person signed in. The wall checks it before the route runs,
 # and `build_app` refuses to start with a route that is not here. The fake Twilio has its own
 # check (ehr, not a person): `TWILIO`.
@@ -1125,7 +1125,7 @@ def build_app(state: State) -> FastAPI:
         """Deletes a person's picture."""
         return await _photo_change(state, request, person_id, None)
 
-    # ---- access by role and the audit trail (docs/ideas/ACCESS-ROLES.md §5, §5.1, §6) ----
+    # ---- access by role and the audit trail (docs/architecture/ACCESS-ROLES.md §5, §5.1, §6) ----
 
     @app.get("/agent/me")
     async def me(request: Request):

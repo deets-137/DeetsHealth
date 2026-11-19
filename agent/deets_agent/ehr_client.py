@@ -8,7 +8,7 @@ values, which is one of the few places that may `reveal()` them.
 Errors become an `EhrError` with a kind. The server's error text is fixed and PHI-free, but it
 is dropped anyway: the agent acts on the kind only.
 
-**Who is asking** (docs/ideas/ACCESS-ROLES.md §5; EHR-SERVICE.md §3). Every staff call carries
+**Who is asking** (docs/architecture/ACCESS-ROLES.md §5; EHR-SERVICE.md §3). Every staff call carries
 the person behind it in the gRPC metadata `deets-actor`: their user id, from `ACTOR`, which the
 dev server sets for each request (identity.py). Code that acts on its own, with no person
 behind it (the start-up sync, a call reading its settings), runs inside `as_system()`. ehr
@@ -668,7 +668,7 @@ class EhrClient:
                 raise _NoStore from None
             raise _staff_error(e, name) from None
 
-    # ---- access by role and the audit trail (docs/ideas/ACCESS-ROLES.md §5, §5.1) ----
+    # ---- access by role and the audit trail (docs/architecture/ACCESS-ROLES.md §5, §5.1) ----
 
     async def levels(self) -> dict[str, Any]:
         """The person in `ACTOR`: their id, live role ids, the roles version and the level on

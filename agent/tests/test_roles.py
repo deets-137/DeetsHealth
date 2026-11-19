@@ -1,4 +1,4 @@
-"""Access by role in the dev server (docs/ideas/ACCESS-ROLES.md §5, §6 Hand-over 2): every route
+"""Access by role in the dev server (docs/architecture/ACCESS-ROLES.md §5, §6 Hand-over 2): every route
 names what it needs, the wall refuses by lever and level, the person travels to ehr on every
 staff call, and the ledger (DEV-API.md §2a) is the code's. ehr is a fake here: its own rules
 and the audit trail are tested in ehr (ehr/tests/store.rs)."""

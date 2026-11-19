@@ -108,7 +108,7 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `LogAccess` | `log_access` | `log_access` |
 | `ImportPlaces` | `import_places` | `import_places` |
 
-**Who is asking** (docs/ideas/ACCESS-ROLES.md §5, §8.1; built 2026-11-18, Hand-over 1). Every
+**Who is asking** (docs/architecture/ACCESS-ROLES.md §5, §8.1; built 2026-11-18, Hand-over 1). Every
 RPC names what it needs in one table, `service.rs › RPC_LEVERS`; a test fails when an `rpc` has
 no row. The person behind a staff request travels in the gRPC metadata `deets-actor` (their user
 id), never in a message. `ehr` reads that person's levels from the store itself (`access.rs ›

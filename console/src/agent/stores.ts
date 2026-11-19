@@ -7,7 +7,7 @@ import { keyed, store } from "./store";
 /** Security › Auth and Teams › People: one list for both. */
 export const people = store("people", () => api.people(), { focus: true });
 
-/** Who you are and what you may do (docs/ideas/ACCESS-ROLES.md §6): read on start and when the
+/** Who you are and what you may do (docs/architecture/ACCESS-ROLES.md §6): read on start and when the
  * window comes back; the nav and every page ask access.ts, never this store. */
 export const me = store("me", () => api.me(), { focus: true });
 /** Security › Roles, by version (0: the active one). */

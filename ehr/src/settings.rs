@@ -43,7 +43,7 @@ pub enum Kind {
     /// One of the hospital's lists or numbers (HOSPITAL-CONFIG.md), checked by hospital.rs ›
     /// `check_key` under its own name.
     Hospital,
-    /// The roles list (docs/ideas/ACCESS-ROLES.md), checked by access.rs › `roles_from`.
+    /// The roles list (docs/architecture/ACCESS-ROLES.md), checked by access.rs › `roles_from`.
     Roles,
 }
 
@@ -295,7 +295,7 @@ pub const HOSPITAL: &[Setting] = &[
     s("booking_rules", Kind::Hospital),
 ];
 
-/// The roles (docs/ideas/ACCESS-ROLES.md §4; migration 0011): one setting, the list.
+/// The roles (docs/architecture/ACCESS-ROLES.md §4; migration 0011): one setting, the list.
 pub const ROLES: &[Setting] = &[s("roles", Kind::Roles)];
 
 /// The lever a service's settings sit under (ACCESS-ROLES.md §8.1): who may read and save them.
@@ -793,7 +793,7 @@ fn changed_keys(before: &[(String, String)], after: &[(&str, Value)]) -> Vec<Str
 /// service), active only when nothing is active yet. The day's number comes under a lock, so two
 /// saves at once never share one.
 ///
-/// `who`: the person saving (docs/ideas/ACCESS-ROLES.md §5.1), or None for the system (a seed,
+/// `who`: the person saving (docs/architecture/ACCESS-ROLES.md §5.1), or None for the system (a seed,
 /// the prompt file synced). The version's `created_by` is their user id; with no person, `by`.
 /// The audit row (the names of the settings that changed, the versions before and after) is
 /// written in the same transaction.

@@ -152,6 +152,10 @@ the branch `archive/patient-app`.
 - `SYSTEM-PAGE.md` — Config › System: the System variables (the clinic's, and the
   analyst's own), the code values, the tools; the `{` and " ." lists on Config › Agent; the
   checks; the rules engine idea.
+- `ACCESS-ROLES.md` — access by role and the staff audit trail (built 2026-11-18, desk test
+  passed): the owner's levers and role templates, his forks, the rules (`ehr/src/access.rs`),
+  the chained audit trail (`audit.rs`), each route's lever, and what was decided inside each of
+  the three hand-overs. The owner designs the roles; a new route or RPC names its lever there.
 - `HOSPITAL-CONFIG.md` — Config › Hospital (built): the hospital's own lists and numbers
   (visit types, groups, reasons as codes, the time zone, times of day, hours, closed days,
   locations, specialties, how slots are offered and visits found), one hospital for every EHR
@@ -195,7 +199,6 @@ the branch `archive/patient-app`.
 - `CONSOLE-MCP.md` — a CLI and a remote MCP server on the console's staff API: one API, three
   clients, the same roles and audit; protected data off unless a hospital's BAA covers the
   client; setting changes as drafts.
-- `ACCESS-ROLES.md` — access levels by role, open ended: the owner designs and builds it.
   Custom-named roles built from levers; a list of the levers seen so far.
 - `STAFF-SIGN-IN.md` — staff sign-in through the hospital's IdP (Entra ID, Okta): what HIPAA,
   the Joint Commission, ISO 27001, SOC 2, HITRUST and NIST ask of staff access; the modules

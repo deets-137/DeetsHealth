@@ -18,7 +18,7 @@
 //   save: each empty box's title and Save turn red, and the status names the boxes. A second
 //   Save saves the card as it is. A card with no email cannot sign in until one is added; a
 //   saved email can be changed, not cleared.
-// - Roles (docs/ideas/ACCESS-ROLES.md §5, §8.3): the Role cell names the person's roles. In the
+// - Roles (docs/architecture/ACCESS-ROLES.md §5, §8.3): the Role cell names the person's roles. In the
 //   panel, at Roles Edit, each role is a chip with ✕ (revoke) and a list adds one (grant); your
 //   own row has neither (no one changes their own roles). ehr refuses what its rules do not
 //   allow, and the panel shows its reason. A changed email asks "Confirm?" before it saves: it

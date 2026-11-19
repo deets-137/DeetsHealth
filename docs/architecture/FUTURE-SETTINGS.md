@@ -90,8 +90,8 @@ drafted in [GLOBALS.md](../archive/GLOBALS.md).
   (VOICE-AGENT.md §8.7).
 
 **Access and keys**
-- The staff roles: custom, named by the hospital, built from levers. Open ended; the owner
-  designs it. Not built (ideas/ACCESS-ROLES.md; SECURITY.md §4.10).
+- The staff roles: custom, named by the hospital, built from levers. Built 2026-11-18
+  (ACCESS-ROLES.md; SECURITY.md §4.10): a hospital edits its roles on Security › Roles.
 - Bring your own key: the hospital holds its key and may revoke it. Not built (SECURITY.md
   §4.6).
 - Emergency support access for our staff, which the hospital approves. How it approves is
@@ -269,7 +269,7 @@ of staff flag.
   joins the call, a transfer when the task ends, an EHR in-basket message, a chart note, a
   call-back task); whether someone must acknowledge it; what happens if no one does within a
   set time.
-- **Who may read the notes:** the roles (ideas/ACCESS-ROLES.md), and how long flags are kept
+- **Who may read the notes:** the roles (ACCESS-ROLES.md: the Flags lever), and how long flags are kept
   (§ Records kept).
 - **Overrides for each clinic** inside the hospital (§6).
 

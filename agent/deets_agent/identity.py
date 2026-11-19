@@ -1,4 +1,4 @@
-"""Who a request is, and what they may do (docs/ideas/ACCESS-ROLES.md §5, §6 Hand-over 2).
+"""Who a request is, and what they may do (docs/architecture/ACCESS-ROLES.md §5, §6 Hand-over 2).
 
 The seam for staff sign-in: one interface, `Identity.who(headers)`, and one source per way in.
 Each source turns a request into a person on the People list (their user id); ehr then gives
