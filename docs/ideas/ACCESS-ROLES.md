@@ -2,14 +2,15 @@
 status: idea
 desk_test: none
 sources: [console/src/pages/roles.ts]
-updated: 2026-11-15
+updated: 2026-11-18
 ---
 # DeetsHealth — Access levels by role (idea)
 
 > Not built, and open ended on purpose. **The owner designs and builds this** (2026-11-12).
 > This doc holds his direction, his decisions, and a place to collect the levers as they
 > appear. Since 2026-11-14 it also holds his first role templates (§4), as a draft. Since
-> 2026-11-15 it holds his forks on enforcing roles (§5) and the scope of the build (§6).
+> 2026-11-15 it holds his forks on enforcing roles (§5) and the scope of the build (§6). Since
+> 2026-11-18 it holds the audit trail with the roles (§5.1).
 
 ## 1. Terms
 - **Role** — a set of access that a hospital creates and names itself.
@@ -140,6 +141,54 @@ not allow, not only the console's screen.
   one `users` table. The hospital's approval and time limit for a Team role (STAFF-SIGN-IN.md
   M6) wait for a hospital deploy.
 
+### 5.1 The audit trail, with the roles
+> **Part:** designed · 2026-11-18 · the owner's ask, Claude's design (no fork left)
+
+**His ask (2026-11-18):** "integrating audit trails with our RBAC build, ie tracking which user
+made a change, what change, and what they did with their role logged as well as time". The
+design of §5 and §6 had who, the lever, the object and the time. It did not have what changed,
+or which role gave the access. The fork test left one option for each point below, so none was
+asked. He saw this list before it was written here.
+
+1. **Which role gave the access.** Each row holds the ids of the actor's live roles at that
+   moment and the id of the active roles version. Roles are versioned, so a reader can see what
+   each role allowed on that day, also after a later edit.
+2. **What changed: field names in the row, values from the versions.** A change row lists the
+   names of the fields that changed (for example `task.verify`, `line.ask_reason`) and points to
+   the version before and the version after. The audit page shows the change from the two
+   versions. Not chosen: the values in the row. A people change would then put a staff name or
+   email in the hash chain and in a SIEM export, for no gain on the page.
+3. **Every audited object keeps its "before".** Settings are versioned today. `user_roles`
+   rows are never deleted (§6). A person's card gets a history table (one row per save), so a
+   card change also has a before and an after. A removal already keeps the row (`removed_at`,
+   `users.rs`), so an old row can always name its actor.
+4. **What is logged: all that a person does with their access.**
+   - Each change: settings saves and Make active, role saves, grants and revokes, people
+     changes, annotations.
+   - Each refusal (the lever and level that were missing).
+   - Each look at protected data: a transcript view, a recording played, a live call watched,
+     an export (SECURITY.md §4.10).
+   - Each page opened, and each Test run (it spends tokens).
+   - Not each poll: one row per page opened, not per two-second read.
+   - The audit page opens on Changes, with a filter for the rest.
+5. **The time** is the database's `now()`, stored in UTC: one clock for every row. The page
+   shows the reader's local time.
+6. **Where a row is written:** in `ehr`, in the same transaction as the change. A change with
+   no row, or a row with no change, cannot be stored. The agent never writes the database.
+7. **The source** of each row: a person, the call loop, the system (seeds, migrations); later
+   staff sign-in and SCIM (STAFF-SIGN-IN.md M4).
+8. **One chain, never reset.** The staff audit is one table in the shared schema, with a
+   `data_class` column (synthetic or real) for the rows about a call. Resetting the synthetic
+   data never touches it. The two empty `synthetic.audit` and `real.audit` tables (0001, 0010;
+   nothing writes them) are dropped.
+9. **Small corrections to §6 and §8:** `setting_versions.created_by` holds the actor's user id,
+   not `"dev"`. The migrations are 0011 (roles) and 0012 (audit): 0010 is now
+   `0010_data_classes.sql`.
+
+Later, each in its own work: the audit page's look (a fork when it is built), how long rows are
+kept (SECURITY.md's draft: 6 years), the write-once copy and the SIEM export (at a deploy), and
+what an exported row may carry (STAFF-SIGN-IN.md §8).
+
 ## 6. The build, scoped
 > **Part:** designed · 2026-11-15 · not started
 
@@ -151,15 +200,17 @@ each took one sitting): about 2 sittings to build, 1 to fix after the desk test.
 counts in the part titles are a team's without Claude, kept for comparison. **Cost: none** (no FHIR calls, no minutes, no tokens).
 
 ### Hand-over 1 — the store and `ehr` (about 6 days)
-1. **Migration 0010** (0009 is the uncommitted hospital settings). A `roles` settings service:
+1. **Migration 0011** (0010 is `0010_data_classes.sql`, §5.1). A `roles` settings service:
    a versioned list of `{id, name, domain, levels}`, the id stable across versions. A
    `user_roles` table: `user_id`, `role_id`, `granted_by`, `granted_at`, `revoked_at` (a row is
    never deleted). `users.role` is dropped. Seeded with the nine templates of §4; the `owner`
    row gets Deets; every other person gets no role (deny by default).
-2. **Migration 0011, the audit table.** One row per event: when, who (the user id), the lever
-   and level used, the object (a call id, a user id, a role id; never a name or an email), the
-   result (allowed or refused), and the hash of the row before it. A database trigger refuses
-   UPDATE and DELETE. `audit.rs` writes the rows and checks the chain.
+2. **Migration 0012, the audit table.** One row per event: when, who (the user id), the
+   actor's roles and the roles version, the lever and level used, the object (a call id, a user
+   id, a role id; never a name or an email), the fields changed and the versions before and
+   after, the result (allowed or refused), and the hash of the row before it (§5.1). A database
+   trigger refuses UPDATE and DELETE. `audit.rs` writes the rows and checks the chain. A
+   history table for people's cards (§5.1, point 3).
 3. **`ehr/src/access.rs`:** a user's levels (the highest per lever across their live roles);
    `may(actor, lever, level)`; the conflict rule; the "at or below you" rule; the last-Deets
    guard. Unit tests for each rule.
@@ -168,7 +219,8 @@ counts in the part titles are a team's without Claude, kept for comparison. **Co
    its lever and level in one table; a test fails when an RPC has no entry. New RPCs:
    `ListRoles`, `SaveRoles`, `GrantRole`, `RevokeRole`, `Levels` (one user's), `ReadAudit`.
    EHR-SERVICE.md §3's RPC ledger gets a row for each.
-5. Audit rows: each grant, revoke, role save, people change, and each refusal.
+5. Audit rows: each grant, revoke, role save, settings save, people change, and each refusal;
+   each look at protected data, page opened and Test run (§5.1, point 4).
 
 Desk test: `cargo test` for the rules; `npm run check`.
 
@@ -252,16 +304,16 @@ in the code today, unless it is marked new.
 ### 8.0 Before the session starts
 - **Run locally on this PC** (the owner, 2026-11-15: "we'll run it in the morning locally"),
   not in a cloud session.
-- **Commit the Config › Hospital work first.** It holds `0009_settings_hospital.sql`,
-  `settings.rs`, `store.rs` and the `/agent/hospital` routes (with their missing DEV-API.md
-  rows). The roles build then starts from a clean tree, and its commit holds only roles.
-- Stop `npm run dev` before a full check (it locks the `ehr` exe). The tests use the fakes that
+- **Start from a clean tree.** Done 2026-11-18: the Config › Hospital work is committed, and
+  so is everything after it (`fe5828a`). The roles build's commits hold only roles.
+- A full check runs with the dev server on since 2026-11-16 (it runs a copy of `ehr` from
+  `target/run/`). The tests use the fakes that
   exist (`agent/tests/test_demo_door.py`'s Access fakes) and the local Postgres. The owner's
   desk test is the last checkpoint.
 
 ### 8.1 Part 1 — the store and `ehr` (Rust)
 **Migrations (`ehr/migrations/`)**
-- **New `0010_roles.sql`:**
+- **New `0011_roles.sql`** (0010 is taken, §5.1):
   - Adds `'roles'` to the two `CHECK (service IN …)` lists, as `0006_settings_system.sql`
     does for `'system'`.
   - `settings_roles (version_id, key, value jsonb)` with the insert-only triggers, copied
@@ -272,13 +324,18 @@ in the code today, unless it is marked new.
     pair: a partial unique index `WHERE revoked_at IS NULL`.
   - Drops `users.role`. Keeps `users.owner`, with a new comment: it says which row the launch
     token speaks for, nothing more.
-- **New `0011_audit.sql`:**
-  - `audit (seq bigserial, at timestamptz, actor uuid, source text, lever text, level text,
-    action text, object_kind text, object_id text, allowed boolean, prev_hash bytea, hash
-    bytea)`.
+- **New `0012_audit.sql`** (§5.1):
+  - `public.staff_audit (seq bigserial, at timestamptz DEFAULT now(), actor uuid, source text,
+    roles text[], roles_version bigint, lever text, level text, action text, object_kind text,
+    object_id text, data_class text, fields text[], before_version bigint, after_version bigint,
+    allowed boolean, prev_hash bytea, hash bytea)`. The name is the builder's to settle.
   - A trigger that refuses UPDATE, DELETE and TRUNCATE, as `settings_insert_only` does.
   - No name, email or patient value in any column. `object_id` holds a call id, a user id or a
-    role id.
+    role id; `fields` holds field names only.
+  - `user_profile_versions`: one row per save of a person's card, so a card change has a
+    before and an after.
+  - Drops the empty `synthetic.audit` and `real.audit`.
+  - `setting_versions.created_by` takes the actor's user id.
 
 **`ehr/src/settings.rs`**
 - `service()`: add `"roles" => Some(("roles", ROLES, "settings_roles"))`, with a `ROLES` list
@@ -344,7 +401,7 @@ in the code today, unless it is marked new.
 - Tests: a staff RPC with no actor is refused; Junior Analyst cannot save `voice`; Compliance
   cannot be granted Director; no one grants themself; the last Deets cannot be revoked.
 
-**`ehr/tests/store.rs`**: migration tests for 0010 and 0011: the audit table refuses UPDATE
+**`ehr/tests/store.rs`**: migration tests for 0011 and 0012: the audit table refuses UPDATE
 and DELETE; `verify` finds a changed row (changed with the trigger dropped in the test).
 
 **Docs:** EHR-SERVICE.md §3 (a row per new RPC, and the actor in metadata); DATABASE.md (the

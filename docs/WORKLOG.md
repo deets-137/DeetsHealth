@@ -23,6 +23,12 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - Desk test: restart `npm run dev`. On Config › Agent press Test: the button fills pale, "1 of
   15" counts up. Press again at the cost: it fills green, the next part pulses, "Tests" at the
   end. Not verified in a browser. Nothing committed.
+- Then: the kept scripts recorded again (his Test press; 2 failures: one out-of-date test fixed,
+  one known slip marked `xfail`; HANDOFF.md). Committed in three: `1eb117d` (one build folder),
+  `9e90d9d` (Cartesia's voice list), `fe5828a` (the Test button, the scripts). Not pushed.
+- His ask for the roles build: "tracking which user made a change, what change, and what they
+  did with their role logged as well as time". Written as ACCESS-ROLES.md §5.1 (0 real forks,
+  9 points that follow), with §6 and §8 corrected (migrations 0011 and 0012).
 
 ## 2026-11-16 (Windows, night) — one Rust build folder
 - The cause: C: fell to 5.8 GB free. `target/` held 85 GB six days after a clean, in about ten
