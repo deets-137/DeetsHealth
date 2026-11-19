@@ -460,7 +460,7 @@ data.
   revoke stamps `revoked_at` and `revoked_by` once. A trigger refuses a delete and any other
   change. One live grant per person and role (a partial unique index). The owner's row got
   Deets at the migration; `users.role` is dropped.
-- **`staff_audit`**: one row per thing a person did with their access, or was refused
+- **`staff_audit`** (the whole reference: [AUDIT.md](AUDIT.md)): one row per thing a person did with their access, or was refused
   (`audit.rs`): who, their roles and the roles version, the lever and level, the action, the
   object's id, the names of the fields that changed, the versions before and after, allowed or
   refused, and `at` (the database's clock, UTC). Each row's `hash` chains it to the row before

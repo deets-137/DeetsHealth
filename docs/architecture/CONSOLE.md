@@ -1269,7 +1269,7 @@ with DeetsMusic's build list (CLAUDE.md › Working style).
   Team). A cell click and Add change a draft; Discard | Save on the title row save the whole list
   as a new version, active at once. A new role's id comes from its name. A role's panel: its
   name, **Remove role**, and the users who hold it.
-- **Audit Logs:** Config, Calls and Security, each the trail's rows of its kind, newest first, 100
+- **Audit Logs** (the trail and the page: [AUDIT.md](AUDIT.md)): Config, Calls and Security, each the trail's rows of its kind, newest first, 100
   at a time (**Older**, **Newest**), in Auth's look: when, who (a name from the People list), their
   roles, the action, what it touched, the fields that changed, the versions before → after,
   Allowed or Refused (with the lever it lacked). **Check chain** walks the whole trail. The page's

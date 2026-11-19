@@ -70,6 +70,12 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   trail no longer "not built"), FUTURE-SETTINGS.md, PROMPT-EDITOR.md, DEMO.md, DATABASE.md §11,
   CONSOLE.md §3 and §13, HANDOFF.md and CLAUDE.md's doc list follow. The migrations keep their old
   path in a comment: sqlx checksums them, and they have run.
+- His ask: "did you doc that audit logs are also built with its own architecture docs" — no, it
+  was spread over four docs. His word: "go for it". Wrote `docs/architecture/AUDIT.md` (a row,
+  every action word and its writer, the chain, reading it, tests, open), read against the code;
+  ACCESS-ROLES.md §5.1, DATABASE.md §11, CONSOLE.md §13, HANDOFF.md and CLAUDE.md point to it.
+  Found while writing it: a 403 from the dev server's own wall writes no audit row (AUDIT.md §7),
+  though §5.1 asks for every refusal.
 - Checks: 143 unit tests, 8 store tests, clippy, cargo-deny bans pass. `docs:check` 13 fails
   on the six new RPCs (no agent method yet), as checkpoint 2 expects. Not committed.
 

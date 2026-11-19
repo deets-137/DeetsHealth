@@ -149,6 +149,8 @@ not allow, not only the console's screen.
 
 ### 5.1 The audit trail, with the roles
 > **Part:** built · 2026-11-18 · desk test passed 2026-11-19 · the owner's ask, Claude's design (no fork left)
+> The trail as built, its every action word, the chain and the Audit Logs page:
+> [AUDIT.md](AUDIT.md). This part keeps the design and its reasons.
 
 **His ask (2026-11-18):** "integrating audit trails with our RBAC build, ie tracking which user
 made a change, what change, and what they did with their role logged as well as time". The

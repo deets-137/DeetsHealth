@@ -152,10 +152,14 @@ the branch `archive/patient-app`.
 - `SYSTEM-PAGE.md` — Config › System: the System variables (the clinic's, and the
   analyst's own), the code values, the tools; the `{` and " ." lists on Config › Agent; the
   checks; the rules engine idea.
-- `ACCESS-ROLES.md` — access by role and the staff audit trail (built 2026-11-18, desk test
-  passed): the owner's levers and role templates, his forks, the rules (`ehr/src/access.rs`),
-  the chained audit trail (`audit.rs`), each route's lever, and what was decided inside each of
-  the three hand-overs. The owner designs the roles; a new route or RPC names its lever there.
+- `ACCESS-ROLES.md` — access by role (built 2026-11-18, desk test passed): the owner's levers
+  and role templates, his forks, the rules (`ehr/src/access.rs`), the audit trail's design
+  (§5.1), each route's lever, and what was decided inside each of the three hand-overs. The
+  owner designs the roles; a new route or RPC names its lever there.
+- `AUDIT.md` — the staff audit trail and the Audit Logs page (built 2026-11-18, desk test
+  passed): what a row holds and never holds, every action word and what writes it (a new
+  change or look adds its row there), the hash chain and its check, reading it, what is open
+  (the dev server's own refusals are not recorded yet; the page's look; retention; export).
 - `HOSPITAL-CONFIG.md` — Config › Hospital (built): the hospital's own lists and numbers
   (visit types, groups, reasons as codes, the time zone, times of day, hours, closed days,
   locations, specialties, how slots are offered and visits found), one hospital for every EHR
