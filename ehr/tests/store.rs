@@ -117,14 +117,22 @@ async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
             .collect()
     };
     // The Default version first: number 0, active because nothing else is; only one.
-    let default = settings::save(pool, "voice", "settings_voice", &set(json!(null)), "dev", true).await.unwrap();
+    let default = settings::save(pool, "voice", "settings_voice", &set(json!(null)), "dev", true, None).await.unwrap();
     assert_eq!((default.seq, default.active), (0, true));
     assert_eq!(
-        settings::save(pool, "voice", "settings_voice", &set(json!(null)), "dev", true).await,
+        settings::save(pool, "voice", "settings_voice", &set(json!(null)), "dev", true, None).await,
         Err(settings::SaveError::DefaultExists)
     );
-    let first = settings::save(pool, "voice", "settings_voice", &set(json!(null)), "dev", false).await.unwrap();
-    let second = settings::save(pool, "voice", "settings_voice", &set(json!(1.2)), "dev", false).await.unwrap();
+    let first = settings::save(pool, "voice", "settings_voice", &set(json!(null)), "dev", false, None).await.unwrap();
+    let second = settings::save(pool, "voice", "settings_voice", &set(json!(1.2)), "dev", false, None).await.unwrap();
+    // Each save's audit row: the system (no person), the settings that changed, before and after.
+    let row: (String, Vec<String>, Option<i64>, Option<i64>) = sqlx::query_as(
+        "SELECT source, fields, before_version, after_version FROM staff_audit WHERE action = 'settings.save' ORDER BY seq DESC LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!(row, ("system".to_string(), vec!["speed".to_string()], Some(first.id), Some(second.id)));
     assert_eq!((first.seq, second.seq, second.active), (1, 2, true));
     assert_eq!(first.day, second.day);
     let versions = settings::versions(pool, "voice").await.unwrap();
@@ -152,11 +160,18 @@ async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
     sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
 }
 
-/// The People list (users.rs; docs/ops/DEMO.md §3.5): the owner from the first seed, an add by
-/// the owner, the sealed columns, last seen, the owner guard, a removal that keeps the row, and a
-/// return on the same row.
+/// The owner's row as an actor (the person the launch token speaks for).
+async fn owner(store: &Store) -> deetshealth_ehr::access::Actor {
+    let id = deetshealth_ehr::users::owner_id(store).await.unwrap().expect("an owner");
+    deetshealth_ehr::access::actor_in(store.pool(), &id).await.unwrap().expect("on the list")
+}
+
+/// The People list (users.rs; docs/ops/DEMO.md §3.5): the owner from the first seed, with Deets,
+/// an add by the owner, the sealed columns, last seen, the last-holder guard, a removal that keeps
+/// the row, and a return on the same row with no role.
 #[tokio::test]
 async fn the_people_list_seals_guards_the_owner_and_keeps_removed_rows() {
+    use deetshealth_ehr::access;
     use deetshealth_ehr::users::{self, UsersError};
     let Ok(url) = std::env::var("DEETS_DATABASE_URL") else {
         eprintln!("skipped: DEETS_DATABASE_URL is not set");
@@ -178,9 +193,15 @@ async fn the_people_list_seals_guards_the_owner_and_keeps_removed_rows() {
     assert!(people[0].owner && people[0].email.as_str() == "owner@example.com");
     assert!(!people[1].owner && people[1].name.as_str() == "dash@example.com");
 
-    // An add from the owner's PC (`by` empty) names the owner as the adder.
-    let id = users::add(&store, "Priya@Example.com", " Priya  Shah ", "").await.unwrap();
-    assert_eq!(users::add(&store, "priya@example.com", "Again", "").await, Err(UsersError::Exists));
+    // The first person holds Deets; the others no role (deny by default).
+    let people = users::list(&store).await.unwrap();
+    assert_eq!(people[0].role_ids, vec!["deets".to_string()]);
+    assert!(people[1].role_ids.is_empty());
+
+    // An add by the owner names the owner as the adder.
+    let o = owner(&store).await;
+    let id = users::add(&store, "Priya@Example.com", " Priya  Shah ", Some(&o)).await.unwrap();
+    assert_eq!(users::add(&store, "priya@example.com", "Again", Some(&o)).await, Err(UsersError::Exists));
     let priya = users::list(&store).await.unwrap().into_iter().find(|u| u.id == id).unwrap();
     assert_eq!((priya.name.as_str(), priya.added_by.as_str()), ("Priya Shah", "owner@example.com"));
     assert!(priya.last_seen_at.is_none());
@@ -193,22 +214,29 @@ async fn the_people_list_seals_guards_the_owner_and_keeps_removed_rows() {
     }
 
     // Seen; then removed (the row stays); then not let in; then back on the same row.
-    assert!(users::admit(&store, "PRIYA@example.com").await.unwrap());
+    assert_eq!(users::admit(&store, "PRIYA@example.com").await.unwrap().as_deref(), Some(id.as_str()));
     assert!(users::list(&store).await.unwrap().iter().any(|u| u.id == id && u.last_seen_at.is_some()));
-    let owner_id = users::list(&store).await.unwrap()[0].id.clone();
-    assert_eq!(users::remove(&store, &owner_id).await.err(), Some(UsersError::Owner));
-    assert_eq!(users::remove(&store, &id).await.unwrap().as_str(), "priya@example.com");
-    assert_eq!(users::remove(&store, &id).await.err(), Some(UsersError::NotFound));
-    assert!(!users::admit(&store, "priya@example.com").await.unwrap());
+    // The owner holds the only role that manages the console: their removal is refused (the
+    // last-holder rule, access.rs), by anyone.
+    let mut conn = pool.acquire().await.unwrap();
+    assert!(matches!(access::may_remove(&mut conn, &o, &o.id).await, Err(access::Refused::Rule(_))));
+    assert!(access::may_remove(&mut conn, &o, &id).await.is_ok());
+    drop(conn);
+    assert_eq!(users::remove(&store, &id, Some(&o)).await.unwrap().as_str(), "priya@example.com");
+    assert_eq!(users::remove(&store, &id, Some(&o)).await.err(), Some(UsersError::NotFound));
+    assert!(users::admit(&store, "priya@example.com").await.unwrap().is_none());
     let kept: i64 = sqlx::query_scalar("SELECT count(*) FROM users WHERE removed_at IS NOT NULL").fetch_one(pool).await.unwrap();
     assert_eq!(kept, 1);
     // A seed never brings a removed person back.
     assert_eq!(users::seed(&store, &["priya@example.com".into()]).await.unwrap(), 0);
-    assert!(!users::admit(&store, "priya@example.com").await.unwrap());
-    let again = users::add(&store, "priya@example.com", "Priya S.", "dash@example.com").await.unwrap();
+    assert!(users::admit(&store, "priya@example.com").await.unwrap().is_none());
+    let dash_id = users::list(&store).await.unwrap().into_iter().find(|u| u.email.as_str() == "dash@example.com").unwrap().id;
+    let dash = access::actor_in(pool, &dash_id).await.unwrap().unwrap();
+    let again = users::add(&store, "priya@example.com", "Priya S.", Some(&dash)).await.unwrap();
     assert_eq!(again, id);
     let back = users::list(&store).await.unwrap().into_iter().find(|u| u.id == id).unwrap();
     assert_eq!((back.name.as_str(), back.added_by.as_str()), ("Priya S.", "dash@example.com"));
+    assert!(back.role_ids.is_empty(), "back with no role");
 
     store.close().await;
     sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
@@ -259,12 +287,13 @@ async fn an_older_store_is_sealed_again_in_the_current_format() {
     let pool = store.pool();
 
     // Each schema's list is the schema's: every `bytea` column is on it, but the keyed hash a
-    // user is found by, which is not a sealed value.
+    // user is found by and the audit chain's hashes, which are not sealed values.
     for schema_name in ["public", "synthetic", "real"] {
         let mut schema: Vec<(String, String)> = sqlx::query_as(
             "SELECT table_name::text, column_name::text FROM information_schema.columns
              WHERE table_schema = $1 AND data_type = 'bytea' AND table_name NOT LIKE '\\_sqlx%'
-               AND (table_name, column_name) <> ('users', 'email_hash')",
+               AND (table_name, column_name) <> ('users', 'email_hash')
+               AND table_name <> 'staff_audit'",
         )
         .bind(schema_name)
         .fetch_all(pool)
@@ -284,11 +313,11 @@ async fn an_older_store_is_sealed_again_in_the_current_format() {
     let notes = "{\"kind\": \"label\", \"call\": \"typed_a\", \"text\": \"a label\"}\n{\"kind\": \"keep\", \"call\": \"typed_a\", \"value\": true}\n";
     store.file_annotations(notes.as_bytes()).await.unwrap();
     users::seed(&store, &["owner@example.com".into()]).await.unwrap();
-    let id = users::add(&store, "mary@example.com", "Mary Lee", "").await.unwrap();
+    let id = users::add(&store, "mary@example.com", "Mary Lee", None).await.unwrap();
     let card = users::Profile { first_name: "Mary", last_name: "Lee", phone: "(555) 234-5678", email: "mary@example.com" };
-    users::update(&store, &id, &card).await.unwrap();
+    users::update(&store, &id, &card, None).await.unwrap();
     let webp = b"RIFF\x10\0\0\0WEBPVP8 face-bytes".to_vec();
-    users::set_photo(&store, &id, &webp).await.unwrap();
+    users::set_photo(&store, &id, &webp, None).await.unwrap();
     assert_eq!(store.reseal().await.unwrap(), Resealed::default(), "a current store: nothing to do");
 
     // Turn it into a store from before the change: every value in format 2, each under its
@@ -315,8 +344,10 @@ async fn an_older_store_is_sealed_again_in_the_current_format() {
             }
         }
     }
-    // 3 lines of words (2 transcript, 1 label), 7 events, a flag's 2, the owner's 2, Mary's 5, 1 photo.
-    assert_eq!(old_values, 2 + 7 + 2 + 1 + 2 + 5 + 1);
+    // 3 lines of words (2 transcript, 1 label), 7 events, a flag's 2, the owner's 2, Mary's 5, 1
+    // photo, and the kept cards (migration 0012): the owner's first 2, Mary's first 2 and her
+    // saved 5.
+    assert_eq!(old_values, 2 + 7 + 2 + 1 + 2 + 5 + 1 + 9);
     // An old store still reads, before it is sealed again.
     assert_eq!(users::photo(&store, &id).await.unwrap().unwrap().as_slice(), webp.as_slice());
 
@@ -587,9 +618,10 @@ async fn a_card_saves_sealed_moves_its_email_and_keeps_a_picture() {
     let pool = store.pool();
 
     users::seed(&store, &["owner@example.com".into()]).await.unwrap();
-    let id = users::add(&store, "mary@example.com", "Mary Ann Lee", "").await.unwrap();
-    let gone = users::add(&store, "gone@example.com", "Gone", "").await.unwrap();
-    users::remove(&store, &gone).await.unwrap();
+    let o = owner(&store).await;
+    let id = users::add(&store, "mary@example.com", "Mary Ann Lee", Some(&o)).await.unwrap();
+    let gone = users::add(&store, "gone@example.com", "Gone", None).await.unwrap();
+    users::remove(&store, &gone, None).await.unwrap();
     let find = |list: Vec<users::User>, id: &str| list.into_iter().find(|u| u.id == id).unwrap();
 
     // Before a save: the name split at its last space; the owner's email-name is no name.
@@ -601,7 +633,7 @@ async fn a_card_saves_sealed_moves_its_email_and_keeps_a_picture() {
 
     // A save: the parts as typed, the phone as E.164, not verified; every column sealed.
     let card = |email: &'static str| Profile { first_name: "Mary", last_name: "de la Cruz", phone: "(555) 234-5678", email };
-    let saved = users::update(&store, &id, &card("mary@example.com")).await.unwrap();
+    let saved = users::update(&store, &id, &card("mary@example.com"), Some(&o)).await.unwrap();
     assert!(!saved.email_changed);
     let mary = find(users::list(&store).await.unwrap(), &id);
     assert_eq!((mary.first_name.as_str(), mary.last_name.as_str(), mary.name.as_str()), ("Mary", "de la Cruz", "Mary de la Cruz"));
@@ -615,75 +647,284 @@ async fn a_card_saves_sealed_moves_its_email_and_keeps_a_picture() {
 
     // A verified number keeps its mark on a save that keeps the number, and loses it on a change.
     sqlx::query("UPDATE users SET phone_verified = true WHERE id = $1::uuid").bind(&id).execute(pool).await.unwrap();
-    users::update(&store, &id, &card("mary@example.com")).await.unwrap();
+    users::update(&store, &id, &card("mary@example.com"), None).await.unwrap();
     assert!(find(users::list(&store).await.unwrap(), &id).phone_verified);
     let other = Profile { phone: "555-234-0000", ..card("mary@example.com") };
-    users::update(&store, &id, &other).await.unwrap();
+    users::update(&store, &id, &other, None).await.unwrap();
     assert!(!find(users::list(&store).await.unwrap(), &id).phone_verified);
 
     // The email: someone else's, or a removed person's, is refused; a new one moves the row.
-    assert_eq!(users::update(&store, &id, &card("owner@example.com")).await.err(), Some(UsersError::Exists));
-    assert_eq!(users::update(&store, &id, &card("gone@example.com")).await.err(), Some(UsersError::Taken));
-    let moved = users::update(&store, &id, &card("Mary.Lee@Example.com")).await.unwrap();
+    assert_eq!(users::update(&store, &id, &card("owner@example.com"), None).await.err(), Some(UsersError::Exists));
+    assert_eq!(users::update(&store, &id, &card("gone@example.com"), None).await.err(), Some(UsersError::Taken));
+    let moved = users::update(&store, &id, &card("Mary.Lee@Example.com"), None).await.unwrap();
     assert!(moved.email_changed && moved.old_email.as_str() == "mary@example.com");
-    assert!(!users::admit(&store, "mary@example.com").await.unwrap());
-    assert!(users::admit(&store, "mary.lee@example.com").await.unwrap());
+    assert!(users::admit(&store, "mary@example.com").await.unwrap().is_none());
+    assert_eq!(users::admit(&store, "mary.lee@example.com").await.unwrap().as_deref(), Some(id.as_str()));
     let mary = find(users::list(&store).await.unwrap(), &id);
     assert_eq!((mary.email.as_str(), mary.first_name.as_str(), mary.phone.as_str()), ("mary.lee@example.com", "Mary", "+15552345678"));
 
     // A saved email cannot be cleared; bad fields name the field.
-    assert!(matches!(users::update(&store, &id, &card("")).await, Err(UsersError::Bad(_))));
+    assert!(matches!(users::update(&store, &id, &card(""), None).await, Err(UsersError::Bad(_))));
     let bad_phone = Profile { phone: "555-1234", ..card("mary.lee@example.com") };
-    assert!(matches!(users::update(&store, &id, &bad_phone).await, Err(UsersError::Bad(_))));
-    assert_eq!(users::update(&store, &gone, &card("x@example.com")).await.err(), Some(UsersError::NotFound));
+    assert!(matches!(users::update(&store, &id, &bad_phone, None).await, Err(UsersError::Bad(_))));
+    assert_eq!(users::update(&store, &gone, &card("x@example.com"), None).await.err(), Some(UsersError::NotFound));
+
+    // Every save kept the card as saved, sealed under its own row (migration 0012), and wrote
+    // an audit row naming the fields that changed, never their values.
+    let kept: i64 = sqlx::query_scalar("SELECT count(*) FROM user_card_versions WHERE user_id = $1::uuid").bind(&id).fetch_one(pool).await.unwrap();
+    assert!(kept >= 5, "the add, then each save");
+    let card_rows: Vec<(Vec<String>, Option<String>)> = sqlx::query_as(
+        "SELECT fields, actor::text FROM staff_audit WHERE action = 'person.card' AND object_id = $1 ORDER BY seq",
+    )
+    .bind(&id)
+    .fetch_all(pool)
+    .await
+    .unwrap();
+    assert_eq!(card_rows[0], (vec!["first_name".to_string(), "last_name".to_string(), "phone".to_string()], Some(o.id.clone())));
+    assert_eq!(card_rows.last().unwrap().0, vec!["phone".to_string(), "email".to_string()]);
+    let all: Vec<String> = sqlx::query_scalar("SELECT array_to_string(fields, ',') || coalesce(object_id, '') FROM staff_audit").fetch_all(pool).await.unwrap();
+    assert!(all.iter().all(|r| !r.contains("Mary") && !r.contains('@') && !r.contains("5552345678")), "no value in the trail");
+    assert_eq!(deetshealth_ehr::audit::verify(pool).await, Ok(all.len() as u64), "the chain holds");
 
     // "Added by" is the adder as "First L.", read from their row: the owner's email until the
     // owner's card has a name, then the name.
     assert_eq!(find(users::list(&store).await.unwrap(), &id).added_by.as_str(), "owner@example.com");
     let owner_id = users::list(&store).await.unwrap()[0].id.clone();
     let olive = Profile { first_name: "Olive", last_name: "Ng", phone: "", email: "owner@example.com" };
-    users::update(&store, &owner_id, &olive).await.unwrap();
+    users::update(&store, &owner_id, &olive, None).await.unwrap();
     assert_eq!(find(users::list(&store).await.unwrap(), &id).added_by.as_str(), "Olive N.");
 
     // The owner's PC stamps the owner's last seen.
     assert!(users::list(&store).await.unwrap()[0].last_seen_at.is_none());
-    users::seen_owner(&store).await.unwrap();
+    assert_eq!(users::owner_id(&store).await.unwrap().as_deref(), Some(owner_id.as_str()));
+    users::seen(&store, &owner_id).await.unwrap();
     assert!(users::list(&store).await.unwrap()[0].last_seen_at.is_some());
 
     // A card to finish later (the owner, 2026-11-14): no email, or no name, but not neither.
-    assert!(matches!(users::add(&store, " ", " ", "").await, Err(UsersError::Bad(_))));
-    let later = users::add(&store, "", "Test Lee", "").await.unwrap();
-    let other = users::add(&store, "", "Sam", "").await.unwrap(); // two stand-in keys never collide
+    assert!(matches!(users::add(&store, " ", " ", None).await, Err(UsersError::Bad(_))));
+    let later = users::add(&store, "", "Test Lee", None).await.unwrap();
+    let other = users::add(&store, "", "Sam", None).await.unwrap(); // two stand-in keys never collide
     assert_ne!(later, other);
     let test = find(users::list(&store).await.unwrap(), &later);
     assert_eq!((test.email.as_str(), test.first_name.as_str(), test.last_name.as_str()), ("", "Test", "Lee"));
     // Saved again with no email: the row keeps its stand-in key; nobody can sign in with it.
     let no_email = Profile { first_name: "Test", last_name: "Lee", phone: "555-234-5678", email: "" };
-    let kept = users::update(&store, &later, &no_email).await.unwrap();
+    let kept = users::update(&store, &later, &no_email, None).await.unwrap();
     assert!(!kept.email_changed);
-    assert!(!users::admit(&store, "").await.unwrap());
+    assert!(users::admit(&store, "").await.unwrap().is_none());
     // Its first email moves it to that email's hash: now on the list for sign-in.
-    let first = users::update(&store, &later, &Profile { email: "test@example.com", ..no_email }).await.unwrap();
+    let first = users::update(&store, &later, &Profile { email: "test@example.com", ..no_email }, None).await.unwrap();
     assert!(first.email_changed && first.old_email.is_empty());
-    assert!(users::admit(&store, "test@example.com").await.unwrap());
+    assert!(users::admit(&store, "test@example.com").await.unwrap().is_some());
     assert_eq!(find(users::list(&store).await.unwrap(), &later).phone.as_str(), "+15552345678");
     // No name, an email: saved.
-    let nameless = users::add(&store, "nameless@example.com", "", "").await.unwrap();
+    let nameless = users::add(&store, "nameless@example.com", "", None).await.unwrap();
     let blank = Profile { first_name: " ", last_name: "", phone: "", email: "nameless@example.com" };
-    users::update(&store, &nameless, &blank).await.unwrap();
-    assert_eq!(users::remove(&store, &other).await.unwrap().as_str(), "");
+    users::update(&store, &nameless, &blank, None).await.unwrap();
+    assert_eq!(users::remove(&store, &other, None).await.unwrap().as_str(), "");
 
     // The picture: a WebP only, sealed, back as it went in, and cleared.
     let webp = b"RIFF\x10\0\0\0WEBPVP8 face-bytes".to_vec();
-    assert!(matches!(users::set_photo(&store, &id, b"not a picture").await, Err(UsersError::Bad(_))));
-    users::set_photo(&store, &id, &webp).await.unwrap();
+    assert!(matches!(users::set_photo(&store, &id, b"not a picture", None).await, Err(UsersError::Bad(_))));
+    users::set_photo(&store, &id, &webp, None).await.unwrap();
     assert_eq!(users::photo(&store, &id).await.unwrap().unwrap().as_slice(), webp.as_slice());
     let sealed: Vec<u8> = sqlx::query_scalar("SELECT photo FROM user_photos WHERE user_id = $1::uuid").bind(&id).fetch_one(pool).await.unwrap();
     assert!(!String::from_utf8_lossy(&sealed).contains("face-bytes"));
     assert!(find(users::list(&store).await.unwrap(), &id).photo_at.is_some());
-    users::clear_photo(&store, &id).await.unwrap();
+    users::clear_photo(&store, &id, None).await.unwrap();
     assert!(users::photo(&store, &id).await.unwrap().is_none());
     assert_eq!(users::photo(&store, &gone).await.err(), Some(UsersError::NotFound));
+
+    store.close().await;
+    sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
+}
+
+/// Roles and the audit trail (docs/ideas/ACCESS-ROLES.md §5, §5.1; migrations 0011, 0012): a
+/// grant and a revoke with their rows, each rule's refusal, a roles save that would drop a held
+/// role, rows that cannot be changed, and a changed row found by `verify`.
+#[tokio::test]
+async fn roles_are_granted_by_the_rules_and_every_change_is_chained() {
+    use deetshealth_ehr::access::{self, Level, Lever, Refused};
+    use deetshealth_ehr::{audit, users};
+    let Ok(url) = std::env::var("DEETS_DATABASE_URL") else {
+        eprintln!("skipped: DEETS_DATABASE_URL is not set");
+        return;
+    };
+    let mut admin = PgConnection::connect(&url).await.unwrap();
+    let name = format!("deets_roles_test_{}", std::process::id());
+    sqlx::query(sql(format!("DROP DATABASE IF EXISTS {name}"))).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("CREATE DATABASE {name}"))).execute(&mut admin).await.unwrap();
+    let base = url.rsplit_once('/').unwrap().0;
+    let store = Store::connect(&format!("{base}/{name}"), keys()).await.unwrap();
+    let pool = store.pool();
+
+    users::seed(&store, &["owner@example.com".into()]).await.unwrap();
+    let o = owner(&store).await;
+    assert_eq!(o.role_ids, vec!["deets".to_string()]);
+    assert!(o.levels.may(Lever::Roles, Level::Edit) && o.levels.may(Lever::Phi, Level::Edit));
+    let guest_id = users::add(&store, "guest@example.com", "Guest", Some(&o)).await.unwrap();
+    let guest = access::actor_in(pool, &guest_id).await.unwrap().unwrap();
+    assert!(guest.role_ids.is_empty() && !guest.levels.may(Lever::Testing, Level::View), "deny by default");
+
+    let grant = |who: access::Actor, user: String, role: &'static str| async move {
+        let mut tx = pool.begin().await.unwrap();
+        let out = access::grant(&mut tx, &who, &user, role).await;
+        tx.commit().await.unwrap();
+        out
+    };
+    let revoke = |who: access::Actor, user: String, role: &'static str| async move {
+        let mut tx = pool.begin().await.unwrap();
+        let out = access::revoke(&mut tx, &who, &user, role).await;
+        tx.commit().await.unwrap();
+        out
+    };
+
+    // Granted; then each rule refuses.
+    grant(o.clone(), guest_id.clone(), "junior_analyst").await.unwrap();
+    let guest = access::actor_in(pool, &guest_id).await.unwrap().unwrap();
+    assert_eq!(guest.levels.get(Lever::Agent), Level::View);
+    assert_eq!(grant(o.clone(), guest_id.clone(), "junior_analyst").await, Err(Refused::Rule("they hold that role already")));
+    assert_eq!(grant(o.clone(), o.id.clone(), "intern").await, Err(Refused::Rule("no one changes their own roles")));
+    assert_eq!(grant(guest.clone(), o.id.clone(), "intern").await, Err(Refused::Needs(Lever::Roles, Level::Edit)));
+    assert_eq!(grant(o.clone(), guest_id.clone(), "no_such").await, Err(Refused::NotFound("no such role")));
+    assert_eq!(revoke(o.clone(), o.id.clone(), "deets").await, Err(Refused::Rule("no one changes their own roles")));
+
+    // Deets covers every role (the owner, 2026-11-18). A Director edits roles but sits below
+    // Deets: they may not change the owner, nor give Deets to anyone.
+    grant(o.clone(), guest_id.clone(), "director").await.unwrap();
+    let director = access::actor_in(pool, &guest_id).await.unwrap().unwrap();
+    let third = users::add(&store, "third@example.com", "Third", Some(&o)).await.unwrap();
+    assert_eq!(grant(director.clone(), o.id.clone(), "intern").await, Err(Refused::Rule("you may change only people whose access is at or below yours")));
+    assert_eq!(grant(director.clone(), third.clone(), "deets").await, Err(Refused::Rule("you may not give more access than you have")));
+    grant(director.clone(), third.clone(), "intern").await.unwrap();
+    revoke(o.clone(), guest_id.clone(), "director").await.unwrap();
+    let guest = access::actor_in(pool, &guest_id).await.unwrap().unwrap();
+
+    // A roles save may not drop a role someone holds.
+    let (_, roles) = {
+        let mut conn = pool.acquire().await.unwrap();
+        access::active_roles(&mut conn).await.unwrap()
+    };
+    let raw: String = sqlx::query_scalar(
+        "SELECT value::text FROM settings_roles r JOIN setting_activations a ON a.version_id = r.version_id WHERE a.service = 'roles'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    let list: Vec<serde_json::Value> = serde_json::from_str::<serde_json::Value>(&raw)
+        .unwrap()
+        .as_array()
+    .unwrap()
+    .iter()
+    .filter(|r| r["id"] != "junior_analyst")
+    .cloned()
+    .collect();
+    assert_eq!(roles.len(), list.len() + 1);
+    let dropped = settings::save(pool, "roles", "settings_roles", &[("roles", serde_json::Value::Array(list))], "dev", false, Some(&o)).await;
+    assert!(matches!(dropped, Err(settings::SaveError::Refused(why)) if why.contains("revoke it first")));
+
+    // Revoked; the row stays, stamped.
+    revoke(o.clone(), guest_id.clone(), "junior_analyst").await.unwrap();
+    assert!(access::actor_in(pool, &guest_id).await.unwrap().unwrap().role_ids.is_empty());
+    let (by, at): (Option<String>, bool) = sqlx::query_as(
+        "SELECT revoked_by::text, revoked_at IS NOT NULL FROM user_roles WHERE user_id = $1::uuid AND role_id = 'junior_analyst'",
+    )
+    .bind(&guest_id)
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    assert_eq!((by.as_deref(), at), (Some(o.id.as_str()), true));
+
+    // The rows cannot be changed or removed.
+    for sql in ["DELETE FROM user_roles", "UPDATE staff_audit SET allowed = false", "DELETE FROM staff_audit", "TRUNCATE staff_audit"] {
+        assert!(sqlx::query(sql).execute(pool).await.is_err(), "kept: {sql}");
+    }
+
+    // A refusal on its own row; the chain holds.
+    let refused = audit::Entry::by(Some(&guest), "rpc.grant_role").lever(Lever::Roles, Level::Edit).refused();
+    audit::write_alone(pool, &refused).await.unwrap();
+    let rows = audit::verify(pool).await.unwrap();
+    assert_eq!(rows, 4, "the seed, two adds and the refusal (grants here skip service.rs, which writes theirs)");
+    let read = audit::read(pool, 0, 10, true).await.unwrap();
+    assert!(!read[0].allowed && read[0].actor.as_deref() == Some(guest_id.as_str()), "newest first");
+
+    // Through the gRPC service: the gate reads the person from `deets-actor` and their levels
+    // from the store; a refusal is audited; a grant writes its row with the change.
+    {
+        use deetshealth_ehr::proto::v1::{self as pb, ehr_server::Ehr};
+        use deetshealth_ehr::scheduler::FakeScheduler;
+        use deetshealth_ehr::service::{EhrService, ACTOR};
+        use deetshealth_ehr::verify::{FakeCodes, FakePatients};
+        use std::sync::Arc;
+        use tonic::{Code, Request};
+        let svc = EhrService::new(FakeScheduler::default(), FakePatients, FakeCodes).with_store(Arc::new(
+            Store::connect(&format!("{base}/{name}"), keys()).await.unwrap(),
+        ));
+        fn as_person<T>(id: &str, mut req: Request<T>) -> Request<T> {
+            req.metadata_mut().insert(ACTOR, id.parse().unwrap());
+            req
+        }
+        // No person named: refused, and audited as unknown.
+        assert_eq!(svc.list_users(Request::new(pb::ListUsersRequest {})).await.unwrap_err().code(), Code::PermissionDenied);
+        // A person with no role: refused by the lever.
+        let err = svc.list_users(as_person(&guest_id, Request::new(pb::ListUsersRequest {}))).await.unwrap_err();
+        assert_eq!((err.code(), err.message()), (Code::PermissionDenied, "needs people view"));
+        // The call loop reads its settings with no person; a person needs the lever.
+        let get = || pb::GetSettingsRequest { service: "voice".into(), version_id: 0 };
+        assert!(svc.get_settings(Request::new(get())).await.is_ok());
+        assert_eq!(svc.get_settings(as_person(&guest_id, Request::new(get()))).await.unwrap_err().code(), Code::PermissionDenied);
+        // The owner's levels; a grant through the service, with its audit row.
+        let mine = svc.levels(as_person(&o.id, Request::new(pb::LevelsRequest {}))).await.unwrap().into_inner();
+        assert_eq!(mine.role_ids, vec!["deets".to_string()]);
+        let grant = pb::GrantRoleRequest { user_id: guest_id.clone(), role_id: "intern".into() };
+        svc.grant_role(as_person(&o.id, Request::new(grant.clone()))).await.unwrap();
+        let err = svc.grant_role(as_person(&o.id, Request::new(grant))).await.unwrap_err();
+        assert_eq!(err.code(), Code::PermissionDenied);
+        let people = svc.list_users(as_person(&o.id, Request::new(pb::ListUsersRequest {}))).await.unwrap().into_inner().users;
+        assert_eq!(people.iter().find(|u| u.id == guest_id).unwrap().role_ids, vec!["intern".to_string()]);
+        // A look that changes nothing: allowed by the guest's new role, then refused by one they lack.
+        let look = |lever: &str| pb::LogAccessRequest {
+            lever: lever.into(),
+            level: "view".into(),
+            action: "page.open".into(),
+            object_kind: "page".into(),
+            object_id: "analytics".into(),
+            data_class: String::new(),
+        };
+        assert!(svc.log_access(as_person(&guest_id, Request::new(look("analytics")))).await.unwrap().into_inner().allowed);
+        assert!(!svc.log_access(as_person(&guest_id, Request::new(look("phi")))).await.unwrap().into_inner().allowed);
+        let trail = svc
+            .read_audit(as_person(&o.id, Request::new(pb::ReadAuditRequest { before: 0, limit: 50, changes: false })))
+            .await
+            .unwrap()
+            .into_inner()
+            .rows;
+        // The service's own rows: the newest seven, oldest first.
+        let actions: Vec<(&str, bool)> = trail.iter().take(7).rev().map(|r| (r.action.as_str(), r.allowed)).collect();
+        assert_eq!(
+            actions,
+            [
+                ("rpc.list_users", false),
+                ("rpc.list_users", false),
+                ("rpc.get_settings", false),
+                ("role.grant", true),
+                ("role.grant", false),
+                ("page.open", true),
+                ("page.open", false),
+            ]
+        );
+        let grant_row = trail.iter().find(|r| r.action == "role.grant" && r.allowed).unwrap();
+        assert_eq!((grant_row.actor.as_str(), grant_row.fields.clone(), grant_row.roles.clone()), (o.id.as_str(), vec!["role:intern".to_string()], vec!["deets".to_string()]));
+        assert!(trail.iter().find(|r| r.action == "rpc.list_users" && r.actor.is_empty()).unwrap().source == "unknown");
+        let ok = svc.verify_audit(as_person(&o.id, Request::new(pb::VerifyAuditRequest {}))).await.unwrap().into_inner();
+        assert!(ok.ok && ok.rows == trail.len() as i64);
+    }
+
+    // With the guard off (only a superuser can), a changed row breaks the chain at that row.
+    sqlx::query("ALTER TABLE staff_audit DISABLE TRIGGER staff_audit_insert_only").execute(pool).await.unwrap();
+    let second: i64 = sqlx::query_scalar("SELECT seq FROM staff_audit ORDER BY seq OFFSET 1 LIMIT 1").fetch_one(pool).await.unwrap();
+    sqlx::query("UPDATE staff_audit SET action = 'person.edited' WHERE seq = $1").bind(second).execute(pool).await.unwrap();
+    assert_eq!(audit::verify(pool).await, Err(second));
 
     store.close().await;
     sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();

@@ -13,6 +13,7 @@ import { addButton, addTo, field as dtField, growAll, listTools, row as dtRow, t
 import { flushWindows } from "./list-window";
 import { el } from "./page";
 import { placePill, type View } from "./subnav";
+import { may, onAccess } from "../access";
 
 /** Each settings view's own hold on the demo's live reload (reload.ts). */
 let views = 0;
@@ -91,7 +92,12 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
   return {
     id: spec.id,
     title: spec.title,
-    build() {
+    build(this: View) {
+      // The lever this view sits under (config.ts sets it on the view; ACCESS-ROLES.md §8.3).
+      // Without Edit on it, the view stays in Read: no Edit, no Discard | Save, no Test, and a
+      // "View only" mark (fork 3A). The server refuses a save either way.
+      const lever = this?.lever;
+      const canEdit = () => !lever || may(lever, "edit");
       const root = el(`
         <div class="cfg" data-mode="read">
           <div class="cfg-top">
@@ -101,6 +107,7 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
               <button class="tab" type="button" role="radio" data-mode="edit" aria-checked="false">Edit</button>
             </div>
             <select class="cfg-field cfg-version" aria-label="Version"></select>
+            <span class="view-only" hidden>View only</span>
             <p class="cfg-status" role="status"></p>
             <div class="tabs cfg-actions" role="group" aria-label="Changes">
               <button class="tab" type="button" data-act="discard" disabled>Discard</button>
@@ -121,7 +128,10 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
       const save = root.querySelector<HTMLButtonElement>('[data-act="save"]')!;
       const versionSelect = root.querySelector<HTMLSelectElement>(".cfg-version")!;
       const scroll = root.querySelector<HTMLElement>(".cfg-scroll")!;
-      if (spec.top) root.querySelector(".cfg-top")!.insertBefore(spec.top(), root.querySelector(".cfg-actions"));
+      const topControl = spec.top?.() ?? null;
+      if (topControl) root.querySelector(".cfg-top")!.insertBefore(topControl, root.querySelector(".cfg-actions"));
+      const viewOnly = root.querySelector<HTMLElement>(".view-only")!;
+      const actions = root.querySelector<HTMLElement>(".cfg-actions")!;
 
       // Read each time the view opens: a person changes a value on purpose (the Chat page's
       // Text bar follows the same rule).
@@ -153,9 +163,16 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         if (n) say("");
       };
       const showMode = () => {
+        // View only: Read, always.
+        const editable = canEdit();
+        if (!editable) mode = "read";
+        viewOnly.hidden = editable;
+        actions.hidden = !editable;
+        if (topControl) topControl.hidden = !editable;
         root.dataset.mode = mode;
         // An older version is read only: choose Active to edit.
         const edit = parts.find((b) => b.dataset.mode === "edit")!;
+        edit.hidden = !editable;
         edit.disabled = older();
         edit.title = older() ? "Choose Active to edit" : "";
         parts.forEach((b) => b.setAttribute("aria-checked", String(b.dataset.mode === mode)));
@@ -184,6 +201,8 @@ export function settingsView<V, D, S extends SettingsBase<V>>(spec: Spec<V, D, S
         showMode();
       });
       new ResizeObserver(() => showMode()).observe(bar);
+      // A role change takes the view to Read and back as it happens.
+      onAccess(() => showMode());
       discard.addEventListener("click", () => {
         if (!saved) return;
         draft = structuredClone(saved);

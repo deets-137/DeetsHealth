@@ -2,7 +2,7 @@
 status: built
 desk_test: passed 2026-11-11
 sources: [docs/architecture/images/hospital-places-cards-dark-2026-11-15.png, docs/architecture/images/hospital-places-cards-charcoal-2026-11-15.png, console/src/styles/people.css, console/src/styles/palette.css, console/security-headers.json, agent/deets_agent/security_headers.py, scripts/html-sinks.mjs, docs/architecture/images/chat-compact-toggles-2026-11-14.png, docs/architecture/images/nav-compact-layout-2026-11-14.png, console/src/picker.ts, console/src/pages/page.ts, console/src/styles/subnav.css, console/src/styles/chat.css, docs/architecture/images/config-agent-test-button-2026-11-14.png, console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
-updated: 2026-11-18
+updated: 2026-11-19
 ---
 # DeetsHealth — The console
 
@@ -1240,3 +1240,58 @@ with DeetsMusic's build list (CLAUDE.md › Working style).
 5. **Count what is in the page:** `document.querySelectorAll("*").length`, the rows, the
    `option`s, the `textarea`s. Hospital after the import, before windowing: every department's
    row, with a 118-option select in each.
+
+## 13. Access by role in the console
+> **Part:** built · 2026-11-18 · desk test open. docs/ideas/ACCESS-ROLES.md §6, Hand-over 3;
+> the owner's fork 3A (2026-11-15): None hides, View reads with a "View only" mark, Edit edits.
+
+- **One place asks:** `access.ts` reads the `me` store (`GET /agent/me`) and answers `may(lever,
+  level)`; the nav, the sub-navs, Config's frame, Chat, Auth, Roles and Audit Logs ask it, and
+  each redraws when your access changes (`onAccess`). Until `me` first answers, everything
+  shows (the first-load wave waits for it). The server refuses on its own either way
+  (DEV-API.md §2a).
+- **The nav:** a page is listed while you hold any of its levers at View (`Page.levers`; a sub-nav
+  page takes them from its views). With no role at all: **No role yet** and Settings only
+  (`pages/no-role.ts`). When the page or view shown is no longer yours, the nav moves to the
+  first one left. Each page opened is recorded in the audit trail (`POST /agent/log`).
+- **The levers:** Chat by Testing or PHI; its modes Testing (Testing Edit), Demo (Testing View),
+  PHI (PHI View). Config › Agent and System by Agent, Hospital by Rules, Cartesia and Anthropic by
+  Vendors. Rules by Rules. Teams by People. Analytics by Analytics. Security › Auth by People,
+  Roles by Roles. Audit Logs by Audit logs. Settings: none.
+- **View only:** Config's frame (`config-kit.ts`) stays in Read: no Edit, no Discard | Save, no
+  Test, and a **View only** mark beside the version. Auth at People View: no Add, no ✕, the card's
+  boxes read only. Roles at Roles View: the cells do not change, no Add, no Discard | Save.
+- **Security › Auth:** the Role column names each person's roles ("No role" when none). In a
+  person's panel, each role is a chip; at Roles Edit a chip has ✕ (revoke) and **Add a role**
+  lists the roles they lack (grant). Never on your own row. ehr's refusal shows in the panel's
+  status ("you may not give more access than you have").
+- **Security › Roles:** the active roles from the store, in two tables (Customer, DeetsHealth
+  Team). A cell click and Add change a draft; Discard | Save on the title row save the whole list
+  as a new version, active at once. A new role's id comes from its name. A role's panel: its
+  name, **Remove role**, and the users who hold it.
+- **Audit Logs:** Config, Calls and Security, each the trail's rows of its kind, newest first, 100
+  at a time (**Older**, **Newest**), in Auth's look: when, who (a name from the People list), their
+  roles, the action, what it touched, the fields that changed, the versions before → after,
+  Allowed or Refused (with the lever it lacked). **Check chain** walks the whole trail. The page's
+  own look is the owner's fork (ACCESS-ROLES.md §6, part 3, step 6); this is the stand-in.
+- **A refusal for want of a role** reads "Your role does not allow this (needs Agent Edit)", not
+  "the agent's dev server refused" (`api.ts › roleRefusal`).
+
+### 13.1 Desk test
+1. Restart `npm run dev` (migrations 0011 and 0012 run once). Open the console with the launch
+   token: every page shows, as before. **Audit Logs › Security** lists your page opens.
+2. **Security › Roles:** nine roles in two tables. Click a cell of Intern: it moves to the next
+   level, and Discard | Save light. Save: "Saved as MM-DD | n. Active now". Discard a second
+   change: it goes back.
+3. **Security › Auth:** open a guest's row. Add a role: **Junior Analyst**. The chip shows, and the
+   Role column reads it. Open your own row: no ✕, no Add a role.
+4. As that guest (the demo, or another browser through Access): only Chat (Testing, Demo),
+   Config (Agent, System, Hospital, read only with **View only**), Rules, Analytics and Settings
+   show.
+   Config › Agent has no Edit and no Test.
+5. Revoke the guest's role (✕ on the chip). Within 30 s the guest's next page shows **No role
+   yet**, with Settings.
+6. Try to revoke your own Deets from another Deets holder's view, or remove the last Deets
+   holder: refused, with the rule in the status line.
+7. **Audit Logs:** each step above is a row (Config: the roles save; Security: the grant and
+   the revoke, the refusals). **Check chain**: "Every row is as written".

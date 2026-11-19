@@ -16,6 +16,14 @@ export function configPage(): Page {
     lastViewKey: "deets.console.config",
     // The order is the owner's (2026-11-13): Agent, then System, then Cartesia, then Anthropic.
     // Hospital sits beside System (HOSPITAL-CONFIG.md), until the owner places it.
-    views: [agentView(), systemView(), hospitalView(), cartesiaView(), anthropicView()],
+    // Each view's lever (ACCESS-ROLES.md §8.3): the words Agent, the vendors Vendors, the
+    // hospital's lists Rules.
+    views: [
+      { ...agentView(), lever: "agent" },
+      { ...systemView(), lever: "agent" },
+      { ...hospitalView(), lever: "rules" },
+      { ...cartesiaView(), lever: "vendors" },
+      { ...anthropicView(), lever: "vendors" },
+    ],
   });
 }

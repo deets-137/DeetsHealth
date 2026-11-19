@@ -39,10 +39,18 @@ import { el, setHtml, type Page } from "./page";
 import { placePill } from "./subnav";
 import { picker, type Picker } from "../picker";
 import { growHandle } from "./panel-grow";
+import { may, onAccess } from "../access";
+import type { Level, Lever } from "../agent/api";
 
 type Mode = "phi" | "test" | "demo";
 // The Chat nav's order (the owner, 2026-11-13: "testing, demo and phi").
 const MODES: Mode[] = ["test", "demo", "phi"];
+/** What each mode needs (ACCESS-ROLES.md §8.3; access.ts). */
+const MODE_NEEDS: Record<Mode, [Lever, Level]> = {
+  test: ["testing", "edit"],
+  demo: ["testing", "view"],
+  phi: ["phi", "view"],
+};
 const MODE_WORD: Record<Mode, string> = { phi: "PHI", test: "Testing", demo: "Demo" };
 const MODE_ABOUT: Record<Mode, string> = {
   phi: "Watch a call. Read only",
@@ -102,6 +110,8 @@ export function chatPage(): Page {
   return {
     id: "chat",
     title: "Chat",
+    // In the nav while any mode is yours (access.ts): Testing and Demo by Testing, PHI by PHI.
+    levers: ["testing", "phi"],
     picker: () => modePick!.el,
     shown: () => requestAnimationFrame(() => shownHook()),
     build() {
@@ -450,6 +460,21 @@ export function chatPage(): Page {
         goMode(next.dataset.mode as Mode);
       });
       shownHook = waveIn;
+
+      // ---- the modes by lever (ACCESS-ROLES.md §8.3): Testing needs Testing Edit (it makes
+      // calls), Demo Testing View (it plays the records), PHI PHI View (another person's live
+      // call). A mode you may not use leaves the nav; the page moves off it when you lose it.
+      const applyModes = () => {
+        const allowed = MODES.filter((m) => may(...MODE_NEEDS[m]));
+        navItems.forEach((b) => (b.parentElement!.hidden = !allowed.includes(b.dataset.mode as Mode)));
+        modePick!.el
+          .querySelectorAll<HTMLElement>("[data-id]")
+          .forEach((r) => (r.hidden = !allowed.includes(r.dataset.id as Mode)));
+        if (!allowed.includes(mode) && allowed.length) goMode(allowed[0]);
+        markNav(false);
+      };
+      onAccess(applyModes);
+      applyModes();
 
       // ---- the Review panel (CHAT.md §12): the call each mode last finished, Test's from its
       // own call, Demo's from the playback that ran to its end. PHI rates nothing.

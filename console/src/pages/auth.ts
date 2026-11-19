@@ -18,14 +18,29 @@
 //   save: each empty box's title and Save turn red, and the status names the boxes. A second
 //   Save saves the card as it is. A card with no email cannot sign in until one is added; a
 //   saved email can be changed, not cleared.
-// - The role shows but cannot be edited until roles exist. A changed email asks "Confirm?"
-//   before it saves: it moves who can sign in. Remove asks "Confirm?" too, as End call does.
-// - Anyone signed in may edit any row, the owner's too (the owner's rule until roles).
+// - Roles (docs/ideas/ACCESS-ROLES.md §5, §8.3): the Role cell names the person's roles. In the
+//   panel, at Roles Edit, each role is a chip with ✕ (revoke) and a list adds one (grant); your
+//   own row has neither (no one changes their own roles). ehr refuses what its rules do not
+//   allow, and the panel shows its reason. A changed email asks "Confirm?" before it saves: it
+//   moves who can sign in. Remove asks "Confirm?" too, as End call does.
+// - People Edit to add, remove or save; at People View the table reads only, with a "View only"
+//   mark on the title line (fork 3A). ehr also refuses a change to someone above you.
 //
 // Emails, names, phone numbers and pictures here are staff identities, not patients'. They show
 // only in this view and on Teams › People: never in a toast, a hint or a log line.
-import { addPerson, removePerson, setPersonPhoto, updatePerson, type People, type Person } from "../agent/api";
-import { people } from "../agent/stores";
+import {
+  addPerson,
+  grantRole,
+  removePerson,
+  revokeRole,
+  setPersonPhoto,
+  updatePerson,
+  type People,
+  type Person,
+  type Role,
+} from "../agent/api";
+import { people, roles } from "../agent/stores";
+import { accessChanged, may, myId, onAccess } from "../access";
 import { tokenMs } from "../tokens";
 import { toolButton } from "./data-table";
 import { el } from "./page";
@@ -54,7 +69,20 @@ const BLANK: Person = {
   added_by: null,
   added_at: "",
   last_seen_at: null,
+  role_ids: [],
 };
+
+/** The active roles, by id, when you may read them (Roles View); else none, and a role shows
+ * by its id. */
+let roleList: Role[] = [];
+export const roleName = (id: string): string => roleList.find((r) => r.id === id)?.name ?? id;
+/** The active roles, from any view that read them (Auth, Audit Logs). */
+export const setRoleList = (list: Role[]): void => {
+  roleList = list;
+};
+
+/** A person's roles as one line: "Deets, Intern", or null for none. */
+const roleLine = (p: Person): string | null => (p.role_ids.length ? p.role_ids.map(roleName).join(", ") : null);
 
 export function authView(): View {
   return {
@@ -65,6 +93,7 @@ export function authView(): View {
         <div class="auth">
           <div class="auth-top">
             <h2 class="auth-title">Users</h2>
+            <span class="view-only" hidden>View only</span>
             <p class="cfg-status auth-status" role="status"></p>
             <div class="dt-add"><div class="tabs" role="group"><button class="tab auth-add" type="button" aria-label="Add a user">Add</button></div></div>
           </div>
@@ -105,8 +134,12 @@ export function authView(): View {
         }, tokenMs("--confirm-hold"));
       };
 
+      const viewOnly = q<HTMLElement>(".view-only");
       const draw = () => {
         if (!view) return;
+        const editing = may("people", "edit");
+        viewOnly.hidden = editing;
+        add.closest<HTMLElement>(".dt-add")!.hidden = !editing;
         add.disabled = !view.store;
         if (!view.store) {
           body.replaceChildren(message("No store: start Postgres (npm run db:start), then restart npm run dev"));
@@ -116,10 +149,15 @@ export function authView(): View {
         const kept = open ? body.querySelector<HTMLElement>(`.auth-panel[data-id="${CSS.escape(open)}"]`) : null;
         const rows: HTMLElement[] = [];
         for (const p of view.people) {
-          rows.push(row(p, view.you, open === p.id, confirming === `remove:${p.id}`));
+          rows.push(row(p, view.you, open === p.id, confirming === `remove:${p.id}`, editing));
           if (open === p.id) rows.push(kept ?? panel(p));
         }
-        if (drafting) rows.push(row(BLANK, view.you, true, false), kept ?? panel(BLANK));
+        if (drafting && editing) rows.push(row(BLANK, view.you, true, false, editing), kept ?? panel(BLANK));
+        // The open panel's roles follow the list (a grant or a revoke redraws them).
+        if (kept && open) {
+          const now = view.people.find((x) => x.id === open);
+          if (now) drawRoles(kept, now);
+        }
         body.replaceChildren(...rows);
         const save = kept?.querySelector<HTMLButtonElement>('[data-act="save"]');
         if (save) save.textContent = confirming === `email:${open}` ? "Confirm?" : "Save";
@@ -233,8 +271,8 @@ export function authView(): View {
                   <input class="cfg-field" name="email" type="email" maxlength="254" placeholder="Email" /></label>
                 <label class="auth-field"><span>Phone</span>
                   <input class="cfg-field" name="phone" type="tel" maxlength="24" placeholder="XXX-XXX-XXXX" /></label>
-                <div class="auth-field"><span>Role</span>
-                  <p class="auth-role">Role · set by roles, later</p></div>
+                <div class="auth-field auth-roles"><span>Role</span>
+                  <div class="role-chips"></div></div>
               </div>
             </div>
           </form>`) as HTMLFormElement;
@@ -414,10 +452,92 @@ export function authView(): View {
           }
         });
 
+        // People View (fork 3A): the card reads only; no Save, no picture change.
+        if (!may("people", "edit")) {
+          for (const k of names) field(k).readOnly = true;
+          box.querySelector<HTMLElement>(".cfg-actions")!.hidden = true;
+          pick.hidden = true;
+          clear.hidden = true;
+        }
         td.append(box);
         tr.append(td);
+        drawRoles(tr, p);
         return tr;
       };
+
+      /** A panel's roles: a chip per role, with ✕ and an Add list at Roles Edit (never on your
+       * own row, nor the blank one). */
+      function drawRoles(tr: HTMLElement, p: Person): void {
+        const holder = tr.querySelector<HTMLElement>(".role-chips");
+        if (!holder) return;
+        const can = may("roles", "edit") && p.id !== NEW && p.id !== myId();
+        const chips: HTMLElement[] = p.role_ids.map((id) => {
+          const chip = el(`<span class="role-chip"><span></span></span>`);
+          chip.firstElementChild!.textContent = roleName(id);
+          if (can) {
+            const x = el(`<button class="role-chip-remove" type="button">✕</button>`);
+            x.dataset.revoke = id;
+            x.setAttribute("aria-label", `Revoke ${roleName(id)}`);
+            chip.append(x);
+          }
+          return chip;
+        });
+        if (!chips.length) chips.push(dim(p.id === NEW ? "Save first, then add a role" : "No role"));
+        const free = roleList.filter((r) => !p.role_ids.includes(r.id));
+        if (can && free.length) {
+          const add = el(`<select class="cfg-field role-add" aria-label="Add a role"><option value="">Add a role</option></select>`) as HTMLSelectElement;
+          for (const r of free) {
+            const o = document.createElement("option");
+            o.value = r.id;
+            o.textContent = r.name;
+            add.append(o);
+          }
+          chips.push(add);
+        }
+        holder.replaceChildren(...chips);
+      }
+
+      /** A grant or a revoke from a panel: the list again from the answer, your own access read
+       * again (a change to the roles can change it), and ehr's reason when it refused. */
+      const changeRole = async (tr: HTMLElement, person: string, role: string, grant: boolean) => {
+        const tell = (text: string) => (tr.querySelector<HTMLElement>(".auth-edit-status")!.textContent = text);
+        tell(grant ? "Granting" : "Revoking");
+        try {
+          await people.write(() => (grant ? grantRole(person, role) : revokeRole(person, role)));
+          accessChanged();
+          tell(`${roleName(role)} ${grant ? "granted" : "revoked"}`);
+        } catch (err) {
+          failed(grant ? "Not granted" : "Not revoked", err, tell);
+          draw();
+        }
+      };
+      body.addEventListener("click", (e) => {
+        const x = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-revoke]");
+        const tr = x?.closest<HTMLElement>(".auth-panel");
+        if (x && tr?.dataset.id) void changeRole(tr, tr.dataset.id, x.dataset.revoke!, false);
+      });
+      body.addEventListener("change", (e) => {
+        const add = (e.target as HTMLElement).closest<HTMLSelectElement>(".role-add");
+        const tr = add?.closest<HTMLElement>(".auth-panel");
+        if (add && add.value && tr?.dataset.id) void changeRole(tr, tr.dataset.id, add.value, true);
+      });
+
+      // The roles' names, when you may read them (Roles View); read once you may.
+      let rolesRead = false;
+      const readRoles = () => {
+        if (rolesRead || !may("roles", "view")) return;
+        rolesRead = true;
+        roles(0).subscribe(root, (s) => {
+          if (!s.value) return;
+          setRoleList(s.value.active);
+          draw();
+        });
+      };
+      readRoles();
+      onAccess(() => {
+        readRoles();
+        draw();
+      });
 
       // The people store (LOADING.md §3), shared with Teams › People. It reads again when the
       // window comes back (someone else may have changed the list), and on its own when the
@@ -444,7 +564,7 @@ function message(text: string): HTMLElement {
 
 /** One person's row, or the blank row (every cell a placeholder). The whole row opens its
  * panel; Remove does not. */
-function row(p: Person, you: string, isOpen: boolean, confirming: boolean): HTMLElement {
+function row(p: Person, you: string, isOpen: boolean, confirming: boolean, editing: boolean): HTMLElement {
   const tr = document.createElement("tr");
   tr.className = "auth-row";
   tr.dataset.id = p.id;
@@ -476,7 +596,7 @@ function row(p: Person, you: string, isOpen: boolean, confirming: boolean): HTML
         p.last_name || dim("Last"),
         !p.email ? dim("Email") : mine ? `${p.email} (you)` : p.email,
         phone,
-        dim("Role"),
+        roleLine(p) ?? dim("No role"),
         p.source === "idp" ? "IdP" : "Access",
         p.owner ? "Deets" : p.added_by ?? "Cloudflare's group",
         day(p.added_at),
@@ -494,7 +614,7 @@ function row(p: Person, you: string, isOpen: boolean, confirming: boolean): HTML
   // in the same column, for --confirm-hold (TABLES.md §3.12): a remove takes sign-in away at once.
   const last = document.createElement("td");
   last.className = "dt-tools-cell";
-  if (!p.owner && !blank) {
+  if (!p.owner && !blank && editing) {
     const who = p.email || [p.first_name, p.last_name].filter(Boolean).join(" ") || "this person";
     const b = toolButton("remove", `Remove ${who}`);
     b.classList.add("auth-remove");

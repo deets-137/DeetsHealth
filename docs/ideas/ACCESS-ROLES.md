@@ -88,7 +88,11 @@ holds it in place of the `owner` flag.
 
 | Role | PHI | Auth | Roles | People | Agent | Vendors | Rules | Testing | Analytics | Flags | Audit logs |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Deets (ours) | None | Edit | Edit | Edit | Edit | Edit | Edit | Edit | Edit | Edit | Edit |
+| Deets (ours) | Edit | Edit | Edit | Edit | Edit | Edit | Edit | Edit | Edit | Edit | Edit |
+
+**Changed (the owner, 2026-11-18):** "give Deets PHI Edit permissions as well". Deets now has
+Edit on every lever, so it covers every template and its holder may grant any of them (the
+fork of §6 "As built"). Until 2026-11-18 Deets had PHI None.
 
 ## 5. Enforcing roles: the forks and the answers
 > **Part:** designed · 2026-11-15 · the owner
@@ -134,7 +138,7 @@ not allow, not only the console's screen.
   access is its roles, as for anyone.
 - **What PHI None means for the owner:** Chat › PHI (watching another person's live call)
   leaves his nav. Testing and Demo stay: their patients are synthetic and their lever is
-  Testing.
+  Testing. *(Replaced 2026-11-18: Deets has PHI Edit, §4, so Chat › PHI stays in his nav.)*
 - **The conflict rule:** a person who holds a role with View or Edit on Audit logs and no Edit
   on Roles (Compliance) cannot also hold a role with Edit on Roles or People.
 - **The two domains:** each role is Hospital or DeetsHealth Team. In the demo both live in
@@ -224,6 +228,40 @@ counts in the part titles are a team's without Claude, kept for comparison. **Co
 
 Desk test: `cargo test` for the rules; `npm run check`.
 
+**As built (2026-11-18; checkpoint 2 of §8.5 reached, not committed).** `ehr/migrations/0011_roles.sql`,
+`0012_audit.sql`; `ehr/src/access.rs`, `audit.rs`; `settings.rs`, `users.rs`, `service.rs`,
+`store.rs`; `ehr.proto`. Tests: 143 unit tests (`cargo test -p deetshealth-ehr --lib`), 8
+store tests (`npm run db:test`), clippy with warnings as errors, and cargo-deny's bans pass. The tree's other checks wait for Hand-over 2: the agent
+sends no `deets-actor` yet, so every staff RPC from the console is refused, and `docs:check` 13
+fails on the six new RPCs with no agent method.
+
+Decided inside his choices (Claude, 2026-11-18; listed so nothing ships unseen):
+- **The roles list is the settings service `roles`**, not RPCs `ListRoles` and `SaveRoles`
+  (§8.1 left this to the builder): it gets versions, Make active and the audit row for free.
+- **`SeenOwner` keeps its name** (§8.1 said rename it `Seen`). It now answers with the owner's
+  id, and `AdmitUser` with the person's id: the agent needs the id to send as `deets-actor`.
+  Stamping last seen stays on those two RPCs.
+- **Settings with no person are the agent itself**: a call reading its settings, the prompt
+  file synced, a Default seed. Allowed and audited as the system. With a person: the lever by
+  service, View to read and Edit to save. Every other staff RPC refuses a request with no
+  person.
+- **A new RPC, `LogAccess`**, for what changes nothing in the store (a page opened, a
+  transcript viewed, a test run; §5.1, point 4): ehr checks the lever and writes an allowed or
+  a refused row; the agent refuses the look when it was refused.
+- **A removal revokes the person's roles** in the same transaction; a person added back
+  comes back with no role.
+- **SHA-256 from AWS-LC** (already in `ehr`), not the `sha2` crate §8.1 named: no new
+  dependency.
+- **A card change needs People Edit, one's own card too**, and the card's owner at or below
+  you.
+- **Seeds and migrations are audited as the system**, except the migration's own roles seed
+  (SQL cannot chain a row; its version says `created_by` `system`).
+
+**A fork found while building, answered:** the rule "you change only people at or below you"
+compares every lever, PHI too. With PHI None, Deets could not grant the five roles with PHI View.
+The owner's answer (2026-11-18): the rule stays, and Deets gets PHI Edit (§4). So Chat › PHI is
+in his nav after all, and what PHI Edit allows beyond View is still open (§7).
+
 ### Hand-over 2 — the dev server (about 4 days)
 1. **The seam (`agent/deets_agent/identity.py`):** an interface, `who(request) → Principal`
    (the user id, the source). Sources now: the launch token, Cloudflare Access (`access.py`
@@ -244,6 +282,38 @@ Desk test: `cargo test` for the rules; `npm run check`.
 Desk test: tests in `agent/tests/` for each source and the 403s; a guest with no role gets
 only `/agent/me`.
 
+**As built (2026-11-18; checkpoint 3 of §8.5 reached, not committed).** `agent/deets_agent/identity.py`
+(new), `ehr_client.py`, `dev_server.py`; `agent/tests/test_roles.py` (new) and the people,
+door and live-call tests; DEV-API.md §2 (the new routes) and §2a (what each route needs).
+`npm run check -- agent` passes (lint, every agent test, the kept scripts against a real
+`ehr`), and `docs:check` has no failure.
+
+Decided inside his choices (Claude, 2026-11-18; listed so nothing ships unseen):
+- **One table, not a decorator per route:** `dev_server.py › ROUTE_NEEDS` maps each method and
+  path to its lever and level. The wall finds the route a request reaches and checks the table
+  before the route runs, and `build_app` refuses to start when a route and the table differ.
+  The WebSockets check the same table when they open. DEV-API.md §2a is the table in words;
+  `test_roles.py` compares them, in place of a new `docs:check` step.
+- **The person travels in a context variable** (`ehr_client.ACTOR`), set by the wall for each
+  request; every staff call sends it as `deets-actor`. Work the agent does on its own runs in
+  `as_system()` and sends `deets-actor: system`: the start-up sync, seeding a Default version,
+  and the settings a call runs with (so a guest who may test, but not read Config › Agent, still
+  gets a working call). `ehr` takes `system` only for settings, the People list and the
+  annotations (`Need::LeverOrSystem`); a request with no `deets-actor` at all is still refused.
+- **No roles store, no roles:** without `ehr` or its Postgres, the launch token is the owner
+  with Edit everywhere (as before roles), and a guest gets nothing. The same holds for the
+  launch token on a store with no owner row yet (a new machine with no Cloudflare group). Dev
+  only: a deploy always has its store.
+- **Levels are kept 30 s** per person, and dropped at once after a grant, a revoke, a roles
+  save or a removal through this server. Another server's change takes up to 30 s, as the
+  guest list does (DEMO.md §3.3).
+- **Looks recorded so far** (`POST /agent/log` is ready for the console's page opens): a
+  transcript read (`GET /agent/calls/{id}`), a watch opened, a Test run (it spends tokens).
+- **The roles list's routes** are `GET` and `POST /agent/roles` (the whole list, versioned);
+  grants and revokes are `POST` and `DELETE /agent/people/{id}/roles/{role_id}`.
+- **A 403 says what was missing:** `{error: "forbidden", lever, level}`, so the console can
+  say which permission is needed.
+
 ### Hand-over 3 — the console (about 5 days)
 1. **A `me` store** (LOADING.md): your levels, read on start and again when the server says
    they changed.
@@ -260,6 +330,32 @@ only `/agent/me`.
 
 Desk test: written into CONSOLE.md with the build; sign in as the owner and as a guest with
 Junior Analyst, and see the pages and controls differ.
+
+**As built (2026-11-18; checkpoints 4 and 5 of §8.5).** `console/src/access.ts` (new),
+`pages/no-role.ts` (new), `nav.ts`, `pages/subnav.ts`, `pages/page.ts`, `pages/config-kit.ts`,
+`pages/config.ts`, `security.ts`, `teams.ts`, `rules.ts`, `analytics.ts`, `chat.ts`, `auth.ts`,
+`roles.ts` (rewritten on the store), `audit.ts` (the three views filled); `agent/api.ts`,
+`agent/stores.ts`; `styles/auth.css`, `styles/config.css`. CONSOLE.md §13 (with the desk test),
+LOADING.md (the `me`, `roles` and `audit` stores).
+
+Decided inside his choices (Claude, 2026-11-18; listed so nothing ships unseen):
+- **Security › Auth needs People** (it lists and edits the People list), not Auth. Auth has
+  nothing of its own to guard until staff sign-in exists (§7's open point).
+- **Chat's modes:** Testing needs Testing Edit (it makes calls), Demo Testing View (it plays the
+  records), PHI PHI View. Chat is in the nav while any mode is yours.
+- **A view's lever rides on the view** (`View.lever`), and Config's frame reads it from the view
+  it builds, so the five Config views needed no change of their own.
+- **Before `me` answers, everything shows**, so the first paint never flashes "No role yet"; the
+  first-load wave waits for `me` anyway.
+- **Security › Roles saves the whole list from the page's title row** (Config's Discard | Save
+  look), not per role: a roles version is the whole list. A new role's id is made from its name
+  at Save and never changes after. **Remove role** takes a role out of the draft; ehr refuses it
+  while someone holds it.
+- **Audit Logs:** your three views (Config, Calls, Security) sort the rows by kind; 100 rows a
+  page with Older and Newest, so no list passes CONSOLE.md §12's 200 and needs no window or
+  search box yet. Names come from the People list when your role shows it, else the start of
+  the id. The page's own look stays your fork.
+- **A page open is recorded once per visit** to the page, by the first lever you hold it by.
 
 ### Then
 Staff sign-in (STAFF-SIGN-IN.md §10) as a new source behind the seam: OIDC on an Entra test
@@ -536,7 +632,8 @@ Run `npm run check` at each one; `npm run check:all` before the commit.
 4. **After the console's `me`, nav and config-kit:** `npm run check` (types) green.
 5. **After roles.ts, auth.ts, chat.ts and audit.ts:** the full check; commit.
 6. **The owner's desk test, on this PC:**
-   - Sign in with the launch token: everything shows except Chat › PHI.
+   - Sign in with the launch token: everything shows, Chat › PHI too (Deets has PHI Edit since
+     2026-11-18).
    - On a phone through the demo, a guest with no role sees "No role yet".
    - Grant the guest Junior Analyst. Within seconds the guest sees Config › Agent as View
      only, Testing, and Analytics.

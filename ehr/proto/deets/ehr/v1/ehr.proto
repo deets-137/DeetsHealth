@@ -77,10 +77,11 @@ service Ehr {
   // later; with no email, no sign-in). ALREADY_EXISTS when the email is on it; INVALID_ARGUMENT
   // names the field that does not fit.
   rpc AddUser(AddUserRequest) returns (AddUserReply);
-  // Takes a person off the list (the row stays, for audits) and returns their email.
-  // NOT_FOUND for no such person; PERMISSION_DENIED for the owner.
+  // Takes a person off the list (the row stays, for audits), revokes their roles, and returns
+  // their email. NOT_FOUND for no such person; PERMISSION_DENIED for someone above you and for
+  // the last person who can manage the console.
   rpc RemoveUser(RemoveUserRequest) returns (RemoveUserReply);
-  // Whether an email is on the list now; stamps when it was last seen.
+  // Whether an email is on the list now, and the person's id; stamps when it was last seen.
   rpc AdmitUser(AdmitUserRequest) returns (AdmitUserReply);
   // Brings in the emails already in Cloudflare's group that the list lacks (users.rs › seed).
   rpc SeedUsers(SeedUsersRequest) returns (SeedUsersReply);
@@ -93,8 +94,32 @@ service Ehr {
   // such person; INVALID_ARGUMENT for a picture that is not a WebP of at most 256 KB.
   rpc GetUserPhoto(GetUserPhotoRequest) returns (UserPhoto);
   rpc SetUserPhoto(SetUserPhotoRequest) returns (SetUserPhotoReply);
-  // The owner was seen: the console on the owner's PC (the launch token) stamps last seen.
+  // The owner was seen: the console on the owner's PC (the launch token) stamps last seen, and
+  // gets the owner's id, the person the launch token speaks for.
   rpc SeenOwner(SeenOwnerRequest) returns (SeenOwnerReply);
+  // Access by role (docs/ideas/ACCESS-ROLES.md §5, access.rs). The staff RPCs above and below
+  // take the person in the gRPC metadata `deets-actor` (their user id), never in a message; ehr
+  // reads their levels from the store itself. A staff RPC with no known person, or without the
+  // lever and level it needs (service.rs › RPC_LEVERS), is PERMISSION_DENIED and audited. The
+  // roles list itself is the settings service `roles` (Get/SaveSettings).
+  //
+  // The caller's own id, live roles, the roles version and the level on each lever.
+  rpc Levels(LevelsRequest) returns (LevelsReply);
+  // Grants a role (Roles Edit). PERMISSION_DENIED names the rule that refused it: not your own,
+  // not above you, not a conflict (access.rs). NOT_FOUND for no such person or role.
+  rpc GrantRole(GrantRoleRequest) returns (GrantRoleReply);
+  // Revokes a role (Roles Edit). PERMISSION_DENIED for one's own, for someone above you, and for
+  // the last person who can manage the console.
+  rpc RevokeRole(RevokeRoleRequest) returns (RevokeRoleReply);
+  // The audit trail (Audit logs View; audit.rs), newest first: ids and field names only.
+  rpc ReadAudit(ReadAuditRequest) returns (ReadAuditReply);
+  // Walks the whole chain: whether every row matches its hash and the row before.
+  rpc VerifyAudit(VerifyAuditRequest) returns (VerifyAuditReply);
+  // Records a look or a use that changes nothing in the store: a page opened, a transcript
+  // viewed, a recording played, a test run (§5.1, point 4). ehr checks the caller holds the
+  // lever and level named, and writes an allowed or a refused row. The agent refuses the look
+  // when `allowed` is false.
+  rpc LogAccess(LogAccessRequest) returns (LogAccessReply);
   // Config › Hospital › Places, Import from Epic (HOSPITAL-CONFIG.md §8): the hospital's
   // facilities, departments and their specialties from the EHR's directory, as the hospital's
   // rows. Saves nothing: the page merges them into its draft. FAILED_PRECONDITION when ehr does
@@ -145,6 +170,8 @@ message User {
   string source = 12;
   // When the picture was saved, RFC 3339, UTC; empty when there is none.
   string photo_at = 13;
+  // Their live roles, by id (access.rs).
+  repeated string role_ids = 14;
 }
 
 message UpdateUserRequest {
@@ -182,7 +209,103 @@ message SetUserPhotoReply {}
 
 message SeenOwnerRequest {}
 
-message SeenOwnerReply {}
+message SeenOwnerReply {
+  // The owner's user id; empty when the list has no owner yet.
+  string user_id = 1;
+}
+
+message LevelsRequest {}
+
+message LevelsReply {
+  string user_id = 1;
+  repeated string role_ids = 2;
+  int64 roles_version = 3;
+  // One per lever, in the order of access.rs › LEVERS.
+  repeated LeverLevel levels = 4;
+}
+
+message LeverLevel {
+  string lever = 1;
+  // `none`, `view` or `edit`.
+  string level = 2;
+}
+
+message GrantRoleRequest {
+  string user_id = 1;
+  string role_id = 2;
+}
+
+message GrantRoleReply {}
+
+message RevokeRoleRequest {
+  string user_id = 1;
+  string role_id = 2;
+}
+
+message RevokeRoleReply {}
+
+message ReadAuditRequest {
+  // Rows before this `seq`, newest first; 0 for the newest.
+  int64 before = 1;
+  // At most this many, 1 to 500.
+  int32 limit = 2;
+  // Only the rows that changed something or were refused.
+  bool changes = 3;
+}
+
+message ReadAuditReply {
+  repeated AuditRow rows = 1;
+}
+
+// One audit row (audit.rs): ids and field names only, never a name, an email or a patient value.
+message AuditRow {
+  int64 seq = 1;
+  // RFC 3339, UTC, to the microsecond.
+  string at = 2;
+  // The person's user id; empty for the system.
+  string actor = 3;
+  // `person`, `system` or `unknown`.
+  string source = 4;
+  repeated string roles = 5;
+  int64 roles_version = 6;
+  string lever = 7;
+  string level = 8;
+  string action = 9;
+  string object_kind = 10;
+  string object_id = 11;
+  string data_class = 12;
+  repeated string fields = 13;
+  int64 before_version = 14;
+  int64 after_version = 15;
+  bool allowed = 16;
+}
+
+message VerifyAuditRequest {}
+
+message VerifyAuditReply {
+  bool ok = 1;
+  int64 rows = 2;
+  // The first row that does not match; 0 when every row matches.
+  int64 first_bad = 3;
+}
+
+message LogAccessRequest {
+  // The lever and level the look needs (access.rs words).
+  string lever = 1;
+  string level = 2;
+  // A lower-case word with dots: `page.open`, `transcript.view`, `recording.play`, `test.run`.
+  string action = 3;
+  // What was looked at: a kind (`page`, `call`) and its id (a page's name, a call id). Never a
+  // name or a patient value.
+  string object_kind = 4;
+  string object_id = 5;
+  // `synthetic` or `real`, for a call; empty otherwise.
+  string data_class = 6;
+}
+
+message LogAccessReply {
+  bool allowed = 1;
+}
 
 message ListUsersRequest {}
 
@@ -193,7 +316,8 @@ message ListUsersReply {
 message AddUserRequest {
   string email = 1 [(phi) = true];
   string name = 2 [(phi) = true];
-  // The adder's email; empty for the console on the owner's PC.
+  // Not read since roles (2026-11-18): the adder is the caller (`deets-actor`). Kept so the
+  // field number is never reused.
   string by = 3 [(phi) = true];
 }
 
@@ -215,6 +339,8 @@ message AdmitUserRequest {
 
 message AdmitUserReply {
   bool active = 1;
+  // The person's id when they are on the list.
+  string user_id = 2;
 }
 
 message SeedUsersRequest {

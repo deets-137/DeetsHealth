@@ -3,11 +3,14 @@
 import { el, type Page } from "./pages/page";
 import { reducedMotion, tokenMs } from "./tokens";
 import { shown } from "./agent/store";
-import { picker } from "./picker";
+import { picker, type Picker } from "./picker";
+import { anyAccess, known, may, onAccess, startAccess } from "./access";
+import { noRolePage } from "./pages/no-role";
+import { logLook } from "./agent/api";
 
 const LAST_PAGE = "deets.console.page";
 
-export function initNav(pages: Page[]) {
+export function initNav(allPages: Page[]) {
   const nav = document.querySelector(".nav") as HTMLElement;
   const top = document.getElementById("nav-list") as HTMLElement;
   const bottom = document.getElementById("nav-list-bottom") as HTMLElement;
@@ -17,6 +20,11 @@ export function initNav(pages: Page[]) {
   const built = new Map<string, HTMLElement>();
   let current: Page | null = null;
   let swap = 0; // the latest click wins when clicks come quickly
+  // Shown when you hold no role at all (deny by default, ACCESS-ROLES.md §5), with Settings.
+  const noRole = noRolePage();
+  let pages: Page[] = [];
+  let buttons: HTMLButtonElement[] = [];
+  let pagePick: Picker | null = null;
 
   const item = (p: Page) => {
     const li = el(`<li><button class="nav-item" type="button" data-page=""><span></span></button></li>`);
@@ -25,20 +33,34 @@ export function initNav(pages: Page[]) {
     b.querySelector("span")!.textContent = p.title;
     return li;
   };
-  top.replaceChildren(...pages.filter((p) => !p.bottom).map(item));
-  bottom.replaceChildren(...pages.filter((p) => p.bottom).map(item));
-  const buttons = [...nav.querySelectorAll<HTMLButtonElement>(".nav-item")];
 
-  // The same list as a dropdown, for a narrow screen (picker.ts). The foot's pages come after
-  // a divider, as they sit apart in the nav. `go` is defined below; a pick runs only after it is.
-  const ordered = [...pages.filter((p) => !p.bottom), ...pages.filter((p) => p.bottom)];
-  const pagePick = picker(
-    "Pages",
-    ordered.map((p, i) => ({ id: p.id, title: p.title, apart: p.bottom && !ordered[i - 1]?.bottom })),
-    "left",
-    (id) => go(id),
-  );
-  document.getElementById("compact-pages")!.replaceChildren(pagePick.el);
+  /** The pages you may see (access.ts): each with any of its levers at View; with no role at
+   * all, "No role yet" and the pages that need none. Drawn again when your access changes. */
+  const render = () => {
+    const allowed = allPages.filter((p) => !p.levers || p.levers.some((l) => may(l, "view")));
+    pages = anyAccess() ? allowed : [noRole, ...allPages.filter((p) => !p.levers)];
+    top.replaceChildren(...pages.filter((p) => !p.bottom).map(item));
+    bottom.replaceChildren(...pages.filter((p) => p.bottom).map(item));
+    buttons = [...nav.querySelectorAll<HTMLButtonElement>(".nav-item")];
+    // The same list as a dropdown, for a narrow screen (picker.ts). The foot's pages come after
+    // a divider, as they sit apart in the nav. `go` is defined below; a pick runs only after it is.
+    const ordered = [...pages.filter((p) => !p.bottom), ...pages.filter((p) => p.bottom)];
+    pagePick = picker(
+      "Pages",
+      ordered.map((p, i) => ({ id: p.id, title: p.title, apart: p.bottom && !ordered[i - 1]?.bottom })),
+      "left",
+      (id) => go(id),
+    );
+    document.getElementById("compact-pages")!.replaceChildren(pagePick.el);
+    if (current && !pages.includes(current)) {
+      // The page shown is no longer yours: the first page left.
+      go(pages[0].id);
+    } else if (current) {
+      buttons.find((b) => b.dataset.page === current!.id)?.setAttribute("aria-current", "page");
+      pagePick.set(current.id);
+      place(false);
+    }
+  };
 
   /** Moves the pill onto the current item, in whole pixels. */
   const place = (animate: boolean) => {
@@ -74,7 +96,13 @@ export function initNav(pages: Page[]) {
       else b.removeAttribute("aria-current");
     });
     place(!first);
-    pagePick.set(page.id);
+    pagePick?.set(page.id);
+    // Opening a page is a look that changes nothing, kept in the audit trail (ACCESS-ROLES.md
+    // §5.1, point 4): the page's id, the first lever you hold it by.
+    if (known()) {
+      const lever = page.levers?.find((l) => may(l, "view"));
+      if (lever) void logLook(lever, "view", "page.open", "page", page.id);
+    }
     try {
       localStorage.setItem(LAST_PAGE, page.id);
     } catch {
@@ -114,6 +142,9 @@ export function initNav(pages: Page[]) {
     else current?.shown?.();
   });
 
+  render();
+  onAccess(render);
+  startAccess(nav);
   let saved: string | null = null;
   try {
     saved = localStorage.getItem(LAST_PAGE);

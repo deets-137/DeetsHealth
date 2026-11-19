@@ -29,6 +29,42 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
 - His ask for the roles build: "tracking which user made a change, what change, and what they
   did with their role logged as well as time". Written as ACCESS-ROLES.md §5.1 (0 real forks,
   9 points that follow), with §6 and §8 corrected (migrations 0011 and 0012).
+- His word: "Commit and start." Committed the design (`303e55a`), then built Hand-over 1 of
+  the roles build (the store and `ehr`): migrations 0011 (roles, `user_roles`, the Default
+  roles, Deets for the owner) and 0012 (`staff_audit`, chained by SHA-256; `user_card_versions`,
+  sealed under its own rows); `access.rs` (levels, the rules), `audit.rs` (write, read,
+  verify); the gate in `service.rs` (`RPC_LEVERS`, `deets-actor`, refusals audited); six new
+  RPCs (`Levels`, `GrantRole`, `RevokeRole`, `ReadAudit`, `VerifyAudit`, `LogAccess`). What was
+  decided inside his choices: ACCESS-ROLES.md §6 "As built".
+- Found while building: the card history first copied the sealed bytes, bound to `users`; a key
+  change could not have sealed them again. Now each version is sealed under its own row and is
+  on the reseal list; the reseal test covers it.
+- A fork for him (ACCESS-ROLES.md §6): Deets has PHI None, so by the "at or below you" rule a
+  Deets holder cannot grant any role with PHI View. His answer: "give Deets PHI Edit
+  permissions as well". The seed, the tests and §4 changed; the rule stays.
+- His word: "Start Hand-over 2." Built: `identity.py` (the launch token and Access as sources;
+  levels from `ehr`, kept 30 s); `ehr_client.ACTOR` and `as_system()` (every staff call sends
+  `deets-actor`; `ehr` takes `system` for settings, the People list and the annotations);
+  `ROUTE_NEEDS` (every route's lever, checked by the wall and at start); the WebSockets checked
+  on open, a watch closed when PHI View is lost; new routes `/agent/me`, `/agent/log`,
+  `/agent/roles`, the grant and revoke, `/agent/audit` and its verify; transcript reads, watches
+  and Test runs recorded. DEV-API.md §2a and `test_roles.py` keep the table and the code
+  together. What was decided inside: ACCESS-ROLES.md §6, Hand-over 2 "As built".
+- Checks: `npm run check -- agent` passes (every agent test, the kept scripts against a real
+  `ehr`); `docs:check` has no failure; `ehr`'s 143 unit and 8 store tests and clippy pass. Not
+  committed.
+- His word: "Start Hand-over 3." Built the console's side: `access.ts` (the `me` store, `may`,
+  `onAccess`); the nav and every sub-nav list only the pages and views you may see, "No role yet"
+  with no role, page opens recorded; Config's frame, Auth and Roles at View only with the mark;
+  Chat's modes by lever; Auth's Role column and the panel's role chips (grant and revoke);
+  Security › Roles rewritten on the store with a whole-list Save; Audit Logs' three views as
+  plain tables of the trail, Older and Newest, Check chain. CONSOLE.md §13 with the desk test
+  (§13.1); LOADING.md's stores; what was decided inside: ACCESS-ROLES.md §6, Hand-over 3 "As
+  built".
+- Checks: `npm run check:all` (15 steps, lints too) and `npm run db:test` pass. Not committed;
+  not run in a browser.
+- Checks: 143 unit tests, 8 store tests, clippy, cargo-deny bans pass. `docs:check` 13 fails
+  on the six new RPCs (no agent method yet), as checkpoint 2 expects. Not committed.
 
 ## 2026-11-16 (Windows, night) — one Rust build folder
 - The cause: C: fell to 5.8 GB free. `target/` held 85 GB six days after a clean, in about ten

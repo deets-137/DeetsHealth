@@ -15,6 +15,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::Value;
 use sqlx::{PgPool, Row};
 
+use crate::access::{Actor, Level, Lever};
+use crate::audit::{self, Entry};
 use crate::sql::Sql;
 
 /// What one setting may hold.
@@ -41,6 +43,8 @@ pub enum Kind {
     /// One of the hospital's lists or numbers (HOSPITAL-CONFIG.md), checked by hospital.rs ›
     /// `check_key` under its own name.
     Hospital,
+    /// The roles list (docs/ideas/ACCESS-ROLES.md), checked by access.rs › `roles_from`.
+    Roles,
 }
 
 /// The longest section of the agent's words. The role prompt, the longest, is about 3,500.
@@ -291,6 +295,20 @@ pub const HOSPITAL: &[Setting] = &[
     s("booking_rules", Kind::Hospital),
 ];
 
+/// The roles (docs/ideas/ACCESS-ROLES.md §4; migration 0011): one setting, the list.
+pub const ROLES: &[Setting] = &[s("roles", Kind::Roles)];
+
+/// The lever a service's settings sit under (ACCESS-ROLES.md §8.1): who may read and save them.
+pub fn lever(service: &str) -> Lever {
+    match service {
+        "voice" | "llm" => Lever::Vendors,
+        "prompt" | "system" => Lever::Agent,
+        "hospital" => Lever::Rules,
+        // "roles", and any service added later until it names its own lever.
+        _ => Lever::Roles,
+    }
+}
+
 /// The System variables that cannot be removed or renamed: the code's own (SYSTEM-PAGE.md §3.1).
 pub const BUILT_IN: &[&str] = &["clinic"];
 /// The limits of SYSTEM-PAGE.md §3.2. The agent's prompts.py holds the same.
@@ -312,6 +330,7 @@ pub fn service(name: &str) -> Option<(&'static str, &'static [Setting], &'static
         "prompt" => Some(("prompt", PROMPT, "settings_prompt")),
         "system" => Some(("system", SYSTEM, "settings_system")),
         "hospital" => Some(("hospital", HOSPITAL, "settings_hospital")),
+        "roles" => Some(("roles", ROLES, "settings_roles")),
         _ => None,
     }
 }
@@ -614,6 +633,7 @@ pub fn fits(kind: Kind, value: &Value) -> bool {
         Kind::Variables => variables(value).is_ok(),
         // Checked by name in `check`: the kind alone does not say which list.
         Kind::Hospital => false,
+        Kind::Roles => crate::access::roles_from(value).is_ok(),
     }
 }
 
@@ -648,6 +668,8 @@ pub fn check(list: &[Setting], values: &[(String, String)]) -> Result<Vec<(&'sta
             variables(&value)?;
         } else if let Kind::Hospital = setting.kind {
             crate::hospital::check_key(setting.key, &value)?;
+        } else if let Kind::Roles = setting.kind {
+            crate::access::roles_from(&value)?;
         } else if !fits(setting.kind, &value) {
             return Err(format!("{}: out of range or the wrong kind", setting.key));
         }
@@ -750,13 +772,31 @@ pub async fn get(pool: &PgPool, service: &str, table: &'static str, id: i64) -> 
 pub enum SaveError {
     /// A seed, and the service has its Default version already.
     DefaultExists,
+    /// The save would break a rule of the store as it is now (a roles save: access.rs ›
+    /// `may_save_roles`). The message names the rule, never a value.
+    Refused(String),
     Db(String),
+}
+
+/// The keys whose values differ between two versions' values (names only, for the audit row).
+fn changed_keys(before: &[(String, String)], after: &[(&str, Value)]) -> Vec<String> {
+    let old: BTreeMap<&str, Value> =
+        before.iter().filter_map(|(k, v)| Some((k.as_str(), serde_json::from_str::<Value>(v).ok()?))).collect();
+    let mut out: Vec<String> = after.iter().filter(|(k, v)| old.get(k) != Some(v)).map(|(k, _)| k.to_string()).collect();
+    out.extend(old.keys().filter(|k| !after.iter().any(|(a, _)| a == *k)).map(|k| k.to_string()));
+    out.sort();
+    out
 }
 
 /// Save a checked set as a new version, in one transaction. A plain save is the day's next
 /// number and becomes the active one. A `seed` is the Default version (number 0, one per
 /// service), active only when nothing is active yet. The day's number comes under a lock, so two
 /// saves at once never share one.
+///
+/// `who`: the person saving (docs/ideas/ACCESS-ROLES.md §5.1), or None for the system (a seed,
+/// the prompt file synced). The version's `created_by` is their user id; with no person, `by`.
+/// The audit row (the names of the settings that changed, the versions before and after) is
+/// written in the same transaction.
 pub async fn save(
     pool: &PgPool,
     service: &str,
@@ -764,12 +804,38 @@ pub async fn save(
     values: &[(&str, Value)],
     by: &str,
     seed: bool,
+    who: Option<&Actor>,
 ) -> Result<Version, SaveError> {
+    let by = who.map_or(by, |a| a.id.as_str());
     let mut tx = pool.begin().await.map_err(|e| SaveError::Db(db("begin", e)))?;
     sqlx::query("SELECT pg_advisory_xact_lock(hashtext('deets.settings'))")
         .execute(&mut *tx)
         .await
         .map_err(|e| SaveError::Db(db("lock", e)))?;
+    if service == "roles" && !seed {
+        let list = values.iter().find(|(k, _)| *k == "roles").map(|(_, v)| v).ok_or(SaveError::Refused("roles: missing".into()))?;
+        let roles = crate::access::roles_from(list).map_err(SaveError::Refused)?;
+        crate::access::may_save_roles(&mut tx, &roles).await.map_err(SaveError::Refused)?;
+    }
+    // The active version before this save, and its values: the audit row's "before".
+    let before: Option<i64> = sqlx::query_scalar(
+        "SELECT version_id FROM setting_activations WHERE service = $1 ORDER BY id DESC LIMIT 1",
+    )
+    .bind(service)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|e| SaveError::Db(db("active", e)))?;
+    let before_values: Vec<(String, String)> = match before {
+        Some(id) => sqlx::query(Sql::new().text("SELECT key, value::text AS value FROM ").text(table).text(" WHERE version_id = $1"))
+            .bind(id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|e| SaveError::Db(db("values", e)))?
+            .iter()
+            .map(|r| (r.get::<String, _>("key"), r.get::<String, _>("value")))
+            .collect(),
+        None => vec![],
+    };
     let has_default: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM setting_versions WHERE service = $1 AND seq = 0)")
         .bind(service)
         .fetch_one(&mut *tx)
@@ -814,6 +880,11 @@ pub async fn save(
             .await
             .map_err(|e| SaveError::Db(db("activate", e)))?;
     }
+    let entry = Entry::by(who, if seed { "settings.seed" } else { "settings.save" })
+        .lever(lever(service), Level::Edit)
+        .object("settings", service)
+        .change(changed_keys(&before_values, values), before, Some(id));
+    audit::write(&mut tx, &entry).await.map_err(SaveError::Db)?;
     tx.commit().await.map_err(|e| SaveError::Db(db("commit", e)))?;
     let (v, _) = get(pool, service, table, id)
         .await

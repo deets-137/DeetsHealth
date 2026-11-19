@@ -8,6 +8,7 @@ export function rulesPage(): Page {
     id: "rules",
     title: "Rules",
     lastViewKey: "deets.console.rules",
+    lever: "rules",
     // The order is the owner's (2026-11-14): Agents, Flags, Tools.
     views: [blankView("agents", "Agents"), blankView("flags", "Flags"), blankView("tools", "Tools")],
   });

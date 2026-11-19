@@ -9,6 +9,8 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use tonic::{Request, Response, Status};
 
 use crate::{
+    access::{self, Actor, Level, Lever, Refused},
+    audit::{self, Entry},
     edge,
     epic_ehr::{EpicEhr, EpicSandbox},
     hospital::{ClinicianRef, Hospital, Pick, PickOutcome, PlaceAnswer, PlaceRef, PlaceSearch, RuleOutcome},
@@ -81,6 +83,100 @@ async fn ledgered<T: Send + 'static>(
     .map_err(|_| Status::internal("the EHR request stopped"))
 }
 
+/// What an RPC needs from its caller (docs/ideas/ACCESS-ROLES.md §5, §8.1).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Need {
+    /// The call loop: no person. A call is bound to its caller by its handle (session.rs).
+    Call,
+    /// The agent on its own, no person: a sign-in check, the start-up seed, the owner's row.
+    System,
+    /// A settings service, the lever by service (settings.rs › `lever`). With a person: View to
+    /// read, Edit to save. With none: the agent itself (a call reading its settings, the prompt
+    /// file synced, a Default seed), allowed and audited as the system.
+    Settings(Level),
+    /// Any person on the list.
+    Person,
+    /// A person holding this lever at this level.
+    Lever(Lever, Level),
+    /// The same, or the agent on its own when it says so (`deets-actor: system`): the reads it
+    /// makes at start (the People list for Cloudflare's group, the annotations for its catalog).
+    LeverOrSystem(Lever, Level),
+}
+
+/// Every RPC of `ehr.proto` and what it needs. A test fails when an RPC is missing here.
+pub const RPC_LEVERS: &[(&str, Need)] = &[
+    ("OpenCall", Need::Call),
+    ("CloseCall", Need::Call),
+    ("Identify", Need::Call),
+    ("ResendCode", Need::Call),
+    ("CheckCode", Need::Call),
+    ("FindSlots", Need::Call),
+    ("Book", Need::Call),
+    ("FindVisit", Need::Call),
+    ("PlaceInfo", Need::Call),
+    ("FileCall", Need::Call),
+    ("FileTestRun", Need::Lever(Lever::Testing, Level::Edit)),
+    ("AddAnnotation", Need::Lever(Lever::Testing, Level::Edit)),
+    ("ListAnnotations", Need::LeverOrSystem(Lever::Testing, Level::View)),
+    ("ListSettingVersions", Need::Settings(Level::View)),
+    ("GetSettings", Need::Settings(Level::View)),
+    ("SaveSettings", Need::Settings(Level::Edit)),
+    ("ListUsers", Need::LeverOrSystem(Lever::People, Level::View)),
+    ("AddUser", Need::Lever(Lever::People, Level::Edit)),
+    ("RemoveUser", Need::Lever(Lever::People, Level::Edit)),
+    ("AdmitUser", Need::System),
+    ("SeedUsers", Need::System),
+    ("UpdateUser", Need::Lever(Lever::People, Level::Edit)),
+    ("GetUserPhoto", Need::Lever(Lever::People, Level::View)),
+    ("SetUserPhoto", Need::Lever(Lever::People, Level::Edit)),
+    ("SeenOwner", Need::System),
+    ("Levels", Need::Person),
+    ("GrantRole", Need::Lever(Lever::Roles, Level::Edit)),
+    ("RevokeRole", Need::Lever(Lever::Roles, Level::Edit)),
+    ("ReadAudit", Need::Lever(Lever::AuditLogs, Level::View)),
+    ("VerifyAudit", Need::Lever(Lever::AuditLogs, Level::View)),
+    ("LogAccess", Need::Person),
+    ("ImportPlaces", Need::Lever(Lever::Rules, Level::Edit)),
+];
+
+/// The gRPC metadata that names the person behind a staff request: their user id, or `system`
+/// when the agent acts on its own.
+pub const ACTOR: &str = "deets-actor";
+/// The `deets-actor` value of the agent acting on its own (`Need::Settings`, `LeverOrSystem`).
+pub const SYSTEM: &str = "system";
+
+/// What `rpc` needs. An RPC missing from the table needs the most: Roles Edit (and the coverage
+/// test fails).
+pub fn need_of(rpc: &str) -> Need {
+    RPC_LEVERS.iter().find(|(name, _)| *name == rpc).map_or(Need::Lever(Lever::Roles, Level::Edit), |(_, n)| *n)
+}
+
+/// An RPC's name as an audit action: `SaveSettings` → `rpc.save_settings`.
+fn rpc_action(rpc: &str) -> String {
+    let mut out = String::from("rpc.");
+    for (i, c) in rpc.chars().enumerate() {
+        if c.is_ascii_uppercase() {
+            if i > 0 {
+                out.push('_');
+            }
+            out.push(c.to_ascii_lowercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// A refusal from access.rs as a status: fixed words, never a name.
+fn refused_status(r: Refused) -> Status {
+    match r {
+        Refused::Needs(lever, level) => Status::permission_denied(format!("needs {} {}", lever.word(), level.word())),
+        Refused::Rule(why) => Status::permission_denied(why),
+        Refused::NotFound(why) => Status::not_found(why),
+        Refused::Store(_) => Status::internal("the store could not check the access"),
+    }
+}
+
 /// How many times a caller may give a name and date of birth on one call.
 pub const MAX_IDENTIFIES: u32 = 3;
 /// How many times a code may be sent again on one call.
@@ -134,6 +230,107 @@ impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
 
     fn settings_store(&self) -> Result<&Arc<Store>, Status> {
         self.store.as_ref().ok_or_else(|| Status::failed_precondition("ehr runs without a store"))
+    }
+
+    /// Writes a refusal's audit row on its own and returns `status`. A failed write is noted
+    /// (no value) and the request is still refused.
+    async fn refuse(&self, entry: Entry, status: Status) -> Status {
+        if let Some(store) = self.store.as_ref() {
+            if audit::write_alone(store.pool(), &entry.refused()).await.is_err() {
+                eprintln!("ehr: a refusal's audit row could not be written");
+            }
+        }
+        status
+    }
+
+    /// The gate every RPC passes first (docs/ideas/ACCESS-ROLES.md §5): who the request names
+    /// (`deets-actor`) and whether they hold what `rpc` needs (`RPC_LEVERS`). Some(person) for a
+    /// person; None where no person is needed or the agent acts on its own. ehr reads the
+    /// person's levels from the store itself, never from the request. A refusal is audited.
+    /// `service`: the settings service a settings RPC names.
+    async fn gate(&self, rpc: &'static str, meta: &tonic::metadata::MetadataMap, service: Option<&str>) -> Result<Option<Actor>, Status> {
+        let need = need_of(rpc);
+        if matches!(need, Need::Call | Need::System) {
+            return Ok(None);
+        }
+        let store = self.settings_store()?;
+        let action = rpc_action(rpc);
+        let Some(named) = meta.get(ACTOR) else {
+            if matches!(need, Need::Settings(_)) {
+                return Ok(None);
+            }
+            let entry = Entry { unknown: true, ..Entry::by(None, &action) };
+            return Err(self.refuse(entry, Status::permission_denied("no person named")).await);
+        };
+        let id = named.to_str().unwrap_or("");
+        if id == SYSTEM {
+            if matches!(need, Need::Settings(_) | Need::LeverOrSystem(..)) {
+                return Ok(None);
+            }
+            let entry = Entry { unknown: true, ..Entry::by(None, &action) };
+            return Err(self.refuse(entry, Status::permission_denied("needs a person")).await);
+        }
+        let found = if access::uuid_ok(id) {
+            access::actor_in(store.pool(), id).await.map_err(|_| Status::internal("the store could not read the access"))?
+        } else {
+            None
+        };
+        let Some(actor) = found else {
+            let entry = Entry { unknown: true, ..Entry::by(None, &action) };
+            return Err(self.refuse(entry, Status::permission_denied("not a person on the list")).await);
+        };
+        let (lever, level) = match need {
+            Need::Settings(level) => (settings::lever(service.unwrap_or("")), level),
+            Need::Lever(lever, level) | Need::LeverOrSystem(lever, level) => (lever, level),
+            Need::Person | Need::Call | Need::System => return Ok(Some(actor)),
+        };
+        if !actor.levels.may(lever, level) {
+            let entry = Entry::by(Some(&actor), &action).lever(lever, level);
+            return Err(self.refuse(entry, refused_status(Refused::Needs(lever, level))).await);
+        }
+        Ok(Some(actor))
+    }
+
+    /// The rules of a change to another person (access.rs): `remove` for a removal (and the last
+    /// manager), else a card or picture edit. A refusal is audited.
+    async fn may_change_person(&self, who: &Actor, rpc: &'static str, user_id: &str, remove: bool) -> Result<(), Status> {
+        let store = self.settings_store()?;
+        let mut conn = store.pool().acquire().await.map_err(|_| Status::internal("the store could not check the access"))?;
+        let checked = if remove {
+            access::may_remove(&mut conn, who, user_id).await
+        } else {
+            access::may_edit_card(&mut conn, who, user_id).await
+        };
+        if let Err(r) = checked {
+            let entry = Entry::by(Some(who), &rpc_action(rpc)).lever(Lever::People, Level::Edit).object("person", user_id);
+            return Err(self.refuse(entry, refused_status(r)).await);
+        }
+        Ok(())
+    }
+
+    /// A grant or a revoke, with its audit row in the same transaction; a refusal audited alone.
+    async fn change_role(&self, who: &Actor, user_id: &str, role_id: &str, grant: bool) -> Result<(), Status> {
+        let store = self.settings_store()?;
+        if !access::uuid_ok(user_id) || !access::role_id_ok(role_id) {
+            return Err(Status::invalid_argument("user_id and role_id: a person's id and a role's id"));
+        }
+        let mut tx = store.pool().begin().await.map_err(|_| Status::internal("the store could not change the role"))?;
+        let done = if grant {
+            access::grant(&mut tx, who, user_id, role_id).await
+        } else {
+            access::revoke(&mut tx, who, user_id, role_id).await
+        };
+        let entry = Entry::by(Some(who), if grant { "role.grant" } else { "role.revoke" })
+            .lever(Lever::Roles, Level::Edit)
+            .object("person", user_id)
+            .change(vec![format!("role:{role_id}")], None, None);
+        if let Err(r) = done {
+            drop(tx);
+            return Err(self.refuse(entry, refused_status(r)).await);
+        }
+        audit::write(&mut tx, &entry).await.map_err(|_| Status::internal("the store could not write the audit row"))?;
+        tx.commit().await.map_err(|_| Status::internal("the store could not change the role"))?;
+        Ok(())
     }
 
     /// `text.code` of one saved prompt version: the words were checked on save ({code} and no
@@ -946,8 +1143,10 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
     }
 
     async fn file_test_run(&self, req: Request<pb::FileTestRunRequest>) -> Result<Response<pb::FileTestRunReply>, Status> {
+        let meta = req.metadata().clone();
         // Checked first, so a bad run is refused the same way with or without a store.
         let run = edge::test_run(req.into_inner())?;
+        self.gate("FileTestRun", &meta, None).await?;
         let store = self.settings_store()?;
         let filed = store.synthetic().file_test_run(&run).await.map_err(|_| Status::internal("the store could not file the run"))?;
         Ok(Response::new(pb::FileTestRunReply {
@@ -958,7 +1157,9 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
     }
 
     async fn add_annotation(&self, req: Request<pb::Annotation>) -> Result<Response<pb::AddAnnotationReply>, Status> {
+        let meta = req.metadata().clone();
         let a = edge::annotation(req.into_inner())?;
+        self.gate("AddAnnotation", &meta, None).await?;
         let store = self.settings_store()?;
         // The class of the call it names: a real call's note is sealed with real rows.
         let class = match store.class_of_call(&a.call_id).await.map_err(|_| Status::internal("the store could not find the call"))? {
@@ -972,7 +1173,8 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         Ok(Response::new(pb::AddAnnotationReply { filed }))
     }
 
-    async fn list_annotations(&self, _: Request<pb::ListAnnotationsRequest>) -> Result<Response<pb::ListAnnotationsReply>, Status> {
+    async fn list_annotations(&self, req: Request<pb::ListAnnotationsRequest>) -> Result<Response<pb::ListAnnotationsReply>, Status> {
+        self.gate("ListAnnotations", req.metadata(), None).await?;
         let store = self.settings_store()?;
         let found = store.synthetic().list_annotations().await.map_err(|_| Status::internal("the store could not read the annotations"))?;
         Ok(Response::new(pb::ListAnnotationsReply { annotations: found.into_iter().map(edge::annotation_out).collect() }))
@@ -983,6 +1185,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         req: Request<pb::ListSettingVersionsRequest>,
     ) -> Result<Response<pb::ListSettingVersionsReply>, Status> {
         let (name, _, _) = setting_service(&req.get_ref().service)?;
+        self.gate("ListSettingVersions", req.metadata(), Some(name)).await?;
         let store = self.settings_store()?;
         let versions = settings::versions(store.pool(), name).await.map_err(|_| Status::internal("the store could not list the settings"))?;
         Ok(Response::new(pb::ListSettingVersionsReply { versions: versions.into_iter().map(setting_version).collect() }))
@@ -994,6 +1197,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         if id < 0 {
             return Err(Status::invalid_argument("version_id: not a version"));
         }
+        self.gate("GetSettings", req.metadata(), Some(name)).await?;
         let store = self.settings_store()?;
         let found = settings::get(store.pool(), name, table, id).await.map_err(|_| Status::internal("the store could not read the settings"))?;
         let reply = match found {
@@ -1008,6 +1212,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
     }
 
     async fn save_settings(&self, req: Request<pb::SaveSettingsRequest>) -> Result<Response<pb::SaveSettingsReply>, Status> {
+        let meta = req.metadata().clone();
         let req = req.into_inner();
         let (name, list, table) = setting_service(&req.service)?;
         let by = req.by.trim();
@@ -1018,6 +1223,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         // Checked before the store, so a bad set is refused the same way with or without one.
         let values = settings::check(list, &given).map_err(Status::invalid_argument)?;
         settings::coherent(name, &values).map_err(Status::invalid_argument)?;
+        let who = self.gate("SaveSettings", &meta, Some(name)).await?;
         let store = self.settings_store()?;
         // The words and the System variables agree (SYSTEM-PAGE.md §3.3): a section holds only
         // its own code values and System variables of the active System version; a System save
@@ -1059,14 +1265,16 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                 _ => {}
             }
         }
-        let v = settings::save(store.pool(), name, table, &values, by, req.seed).await.map_err(|e| match e {
+        let v = settings::save(store.pool(), name, table, &values, by, req.seed, who.as_ref()).await.map_err(|e| match e {
             settings::SaveError::DefaultExists => Status::already_exists("the Default version exists"),
+            settings::SaveError::Refused(why) => Status::failed_precondition(why),
             settings::SaveError::Db(_) => Status::internal("the store could not save the settings"),
         })?;
         Ok(Response::new(pb::SaveSettingsReply { version: Some(setting_version(v)) }))
     }
 
-    async fn list_users(&self, _: Request<pb::ListUsersRequest>) -> Result<Response<pb::ListUsersReply>, Status> {
+    async fn list_users(&self, req: Request<pb::ListUsersRequest>) -> Result<Response<pb::ListUsersReply>, Status> {
+        self.gate("ListUsers", req.metadata(), None).await?;
         let store = self.settings_store()?;
         let people = users::list(store).await.map_err(users_status)?;
         let users = people
@@ -1085,30 +1293,36 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
                 phone_verified: u.phone_verified,
                 source: u.source,
                 photo_at: u.photo_at.unwrap_or_default(),
+                role_ids: u.role_ids,
             })
             .collect();
         Ok(Response::new(pb::ListUsersReply { users }))
     }
 
     async fn add_user(&self, req: Request<pb::AddUserRequest>) -> Result<Response<pb::AddUserReply>, Status> {
+        let meta = req.metadata().clone();
         let req = req.into_inner();
         // Checked before the store, so a bad request is refused the same way with or without one.
         users::normal_new(&req.email, &req.name).map_err(users_status)?;
+        let who = self.gate("AddUser", &meta, None).await?;
         let store = self.settings_store()?;
-        let id = users::add(store, &req.email, &req.name, &req.by).await.map_err(users_status)?;
+        let id = users::add(store, &req.email, &req.name, who.as_ref()).await.map_err(users_status)?;
         Ok(Response::new(pb::AddUserReply { id }))
     }
 
     async fn remove_user(&self, req: Request<pb::RemoveUserRequest>) -> Result<Response<pb::RemoveUserReply>, Status> {
+        let who = self.gate("RemoveUser", req.metadata(), None).await?.ok_or_else(|| Status::permission_denied("no person named"))?;
+        let id = &req.get_ref().id;
+        self.may_change_person(&who, "RemoveUser", id, true).await?;
         let store = self.settings_store()?;
-        let email = users::remove(store, &req.get_ref().id).await.map_err(users_status)?;
+        let email = users::remove(store, id, Some(&who)).await.map_err(users_status)?;
         Ok(Response::new(pb::RemoveUserReply { email: email.to_string() }))
     }
 
     async fn admit_user(&self, req: Request<pb::AdmitUserRequest>) -> Result<Response<pb::AdmitUserReply>, Status> {
         let store = self.settings_store()?;
-        let active = users::admit(store, &req.get_ref().email).await.map_err(users_status)?;
-        Ok(Response::new(pb::AdmitUserReply { active }))
+        let id = users::admit(store, &req.get_ref().email).await.map_err(users_status)?;
+        Ok(Response::new(pb::AdmitUserReply { active: id.is_some(), user_id: id.unwrap_or_default() }))
     }
 
     async fn seed_users(&self, req: Request<pb::SeedUsersRequest>) -> Result<Response<pb::SeedUsersReply>, Status> {
@@ -1122,7 +1336,9 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
     }
 
     async fn update_user(&self, req: Request<pb::UpdateUserRequest>) -> Result<Response<pb::UpdateUserReply>, Status> {
+        let who = self.gate("UpdateUser", req.metadata(), None).await?.ok_or_else(|| Status::permission_denied("no person named"))?;
         let req = req.into_inner();
+        self.may_change_person(&who, "UpdateUser", &req.id, false).await?;
         let store = self.settings_store()?;
         let profile = users::Profile {
             first_name: &req.first_name,
@@ -1130,12 +1346,13 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             phone: &req.phone,
             email: &req.email,
         };
-        let saved = users::update(store, &req.id, &profile).await.map_err(users_status)?;
+        let saved = users::update(store, &req.id, &profile, Some(&who)).await.map_err(users_status)?;
         let old_email = if saved.email_changed { saved.old_email.to_string() } else { String::new() };
         Ok(Response::new(pb::UpdateUserReply { old_email, email_changed: saved.email_changed }))
     }
 
     async fn get_user_photo(&self, req: Request<pb::GetUserPhotoRequest>) -> Result<Response<pb::UserPhoto>, Status> {
+        self.gate("GetUserPhoto", req.metadata(), None).await?;
         let store = self.settings_store()?;
         let bytes = users::photo(store, &req.get_ref().id).await.map_err(users_status)?;
         let photo = bytes.map(|b| B64.encode(b.as_slice())).unwrap_or_default();
@@ -1143,30 +1360,143 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
     }
 
     async fn set_user_photo(&self, req: Request<pb::SetUserPhotoRequest>) -> Result<Response<pb::SetUserPhotoReply>, Status> {
+        let meta = req.metadata().clone();
         let req = req.into_inner();
         // Base64 of 256 KB is about 350 KB: anything far longer is refused before it is decoded.
         if req.photo.len() > users::MAX_PHOTO * 4 / 3 + 8 {
             return Err(Status::invalid_argument("photo: at most 256 KB"));
         }
+        let who = self.gate("SetUserPhoto", &meta, None).await?.ok_or_else(|| Status::permission_denied("no person named"))?;
+        self.may_change_person(&who, "SetUserPhoto", &req.id, false).await?;
         let store = self.settings_store()?;
         if req.photo.is_empty() {
-            users::clear_photo(store, &req.id).await.map_err(users_status)?;
+            users::clear_photo(store, &req.id, Some(&who)).await.map_err(users_status)?;
         } else {
             let bytes = Zeroizing::new(
                 B64.decode(req.photo.as_bytes()).map_err(|_| Status::invalid_argument("photo: not base64"))?,
             );
-            users::set_photo(store, &req.id, &bytes).await.map_err(users_status)?;
+            users::set_photo(store, &req.id, &bytes, Some(&who)).await.map_err(users_status)?;
         }
         Ok(Response::new(pb::SetUserPhotoReply {}))
     }
 
     async fn seen_owner(&self, _: Request<pb::SeenOwnerRequest>) -> Result<Response<pb::SeenOwnerReply>, Status> {
         let store = self.settings_store()?;
-        users::seen_owner(store).await.map_err(users_status)?;
-        Ok(Response::new(pb::SeenOwnerReply {}))
+        let id = users::owner_id(store).await.map_err(users_status)?;
+        if let Some(id) = &id {
+            users::seen(store, id).await.map_err(users_status)?;
+        }
+        Ok(Response::new(pb::SeenOwnerReply { user_id: id.unwrap_or_default() }))
+    }
+
+    async fn levels(&self, req: Request<pb::LevelsRequest>) -> Result<Response<pb::LevelsReply>, Status> {
+        let who = self.gate("Levels", req.metadata(), None).await?.ok_or_else(|| Status::permission_denied("no person named"))?;
+        let levels = who.levels.words().into_iter().map(|(lever, level)| pb::LeverLevel { lever: lever.into(), level: level.into() }).collect();
+        Ok(Response::new(pb::LevelsReply { user_id: who.id, role_ids: who.role_ids, roles_version: who.roles_version, levels }))
+    }
+
+    async fn grant_role(&self, req: Request<pb::GrantRoleRequest>) -> Result<Response<pb::GrantRoleReply>, Status> {
+        let who = self.gate("GrantRole", req.metadata(), None).await?.ok_or_else(|| Status::permission_denied("no person named"))?;
+        let r = req.get_ref();
+        self.change_role(&who, &r.user_id, &r.role_id, true).await?;
+        Ok(Response::new(pb::GrantRoleReply {}))
+    }
+
+    async fn revoke_role(&self, req: Request<pb::RevokeRoleRequest>) -> Result<Response<pb::RevokeRoleReply>, Status> {
+        let who = self.gate("RevokeRole", req.metadata(), None).await?.ok_or_else(|| Status::permission_denied("no person named"))?;
+        let r = req.get_ref();
+        self.change_role(&who, &r.user_id, &r.role_id, false).await?;
+        Ok(Response::new(pb::RevokeRoleReply {}))
+    }
+
+    async fn read_audit(&self, req: Request<pb::ReadAuditRequest>) -> Result<Response<pb::ReadAuditReply>, Status> {
+        self.gate("ReadAudit", req.metadata(), None).await?;
+        let r = req.get_ref();
+        let store = self.settings_store()?;
+        let rows = audit::read(store.pool(), r.before, i64::from(r.limit), r.changes)
+            .await
+            .map_err(|_| Status::internal("the store could not read the audit trail"))?;
+        let rows = rows
+            .into_iter()
+            .map(|s| pb::AuditRow {
+                seq: s.seq,
+                at: s.at,
+                actor: s.actor.unwrap_or_default(),
+                source: s.source,
+                roles: s.roles,
+                roles_version: s.roles_version.unwrap_or_default(),
+                lever: s.lever.unwrap_or_default(),
+                level: s.level.unwrap_or_default(),
+                action: s.action,
+                object_kind: s.object_kind.unwrap_or_default(),
+                object_id: s.object_id.unwrap_or_default(),
+                data_class: s.data_class.unwrap_or_default(),
+                fields: s.fields,
+                before_version: s.before_version.unwrap_or_default(),
+                after_version: s.after_version.unwrap_or_default(),
+                allowed: s.allowed,
+            })
+            .collect();
+        Ok(Response::new(pb::ReadAuditReply { rows }))
+    }
+
+    async fn verify_audit(&self, req: Request<pb::VerifyAuditRequest>) -> Result<Response<pb::VerifyAuditReply>, Status> {
+        self.gate("VerifyAudit", req.metadata(), None).await?;
+        let store = self.settings_store()?;
+        let reply = match audit::verify(store.pool()).await {
+            Ok(rows) => pb::VerifyAuditReply { ok: true, rows: i64::try_from(rows).unwrap_or(i64::MAX), first_bad: 0 },
+            Err(-1) => return Err(Status::internal("the store could not read the audit trail")),
+            Err(seq) => pb::VerifyAuditReply { ok: false, rows: 0, first_bad: seq },
+        };
+        Ok(Response::new(reply))
+    }
+
+    async fn log_access(&self, req: Request<pb::LogAccessRequest>) -> Result<Response<pb::LogAccessReply>, Status> {
+        let who = self.gate("LogAccess", req.metadata(), None).await?.ok_or_else(|| Status::permission_denied("no person named"))?;
+        let r = req.into_inner();
+        let lever = Lever::from_word(&r.lever).ok_or_else(|| Status::invalid_argument("lever: not a lever"))?;
+        let level = Level::from_word(&r.level).ok_or_else(|| Status::invalid_argument("level: none, view or edit"))?;
+        let action_ok = !r.action.is_empty()
+            && r.action.len() <= 64
+            && r.action.starts_with(|c: char| c.is_ascii_lowercase())
+            && r.action.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '.');
+        if !action_ok {
+            return Err(Status::invalid_argument("action: a lower-case word with dots"));
+        }
+        // The kinds a look may name: a fixed list, so no request text becomes a kind.
+        let kind: Option<&'static str> = match r.object_kind.as_str() {
+            "" => None,
+            "page" => Some("page"),
+            "call" => Some("call"),
+            "recording" => Some("recording"),
+            "test_run" => Some("test_run"),
+            "export" => Some("export"),
+            _ => return Err(Status::invalid_argument("object_kind: page, call, recording, test_run or export")),
+        };
+        let id_ok = r.object_id.len() <= 64
+            && r.object_id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '/'));
+        if !id_ok {
+            return Err(Status::invalid_argument("object_id: an id of at most 64 characters"));
+        }
+        let data_class: Option<&'static str> = match r.data_class.as_str() {
+            "" => None,
+            "synthetic" => Some("synthetic"),
+            "real" => Some("real"),
+            _ => return Err(Status::invalid_argument("data_class: synthetic or real")),
+        };
+        let allowed = who.levels.may(lever, level);
+        let mut entry = Entry::by(Some(&who), &r.action).lever(lever, level);
+        entry.object_kind = kind;
+        entry.object_id = (!r.object_id.is_empty()).then_some(r.object_id);
+        entry.data_class = data_class;
+        entry.allowed = allowed;
+        let store = self.settings_store()?;
+        audit::write_alone(store.pool(), &entry).await.map_err(|_| Status::internal("the store could not write the audit row"))?;
+        Ok(Response::new(pb::LogAccessReply { allowed }))
     }
 
     async fn import_places(&self, req: Request<pb::ImportPlacesRequest>) -> Result<Response<pb::ImportPlacesReply>, Status> {
+        self.gate("ImportPlaces", req.metadata(), None).await?;
         let given = req.into_inner().addresses;
         let searches: Option<Vec<PlaceSearch>> = given.iter().map(|a| PlaceSearch::parse(a)).collect();
         let searches = searches.filter(|s| (1..=5).contains(&s.len())).ok_or_else(|| {
@@ -1205,7 +1535,6 @@ fn users_status(e: users::UsersError) -> Status {
         users::UsersError::Bad(why) => Status::invalid_argument(why),
         users::UsersError::Exists => Status::already_exists("that email is already on the list"),
         users::UsersError::NotFound => Status::not_found("no such person on the list"),
-        users::UsersError::Owner => Status::permission_denied("the owner cannot be removed"),
         users::UsersError::Taken => Status::already_exists("that email is already a removed person's: add them back instead"),
         users::UsersError::Store(_) => Status::internal("the store could not read or write the list"),
     }
@@ -2070,5 +2399,39 @@ mod tests {
         ];
         let want: Vec<_> = people.into_iter().chain(want).collect();
         assert_eq!(pb::MARKED_FIELDS, want);
+    }
+
+    /// Every `rpc` in ehr.proto has its row in RPC_LEVERS, and every row names an RPC that
+    /// exists (docs/ideas/ACCESS-ROLES.md §8.1).
+    #[test]
+    fn every_rpc_names_what_it_needs() {
+        let proto = include_str!("../proto/deets/ehr/v1/ehr.proto");
+        let rpcs: Vec<&str> = proto
+            .lines()
+            .filter_map(|l| l.trim().strip_prefix("rpc "))
+            .filter_map(|l| l.split('(').next())
+            .map(str::trim)
+            .collect();
+        assert!(rpcs.len() > 30, "the proto's RPCs were read");
+        for rpc in &rpcs {
+            assert!(RPC_LEVERS.iter().any(|(name, _)| name == rpc), "{rpc} has no row in RPC_LEVERS");
+        }
+        for (name, _) in RPC_LEVERS {
+            assert!(rpcs.contains(name), "RPC_LEVERS names {name}, which ehr.proto does not have");
+        }
+        assert_eq!(need_of("NoSuchRpc"), Need::Lever(Lever::Roles, Level::Edit), "unknown: the most");
+        assert_eq!(rpc_action("SaveSettings"), "rpc.save_settings");
+    }
+
+    /// Without a store, a staff RPC is refused before it reads anything, and a call RPC is not
+    /// gated at all.
+    #[tokio::test]
+    async fn a_staff_rpc_needs_a_store_and_a_call_rpc_no_person() {
+        let s = svc();
+        let err = s.list_users(Request::new(pb::ListUsersRequest {})).await.unwrap_err();
+        assert_eq!(err.code(), Code::FailedPrecondition);
+        let err = s.levels(Request::new(pb::LevelsRequest {})).await.unwrap_err();
+        assert_eq!(err.code(), Code::FailedPrecondition);
+        assert!(s.gate("OpenCall", &tonic::metadata::MetadataMap::new(), None).await.unwrap().is_none());
     }
 }

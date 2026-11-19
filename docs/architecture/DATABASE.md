@@ -1,8 +1,8 @@
 ---
 status: project
 desk_test: open
-sources: [scripts/postgres.mjs, scripts/dev.mjs, agent/deets_agent/catalog.py, ehr/src/store.rs, ehr/migrations/0010_data_classes.sql, ehr/src/edge.rs, agent/tests/test_typed_call.py, agent/harness/typed_call.py, agent/deets_agent/call_record.py, ehr/src/seal_key.rs, core/src/seal.rs, ehr/src/service.rs, ehr/migrations/0001_calls.sql, ehr/migrations/0002_settings.sql, ehr/src/settings.rs, ehr/tests/store.rs, agent/deets_agent/ehr_client.py, agent/deets_agent/ehr_process.py, agent/deets_agent/dev_server.py]
-updated: 2026-11-15
+sources: [scripts/postgres.mjs, scripts/dev.mjs, agent/deets_agent/catalog.py, ehr/src/store.rs, ehr/migrations/0010_data_classes.sql, ehr/migrations/0011_roles.sql, ehr/migrations/0012_audit.sql, ehr/src/access.rs, ehr/src/audit.rs, ehr/src/edge.rs, agent/tests/test_typed_call.py, agent/harness/typed_call.py, agent/deets_agent/call_record.py, ehr/src/seal_key.rs, core/src/seal.rs, ehr/src/service.rs, ehr/migrations/0001_calls.sql, ehr/migrations/0002_settings.sql, ehr/src/settings.rs, ehr/tests/store.rs, agent/deets_agent/ehr_client.py, agent/deets_agent/ehr_process.py, agent/deets_agent/dev_server.py]
+updated: 2026-11-18
 ---
 # The database — dev today, shaped for production
 
@@ -446,3 +446,33 @@ Restart `npm run dev` first: its `ehr` and the migration are new.
    `SELECT id, origin, data_class FROM calls_by_class;` lists the test call as `synthetic`;
    `SELECT script, mode, passed, reused FROM synthetic.test_results ORDER BY run_id DESC LIMIT 15;`
    shows the last run's draws (`reused` true for a passing replay draw that matched the last one).
+
+## 11. Roles and the staff audit trail (migrations 0011, 0012)
+> **Part:** built · 2026-11-18 · Hand-over 1 of docs/ideas/ACCESS-ROLES.md §6 (the rules: §5,
+> §5.1). Not wired to the agent or the console yet.
+
+All in `public`, under the hospital key where sealed. Nothing here is reset with the synthetic
+data.
+- **`settings_roles`**: the roles list as a settings service (`roles`), versioned and
+  insert-only like the others. The Default version (seq 0, `created_by` `system`) is the eight
+  templates of ACCESS-ROLES.md §4 and Deets, seeded by the migration.
+- **`user_roles`**: one row per grant (`user_id`, `role_id`, `granted_by`, `granted_at`); a
+  revoke stamps `revoked_at` and `revoked_by` once. A trigger refuses a delete and any other
+  change. One live grant per person and role (a partial unique index). The owner's row got
+  Deets at the migration; `users.role` is dropped.
+- **`staff_audit`**: one row per thing a person did with their access, or was refused
+  (`audit.rs`): who, their roles and the roles version, the lever and level, the action, the
+  object's id, the names of the fields that changed, the versions before and after, allowed or
+  refused, and `at` (the database's clock, UTC). Each row's `hash` chains it to the row before
+  (SHA-256, AWS-LC); `audit::verify` walks the chain. A trigger refuses UPDATE, DELETE and
+  TRUNCATE. No name, email, phone or patient value in any column. The two empty `audit` tables
+  of 0001 are dropped.
+- **`user_card_versions`**: each person's card as saved, sealed again under its own row
+  (`store.rs › PUBLIC_SEALED`), so a card change has a before and an after and a key change
+  seals the history again. A card from before 0012 gets its first version at its next save. A
+  trigger lets a row change only when its sealed values are sealed again.
+- Every settings save, people change, grant and revoke writes its audit row in the same
+  transaction as the change.
+
+Tests: `npm run db:test` (`ehr/tests/store.rs › roles_are_granted_by_the_rules_and_every_change_is_chained`,
+and the card, people and reseal tests).

@@ -9,6 +9,7 @@ export function teamsPage(): Page {
     id: "teams",
     title: "Teams",
     lastViewKey: "deets.console.teams",
+    lever: "people",
     // The order is the owner's (2026-11-13): Org Chart, then People.
     views: [blankView("org-chart", "Org Chart"), peopleView()],
   });

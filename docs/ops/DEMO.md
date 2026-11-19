@@ -432,6 +432,11 @@ and the view as drafted, "will mess with it more when we implement RBAC"):
   - The email is **editable**. Save asks "Confirm?" first when the email changed: it moves who
     can sign in. Then the group is written again and the old email's Access sessions end.
     Another person's email, or a removed person's, is refused.
+- **Since roles (2026-11-18; docs/ideas/ACCESS-ROLES.md §6, Hand-over 2):** a guest is no
+  longer "like the owner". A new guest has no role and gets only `GET /agent/me` and
+  `GET /agent/health` until someone with Roles Edit grants one; adding a guest needs People Edit;
+  editing a card needs People Edit and the person at or below you (DEV-API.md §2a). The owner
+  holds Deets. The rest of this paragraph is the rule before roles.
 - **Decided inside his choices** (for his review): anyone signed in may edit any row, the
   owner's too (his rule until roles: guests are "like me"); the Add form takes a first and a
   last name; a first or a last name is required, each at most 49 characters; the owner's

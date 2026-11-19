@@ -71,6 +71,24 @@
   color: var(--text-3);
 }
 
+/* "View only" (docs/ideas/ACCESS-ROLES.md §5, fork 3A): your role reads this page and cannot
+   change it. On Config's title row and Security › Auth's. A role chip's look. */
+.view-only {
+  flex: none;
+  padding: 0 var(--space-3);
+  border: var(--edge) solid var(--line);
+  border-radius: var(--radius-control);
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+/* What View only takes off a title row (Edit, Discard | Save, Test, Add): each sets its own
+   display, which a bare `hidden` does not beat. */
+.cfg-top [hidden],
+.auth-top [hidden] {
+  display: none;
+}
+
 /* The versions (CONSOLE.md §7.1): right of Read | Edit, a field's height, as wide as its
    longest label. */
 .cfg-version {

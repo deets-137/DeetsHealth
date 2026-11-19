@@ -83,6 +83,14 @@ export const at = (path: string): string => import.meta.env.BASE_URL.replace(/\/
 export const socketAt = (path: string): string =>
   `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${at(path)}`;
 
+/** The words of a wall's refusal for want of a role (dev_server.py: 403 `{error: "forbidden",
+ * lever, level}`), or null when the reply is another refusal. Fixed words. */
+export function roleRefusal(reply: unknown): string | null {
+  const r = reply as { error?: unknown; lever?: unknown; level?: unknown } | null;
+  if (!r || r.error !== "forbidden" || typeof r.lever !== "string" || typeof r.level !== "string") return null;
+  return `Your role does not allow this (needs ${leverName(r.lever as Lever)} ${r.level === "edit" ? "Edit" : "View"})`;
+}
+
 async function get<T>(path: string): Promise<T> {
   let r: Response;
   try {
@@ -90,7 +98,10 @@ async function get<T>(path: string): Promise<T> {
   } catch {
     throw new AgentDown("the agent's dev server is not running");
   }
-  if (!r.ok) throw new AgentDown(r.status === 404 ? "not found" : "the agent's dev server refused", statusOf(r));
+  if (!r.ok) {
+    const denied = r.status === 403 ? roleRefusal(await r.json().catch(() => null)) : null;
+    throw new AgentDown(denied ?? (r.status === 404 ? "not found" : "the agent's dev server refused"), statusOf(r));
+  }
   return (await r.json()) as T;
 }
 
@@ -545,6 +556,8 @@ export type Person = {
   source: string;
   /** When the picture was saved; null when there is none. */
   photo_at: string | null;
+  /** Their live roles, by id (docs/ideas/ACCESS-ROLES.md). */
+  role_ids: string[];
 };
 
 /** The People view: the list, whether the store and Cloudflare's group are there, the invite
@@ -556,6 +569,8 @@ export type People = {
   linked: boolean;
   invite: string | null;
   you: string;
+  /** The asker's own user id; null without a roles store. */
+  me: string | null;
   warning?: string | null;
   /** After an add: the new person's id (a card with no email yet has no other key). */
   added?: string;
@@ -576,9 +591,139 @@ async function peopleChange(method: "POST" | "PATCH" | "PUT" | "DELETE", path: s
     throw new AgentDown("the agent's dev server is not running");
   }
   const reply = (await r.json().catch(() => null)) as (People & { detail?: unknown }) | null;
-  // ehr's reasons are fixed words that name a field, never a value.
-  if (!r.ok || !reply) throw new AgentDown(typeof reply?.detail === "string" ? reply.detail : "not saved", statusOf(r));
+  // ehr's reasons are fixed words that name a field or a rule, never a value.
+  if (!r.ok || !reply) {
+    const why = roleRefusal(reply) ?? (typeof reply?.detail === "string" ? reply.detail : "not saved");
+    throw new AgentDown(why, statusOf(r));
+  }
   return reply;
+}
+
+// ---- access by role and the audit trail (docs/ideas/ACCESS-ROLES.md §5, §5.1, §6) ----
+
+/** The levers, in access.rs's order. */
+export const LEVERS = [
+  "phi",
+  "auth",
+  "roles",
+  "people",
+  "agent",
+  "vendors",
+  "rules",
+  "testing",
+  "analytics",
+  "flags",
+  "audit_logs",
+] as const;
+export type Lever = (typeof LEVERS)[number];
+export type Level = "none" | "view" | "edit";
+
+const LEVER_NAMES: Record<Lever, string> = {
+  phi: "PHI",
+  auth: "Auth",
+  roles: "Roles",
+  people: "People",
+  agent: "Agent",
+  vendors: "Vendors",
+  rules: "Rules",
+  testing: "Testing",
+  analytics: "Analytics",
+  flags: "Flags",
+  audit_logs: "Audit logs",
+};
+/** A lever as the console names it. */
+export const leverName = (lever: Lever): string => LEVER_NAMES[lever] ?? lever;
+
+/** Who you are (`GET /agent/me`): your id, your roles and every lever's level. `store`: false
+ * without a roles store (then the launch token has Edit everywhere). Never your email. */
+export type Me = {
+  user_id: string | null;
+  door: "launch" | "access";
+  role_ids: string[];
+  roles_version: number;
+  levels: Record<Lever, Level>;
+  store: boolean;
+};
+export const me = () => get<Me>("/agent/me");
+
+/** One role (access.rs › Role): a level on every lever. */
+export type Role = { id: string; name: string; domain: "hospital" | "team"; levels: Record<Lever, Level> };
+
+/** Security › Roles: the versions, one version's roles, the active roles. */
+export type Roles = {
+  versions: SettingVersion[];
+  version: SettingVersion | null;
+  roles: Role[];
+  active: Role[];
+  levers: Lever[];
+  levels: Level[];
+};
+export const roles = (version = 0) => get<Roles>(version ? `/agent/roles?version=${version}` : "/agent/roles");
+
+/** Saves the whole list as a new, active version. A refusal names the role's place or the rule. */
+export async function saveRoles(list: Role[]): Promise<Roles> {
+  let r: Response;
+  try {
+    r = await fetch(at("/agent/roles"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ roles: list }),
+    });
+  } catch {
+    throw new AgentDown("the agent's dev server is not running");
+  }
+  const reply = (await r.json().catch(() => null)) as (Roles & { detail?: unknown }) | null;
+  if (!r.ok || !reply) {
+    const why = roleRefusal(reply) ?? (typeof reply?.detail === "string" ? reply.detail : "not saved");
+    throw new AgentDown(why, statusOf(r));
+  }
+  return reply;
+}
+
+/** Grants or revokes one role. The People view again; a refusal names the rule. */
+export const grantRole = (person: string, role: string) =>
+  peopleChange("POST", `/agent/people/${encodeURIComponent(person)}/roles/${encodeURIComponent(role)}`);
+export const revokeRole = (person: string, role: string) =>
+  peopleChange("DELETE", `/agent/people/${encodeURIComponent(person)}/roles/${encodeURIComponent(role)}`);
+
+/** One audit row (audit.rs): ids and field names only. */
+export type AuditRow = {
+  seq: number;
+  at: string;
+  actor: string | null;
+  source: "person" | "system" | "unknown";
+  roles: string[];
+  roles_version: number | null;
+  lever: Lever | null;
+  level: Level | null;
+  action: string;
+  object_kind: string | null;
+  object_id: string | null;
+  data_class: string | null;
+  fields: string[];
+  before_version: number | null;
+  after_version: number | null;
+  allowed: boolean;
+};
+/** Rows newest first: before `before` (0: from the newest); `changes`: changes and refusals only. */
+export const audit = (before = 0, changes = false, limit = 100) =>
+  get<{ rows: AuditRow[] }>(
+    `/agent/audit?${new URLSearchParams({ before: String(before), limit: String(limit), changes: String(changes) })}`,
+  );
+export const auditVerify = () => get<{ ok: boolean; rows: number; first_bad: number | null }>("/agent/audit/verify");
+
+/** Records a look that changes nothing (a page opened) in the audit trail. Never throws: a look
+ * the trail could not record does not stop the page. */
+export async function logLook(lever: Lever, level: Level, action: string, objectKind = "", objectId = ""): Promise<void> {
+  try {
+    await fetch(at("/agent/log"), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ lever, level, action, object_kind: objectKind, object_id: objectId }),
+    });
+  } catch {
+    /* the agent is down: the page says so through its stores */
+  }
 }
 
 export const addPerson = (email: string, name: string) => peopleChange("POST", "/agent/people", { email, name });

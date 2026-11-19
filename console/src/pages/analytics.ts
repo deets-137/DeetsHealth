@@ -8,6 +8,7 @@ export function analyticsPage(): Page {
     id: "analytics",
     title: "Analytics",
     lastViewKey: "deets.console.analytics",
+    lever: "analytics",
     // The order is the owner's (2026-11-12): Home first, Flags last.
     views: [
       blankView("home", "Home"),

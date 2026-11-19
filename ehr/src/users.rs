@@ -2,13 +2,18 @@
 //!
 //! The store is the record; the agent keeps Cloudflare's Access group in step with it. Each
 //! person is one `users` row: the email and the name sealed, found by `email_hash` (a keyed hash,
-//! `SealKey::lookup`). A removal sets `removed_at` and keeps the row for the audit log. The owner
-//! is never removed. Every error is a fixed string; none carries an email or a name.
+//! `SealKey::lookup`). A removal sets `removed_at` and keeps the row for the audit log. Every
+//! error is a fixed string; none carries an email or a name.
+//!
+//! Who may change whom is access.rs's (docs/ideas/ACCESS-ROLES.md §5): the caller checks it
+//! first (service.rs). Each change here writes its audit row in the same transaction (audit.rs;
+//! §5.1), and each card save keeps the card as saved in `user_card_versions`, so a change has a
+//! before and an after. `who`: the person making the change, or None for the system.
 //!
 //! A person's card (migration 0008; the owner's forks, 2026-11-14): a first and a last name, a
 //! phone number (E.164, "not verified" until a text code proves it), and a picture in
-//! `user_photos`. Anyone on the list may edit any card, the owner's too, until roles exist. An
-//! email change moves the row to the new email's hash, so every sealed column is sealed again.
+//! `user_photos`. An email change moves the row to the new email's hash, so every sealed column
+//! is sealed again.
 //!
 //! A card may be saved before it is complete (the owner, 2026-11-14): no name, or no email. A
 //! row with no email yet has a stand-in key, a keyed hash of a random value under `PENDING_HASH`,
@@ -17,12 +22,16 @@
 //! that email's hash, as any email change does. A saved email can be changed, never cleared:
 //! Remove is how sign-in is taken away.
 
-use sqlx::Row;
+use sqlx::{PgConnection, Row};
 use zeroize::Zeroizing;
 
+use crate::access::{Actor, Level, Lever};
+use crate::audit::{self, Entry};
 use crate::store::Store;
 
 const TABLE: &str = "users";
+/// Each card as saved (migration 0012), sealed under its own row.
+const CARD_TABLE: &str = "user_card_versions";
 /// The lookup hash's column name, so a hash of an email here never equals another column's.
 const EMAIL_HASH: &str = "users.email";
 /// The stand-in key's name: a row with no email yet (see the module's note).
@@ -51,6 +60,8 @@ pub struct User {
     /// When the picture was last saved (RFC 3339, UTC); None when there is no picture.
     pub photo_at: Option<String>,
     pub owner: bool,
+    /// Their live roles, by id (access.rs).
+    pub role_ids: Vec<String>,
     /// The person who added them, as "First L." (`short_name`); empty for the owner and for
     /// people who were in Cloudflare's group before the list existed.
     pub added_by: Zeroizing<String>,
@@ -67,8 +78,6 @@ pub enum UsersError {
     Exists,
     /// No such person on the list.
     NotFound,
-    /// The owner cannot be removed.
-    Owner,
     /// A removed person's row holds that email: add them back instead of moving it.
     Taken,
     /// The database failed; the message names the step.
@@ -218,6 +227,68 @@ fn opened(store: &Store, row: &str, column: &str, bytes: &[u8]) -> Result<Zeroiz
     store.open(TABLE, row, column, bytes).map_err(|_| UsersError::Store("users: opening".into()))
 }
 
+/// Keeps the card as it is now (in `tx`) in `user_card_versions` and returns the new version's
+/// id. Each value is opened from the person's row and sealed again under the version's own row,
+/// so it opens on its own and a key change seals it again (store.rs › PUBLIC_SEALED).
+async fn keep_card(store: &Store, tx: &mut PgConnection, id: &str, who: Option<&Actor>) -> Result<i64, UsersError> {
+    let row = sqlx::query(
+        "SELECT email_hash, email, name, first_name, last_name, phone, phone_verified FROM users WHERE id = $1::uuid",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(store_err("read the card"))?;
+    let from = Store::hex(&row.get::<Vec<u8>, _>("email_hash"));
+    let version: i64 = sqlx::query_scalar("SELECT nextval(pg_get_serial_sequence('user_card_versions', 'id'))")
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(store_err("number the card"))?;
+    let to = version.to_string();
+    let again = |column: &str| -> Result<Option<Vec<u8>>, UsersError> {
+        let Some(bytes) = row.get::<Option<Vec<u8>>, _>(column) else { return Ok(None) };
+        let plain = opened(store, &from, column, &bytes)?;
+        store
+            .seal(CARD_TABLE, &to, column, &plain)
+            .map(Some)
+            .map_err(|_| UsersError::Store("users: sealing".into()))
+    };
+    sqlx::query(
+        "INSERT INTO user_card_versions (id, user_id, saved_by, email, name, first_name, last_name, phone, phone_verified)
+         VALUES ($1, $2::uuid, $3::uuid, $4, $5, $6, $7, $8, $9)",
+    )
+    .bind(version)
+    .bind(id)
+    .bind(who.map(|a| a.id.as_str()))
+    .bind(again("email")?)
+    .bind(again("name")?)
+    .bind(again("first_name")?)
+    .bind(again("last_name")?)
+    .bind(again("phone")?)
+    .bind(row.get::<bool, _>("phone_verified"))
+    .execute(&mut *tx)
+    .await
+    .map_err(store_err("keep the card"))?;
+    Ok(version)
+}
+
+/// The newest kept card of a person, if any.
+async fn last_card(tx: &mut PgConnection, id: &str) -> Result<Option<i64>, UsersError> {
+    sqlx::query_scalar("SELECT max(id) FROM user_card_versions WHERE user_id = $1::uuid")
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(store_err("find the card"))
+}
+
+/// The audit row of a change to the list (People Edit), in `tx`.
+async fn audited(tx: &mut PgConnection, who: Option<&Actor>, action: &str, id: &str, fields: Vec<String>, versions: (Option<i64>, Option<i64>)) -> Result<(), UsersError> {
+    let entry = Entry::by(who, action)
+        .lever(Lever::People, Level::Edit)
+        .object("person", id)
+        .change(fields, versions.0, versions.1);
+    audit::write(tx, &entry).await.map(|_| ()).map_err(|_| UsersError::Store("users: the audit row".into()))
+}
+
 /// A timestamp column as UTC text. A macro, so `concat!` keeps the query one `&'static str`
 /// (sql.rs).
 macro_rules! utc {
@@ -248,6 +319,7 @@ pub async fn list(store: &Store) -> Result<Vec<User>, UsersError> {
          ORDER BY u.owner DESC, u.added_at, u.id"
     );
     let rows = sqlx::query(sql).fetch_all(store.pool()).await.map_err(store_err("list"))?;
+    let mut held = crate::access::all_held(store.pool()).await.map_err(UsersError::Store)?;
     let mut out = Vec::with_capacity(rows.len());
     for r in rows {
         let row = Store::hex(&r.get::<Vec<u8>, _>("email_hash"));
@@ -282,8 +354,10 @@ pub async fn list(store: &Store) -> Result<Vec<User>, UsersError> {
                 (Zeroizing::new(f), Zeroizing::new(l))
             }
         };
+        let id: String = r.get("id");
         out.push(User {
-            id: r.get("id"),
+            role_ids: held.remove(&id).unwrap_or_default(),
+            id,
             first_name,
             last_name,
             phone: column("phone")?.unwrap_or_default(),
@@ -312,30 +386,19 @@ async fn active_id(store: &Store, email: &str) -> Result<Option<String>, UsersEr
     Ok(row.map(|r| r.get("id")))
 }
 
-/// The adder's own row: the owner when `by` is empty (the console on the owner's PC), else the
-/// person with that email. None when they are not on the list.
-async fn adder(store: &Store, by: &str) -> Result<Option<String>, UsersError> {
-    if by.trim().is_empty() {
-        let row = sqlx::query("SELECT id::text AS id FROM users WHERE owner AND removed_at IS NULL")
-            .fetch_optional(store.pool())
-            .await
-            .map_err(store_err("find the owner"))?;
-        return Ok(row.map(|r| r.get("id")));
-    }
-    active_id(store, &normal_email(by)?).await
-}
-
-/// Puts a person on the list. Someone removed before comes back on the same row, with the new
-/// name and adder. `by`: the adder's email, or empty for the owner's PC. No email: a new row on a
-/// stand-in key (see the module's note).
-pub async fn add(store: &Store, email: &str, name: &str, by: &str) -> Result<String, UsersError> {
+/// Puts a person on the list, with no role (deny by default). Someone removed before comes back
+/// on the same row, with the new name and adder, and with no role: their old grants were revoked
+/// when they were removed. `who`: the adder. No email: a new row on a stand-in key (see the
+/// module's note).
+pub async fn add(store: &Store, email: &str, name: &str, who: Option<&Actor>) -> Result<String, UsersError> {
     let (email, name) = normal_new(email, name)?;
     if !email.is_empty() && active_id(store, &email).await?.is_some() {
         return Err(UsersError::Exists);
     }
-    let added_by = adder(store, by).await?;
+    let added_by = who.map(|a| a.id.clone());
     let hash = if email.is_empty() { pending_hash(store)? } else { store.lookup(EMAIL_HASH, &email) };
     let row = Store::hex(&hash);
+    let mut tx = store.pool().begin().await.map_err(store_err("begin"))?;
     let id: String = sqlx::query(
         "INSERT INTO users (email_hash, email, name, added_by) VALUES ($1, $2, $3, $4::uuid)
          ON CONFLICT (email_hash) DO UPDATE SET name = EXCLUDED.name, added_by = EXCLUDED.added_by,
@@ -347,41 +410,58 @@ pub async fn add(store: &Store, email: &str, name: &str, by: &str) -> Result<Str
     .bind(sealed(store, &row, "email", &email)?)
     .bind(sealed(store, &row, "name", &name)?)
     .bind(added_by)
-    .fetch_one(store.pool())
+    .fetch_one(&mut *tx)
     .await
     .map_err(store_err("add"))?
     .get("id");
+    let before = last_card(&mut tx, &id).await?;
+    let after = keep_card(store, &mut tx, &id, who).await?;
+    let fields = [(!email.is_empty()).then_some("email"), (!name.is_empty()).then_some("name")];
+    let fields = fields.into_iter().flatten().map(str::to_string).collect();
+    audited(&mut tx, who, "person.add", &id, fields, (before, Some(after))).await?;
+    tx.commit().await.map_err(store_err("commit"))?;
     Ok(id)
 }
 
 /// Takes a person off the list and returns their email, so the agent can take it out of
-/// Cloudflare's group and end their sessions. The owner is refused.
-pub async fn remove(store: &Store, id: &str) -> Result<Zeroizing<String>, UsersError> {
+/// Cloudflare's group and end their sessions. Their live roles are revoked with them. The rules
+/// (at or below the remover; never the last person who can manage the console) are checked first
+/// (access.rs › `may_remove`).
+pub async fn remove(store: &Store, id: &str, who: Option<&Actor>) -> Result<Zeroizing<String>, UsersError> {
     if uuid_text(id).is_none() {
         return Err(UsersError::Bad("id: not a person's id"));
     }
-    let row = sqlx::query("SELECT email_hash, email, owner FROM users WHERE id = $1::uuid AND removed_at IS NULL")
+    let row = sqlx::query("SELECT email_hash, email FROM users WHERE id = $1::uuid AND removed_at IS NULL")
         .bind(id)
         .fetch_optional(store.pool())
         .await
         .map_err(store_err("find"))?
         .ok_or(UsersError::NotFound)?;
-    if row.get::<bool, _>("owner") {
-        return Err(UsersError::Owner);
-    }
     let email = opened(store, &Store::hex(&row.get::<Vec<u8>, _>("email_hash")), "email", &row.get::<Vec<u8>, _>("email"))?;
+    let mut tx = store.pool().begin().await.map_err(store_err("begin"))?;
     sqlx::query("UPDATE users SET removed_at = now() WHERE id = $1::uuid AND removed_at IS NULL")
         .bind(id)
-        .execute(store.pool())
+        .execute(&mut *tx)
         .await
         .map_err(store_err("remove"))?;
+    let revoked: Vec<String> = sqlx::query_scalar(
+        "UPDATE user_roles SET revoked_at = now(), revoked_by = $2::uuid
+         WHERE user_id = $1::uuid AND revoked_at IS NULL RETURNING role_id",
+    )
+    .bind(id)
+    .bind(who.map(|a| a.id.as_str()))
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(store_err("revoke the roles"))?;
+    audited(&mut tx, who, "person.remove", id, revoked.into_iter().map(|r| format!("role:{r}")).collect(), (None, None)).await?;
+    tx.commit().await.map_err(store_err("commit"))?;
     Ok(email)
 }
 
 /// Saves a person's card: the whole profile at once. A changed phone number is not verified.
 /// A changed email moves the row to the new email's hash and seals every column again under
 /// it; the old email comes back so the agent can take it out of Cloudflare's group.
-pub async fn update(store: &Store, id: &str, p: &Profile<'_>) -> Result<Saved, UsersError> {
+pub async fn update(store: &Store, id: &str, p: &Profile<'_>, who: Option<&Actor>) -> Result<Saved, UsersError> {
     if uuid_text(id).is_none() {
         return Err(UsersError::Bad("id: not a person's id"));
     }
@@ -392,19 +472,35 @@ pub async fn update(store: &Store, id: &str, p: &Profile<'_>) -> Result<Saved, U
     // Empty only on a row that has no email yet: checked below, against the stored one.
     let email = if p.email.trim().is_empty() { String::new() } else { normal_email(p.email)? };
 
-    let row = sqlx::query("SELECT email_hash, email, phone FROM users WHERE id = $1::uuid AND removed_at IS NULL")
-        .bind(id)
-        .fetch_optional(store.pool())
-        .await
-        .map_err(store_err("find"))?
-        .ok_or(UsersError::NotFound)?;
+    let row = sqlx::query(
+        "SELECT email_hash, email, name, first_name, last_name, phone FROM users WHERE id = $1::uuid AND removed_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(store.pool())
+    .await
+    .map_err(store_err("find"))?
+    .ok_or(UsersError::NotFound)?;
     let old_hex = Store::hex(&row.get::<Vec<u8>, _>("email_hash"));
     let old_email = opened(store, &old_hex, "email", &row.get::<Vec<u8>, _>("email"))?;
-    let old_phone = row
-        .get::<Option<Vec<u8>>, _>("phone")
-        .map(|b| opened(store, &old_hex, "phone", &b))
-        .transpose()?
-        .unwrap_or_default();
+    let old_column = |c: &str| -> Result<Option<Zeroizing<String>>, UsersError> {
+        row.get::<Option<Vec<u8>>, _>(c).map(|b| opened(store, &old_hex, c, &b)).transpose()
+    };
+    let old_phone = old_column("phone")?.unwrap_or_default();
+    let (old_first, old_last) = match (old_column("first_name")?, old_column("last_name")?) {
+        (Some(f), Some(l)) => (f.to_string(), l.to_string()),
+        _ => split_name(&opened(store, &old_hex, "name", &row.get::<Vec<u8>, _>("name"))?, &old_email),
+    };
+    // The names of the fields this save changes, for the audit row. Names only.
+    let changed: Vec<String> = [
+        ("first_name", first != old_first),
+        ("last_name", last != old_last),
+        ("phone", phone != old_phone.as_str()),
+        ("email", !email.is_empty() && email != old_email.as_str()),
+    ]
+    .into_iter()
+    .filter(|(_, c)| *c)
+    .map(|(f, _)| f.to_string())
+    .collect();
 
     if email.is_empty() && !old_email.is_empty() {
         return Err(UsersError::Bad("email: a saved email can be changed, not cleared (Remove takes away sign-in)"));
@@ -432,6 +528,13 @@ pub async fn update(store: &Store, id: &str, p: &Profile<'_>) -> Result<Saved, U
     let phone_sealed = if phone.is_empty() { None } else { Some(sealed(store, &hex, "phone", &phone)?) };
     // A number that did not change keeps its mark; any other loses it.
     let keep_verified = phone == old_phone.as_str() && !phone.is_empty();
+    let mut tx = store.pool().begin().await.map_err(store_err("begin"))?;
+    // The card before this save: the newest kept one, or, for a card from before the history
+    // (migration 0012), the card as it is now, kept first.
+    let before = match last_card(&mut tx, id).await? {
+        Some(v) => v,
+        None => keep_card(store, &mut tx, id, None).await?,
+    };
     sqlx::query(
         "UPDATE users SET email_hash = $2, email = $3, name = $4, first_name = $5, last_name = $6,
              phone = $7, phone_verified = phone_verified AND $8, updated_at = now()
@@ -445,13 +548,16 @@ pub async fn update(store: &Store, id: &str, p: &Profile<'_>) -> Result<Saved, U
     .bind(sealed(store, &hex, "last_name", &last)?)
     .bind(phone_sealed)
     .bind(keep_verified)
-    .execute(store.pool())
+    .execute(&mut *tx)
     .await
     .map_err(|e| match e {
         // Another save took the email between the check and this write.
         sqlx::Error::Database(d) if d.is_unique_violation() => UsersError::Exists,
         _ => UsersError::Store("users: save".into()),
     })?;
+    let after = keep_card(store, &mut tx, id, who).await?;
+    audited(&mut tx, who, "person.card", id, changed, (Some(before), Some(after))).await?;
+    tx.commit().await.map_err(store_err("commit"))?;
     Ok(Saved { old_email, email_changed })
 }
 
@@ -468,8 +574,9 @@ async fn is_active(store: &Store, id: &str) -> Result<bool, UsersError> {
     Ok(row.is_some())
 }
 
-/// Saves a person's picture (a WebP of at most `MAX_PHOTO`), sealed and bound to their id.
-pub async fn set_photo(store: &Store, id: &str, bytes: &[u8]) -> Result<(), UsersError> {
+/// Saves a person's picture (a WebP of at most `MAX_PHOTO`), sealed and bound to their id. The
+/// audit row names the change; the picture itself is not kept in the history.
+pub async fn set_photo(store: &Store, id: &str, bytes: &[u8], who: Option<&Actor>) -> Result<(), UsersError> {
     check_photo(bytes)?;
     if !is_active(store, id).await? {
         return Err(UsersError::NotFound);
@@ -477,15 +584,18 @@ pub async fn set_photo(store: &Store, id: &str, bytes: &[u8]) -> Result<(), User
     let sealed = store
         .seal_bytes("user_photos", id, "photo", bytes)
         .map_err(|_| UsersError::Store("users: sealing".into()))?;
+    let mut tx = store.pool().begin().await.map_err(store_err("begin"))?;
     sqlx::query(
         "INSERT INTO user_photos (user_id, photo) VALUES ($1::uuid, $2)
          ON CONFLICT (user_id) DO UPDATE SET photo = EXCLUDED.photo, updated_at = now()",
     )
     .bind(id)
     .bind(sealed)
-    .execute(store.pool())
+    .execute(&mut *tx)
     .await
     .map_err(store_err("save the picture"))?;
+    audited(&mut tx, who, "person.photo", id, vec!["photo".into()], (None, None)).await?;
+    tx.commit().await.map_err(store_err("commit"))?;
     Ok(())
 }
 
@@ -507,45 +617,73 @@ pub async fn photo(store: &Store, id: &str) -> Result<Option<Zeroizing<Vec<u8>>>
     .transpose()
 }
 
-/// Deletes a person's picture. No picture is no error.
-pub async fn clear_photo(store: &Store, id: &str) -> Result<(), UsersError> {
+/// Deletes a person's picture. No picture is no error (and no audit row).
+pub async fn clear_photo(store: &Store, id: &str, who: Option<&Actor>) -> Result<(), UsersError> {
     if !is_active(store, id).await? {
         return Err(UsersError::NotFound);
     }
-    sqlx::query("DELETE FROM user_photos WHERE user_id = $1::uuid")
+    let mut tx = store.pool().begin().await.map_err(store_err("begin"))?;
+    let done = sqlx::query("DELETE FROM user_photos WHERE user_id = $1::uuid")
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(store_err("delete the picture"))?;
+    if done.rows_affected() > 0 {
+        audited(&mut tx, who, "person.photo", id, vec!["photo".into()], (None, None)).await?;
+    }
+    tx.commit().await.map_err(store_err("commit"))?;
+    Ok(())
+}
+
+/// A person was seen: their `last_seen_at` becomes now (the console on the owner's PC, through
+/// the launch token, names the owner's row).
+pub async fn seen(store: &Store, id: &str) -> Result<(), UsersError> {
+    if uuid_text(id).is_none() {
+        return Err(UsersError::Bad("id: not a person's id"));
+    }
+    sqlx::query("UPDATE users SET last_seen_at = now() WHERE id = $1::uuid AND removed_at IS NULL")
         .bind(id)
         .execute(store.pool())
         .await
-        .map_err(store_err("delete the picture"))?;
+        .map_err(store_err("stamp"))?;
     Ok(())
 }
 
-/// The owner was seen (the console on the owner's PC, through the launch token).
-pub async fn seen_owner(store: &Store) -> Result<(), UsersError> {
-    sqlx::query("UPDATE users SET last_seen_at = now() WHERE owner AND removed_at IS NULL")
-        .execute(store.pool())
+/// The owner's row (the one the launch token speaks for), if it is on the list.
+pub async fn owner_id(store: &Store) -> Result<Option<String>, UsersError> {
+    let row = sqlx::query("SELECT id::text AS id FROM users WHERE owner AND removed_at IS NULL")
+        .fetch_optional(store.pool())
         .await
-        .map_err(store_err("stamp the owner"))?;
-    Ok(())
+        .map_err(store_err("find the owner"))?;
+    Ok(row.map(|r| r.get("id")))
 }
 
-/// Whether this email is on the list now; when it is, its `last_seen_at` becomes now.
-pub async fn admit(store: &Store, email: &str) -> Result<bool, UsersError> {
-    let Ok(email) = normal_email(email) else { return Ok(false) };
+/// The id of the person with this email, if they are on the list now (the Access sign-in names
+/// a person by email; the agent sends their id on each request after).
+pub async fn id_of(store: &Store, email: &str) -> Result<Option<String>, UsersError> {
+    let Ok(email) = normal_email(email) else { return Ok(None) };
+    active_id(store, &email).await
+}
+
+/// The id of the person with this email when they are on the list now (and their `last_seen_at`
+/// becomes now); None when they are not.
+pub async fn admit(store: &Store, email: &str) -> Result<Option<String>, UsersError> {
+    let Ok(email) = normal_email(email) else { return Ok(None) };
     let hash = store.lookup(EMAIL_HASH, &email);
-    let done = sqlx::query("UPDATE users SET last_seen_at = now() WHERE email_hash = $1 AND removed_at IS NULL")
+    let row = sqlx::query("UPDATE users SET last_seen_at = now() WHERE email_hash = $1 AND removed_at IS NULL RETURNING id::text AS id")
         .bind(hash.as_slice())
-        .execute(store.pool())
+        .fetch_optional(store.pool())
         .await
         .map_err(store_err("admit"))?;
-    Ok(done.rows_affected() == 1)
+    Ok(row.map(|r| r.get("id")))
 }
 
 /// Brings in the emails already in Cloudflare's group that the list does not have (people added
 /// in Cloudflare's dashboard), with their email as their name until someone renames them. On an
 /// empty list with exactly one email, that person is the owner: the group was made with the
-/// owner's email alone (DEMO.md §7). Returns how many were added. A removed person is not
-/// brought back: the agent takes them out of the group instead.
+/// owner's email alone (DEMO.md §7), and gets Deets (docs/ideas/ACCESS-ROLES.md §5); everyone
+/// else comes in with no role. Returns how many were added. A removed person is not brought
+/// back: the agent takes them out of the group instead.
 pub async fn seed(store: &Store, emails: &[String]) -> Result<u32, UsersError> {
     let empty: bool = sqlx::query("SELECT NOT EXISTS (SELECT 1 FROM users) AS empty")
         .fetch_one(store.pool())
@@ -557,22 +695,31 @@ pub async fn seed(store: &Store, emails: &[String]) -> Result<u32, UsersError> {
     normal.dedup();
     let owner = empty && normal.len() == 1;
     let mut added = 0;
+    let mut tx = store.pool().begin().await.map_err(store_err("begin"))?;
     for email in &normal {
         let hash = store.lookup(EMAIL_HASH, email);
         let row = Store::hex(&hash);
-        let done = sqlx::query(
+        let id: Option<String> = sqlx::query_scalar(
             "INSERT INTO users (email_hash, email, name, owner) VALUES ($1, $2, $3, $4)
-             ON CONFLICT (email_hash) DO NOTHING",
+             ON CONFLICT (email_hash) DO NOTHING RETURNING id::text",
         )
         .bind(hash.as_slice())
         .bind(sealed(store, &row, "email", email)?)
         .bind(sealed(store, &row, "name", email)?)
         .bind(owner)
-        .execute(store.pool())
+        .fetch_optional(&mut *tx)
         .await
         .map_err(store_err("seed"))?;
-        added += done.rows_affected() as u32;
+        let Some(id) = id else { continue };
+        added += 1;
+        if owner {
+            crate::access::grant_owner(&mut tx, &id).await.map_err(UsersError::Store)?;
+        }
+        let after = keep_card(store, &mut tx, &id, None).await?;
+        let fields = if owner { vec!["email".into(), "role:deets".into()] } else { vec!["email".into()] };
+        audited(&mut tx, None, "person.seed", &id, fields, (None, Some(after))).await?;
     }
+    tx.commit().await.map_err(store_err("commit"))?;
     Ok(added)
 }
 

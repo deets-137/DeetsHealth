@@ -119,10 +119,11 @@ from deets_agent.catalog import (
     read_events,
 )
 from deets_agent.cloudflare import AccessGroup, CloudflareError, CloudflareSettings
-from deets_agent.ehr_client import EhrClient, EhrError, ErrorKind, SettingVersion
+from deets_agent.ehr_client import ACTOR, EhrClient, EhrError, ErrorKind, SettingVersion, as_system
 from deets_agent.ehr_process import running_ehr
 from deets_agent.fake_twilio import FakeTwilio
 from deets_agent.flow import tool_scope, tool_steps
+from deets_agent.identity import LEVELS, LEVERS, Identity, IdentityDown, Principal
 from deets_agent.llm import Mode, build_llm
 from deets_agent.resources import anthropic_cycle, call_use, cartesia_cycle
 from deets_agent.rtvi_json import RtviJsonSerializer
@@ -133,10 +134,65 @@ from deets_agent.voice_catalog import VERSION as CARTESIA_VOICES_VERSION
 from deets_agent.voice_catalog import VoiceCatalog
 
 TOKEN_HEADER = "x-deets-token"
-# Who a request is (State.admit): the owner, through the launch token; else a guest's email.
+# Who a request is, for the Chat rail and the record (State.admit): the owner, through the
+# launch token; else a guest's email. What they may do is `Principal`'s (identity.py).
 OWNER = "owner"
-# How often the owner's requests on this PC stamp their row's last seen, in seconds.
-OWNER_SEEN_EVERY = 60.0
+
+# What each route needs (docs/ideas/ACCESS-ROLES.md §7; DEV-API.md §2a, which a test compares): a
+# lever and a level, or None for any person signed in. The wall checks it before the route runs,
+# and `build_app` refuses to start with a route that is not here. The fake Twilio has its own
+# check (ehr, not a person): `TWILIO`.
+ANY = None
+TWILIO = "twilio"
+ROUTE_NEEDS: dict[tuple[str, str], tuple[str, str] | str | None] = {
+    ("GET", "/agent/health"): ANY,
+    ("GET", "/agent/me"): ANY,
+    ("POST", "/agent/log"): ANY,
+    ("POST", "/agent/csp-report"): ANY,
+    ("GET", "/agent/build"): ANY,
+    ("GET", "/demo"): ANY,
+    ("GET", "/demo/{path:path}"): ANY,
+    ("POST", "/2010-04-01/Accounts/{account}/Messages.json"): TWILIO,
+    ("GET", "/agent/cartesia"): ("vendors", "view"),
+    ("GET", "/agent/cartesia/voices"): ("vendors", "view"),
+    ("POST", "/agent/cartesia"): ("vendors", "edit"),
+    ("GET", "/agent/anthropic"): ("vendors", "view"),
+    ("POST", "/agent/anthropic"): ("vendors", "edit"),
+    ("GET", "/agent/prompt"): ("agent", "view"),
+    ("POST", "/agent/prompt"): ("agent", "edit"),
+    ("POST", "/agent/prompt/estimate"): ("agent", "edit"),
+    ("POST", "/agent/prompt/record"): ("agent", "edit"),
+    ("GET", "/agent/system"): ("agent", "view"),
+    ("POST", "/agent/system"): ("agent", "edit"),
+    ("GET", "/agent/hospital"): ("rules", "view"),
+    ("POST", "/agent/hospital"): ("rules", "edit"),
+    ("POST", "/agent/hospital/import-places"): ("rules", "edit"),
+    ("GET", "/agent/resources"): ("analytics", "view"),
+    ("GET", "/agent/latency"): ("analytics", "view"),
+    ("GET", "/agent/sandbox"): ("testing", "edit"),
+    ("GET", "/agent/ice"): ("testing", "edit"),
+    ("POST", "/agent/voice"): ("testing", "edit"),
+    ("WS", "/agent/call"): ("testing", "edit"),
+    ("GET", "/agent/catalog"): ("testing", "view"),
+    ("GET", "/agent/calls/{call_id}"): ("testing", "view"),
+    ("POST", "/agent/annotations"): ("testing", "edit"),
+    ("WS", "/agent/watch"): ("phi", "view"),
+    ("GET", "/agent/people"): ("people", "view"),
+    ("GET", "/agent/people/{person_id}/photo"): ("people", "view"),
+    ("POST", "/agent/people"): ("people", "edit"),
+    ("PATCH", "/agent/people/{person_id}"): ("people", "edit"),
+    ("DELETE", "/agent/people/{person_id}"): ("people", "edit"),
+    ("PUT", "/agent/people/{person_id}/photo"): ("people", "edit"),
+    ("DELETE", "/agent/people/{person_id}/photo"): ("people", "edit"),
+    ("GET", "/agent/roles"): ("roles", "view"),
+    ("POST", "/agent/roles"): ("roles", "edit"),
+    ("POST", "/agent/people/{person_id}/roles/{role_id}"): ("roles", "edit"),
+    ("DELETE", "/agent/people/{person_id}/roles/{role_id}"): ("roles", "edit"),
+    ("GET", "/agent/audit"): ("audit_logs", "view"),
+    ("GET", "/agent/audit/verify"): ("audit_logs", "view"),
+}
+# A live watch asks again this often whether its viewer still holds PHI View.
+WATCH_RECHECK_S = 15.0
 # The largest picture the People routes take (ehr's users.rs › MAX_PHOTO).
 MAX_PHOTO = 256 * 1024
 # The demo's base path (docs/ops/DEMO.md §3.1): the built console and its routes under it.
@@ -251,9 +307,8 @@ class State:
         # one change at a time to the list and the group.
         self.cloudflare = cloudflare
         self.people_lock = asyncio.Lock()
-        # When the owner's row was last stamped as seen (the launch token's door), so this PC's
-        # requests stamp it at most once a minute.
-        self.owner_seen_at = 0.0
+        # Who each request is and what they may do (identity.py): the person, their levels.
+        self.identity = Identity(self)
         self.twilio = FakeTwilio(port)
         self.calls = calls
         self.catalog = Catalog(calls).build()
@@ -294,8 +349,9 @@ class State:
         return origin is None or origin in self.origins
 
     async def admit(self, headers) -> str | None:
-        """Who the request is: `OWNER` through the launch token (the first door), a guest's
-        email through a valid Access token (the second door, only in the demo), else None."""
+        """Who the request is, for the Chat rail and the record: `OWNER` through the launch
+        token (the first door), a guest's email through a valid Access token (the second door,
+        only in the demo), else None. What they may do: `identity.who`."""
         if self.allowed(headers):
             return OWNER
         if self.access is not None:
@@ -309,6 +365,44 @@ class State:
                 q.put_nowait(text)
 
 
+def route_need(app: FastAPI, scope) -> tuple[bool, tuple[str, str] | str | None]:
+    """The need of the route this request reaches: (found, need). Not found: no route (404
+    follows), or a route `build_app` would have refused."""
+    from starlette.routing import Match
+
+    method = "WS" if scope["type"] == "websocket" else scope.get("method", "GET")
+    for route in app.router.routes:
+        match, _ = route.matches(scope)
+        if match is Match.FULL:
+            key = (method, getattr(route, "path", ""))
+            if key in ROUTE_NEEDS:
+                return True, ROUTE_NEEDS[key]
+            # HEAD is GET's.
+            if method == "HEAD" and ("GET", key[1]) in ROUTE_NEEDS:
+                return True, ROUTE_NEEDS[("GET", key[1])]
+    return False, None
+
+
+def check_route_needs(app: FastAPI) -> None:
+    """Every route names what it needs in ROUTE_NEEDS, and every row names a route: the server
+    does not start otherwise (ACCESS-ROLES.md §6, Hand-over 2)."""
+    from fastapi.routing import APIRoute, APIWebSocketRoute
+
+    served: set[tuple[str, str]] = set()
+    for route in app.router.routes:
+        if isinstance(route, APIRoute):
+            served.update((m, route.path) for m in route.methods if m != "HEAD")
+        elif isinstance(route, APIWebSocketRoute):
+            served.add(("WS", route.path))
+    missing = sorted(served - set(ROUTE_NEEDS))
+    extra = sorted(set(ROUTE_NEEDS) - served)
+    if missing or extra:
+        raise RuntimeError(f"ROUTE_NEEDS does not match the routes: missing {missing}, extra {extra}")
+    for need in ROUTE_NEEDS.values():
+        if isinstance(need, tuple) and (need[0] not in LEVERS or need[1] not in LEVELS):
+            raise RuntimeError(f"ROUTE_NEEDS names a lever or level that does not exist: {need}")
+
+
 def build_app(state: State) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -317,12 +411,14 @@ def build_app(state: State) -> FastAPI:
         # With Epic's sandbox as a second source when its dev files are here (CHAT.md §13).
         async with running_ehr(env={**state.twilio.ehr_env(), **epic_env()}, store=True) as target:
             state.ehr = await EhrClient.connect(target, config.CERTS)
-            # A hand edit to the prompt file becomes a new version (PROMPT-EDITOR.md §6.2).
-            await sync_prompt_file(state)
-            # Labels, stars and ratings live in the store (DATABASE.md §9).
-            await load_annotations(state)
-            # The People list and Cloudflare's group agree before the first guest arrives.
-            await sync_people(state)
+            # The agent on its own, no person behind it (ehr audits it as the system).
+            with as_system():
+                # A hand edit to the prompt file becomes a new version (PROMPT-EDITOR.md §6.2).
+                await sync_prompt_file(state)
+                # Labels, stars and ratings live in the store (DATABASE.md §9).
+                await load_annotations(state)
+                # The People list and Cloudflare's group agree before the first guest arrives.
+                await sync_people(state)
             try:
                 yield
             finally:
@@ -341,16 +437,19 @@ def build_app(state: State) -> FastAPI:
             if through_tunnel or not state.twilio.authorized(request.headers, host):
                 return JSONResponse({"code": 20003, "message": "Authenticate", "status": 401}, status_code=401)
             return await call_next(request)
-        who = await state.admit(request.headers)
-        if who is None:
+        try:
+            principal = await state.identity.who(request.headers)
+        except IdentityDown:
+            return JSONResponse({"error": "ehr did not say who you are"}, status_code=503)
+        if principal is None:
             return JSONResponse({"error": "forbidden"}, status_code=403)
-        request.state.who = who
-        if who == OWNER and state.ehr is not None and time.monotonic() - state.owner_seen_at > OWNER_SEEN_EVERY:
-            state.owner_seen_at = time.monotonic()
-            try:
-                await state.ehr.seen_owner()
-            except EhrError:
-                pass  # no store, or no owner yet: nothing to stamp
+        found, need = route_need(app, request.scope)
+        if found and isinstance(need, tuple) and not principal.may(*need):
+            return JSONResponse({"error": "forbidden", "lever": need[0], "level": need[1]}, status_code=403)
+        request.state.principal = principal
+        request.state.who = OWNER if principal.owner else principal.email
+        # The person behind every staff call this request makes to ehr (ehr_client.py).
+        ACTOR.set(principal.user_id)
         return await call_next(request)
 
     # Added after the wall, so it runs outside it: a refusal carries the headers too.
@@ -490,6 +589,8 @@ def build_app(state: State) -> FastAPI:
             raise HTTPException(409, "the cost is still being worked out")
         if not state.has_key:
             raise HTTPException(409, "Record and test needs an Anthropic key in .env")
+        # It spends tokens: who pressed it is in the audit trail (ACCESS-ROLES.md §5.1).
+        await _look(state, "agent", "edit", "test.run", "test_run", "kept_scripts")
         task = asyncio.create_task(record_and_test(state))
         state.tasks.add(task)
         task.add_done_callback(state.tasks.discard)
@@ -696,6 +797,8 @@ def build_app(state: State) -> FastAPI:
         events = state.catalog.events(call_id)
         if events is None:
             raise HTTPException(404, "no such call")
+        # A transcript read is audited (ACCESS-ROLES.md §5.1): the call's id, never its words.
+        await _look(state, "testing", "view", "transcript.view", "call", call_id)
         return {"id": call_id, "events": events}
 
     @app.post("/agent/annotations")
@@ -709,12 +812,29 @@ def build_app(state: State) -> FastAPI:
         await file_annotation(state, body)
         return {"ok": True}
 
+    async def ws_principal(ws: WebSocket) -> Principal | None:
+        """A WebSocket's person, checked against its row in ROUTE_NEEDS (the HTTP wall does not
+        run for sockets); None after closing it (1008: no entry or no access)."""
+        try:
+            principal = await state.identity.who(ws.headers)
+        except IdentityDown:
+            principal = None
+        _, need = route_need(app, ws.scope)
+        if principal is None or (isinstance(need, tuple) and not principal.may(*need)):
+            await ws.close(code=1008)
+            return None
+        ACTOR.set(principal.user_id)
+        return principal
+
     @app.websocket("/agent/watch")
     async def watch(ws: WebSocket):
-        if await state.admit(ws.headers) is None:
-            await ws.close(code=1008)
+        principal = await ws_principal(ws)
+        if principal is None:
             return
         await ws.accept()
+        # Watching another person's live call is a look at protected data (ACCESS-ROLES.md
+        # §5.1); every caller here is synthetic, so the row's class says so.
+        await _look(state, "phi", "view", "call.watch", "page", "watch")
         q: asyncio.Queue = asyncio.Queue()
         state.watchers.add(q)
         try:
@@ -732,6 +852,8 @@ def build_app(state: State) -> FastAPI:
                         json.dumps({"type": "event", "call": c.record.call_id, "event": event})
                     )
             sender = asyncio.create_task(_drain(ws, q))
+            # A viewer who loses PHI View is cut off within WATCH_RECHECK_S (§6, Hand-over 2).
+            recheck = asyncio.create_task(_recheck(state, ws, ("phi", "view")))
             try:
                 while True:
                     await ws.receive_text()  # the watcher sends nothing; this notices a close
@@ -739,15 +861,16 @@ def build_app(state: State) -> FastAPI:
                 pass
             finally:
                 sender.cancel()
+                recheck.cancel()
         finally:
             state.watchers.discard(q)
 
     @app.websocket("/agent/call")
     async def call(ws: WebSocket):
-        who = await state.admit(ws.headers)
-        if who is None:
-            await ws.close(code=1008)
+        principal = await ws_principal(ws)
+        if principal is None:
             return
+        who = OWNER if principal.owner else principal.email or "guest"
         # The EHR this call reads: the page's Epic / Local button (CHAT.md §13).
         ehr_source = ws.query_params.get("ehr", "local")
         if ehr_source not in ("local", "epic"):
@@ -893,11 +1016,10 @@ def build_app(state: State) -> FastAPI:
 
     @app.post("/agent/people")
     async def add_person(request: Request):
-        """`{email, name}`: put a person on the list, then on Cloudflare's group. Either may be
-        empty, not both (a card to finish later; with no email, no sign-in). Anyone signed in
-        may (the owner's rule until roles, 2026-11-13). The view, with `added` (the new id).
-        400 names the field that does not fit; 409 when the email is on the list or the store
-        is missing."""
+        """`{email, name}`: put a person on the list, with no role, then on Cloudflare's group.
+        Either may be empty, not both (a card to finish later; with no email, no sign-in).
+        People Edit (ROUTE_NEEDS). The view, with `added` (the new id). 400 names the field that
+        does not fit; 409 when the email is on the list or the store is missing."""
         try:
             body = await request.json()
         except ValueError:
@@ -905,10 +1027,9 @@ def build_app(state: State) -> FastAPI:
         if not isinstance(body, dict) or not all(isinstance(body.get(k), str) for k in ("email", "name")):
             raise HTTPException(400, "an object with email and name")
         assert state.ehr is not None
-        by = "" if request.state.who == OWNER else request.state.who
         async with state.people_lock:
             try:
-                added = await state.ehr.add_user(body["email"], body["name"], by)
+                added = await state.ehr.add_user(body["email"], body["name"])
             except EhrError as e:
                 raise HTTPException(_people_status(e), e.detail or "not added") from None
             # No email: nothing new for the group.
@@ -917,14 +1038,18 @@ def build_app(state: State) -> FastAPI:
 
     @app.delete("/agent/people/{person_id}")
     async def remove_person(person_id: str, request: Request):
-        """Take a person off the list (the row stays, for audits), then off Cloudflare's group,
-        and end their Access sessions. 403 for the owner; 404 for no such person."""
+        """Take a person off the list (the row stays, for audits) and revoke their roles, then
+        off Cloudflare's group, and end their Access sessions. 403 for someone above you and for
+        the last person who can manage the console (access.rs); 404 for no such person."""
         assert state.ehr is not None
         async with state.people_lock:
             try:
                 email = await state.ehr.remove_user(person_id)
             except EhrError as e:
                 raise HTTPException(_people_status(e), e.detail or "not removed") from None
+            state.identity.forget(person_id)
+            if email:
+                state.identity.forget_guest(email)
             # A card with no email never reached the group: nothing to forget or sign out.
             if not email:
                 return {**await _people_view(state, request.state.who), "warning": None}
@@ -941,9 +1066,10 @@ def build_app(state: State) -> FastAPI:
     @app.patch("/agent/people/{person_id}")
     async def update_person(person_id: str, request: Request):
         """Security › Auth's Save (DEMO.md §3.5): `{first_name, last_name, phone, email}`, the
-        whole card. Anyone signed in may edit any card, the owner's too (the owner's rule until
-        roles). When the email changed, Cloudflare's group follows, and the old email's Access
-        sessions end. 400 names the field; 404 for no such person; 409 when the email is taken."""
+        whole card. People Edit, and the person at or below you (access.rs; your own card too).
+        When the email changed, Cloudflare's group follows, and the old email's Access sessions
+        end. 400 names the field; 403 for someone above you; 404 for no such person; 409 when the
+        email is taken."""
         try:
             body = await request.json()
         except ValueError:
@@ -962,6 +1088,8 @@ def build_app(state: State) -> FastAPI:
                 # "" when the card had no email yet: nothing to forget or sign out.
                 if state.access is not None and old:
                     state.access.forget(old)
+                if old:
+                    state.identity.forget_guest(old)
                 warning = await _push_people(state)
                 if state.cloudflare is not None and warning is None and old:
                     try:
@@ -997,7 +1125,149 @@ def build_app(state: State) -> FastAPI:
         """Deletes a person's picture."""
         return await _photo_change(state, request, person_id, None)
 
+    # ---- access by role and the audit trail (docs/ideas/ACCESS-ROLES.md §5, §5.1, §6) ----
+
+    @app.get("/agent/me")
+    async def me(request: Request):
+        """Who you are and what you may do: your id, your roles, the roles version and every
+        lever's level (`store`: false when there is no roles store, and the launch token has
+        every lever). The console's nav and View only follow it. Never your email."""
+        return request.state.principal.view()
+
+    @app.post("/agent/log")
+    async def log_look(request: Request):
+        """`{lever, level, action, object_kind?, object_id?}`: a look the console makes that
+        changes nothing (a page opened), recorded in the audit trail as allowed or refused.
+        `{allowed}`. 400 for words ehr does not take."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "not JSON") from None
+        keys = ("lever", "level", "action")
+        if not isinstance(body, dict) or not all(isinstance(body.get(k), str) for k in keys):
+            raise HTTPException(400, "an object with lever, level and action")
+        if body["lever"] not in LEVERS or body["level"] not in LEVELS:
+            raise HTTPException(400, "lever and level: access.rs's words")
+        if state.ehr is None or ACTOR.get() is None:
+            return {"allowed": request.state.principal.may(body["lever"], body["level"])}
+        try:
+            allowed = await state.ehr.log_access(
+                body["lever"], body["level"], body["action"], str(body.get("object_kind") or ""), str(body.get("object_id") or "")
+            )
+        except EhrError as e:
+            if e.kind is ErrorKind.BAD_INPUT:
+                raise HTTPException(400, e.detail or "not a look ehr records") from None
+            raise HTTPException(502, "ehr could not record the look") from None
+        return {"allowed": allowed}
+
+    @app.get("/agent/roles")
+    async def roles(version: int = 0):
+        """Security › Roles: the roles versions (newest first), one version's roles (the active
+        one when `version` is 0), the active roles, and the levers and levels in access.rs's
+        order. 404 for a version that does not exist; 409 without a roles store."""
+        if version < 0:
+            raise HTTPException(400, "version: not a version")
+        return await roles_view(state, version)
+
+    @app.post("/agent/roles")
+    async def save_roles(request: Request):
+        """`{roles: [{id, name, domain, levels}]}`: the whole list, saved as a new, active
+        version through ehr (access.rs checks it: every lever named, a Team role that edits
+        roles, no role in use removed, no person left in a conflict). Everyone's levels are
+        read again. 400 names the role's place in the list; 409 for a rule it breaks."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "not JSON") from None
+        listed = body.get("roles") if isinstance(body, dict) else None
+        if not isinstance(listed, list):
+            raise HTTPException(400, "roles: the whole list")
+        await save_settings(state, "roles", {"roles": listed})
+        state.identity.forget()
+        return await roles_view(state, 0)
+
+    @app.post("/agent/people/{person_id}/roles/{role_id}")
+    async def grant(person_id: str, role_id: str, request: Request):
+        """Grant a role (ehr's rules: not your own, never above your own access, no conflict).
+        The People view again. 403 with the rule; 404 for no such person or role."""
+        return await _role_change(state, request, person_id, role_id, grant=True)
+
+    @app.delete("/agent/people/{person_id}/roles/{role_id}")
+    async def revoke(person_id: str, role_id: str, request: Request):
+        """Revoke a role (ehr's rules, and never the last person who can manage the console).
+        The People view again. 403 with the rule; 404 when they do not hold it."""
+        return await _role_change(state, request, person_id, role_id, grant=False)
+
+    @app.get("/agent/audit")
+    async def audit(before: int = 0, limit: int = 100, changes: bool = False):
+        """The audit trail, newest first (ACCESS-ROLES.md §5.1): `rows`, each with who (a user
+        id), their roles and the roles version, the lever and level, the action, the object's
+        id, the fields that changed, the versions before and after, allowed or refused, and
+        when. `?before=` a row's `seq` for the next page; `?changes=true` for the changes and
+        refusals only. Ids and field names only; the console names the people. 409 without a
+        store."""
+        if not 1 <= limit <= 500:
+            raise HTTPException(400, "limit: 1 to 500")
+        if state.ehr is None:
+            raise HTTPException(409, "ehr is not up yet")
+        try:
+            rows = await state.ehr.read_audit(before, limit, changes)
+        except EhrError as e:
+            raise HTTPException(409 if e.kind is ErrorKind.NOT_ALLOWED_NOW else 502, "no audit trail without a store") from None
+        return {"rows": rows}
+
+    @app.get("/agent/audit/verify")
+    async def audit_verify():
+        """Walks the whole chain: `{ok, rows, first_bad}` (the first row whose hash does not
+        match, or null)."""
+        if state.ehr is None:
+            raise HTTPException(409, "ehr is not up yet")
+        try:
+            return await state.ehr.verify_audit()
+        except EhrError as e:
+            raise HTTPException(409 if e.kind is ErrorKind.NOT_ALLOWED_NOW else 502, "no audit trail without a store") from None
+
+    check_route_needs(app)
     return app
+
+
+async def _role_change(state: State, request: Request, person_id: str, role_id: str, grant: bool) -> dict[str, Any]:
+    if state.ehr is None:
+        raise HTTPException(409, "ehr is not up yet")
+    try:
+        if grant:
+            await state.ehr.grant_role(person_id, role_id)
+        else:
+            await state.ehr.revoke_role(person_id, role_id)
+    except EhrError as e:
+        raise HTTPException(_people_status(e), e.detail or "not changed") from None
+    state.identity.forget(person_id)
+    return {**await _people_view(state, request.state.who), "warning": None}
+
+
+async def roles_view(state: State, version: int) -> dict[str, Any]:
+    """Security › Roles' data: the versions, one version's roles, the active roles, and the
+    levers and levels. Raises 404 for a version that does not exist, 409 without a store."""
+    if state.ehr is None:
+        raise HTTPException(409, "ehr is not up yet")
+    try:
+        versions = await state.ehr.list_setting_versions("roles")
+        shown = await state.ehr.get_settings("roles", version)
+        active = shown if version == 0 else await state.ehr.get_settings("roles", 0)
+    except EhrError as e:
+        if e.kind is ErrorKind.OTHER and version:
+            raise HTTPException(404, "no such version") from None
+        raise HTTPException(502, "ehr could not read the roles") from None
+    if versions is None or shown is None or active is None:
+        raise HTTPException(409, "no roles without a store: start Postgres (npm run db:start)")
+    return {
+        "versions": [_version_row(v) for v in versions],
+        "version": _version_row(shown[0]) if shown[0] else None,
+        "roles": shown[1].get("roles", []),
+        "active": active[1].get("roles", []),
+        "levers": list(LEVERS),
+        "levels": list(LEVELS),
+    }
 
 
 async def _photo_change(state: State, request: Request, person_id: str, photo: bytes | None) -> dict[str, Any]:
@@ -1013,12 +1283,45 @@ def _people_status(e: EhrError) -> int:
     return {
         ErrorKind.BAD_INPUT: 400,
         ErrorKind.NOT_VERIFIED: 403,
+        ErrorKind.FORBIDDEN: 403,
         ErrorKind.NOT_ALLOWED_NOW: 409,
     }.get(e.kind, 404 if "no such" in e.detail else 409 if "already" in e.detail else 502)
 
 
+async def _look(
+    state: State, lever: str, level: str, action: str, kind: str = "", object_id: str = "", data_class: str = "synthetic"
+) -> bool:
+    """Record a look that changes nothing (ACCESS-ROLES.md §5.1, point 4) in the audit trail,
+    for the person of this request. True when allowed, or when there is no store to record it
+    in (dev without Postgres). Never raises: a look the trail could not record is noted, not
+    refused, unless ehr refused it."""
+    if state.ehr is None or ACTOR.get() is None:
+        return True
+    try:
+        # Only a look at one call carries its class (every call here is synthetic).
+        return await state.ehr.log_access(lever, level, action, kind, object_id, data_class if kind == "call" else "")
+    except EhrError as e:
+        if e.kind is not ErrorKind.NOT_ALLOWED_NOW:
+            print(f"audit: a look was not recorded ({e.kind.value})", file=sys.stderr, flush=True)
+        return True
+
+
+async def _recheck(state: State, ws: WebSocket, need: tuple[str, str]) -> None:
+    """Close `ws` (1008) once its person no longer holds `need`, asked every WATCH_RECHECK_S."""
+    while True:
+        await asyncio.sleep(WATCH_RECHECK_S)
+        try:
+            principal = await state.identity.who(ws.headers)
+        except IdentityDown:
+            continue
+        if principal is None or not principal.may(*need):
+            await ws.close(code=1008)
+            return
+
+
 async def _people_view(state: State, who: str) -> dict[str, Any]:
-    """The People view's data. `invite`: the demo's address, for the Copy invite button."""
+    """The People view's data. `invite`: the demo's address, for the Copy invite button. `me`:
+    the asker's own id (null without a roles store)."""
     assert state.ehr is not None
     try:
         people = await state.ehr.list_users()
@@ -1034,6 +1337,7 @@ async def _people_view(state: State, who: str) -> dict[str, Any]:
         "linked": state.cloudflare is not None,
         "invite": f"{origin.rstrip('/')}{DEMO_BASE}/" if origin else None,
         "you": who,
+        "me": ACTOR.get() if ACTOR.get() not in (None, "system") else None,
     }
 
 
@@ -1197,8 +1501,10 @@ async def active_words(state: State) -> prompts.Words:
     try:
         await ensure_default(state, "system")
         await ensure_default(state, "prompt")
-        got = await state.ehr.get_settings("prompt")
-        system = await state.ehr.get_settings("system")
+        # What a call runs with: read by the agent itself, whoever started the call.
+        with as_system():
+            got = await state.ehr.get_settings("prompt")
+            system = await state.ehr.get_settings("system")
     except EhrError:
         return files
     if got is None or got[0] is None:
@@ -1240,7 +1546,8 @@ async def active_variables(state: State) -> tuple[dict[str, prompts.Variable], s
     if state.ehr is not None:
         try:
             await ensure_default(state, "system")
-            got = await state.ehr.get_settings("system")
+            with as_system():
+                got = await state.ehr.get_settings("system")
             if got is not None and got[0] is not None:
                 return prompts.variables_from_store(got[1].get("variables")), got[0].label
         except (EhrError, prompts.PromptFileError):
@@ -1626,7 +1933,9 @@ async def active_settings(state: State, service: str) -> dict[str, Any]:
     if state.ehr is None:
         return values
     try:
-        got = await state.ehr.get_settings(service)
+        # What a call runs with: read by the agent itself, whoever started the call.
+        with as_system():
+            got = await state.ehr.get_settings(service)
     except EhrError:
         return values
     if got is not None:
@@ -1663,11 +1972,13 @@ async def ensure_default(state: State, service: str = "voice") -> None:
     if state.ehr is None or service in state.seeded:
         return
     try:
-        versions = await state.ehr.list_setting_versions(service)
-        if versions is None:
-            return  # no store: nothing to seed
-        if not any(v.seq == 0 for v in versions):
-            await state.ehr.save_settings(service, DEFAULTS[service](), by="default", seed=True)
+        # The Default is the code's: the agent seeds it on its own, whoever opened the page.
+        with as_system():
+            versions = await state.ehr.list_setting_versions(service)
+            if versions is None:
+                return  # no store: nothing to seed
+            if not any(v.seq == 0 for v in versions):
+                await state.ehr.save_settings(service, DEFAULTS[service](), by="default", seed=True)
         state.seeded.add(service)
     except EhrError:
         # Another request seeded it first (ALREADY_EXISTS), or ehr is busy: the next view tries
@@ -1717,7 +2028,12 @@ async def save_settings(state: State, service: str, values: dict[str, Any]) -> N
     except EhrError as e:
         if e.kind is ErrorKind.BAD_INPUT:
             raise HTTPException(400, e.detail or "a setting does not fit") from None
+        if e.kind is ErrorKind.FORBIDDEN:
+            raise HTTPException(403, e.detail or "not allowed") from None
         if e.kind is ErrorKind.NOT_ALLOWED_NOW:
+            # A roles save refused by a rule (access.rs › may_save_roles) names the rule.
+            if e.detail.startswith("roles:"):
+                raise HTTPException(409, e.detail) from None
             raise HTTPException(409, "no settings store: start Postgres (npm run db:start)") from None
         raise HTTPException(502, "ehr could not save the settings") from None
 

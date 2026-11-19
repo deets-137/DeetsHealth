@@ -16,6 +16,8 @@ from starlette.websockets import WebSocketDisconnect
 from deets_agent.access import TOKEN_HEADER as ACCESS_HEADER
 from deets_agent.access import AccessGate, AccessSettings
 from deets_agent.dev_server import TOKEN_HEADER, DemoPrefix, State, build_app
+from deets_agent.ehr_client import ACTOR
+from deets_agent.identity import LEVERS
 
 TOKEN = "t" * 40
 LOCAL = "http://localhost:1420"
@@ -53,11 +55,35 @@ def site(tmp_path: Path) -> Path:
     return root
 
 
+GUEST_ID = "00000000-0000-4000-8000-000000000002"
+
+
+class GuestEhr:
+    """ehr in short: the guest is on the list and holds a role with Testing Edit and PHI View
+    (they may test and watch); the launch token has no owner row yet (every lever)."""
+
+    async def seen_owner(self):
+        return None
+
+    async def admit_user(self, email):
+        return GUEST_ID if email == "guest@example.com" else None
+
+    async def levels(self):
+        assert ACTOR.get() == GUEST_ID
+        held = {"testing": "edit", "phi": "view"}
+        return {"user_id": GUEST_ID, "role_ids": ["tester"], "roles_version": 1,
+                "levels": {lever: held.get(lever, "none") for lever in LEVERS}}
+
+    async def log_access(self, *args):
+        return True
+
+
 def client_for(tmp_path: Path, site: Path | None, door: bool = True) -> TestClient:
     calls = tmp_path / "calls"
     calls.mkdir(exist_ok=True)
     access = AccessGate(SETTINGS, keys=Keys()) if door else None
     state = State(TOKEN, {LOCAL}, 8790, calls=calls, access=access, static=site)
+    state.ehr = GuestEhr()  # type: ignore[assignment]
     return TestClient(DemoPrefix(build_app(state)))
 
 

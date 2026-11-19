@@ -101,6 +101,12 @@ pub const PUBLIC_SEALED: &[SealedTable] = &[
         columns: &["email", "name", "first_name", "last_name", "phone"],
     },
     SealedTable { table: "user_photos", row: "user_id::text", columns: &["photo"] },
+    // Each card as saved (users.rs › keep_card; migration 0012), sealed under its own row.
+    SealedTable {
+        table: "user_card_versions",
+        row: "id::text",
+        columns: &["email", "name", "first_name", "last_name", "phone"],
+    },
 ];
 
 /// The sealed columns of the call tables, the same in both class schemas.

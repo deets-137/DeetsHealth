@@ -1,9 +1,13 @@
 // A page in the nav (DeetsMotion's page.ts). Each page is built once, on its first visit,
 // and kept, so what it holds survives a switch away and back.
+import type { Lever } from "../agent/api";
 
 export interface Page {
   id: string;
   title: string;
+  /** In the nav while you hold any of these levers at View (access.ts; ACCESS-ROLES.md §6).
+   * None: always (Settings). */
+  levers?: Lever[];
   /** Sits at the foot of the nav (Security, Audit Logs, Settings). */
   bottom?: boolean;
   /** Builds the page's element. Called once. */

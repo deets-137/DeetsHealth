@@ -32,10 +32,18 @@ OK = {TOKEN_HEADER: TOKEN, "origin": ORIGIN}
 LLM = {**config.llm_defaults()}
 
 
+class UpEhr:
+    """"Up", for _refuse_call. No owner row yet: the launch token is the owner's PC with every
+    lever (identity.py, as with no roles store)."""
+
+    async def seen_owner(self):
+        return None
+
+
 @pytest.fixture
 def state(tmp_path: Path) -> State:
     s = State(TOKEN, {ORIGIN}, 8790, calls=tmp_path)
-    s.ehr = object()  # type: ignore[assignment]  # "up", for _refuse_call; never called here
+    s.ehr = UpEhr()  # type: ignore[assignment]
     s.has_key = True
     return s
 

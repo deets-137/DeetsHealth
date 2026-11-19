@@ -13,7 +13,11 @@ export function securityPage(): Page {
       title: "Security",
       lastViewKey: "deets.console.security",
       // The order is the owner's (2026-11-13): Auth, then Roles.
-      views: [authView(), rolesView()],
+      // Auth lists and edits the People list, so it needs People; Roles needs Roles.
+      views: [
+        { ...authView(), lever: "people" },
+        { ...rolesView(), lever: "roles" },
+      ],
     }),
     bottom: true,
   };

@@ -21,6 +21,8 @@
 //! Build state (BUILD-ORDER.md, Phase 1): the contract, the sessions, the fake scheduler ✓ ·
 //! verification (waits on the identification fork, §8) · the transport (waits on its fork, §6).
 
+pub mod access;
+pub mod audit;
 mod edge;
 pub mod epic;
 pub mod epic_ehr;

@@ -13,7 +13,8 @@ from starlette.testclient import TestClient
 from deets_agent.access import AccessGate, AccessSettings
 from deets_agent.cloudflare import AccessGroup, CloudflareError, CloudflareSettings
 from deets_agent.dev_server import TOKEN_HEADER, State, build_app, sync_people
-from deets_agent.ehr_client import EhrError, ErrorKind
+from deets_agent.ehr_client import ACTOR, EhrError, ErrorKind
+from deets_agent.identity import LEVERS
 
 TOKEN = "t" * 40
 ORIGIN = "http://localhost:1420"
@@ -43,7 +44,8 @@ class FakeEhr:
     async def list_users(self):
         return [{k: v for k, v in r.items() if k != "removed"} for r in sorted(self._active(), key=lambda r: not r["owner"])]
 
-    async def add_user(self, email, name, by):
+    async def add_user(self, email, name):
+        by = ACTOR.get()  # the adder is the request's person (ehr_client.py)
         email = email.strip().lower()
         if email and "@" not in email:
             e = EhrError(ErrorKind.BAD_INPUT, "AddUser")
@@ -66,14 +68,27 @@ class FakeEhr:
             e.detail = "no such person on the list"
             raise e
         if r["owner"]:
-            e = EhrError(ErrorKind.NOT_VERIFIED, "RemoveUser")
-            e.detail = "the owner cannot be removed"
+            # access.rs: the owner holds the only role that manages the console.
+            e = EhrError(ErrorKind.FORBIDDEN, "RemoveUser")
+            e.detail = "the last person who can manage the console cannot be removed"
             raise e
         r["removed"] = True
         return r["email"]
 
     async def admit_user(self, email):
-        return any(r["email"] == email for r in self._active())
+        return next((r["id"] for r in self._active() if r["email"] == email), None)
+
+    async def levels(self):
+        """access.rs, in short: the owner holds Deets (Edit everywhere); everyone else no role."""
+        uid = ACTOR.get()
+        r = self.rows.get(uid or "")
+        if r is None or r["removed"]:
+            e = EhrError(ErrorKind.FORBIDDEN, "Levels")
+            e.detail = "not a person on the list"
+            raise e
+        level = "edit" if r["owner"] else "none"
+        return {"user_id": uid, "role_ids": ["deets"] if r["owner"] else [], "roles_version": 1,
+                "levels": {lever: level for lever in LEVERS}}
 
     async def seed_users(self, emails):
         known = {r["email"] for r in self.rows.values()}
@@ -117,6 +132,7 @@ class FakeEhr:
 
     async def seen_owner(self):
         self.owner_seen += 1
+        return next((r["id"] for r in self._active() if r["owner"]), None)
 
 
 class FakeCloudflare:
@@ -162,9 +178,9 @@ async def test_the_start_sync_brings_in_the_group_and_makes_the_owner(tmp_path):
     people = await state.ehr.list_users()
     assert [(p["email"], p["owner"]) for p in people] == [(OWNER_EMAIL, True)]
     assert cf.emails() == [OWNER_EMAIL]
-    # From now on the gate asks the list.
-    assert await state.access._guests(OWNER_EMAIL) is True
-    assert await state.access._guests("stranger@example.com") is False
+    # From now on the gate asks the list: the person's id, or None.
+    assert await state.access._guests(OWNER_EMAIL) == people[0]["id"]
+    assert await state.access._guests("stranger@example.com") is None
 
 
 async def test_without_a_cloudflare_link_access_alone_decides(tmp_path):
@@ -258,7 +274,7 @@ async def test_a_save_that_moves_the_email_moves_the_group_and_ends_the_old_sess
     blank = {**CARD, "first_name": "", "last_name": "", "email": "p.shah@example.com"}
     assert c.patch(f"/agent/people/{priya['id']}", headers=OK, json=blank).status_code == 200
 
-    # Anyone may edit the owner's card (the owner's rule until roles).
+    # The owner edits their own card (People Edit; everyone is at or below themself).
     owner = c.get("/agent/people", headers=OK).json()["people"][0]
     assert c.patch(f"/agent/people/{owner['id']}", headers=OK, json={**CARD, "email": OWNER_EMAIL}).status_code == 200
 

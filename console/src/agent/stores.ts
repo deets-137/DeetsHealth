@@ -7,6 +7,17 @@ import { keyed, store } from "./store";
 /** Security › Auth and Teams › People: one list for both. */
 export const people = store("people", () => api.people(), { focus: true });
 
+/** Who you are and what you may do (docs/ideas/ACCESS-ROLES.md §6): read on start and when the
+ * window comes back; the nav and every page ask access.ts, never this store. */
+export const me = store("me", () => api.me(), { focus: true });
+/** Security › Roles, by version (0: the active one). */
+export const roles = keyed("roles", (v: number) => api.roles(v));
+/** Audit Logs' first page: every row, or the changes and refusals only. Older rows are read
+ * with `once` as the page asks (More). */
+export const audit = keyed("audit", (rows: "all" | "changes") => api.audit(0, rows === "changes"), {
+  words: ["all", "changes"],
+});
+
 /** Config's sections, by version (0: the active one). A version is a number the store made,
  * not protected data, but the ledger leaves it out all the same. */
 export const cartesiaSettings = keyed("settings.cartesia", (v: number) => api.cartesiaSettings(v));

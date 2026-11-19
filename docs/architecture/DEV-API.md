@@ -2,7 +2,7 @@
 status: built
 desk_test: open
 sources: [agent/deets_agent/dev_server.py, agent/deets_agent/voice_catalog.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/resources.py, agent/deets_agent/access.py, agent/deets_agent/turn.py, agent/deets_agent/cloudflare.py, console/src/reload.ts, console/src/agent/api.ts, console/src/agent/transport.ts, console/vite.config.ts, scripts/docs-check.mjs, agent/tests/test_dev_server.py]
-updated: 2026-11-16
+updated: 2026-11-19
 ---
 # DeetsHealth — The dev API (the console and the agent's dev server)
 
@@ -69,16 +69,80 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 | `POST /2010-04-01/Accounts/{account}/Messages.json` | `twilio_messages` | none: `ehr` calls it | the fake Twilio (`fake_twilio.py`; TEXTS.md) |
 | `GET /agent/ice` | `ice` | `iceServers()` | `{iceServers}` for a voice call's browser end, asked for before its offer: `[]` for the owner on this PC; for a guest in the demo, Cloudflare STUN and TURN with one-hour credentials (`turn.py`; ops/DEMO.md §3.7). 409 when a guest asks and `.env` has no TURN key, 502 when Cloudflare does not answer |
 | `GET /agent/build` | `build_stream` | `startLiveReload()` (reload.ts) | the demo's live reload (ops/DEMO.md §3.2), as server-sent events: the built page's entry script now and again each time a build changes it, with a keep-alive every 15 s. 404 outside the demo |
-| `GET /agent/people` | `people` | `people()` | Teams › People and Security › Auth (ops/DEMO.md §3.5): `people` (each `{id, email, name, first_name, last_name, phone, phone_verified, source, photo_at, owner, added_by, added_at, last_seen_at}`, the owner first), `store` (false without Postgres), `linked` (Cloudflare's group is kept in step), `invite` (the demo's address) and `you` (`owner`, or the asker's email) |
-| `POST /agent/people` | `add_person` | `addPerson()` | `{email, name}`: on the list through `ehr`'s `AddUser`, then the whole list written to Cloudflare's group. Either may be empty, not both: a card with no email is on the list but not in the group, so it cannot sign in (users.rs, the stand-in key). Anyone signed in may. The view again, with `added` (the new id) and `warning` when Cloudflare failed (the list is saved). 400 names the field; 409 when the email is on the list or there is no store |
-| `DELETE /agent/people/{person_id}` | `remove_person` | `removePerson()` | off the list (`RemoveUser`; the row stays), off the group, the person's Access sessions ended, and the second door's cache for them dropped. The view again, with `warning`. 403 for the owner; 404 for no such person |
-| `PATCH /agent/people/{person_id}` | `update_person` | `updatePerson()` | Security › Auth's Save (ops/DEMO.md §3.5): `{first_name, last_name, phone, email}`, the whole card, through `UpdateUser`. Anyone signed in may edit any card, the owner's too. Any field may be empty, but a saved email cannot be cleared (400). When the email changed: the group written again, the old email's Access sessions ended and its cache entry dropped (none for a card's first email). The view again, with `warning`. 400 names the field; 404 for no such person; 409 when the email is someone else's |
+| `GET /agent/people` | `people` | `people()` | Teams › People and Security › Auth (ops/DEMO.md §3.5): `people` (each `{id, email, name, first_name, last_name, phone, phone_verified, source, photo_at, owner, added_by, added_at, last_seen_at, role_ids}`, the owner first), `store` (false without Postgres), `linked` (Cloudflare's group is kept in step), `invite` (the demo's address), `you` (`owner`, or the asker's email) and `me` (the asker's user id, null without a roles store) |
+| `POST /agent/people` | `add_person` | `addPerson()` | `{email, name}`: on the list through `ehr`'s `AddUser`, then the whole list written to Cloudflare's group. Either may be empty, not both: a card with no email is on the list but not in the group, so it cannot sign in (users.rs, the stand-in key). The new person has no role (deny by default). The view again, with `added` (the new id) and `warning` when Cloudflare failed (the list is saved). 400 names the field; 409 when the email is on the list or there is no store |
+| `DELETE /agent/people/{person_id}` | `remove_person` | `removePerson()` | off the list (`RemoveUser`; the row stays, their roles revoked), off the group, the person's Access sessions ended, and the second door's cache for them dropped. The view again, with `warning`. 403 for someone above you and for the last person who can manage the console; 404 for no such person |
+| `PATCH /agent/people/{person_id}` | `update_person` | `updatePerson()` | Security › Auth's Save (ops/DEMO.md §3.5): `{first_name, last_name, phone, email}`, the whole card, through `UpdateUser`. The person must be at or below you (`access.rs`; your own card too). Any field may be empty, but a saved email cannot be cleared (400). When the email changed: the group written again, the old email's Access sessions ended and its cache entry dropped (none for a card's first email). The view again, with `warning`. 400 names the field; 404 for no such person; 409 when the email is someone else's |
 | `GET /agent/people/{person_id}/photo` | `person_photo` | `personPhoto()` | the person's picture, `image/webp`, `cache-control: no-store` (a face is PII); 404 when there is none |
 | `PUT /agent/people/{person_id}/photo` | `set_person_photo` | `setPersonPhoto()` | the body is the 256 px WebP the console made (`content-type: image/webp`, else 415; at most 256 KB, else 400); sealed in the store through `SetUserPhoto`. The view again |
 | `DELETE /agent/people/{person_id}/photo` | `clear_person_photo` | `setPersonPhoto()` | with `null`: deletes the picture (`SetUserPhoto` with none). The view again |
+| `GET /agent/me` | `me` | `me()` | who you are (docs/ideas/ACCESS-ROLES.md §5): `{user_id, door, role_ids, roles_version, levels, store}`; `levels` names every lever (`none`, `view`, `edit`). `store` false without a roles store: then the launch token has Edit everywhere. Never the email |
+| `POST /agent/log` | `log_look` | `logLook()` | `{lever, level, action, object_kind?, object_id?}`: a look that changes nothing (a page opened), recorded in the audit trail through `ehr`'s `LogAccess`, allowed or refused. `{allowed}`. 400 for words `ehr` does not take |
+| `GET /agent/roles` | `roles` | `roles()` | Security › Roles: the `roles` versions, one version's roles (`?version=`), the active roles, the levers and levels in `access.rs`'s order. 404 for a version that does not exist; 409 without a store |
+| `POST /agent/roles` | `save_roles` | `saveRoles()` | `{roles}`, the whole list, as a new active version through `SaveSettings` (`access.rs` checks it). 400 names the role's place; 409 names the rule it breaks (a role in use removed, a conflict, no one left to manage the console). Everyone's levels are read again |
+| `POST /agent/people/{person_id}/roles/{role_id}` | `grant` | `grantRole()` | a grant through `GrantRole`; the People view again. 403 with the rule (your own roles, more than your own access, a conflict); 404 for no such person or role |
+| `DELETE /agent/people/{person_id}/roles/{role_id}` | `revoke` | `revokeRole()` | a revoke through `RevokeRole`; the People view again. 403 with the rule (your own roles, someone above you, the last who can manage the console); 404 when they do not hold it |
+| `GET /agent/audit` | `audit` | `audit()` | the audit trail through `ReadAudit`, newest first: `rows` of ids and field names only (ACCESS-ROLES.md §5.1). `?before=` a `seq`, `?limit=` 1 to 500, `?changes=true` the changes and refusals only. 409 without a store |
+| `GET /agent/audit/verify` | `audit_verify` | `auditVerify()` | `{ok, rows, first_bad}` through `VerifyAudit`: the whole chain walked |
 | `POST /agent/csp-report` | `csp_report` | none: the browser, from the policy's `report-uri` | a report of what the page's Content-Security-Policy blocked (CONSOLE.md §5.1). Prints one line to stderr: the directive and what was blocked as a kind (`inline`, `eval`, `trusted-types-sink`) or a scheme and host, the first time a pair is seen and every hundredth after. Never the page's path, a query or a sample. 204; 400 when it is not a report; 413 over 8 KB |
 | `GET /demo` | `demo_root` | none: the address a guest types | 308 to `/demo/` |
 | `GET /demo/{path:path}` | `demo_page` | none: the browser | the demo build (`--static`, ops/DEMO.md §3.1): a file under its folder, `index.html` for `/demo/`. Hashed assets cached a year, the rest `no-store` (CONSOLE.md §5.2). 404 for a dotfile, a path outside the folder, a missing file, or outside the demo |
+
+## 2a. What each route needs
+> **Part:** built · 2026-11-18 · docs/ideas/ACCESS-ROLES.md §7 (the owner's to edit)
+
+The wall checks this before a route runs (`dev_server.py › ROUTE_NEEDS`), and the server does
+not start with a route missing from it. A refusal is 403 `{error: "forbidden", lever, level}`.
+`agent/tests/test_roles.py` compares this table with `ROUTE_NEEDS`, both ways. The WebSockets
+are checked when they open; a watch closes (1008) within 15 s of its viewer losing PHI View.
+
+| Route | Needs |
+|---|---|
+| `GET /agent/health` | any person |
+| `GET /agent/me` | any person |
+| `POST /agent/log` | any person |
+| `POST /agent/csp-report` | any person |
+| `GET /agent/build` | any person |
+| `GET /demo` | any person |
+| `GET /demo/{path:path}` | any person |
+| `POST /2010-04-01/Accounts/{account}/Messages.json` | ehr only (its own check) |
+| `GET /agent/cartesia` | Vendors View |
+| `GET /agent/cartesia/voices` | Vendors View |
+| `POST /agent/cartesia` | Vendors Edit |
+| `GET /agent/anthropic` | Vendors View |
+| `POST /agent/anthropic` | Vendors Edit |
+| `GET /agent/prompt` | Agent View |
+| `POST /agent/prompt` | Agent Edit |
+| `POST /agent/prompt/estimate` | Agent Edit |
+| `POST /agent/prompt/record` | Agent Edit |
+| `GET /agent/system` | Agent View |
+| `POST /agent/system` | Agent Edit |
+| `GET /agent/hospital` | Rules View |
+| `POST /agent/hospital` | Rules Edit |
+| `POST /agent/hospital/import-places` | Rules Edit |
+| `GET /agent/resources` | Analytics View |
+| `GET /agent/latency` | Analytics View |
+| `GET /agent/sandbox` | Testing Edit |
+| `GET /agent/ice` | Testing Edit |
+| `POST /agent/voice` | Testing Edit |
+| `WS /agent/call` | Testing Edit |
+| `GET /agent/catalog` | Testing View |
+| `GET /agent/calls/{call_id}` | Testing View |
+| `POST /agent/annotations` | Testing Edit |
+| `WS /agent/watch` | PHI View |
+| `GET /agent/people` | People View |
+| `GET /agent/people/{person_id}/photo` | People View |
+| `POST /agent/people` | People Edit |
+| `PATCH /agent/people/{person_id}` | People Edit |
+| `DELETE /agent/people/{person_id}` | People Edit |
+| `PUT /agent/people/{person_id}/photo` | People Edit |
+| `DELETE /agent/people/{person_id}/photo` | People Edit |
+| `GET /agent/roles` | Roles View |
+| `POST /agent/roles` | Roles Edit |
+| `POST /agent/people/{person_id}/roles/{role_id}` | Roles Edit |
+| `DELETE /agent/people/{person_id}/roles/{role_id}` | Roles Edit |
+| `GET /agent/audit` | Audit logs View |
+| `GET /agent/audit/verify` | Audit logs View |
 
 **The replies when a route refuses:**
 

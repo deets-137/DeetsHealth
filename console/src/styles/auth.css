@@ -182,11 +182,43 @@
   color: var(--on-error);
 }
 
-.auth-role {
-  height: var(--field-height);
+/* A person's roles in the panel (ACCESS-ROLES.md §8.3): a chip per role, ✕ to revoke at Roles
+   Edit, and the Add list. The chips wrap; the row is a field's height at least. */
+.role-chips {
+  min-height: var(--field-height);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: var(--space-2);
+}
+
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-3);
+  border: var(--edge) solid var(--line);
+  border-radius: var(--radius-control);
+  font-size: var(--text-small);
+  color: var(--text-2);
+}
+
+.role-chip-remove {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
   color: var(--text-3);
+  cursor: pointer;
+}
+
+.role-chip-remove:hover,
+.role-chip-remove:focus-visible {
+  color: var(--error);
+}
+
+.role-add {
+  width: auto;
 }
 
 /* A narrow panel: the picture sits above the fields. */

@@ -7,6 +7,12 @@ values, which is one of the few places that may `reveal()` them.
 
 Errors become an `EhrError` with a kind. The server's error text is fixed and PHI-free, but it
 is dropped anyway: the agent acts on the kind only.
+
+**Who is asking** (docs/ideas/ACCESS-ROLES.md §5; EHR-SERVICE.md §3). Every staff call carries
+the person behind it in the gRPC metadata `deets-actor`: their user id, from `ACTOR`, which the
+dev server sets for each request (identity.py). Code that acts on its own, with no person
+behind it (the start-up sync, a call reading its settings), runs inside `as_system()`. ehr
+reads the person's levels itself; a call RPC (OpenCall … FileCall) carries no person.
 """
 
 from __future__ import annotations
@@ -16,6 +22,9 @@ import base64
 import enum
 import json
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -37,12 +46,37 @@ BOOK_DEADLINE_S = 8.0
 IMPORT_DEADLINE_S = 10.0
 
 
+# The person behind the staff calls of this request or task: a user id, `SYSTEM`, or None
+# (no person: ehr refuses every staff call but the settings reads).
+ACTOR: ContextVar[str | None] = ContextVar("deets_actor", default=None)
+ACTOR_HEADER = "deets-actor"
+SYSTEM = "system"
+
+
+@contextmanager
+def as_system() -> Iterator[None]:
+    """The agent acting on its own inside this block (ehr's `Need::Settings` and
+    `LeverOrSystem`): the start-up sync, a call reading its settings."""
+    token = ACTOR.set(SYSTEM)
+    try:
+        yield
+    finally:
+        ACTOR.reset(token)
+
+
+def _meta() -> tuple[tuple[str, str], ...] | None:
+    actor = ACTOR.get()
+    return ((ACTOR_HEADER, actor),) if actor else None
+
+
 class ErrorKind(enum.Enum):
     NO_SUCH_CALL = "no_such_call"
     NOT_VERIFIED = "not_verified"
     BAD_INPUT = "bad_input"
     NOT_ALLOWED_NOW = "not_allowed_now"
     UNAVAILABLE = "unavailable"
+    # A staff call ehr refused for the person's access (access.rs); `detail` names the rule.
+    FORBIDDEN = "forbidden"
     OTHER = "other"
 
 
@@ -62,6 +96,15 @@ class EhrError(Exception):
         self.kind = kind
         # SaveSettings only: which setting did not fit (settings.rs names it, never a value).
         self.detail = ""
+
+
+def _staff_error(e: grpc.aio.AioRpcError, name: str) -> EhrError:
+    """A staff call's error. ehr's reasons on these calls are fixed words (a field's name, a
+    rule), never a value: safe to show. PERMISSION_DENIED is the person's access."""
+    kind = ErrorKind.FORBIDDEN if e.code() == grpc.StatusCode.PERMISSION_DENIED else _KINDS.get(e.code(), ErrorKind.OTHER)
+    error = EhrError(kind, name)
+    error.detail = e.details() or ""
+    return error
 
 
 class _NoStore(Exception):
@@ -436,10 +479,12 @@ class EhrClient:
             has_words=words is not None,
         )
         try:
-            reply = await self._stub.AddAnnotation(request, timeout=DEADLINE_S)
+            reply = await self._stub.AddAnnotation(request, timeout=DEADLINE_S, metadata=_meta())
         except grpc.aio.AioRpcError as e:
             if e.code() == grpc.StatusCode.FAILED_PRECONDITION:
                 return None
+            if e.code() == grpc.StatusCode.PERMISSION_DENIED:
+                raise _staff_error(e, "AddAnnotation") from None
             # NOT_FOUND: the store does not hold the call (not filed yet).
             kind = ErrorKind.BAD_INPUT if e.code() == grpc.StatusCode.NOT_FOUND else _KINDS.get(e.code(), ErrorKind.OTHER)
             raise EhrError(kind, "AddAnnotation") from None
@@ -501,13 +546,11 @@ class EhrClient:
             seed=seed,
         )
         try:
-            reply = await self._stub.SaveSettings(request, timeout=DEADLINE_S)
+            reply = await self._stub.SaveSettings(request, timeout=DEADLINE_S, metadata=_meta())
         except grpc.aio.AioRpcError as e:
-            error = EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), "SaveSettings")
-            if e.code() == grpc.StatusCode.INVALID_ARGUMENT:
-                # ehr's settings.rs names the setting only; safe to show.
-                error.detail = e.details() or ""
-            raise error from None
+            # ehr's settings.rs names the setting or the rule only (a roles save refused by
+            # access.rs comes as FAILED_PRECONDITION with its rule); safe to show.
+            raise _staff_error(e, "SaveSettings") from None
         return _version(reply.version)
 
     # ---- the People list (users.rs; docs/ops/DEMO.md §3.5). Staff identities, not patients',
@@ -532,6 +575,7 @@ class EhrClient:
                 "phone_verified": u.phone_verified,
                 "source": u.source,
                 "photo_at": u.photo_at or None,
+                "role_ids": list(u.role_ids),
             }
             for u in reply.users
         ]
@@ -556,26 +600,30 @@ class EhrClient:
         text = base64.b64encode(photo).decode() if photo else ""
         await self._users_call("SetUserPhoto", pb.SetUserPhotoRequest(id=user_id, photo=text))
 
-    async def seen_owner(self) -> None:
-        """The owner was seen on this PC (the launch token): ehr stamps last seen."""
-        await self._users_call("SeenOwner", pb.SeenOwnerRequest())
+    async def seen_owner(self) -> str | None:
+        """The owner was seen on this PC (the launch token): ehr stamps last seen and answers
+        with the owner's id, the person the launch token speaks for (None: no owner yet)."""
+        reply = await self._users_call("SeenOwner", pb.SeenOwnerRequest())
+        return reply.user_id or None
 
-    async def add_user(self, email: str, name: str, by: str) -> str:
-        """Puts a person on the list; their id. `by`: the adder's email, "" for the owner's PC.
-        Raises EhrError with ehr's fixed reason in `detail` (BAD_INPUT, OTHER for a duplicate)."""
-        reply = await self._users_call("AddUser", pb.AddUserRequest(email=email, name=name, by=by))
+    async def add_user(self, email: str, name: str) -> str:
+        """Puts a person on the list, with no role; their id. The adder is `ACTOR`. Raises
+        EhrError with ehr's fixed reason in `detail` (BAD_INPUT, OTHER for a duplicate)."""
+        reply = await self._users_call("AddUser", pb.AddUserRequest(email=email, name=name))
         return reply.id
 
     async def remove_user(self, user_id: str) -> str:
-        """Takes a person off the list; their email. Raises EhrError: NOT_VERIFIED for the owner,
-        OTHER for no such person, each with ehr's fixed reason in `detail`."""
+        """Takes a person off the list and revokes their roles; their email. Raises EhrError:
+        FORBIDDEN for someone above you or the last who can manage the console, OTHER for no such
+        person, each with ehr's fixed reason in `detail`."""
         reply = await self._users_call("RemoveUser", pb.RemoveUserRequest(id=user_id))
         return reply.email
 
-    async def admit_user(self, email: str) -> bool:
-        """Whether this email is on the list now; ehr stamps when it was last seen."""
+    async def admit_user(self, email: str) -> str | None:
+        """The person's id when this email is on the list now (ehr stamps when they were last
+        seen); else None."""
         reply = await self._users_call("AdmitUser", pb.AdmitUserRequest(email=email))
-        return reply.active
+        return reply.user_id if reply.active else None
 
     async def seed_users(self, emails: list[str]) -> int:
         """Brings in the emails already in Cloudflare's group that the list lacks."""
@@ -593,12 +641,12 @@ class EhrClient:
         answer, OTHER when it returns more than an import holds. Facts about the hospital, never
         protected data."""
         try:
-            reply = await self._stub.ImportPlaces(pb.ImportPlacesRequest(addresses=addresses), timeout=IMPORT_DEADLINE_S)
+            reply = await self._stub.ImportPlaces(
+                pb.ImportPlacesRequest(addresses=addresses), timeout=IMPORT_DEADLINE_S, metadata=_meta()
+            )
         except grpc.aio.AioRpcError as e:
-            error = EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), "ImportPlaces")
             # service.rs › import_places: fixed words, never a value.
-            error.detail = e.details() or ""
-            raise error from None
+            raise _staff_error(e, "ImportPlaces") from None
         return {
             "values": {v.key: json.loads(v.value) for v in reply.values},
             "others": reply.others,
@@ -608,20 +656,82 @@ class EhrClient:
 
     async def _users_call(self, name: str, request):
         try:
-            return await getattr(self._stub, name)(request, timeout=DEADLINE_S)
+            return await getattr(self._stub, name)(request, timeout=DEADLINE_S, metadata=_meta())
         except grpc.aio.AioRpcError as e:
-            error = EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), name)
-            # users.rs's reasons are fixed words that name a field, never a value: safe to show.
-            error.detail = e.details() or ""
-            raise error from None
+            raise _staff_error(e, name) from None
 
     async def _settings_call(self, name: str, request):
         try:
-            return await getattr(self._stub, name)(request, timeout=DEADLINE_S)
+            return await getattr(self._stub, name)(request, timeout=DEADLINE_S, metadata=_meta())
         except grpc.aio.AioRpcError as e:
             if e.code() == grpc.StatusCode.FAILED_PRECONDITION:
                 raise _NoStore from None
-            raise EhrError(_KINDS.get(e.code(), ErrorKind.OTHER), name) from None
+            raise _staff_error(e, name) from None
+
+    # ---- access by role and the audit trail (docs/ideas/ACCESS-ROLES.md §5, §5.1) ----
+
+    async def levels(self) -> dict[str, Any]:
+        """The person in `ACTOR`: their id, live role ids, the roles version and the level on
+        each lever (`{lever: none|view|edit}`). Raises EhrError: FORBIDDEN for no such person,
+        NOT_ALLOWED_NOW without a store."""
+        reply = await self._users_call("Levels", pb.LevelsRequest())
+        return {
+            "user_id": reply.user_id,
+            "role_ids": list(reply.role_ids),
+            "roles_version": reply.roles_version,
+            "levels": {lv.lever: lv.level for lv in reply.levels},
+        }
+
+    async def grant_role(self, user_id: str, role_id: str) -> None:
+        """Grants a role (Roles Edit). EhrError FORBIDDEN names the rule in `detail`."""
+        await self._users_call("GrantRole", pb.GrantRoleRequest(user_id=user_id, role_id=role_id))
+
+    async def revoke_role(self, user_id: str, role_id: str) -> None:
+        """Revokes a role (Roles Edit). EhrError FORBIDDEN names the rule in `detail`."""
+        await self._users_call("RevokeRole", pb.RevokeRoleRequest(user_id=user_id, role_id=role_id))
+
+    async def read_audit(self, before: int = 0, limit: int = 100, changes: bool = False) -> list[dict[str, Any]]:
+        """The audit trail, newest first (Audit logs View): ids and field names only."""
+        reply = await self._users_call("ReadAudit", pb.ReadAuditRequest(before=before, limit=limit, changes=changes))
+        return [
+            {
+                "seq": r.seq,
+                "at": r.at,
+                "actor": r.actor or None,
+                "source": r.source,
+                "roles": list(r.roles),
+                "roles_version": r.roles_version or None,
+                "lever": r.lever or None,
+                "level": r.level or None,
+                "action": r.action,
+                "object_kind": r.object_kind or None,
+                "object_id": r.object_id or None,
+                "data_class": r.data_class or None,
+                "fields": list(r.fields),
+                "before_version": r.before_version or None,
+                "after_version": r.after_version or None,
+                "allowed": r.allowed,
+            }
+            for r in reply.rows
+        ]
+
+    async def verify_audit(self) -> dict[str, Any]:
+        """Walks the whole chain: `{ok, rows, first_bad}`."""
+        reply = await self._users_call("VerifyAudit", pb.VerifyAuditRequest())
+        return {"ok": reply.ok, "rows": reply.rows, "first_bad": reply.first_bad or None}
+
+    async def log_access(
+        self, lever: str, level: str, action: str, object_kind: str = "", object_id: str = "", data_class: str = ""
+    ) -> bool:
+        """Records a look that changes nothing (a page opened, a transcript viewed, a test run):
+        ehr writes an allowed or a refused row and answers whether it was allowed."""
+        reply = await self._users_call(
+            "LogAccess",
+            pb.LogAccessRequest(
+                lever=lever, level=level, action=action, object_kind=object_kind, object_id=object_id, data_class=data_class
+            ),
+        )
+        return reply.allowed
 
     async def identify(
         self,

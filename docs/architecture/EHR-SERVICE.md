@@ -2,7 +2,7 @@
 status: built
 desk_test: none
 sources: [ehr/proto/deets/ehr/v1/ehr.proto, ehr/src/service.rs, ehr/src/edge.rs, ehr/src/transport.rs, ehr/build.rs, agent/deets_agent/ehr_client.py, ehr/src/scheduler.rs, ehr/src/visit_about.rs, ehr/src/session.rs]
-updated: 2026-11-16
+updated: 2026-11-18
 ---
 # DeetsHealth — The `ehr` service and its wire
 
@@ -100,7 +100,35 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `GetUserPhoto` | `get_user_photo` | `user_photo` |
 | `SetUserPhoto` | `set_user_photo` | `set_user_photo` |
 | `SeenOwner` | `seen_owner` | `seen_owner` |
+| `Levels` | `levels` | `levels` |
+| `GrantRole` | `grant_role` | `grant_role` |
+| `RevokeRole` | `revoke_role` | `revoke_role` |
+| `ReadAudit` | `read_audit` | `read_audit` |
+| `VerifyAudit` | `verify_audit` | `verify_audit` |
+| `LogAccess` | `log_access` | `log_access` |
 | `ImportPlaces` | `import_places` | `import_places` |
+
+**Who is asking** (docs/ideas/ACCESS-ROLES.md §5, §8.1; built 2026-11-18, Hand-over 1). Every
+RPC names what it needs in one table, `service.rs › RPC_LEVERS`; a test fails when an `rpc` has
+no row. The person behind a staff request travels in the gRPC metadata `deets-actor` (their user
+id), never in a message. `ehr` reads that person's levels from the store itself (`access.rs ›
+actor`) and never takes levels from the agent. The needs:
+- **Call** (`OpenCall` … `FileCall`): no person; a call is bound to its caller by its handle.
+- **System** (`AdmitUser`, `SeedUsers`, `SeenOwner`): the agent on its own. `AdmitUser` and
+  `SeenOwner` answer with the person's id, which the agent then sends as `deets-actor`.
+- **Settings** (`ListSettingVersions`, `GetSettings`, `SaveSettings`): the lever by service
+  (`settings.rs › lever`: voice and llm Vendors, prompt and system Agent, hospital Rules, roles
+  Roles). With a person: View to read, Edit to save. With none: the agent itself (a call reading
+  its settings, the prompt file synced, a Default seed), allowed and audited as the system.
+- **Person** (`Levels`, `LogAccess`): any person on the list.
+- **A lever and level** for the rest (Testing, People, Roles, Audit logs, Rules).
+
+A refusal is `PERMISSION_DENIED` with fixed words ("needs people view", or the rule's line) and
+an audit row. The roles list itself is the settings service `roles` (`Get`/`SaveSettings`), not
+RPCs of its own: it is versioned like every other service, and a save is checked by
+`access.rs › may_save_roles` in the same transaction. Every change writes its audit row in the
+same transaction as the change (`audit.rs`; ACCESS-ROLES.md §5.1). Until the agent sends
+`deets-actor` (Hand-over 2), every staff RPC from the console is refused.
 
 `FileTestRun`, `AddAnnotation` and `ListAnnotations` are the kept scripts' runs and the
 annotations in the call store (DATABASE.md §8, §9): no handle; `FAILED_PRECONDITION` without a
