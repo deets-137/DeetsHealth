@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 19 |
 | Theme (color roles) | themes.css | 36 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 126 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 129 tokens · overrides:  |
 
 ## Theme roles
 
@@ -181,6 +181,8 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--dot-size` | `12px` | — | a score dot |
 | `--star-size` | `20px` | — | the Review panel's star |
 | `--disabled-opacity` | `0.45` | — | a control that cannot be used now |
+| `--progress-wash` | `30%` | — | a progress fill with no verdict yet (the Test button's quote): its share of the button's text color |
+| `--progress-pulse-low` | `0.25` | — | the step under way pulses between this opacity and full |
 
 ### people
 
@@ -215,6 +217,7 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--ease-pill` | `cubic-bezier(0.3, 0.7, 0.2, 1)` | — |  |
 | `--dur-swap` | `420ms` | — | Chat's call panel and stage trade places after a pick (chat.ts › placeCall; the pill's curve) |
 | `--dur-collapse` | `220ms` | — | the help box opens and closes |
+| `--dur-pulse` | `1200ms` | — | one pulse of a step under way (the Test button) |
 | `--dur-wave-out` | `120ms` | — | a mode change: the old controls fade out together |
 | `--dur-wave-in` | `360ms` | — | then each new control rises and fades in... |
 | `--wave-step` | `60ms` | — | ...each one this much after the one before it, left to right |

@@ -696,13 +696,46 @@ select.cfg-field {
   opacity: var(--disabled-opacity);
 }
 
-.cfg-test-fill {
+.cfg-test-fill,
+.cfg-test-next {
   position: absolute;
   inset: 0;
   background: var(--go);
+}
+
+.cfg-test-fill {
   transform-origin: left center;
   transform: scaleX(var(--share, 0));
   transition: transform var(--dur-pill) var(--ease-pill);
+}
+
+/* The quote has no verdict yet: a pale wash, not green (2026-11-18). */
+.cfg-test[data-state="quoting"] .cfg-test-fill,
+.cfg-test[data-state="quoting"] .cfg-test-next {
+  background: color-mix(in srgb, var(--on-call-button) var(--progress-wash), transparent);
+}
+
+/* The step under way: the next part of the bar, pulsing. --from and --size are shares of the
+   button's width (agent.ts › showTest); 0 when nothing runs. */
+.cfg-test-next {
+  left: calc(var(--from, 0) * 100%);
+  right: auto;
+  width: calc(var(--size, 0) * 100%);
+  opacity: 0;
+}
+
+.cfg-test[data-state="running"] .cfg-test-next,
+.cfg-test[data-state="quoting"] .cfg-test-next {
+  animation: cfg-test-pulse var(--dur-pulse) var(--ease) infinite alternate;
+}
+
+@keyframes cfg-test-pulse {
+  from {
+    opacity: var(--progress-pulse-low);
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .cfg-test-word,
@@ -723,6 +756,13 @@ select.cfg-field {
   .cfg-test,
   .cfg-test-fill {
     transition: none;
+  }
+
+  /* No pulse: the step under way holds at the low opacity. */
+  .cfg-test[data-state="running"] .cfg-test-next,
+  .cfg-test[data-state="quoting"] .cfg-test-next {
+    animation: none;
+    opacity: var(--progress-pulse-low);
   }
 }
 

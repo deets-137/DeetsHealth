@@ -225,32 +225,54 @@ export const agentView = (): View => {
   // green (--go) once they do. Red: a first press works out the cost (a free dry run; "$?.??"
   // until it is known), a second press records and runs the tests, the green filling in as the
   // steps finish (each script, then the tests: a count, not a guess of time).
+  // Both presses fill the button as a progress bar (the owner, 2026-11-18: "no feedback or
+  // progress bar"). The quote fills with a pale wash, one step per script dry-run; the record
+  // fills with green, one step per script and one for the tests. The step under way pulses
+  // (`.cfg-test-next`), so a long step still shows the run is alive.
   const test = el(
-    `<button class="cfg-test" type="button" data-state="due"><span class="cfg-test-fill" aria-hidden="true"></span><span class="cfg-test-word">Test</span><span class="cfg-test-cost">$?.??</span></button>`,
+    `<button class="cfg-test" type="button" data-state="due"><span class="cfg-test-fill" aria-hidden="true"></span><span class="cfg-test-next" aria-hidden="true"></span><span class="cfg-test-word">Test</span><span class="cfg-test-cost">$?.??</span></button>`,
   ) as HTMLButtonElement;
   const testCost = test.querySelector<HTMLElement>(".cfg-test-cost")!;
   const testFill = test.querySelector<HTMLElement>(".cfg-test-fill")!;
+  // A press the dev server refused or did not answer: its reason, shown until the next answer.
+  let refused: string | null = null;
   const showTest = (p: PromptSettings) => {
     const run = p.recording;
     const total = p.recordings.scripts;
     const running = run?.state === "running";
     const quoting = p.estimate?.state === "running";
     const done = p.recordings.match && !running;
-    test.dataset.state = running ? "running" : done ? "done" : "due";
+    if (running || quoting || done) refused = null;
+    test.dataset.state = running ? "running" : quoting ? "quoting" : done ? "done" : "due";
     test.disabled = done || running || quoting || !p.key;
-    // The steps: each script, then the tests.
-    const steps = run ? run.scripts.length + (run.tests === null ? 0 : 1) : 0;
-    testFill.style.setProperty("--share", running ? String(Math.min(1, steps / (total + 1))) : "0");
+    // The bar: the steps done of all the steps, and the one under way.
+    // Record: each script, then the tests. Quote: each script.
+    const steps = running
+      ? run!.scripts.length + (run!.tests === null ? 0 : 1)
+      : quoting
+        ? Math.min(p.estimate!.checked ?? 0, total)
+        : 0;
+    const all = running ? total + 1 : total;
+    const share = running || quoting ? Math.min(1, steps / Math.max(1, all)) : 0;
+    testFill.style.setProperty("--share", String(share));
+    test.style.setProperty("--from", String(share));
+    test.style.setProperty("--size", running || quoting ? String(Math.min(1 - share, 1 / Math.max(1, all))) : "0");
     const e = p.estimate;
     testCost.textContent = done
       ? "Passed"
       : running
-        ? `${Math.min(run!.scripts.length + 1, total)} of ${total}`
-        : run?.state === "failed" && e?.state !== "done"
-          ? "Failed"
-          : e?.state === "done" && e.usd !== null
-            ? shortDollars(e.usd)
-            : "$?.??";
+        ? run!.scripts.length >= total
+          ? "Tests"
+          : `${run!.scripts.length + 1} of ${total}`
+        : quoting
+          ? `${Math.min(steps + 1, total)} of ${total}`
+          : refused
+            ? "Not started"
+            : run?.state === "failed" && e?.state !== "done"
+              ? "Failed"
+              : e?.state === "done" && e.usd !== null
+                ? shortDollars(e.usd)
+                : "$?.??";
     test.title = !p.key
       ? "Needs ANTHROPIC_API_KEY in .env"
       : done
@@ -258,28 +280,32 @@ export const agentView = (): View => {
         : running
           ? describe(run!, total)
           : quoting
-            ? "Working out the cost: a dry run, no Claude call"
-            : e?.state === "done"
-              ? `Press to record ${e.missing.length} of ${total} scripts with the saved words (Claude is called only for new lines), then run the agent's tests${run?.state === "failed" ? `. Last run: ${describe(run, total)}` : ""}`
-              : "The kept recordings are out of date. Press to work out the cost of recording them";
+            ? `Working out the cost: a dry run, no Claude call. Script ${Math.min(steps + 1, total)} of ${total}`
+            : refused
+              ? `Not started: ${refused}`
+              : e?.state === "done"
+                ? `Press to record ${e.missing.length} of ${total} scripts with the saved words (Claude is called only for new lines), then run the agent's tests${run?.state === "failed" ? `. Last run: ${describe(run, total)}` : ""}`
+                : "The kept recordings are out of date. Press to work out the cost of recording them";
     test.setAttribute("aria-label", `Test, ${testCost.textContent}`);
   };
   test.addEventListener("click", async () => {
     const p = latest;
     if (!p) return;
+    refused = null;
     try {
       if (!p.estimate) {
         // The first press: the quote.
         p.estimate = await promptSettings(0).act(() => estimatePrompt());
+        if (!p.estimate) refused = "the dev server did not answer. Is npm run dev running?";
       } else {
         // The second: record and test (also after a quote that failed: it records without one).
         p.recording = await promptSettings(0).act(() => recordPrompt());
       }
-      showTest(p);
-      follow(showTest);
     } catch (err) {
-      test.title = err instanceof Error ? err.message : "Not started";
+      refused = err instanceof Error ? err.message : "no reason given";
     }
+    showTest(p);
+    if (!refused) follow(showTest);
   });
 
   const take = (s: PromptSettings) => {

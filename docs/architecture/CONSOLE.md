@@ -918,9 +918,18 @@ Sonic: 1 credit per character"](images/config-rates-2026-11-13.png)
     saved words: "Test | $?.??" until the cost is known. **The first press** works out the cost
     (the free dry run below): "Test | $0.02", or "<$0.01", or "$0.00" when nothing is new.
     **The second press** records and runs the tests.
+  - **Working out the cost** (2026-11-18, the owner: "no feedback or progress bar"): a pale
+    wash (`--on-call-button` at `--progress-wash`) fills in from the left, one step per script
+    dry-run (the quote's `checked` count); the cost part reads "3 of 15". Not dimmed. Before
+    this, the first press only dimmed the button for about 30 s.
   - **Running:** the green (`--go`) fills in from the left, one step at a time (each script,
     then the tests), so the bar is a count, never a guess of time; the cost part reads
-    "3 of 15".
+    "3 of 15", then "Tests" for the last step.
+  - **The step under way pulses** (both presses; `--dur-pulse`, down to `--progress-pulse-low`):
+    the next part of the bar, so a long step still shows the run is alive. With reduced motion
+    it holds still at the low opacity.
+  - **A press that does not start** reads "Test | Not started"; the hover hint gives the dev
+    server's reason, or says it did not answer.
   - **Green** (`--go`) once the recordings match: "Test | Passed"; it cannot be pressed.
   - **A failed run** turns it red again: "Test | Failed" until the next press works out a new
     cost. The hover hint says what failed ("2 scripts failed, the tests fail") and what was

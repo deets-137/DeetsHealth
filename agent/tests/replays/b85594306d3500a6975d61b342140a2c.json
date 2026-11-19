@@ -1,0 +1,147 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011ChBF5toYrgKcfKXHxVsSS",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 275
+     },
+     "cache_creation_input_tokens": 275,
+     "cache_read_input_tokens": 3305,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 6,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSpAYKEAgTGAI4AUIIdGhpbmtpbmcSDFWXwIdwPLlW3W637hoMzMRjncnjgCoFJpRBIjCkSYU0Eja93Z00CdkYBkoh4C1uKQEp+VboGvq0v2mBEw29NYSAif2NBhO2Gir5yX4qwQW1BZxlBbWtL6qxGyXmMXNLW/pVccnadR/wFeSUKh9ASlZbmJL7YhxMITSiHaPyVR9QOr+oy6RNOf2sitX6wba0+5QTa14CqgYO9Lw/a5nQMe7okeE0XfIbuoBIb047fBuEL3Yli+f8VC9NCfRr8wEhYPTH1hcR64oRhFFaPJPMjdrBkLyGqz9TUtAgLYZWT8PEK4NWzWu5yXcJcTI1D/jt2hXZisMn/pCAP7cGizPintybPOBZaS8+iLJRjmOt73LrR/qPWb5ikJXBik9nBKjOHO2ZxhWULiKQERRYZDE8biHK1uAz5xgp56GyqsSelUH2rcNsztIMP6oHKpeMhxxMf+85dTPrMFTlw1RrOeelWQkFZo/+Pod0A0a2BaRzszDW75WCS2z+6II0LEGVpWjhy6q3WStuTvHVOEqZg289D0YOGuMjBIyfMSU5eN4feke9X94UzEIJDVqhS/w3hzzkAud3Pe41+NmdN4TMzXZI2EZ40j3IykRxcp5+t2jFz+Vct8Bx+Di1IQIg8En6TRpPICDg75EJtzjIB6WLzGuYC7PAPFLO1F4X3EZ0zdyVMlij0SjJFVpPZ6vG/CbtaDMtLEQWCKfxNhFqbEFL0KBwxOnZDdteoE3WqR0XIESWUxIEiRT/RcTKOBeKjz9DrbVpSnaWK4MstucXbxs9iNXHZ7ShCzUR/fDWLmYhfWlu/chOVP8wRDfWEJI5lt3gpv3cMg51WgVn2DDSQRST28ZPGVov+00oL8yqzPK5ryfyTuhX1rp8zsMdKF5qFQjINLFdYZFmrP5YZFi239LhA3VdmckEWN//aUkwRyhoHFp/GS2noKyhZPG5Q6NTcIuFxMUHjVlJnyCkOcqLFGHUrEcIJlxZl8nW6cyh9dE5uSQABXE7NOYy+ue3sSvX+ISdcW4LElTnaLX3Pa9X5R7dnR03hFMYAQ==",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "I",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " can only help with visits here.",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " What",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " do",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " you need for your visit today",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 275,
+    "cache_read_input_tokens": 3305,
+    "input_tokens": 4,
+    "output_tokens": 90,
+    "output_tokens_details": {
+     "thinking_tokens": 69
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

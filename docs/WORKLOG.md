@@ -2,11 +2,27 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-16
+updated: 2026-11-18
 ---
 # DeetsHealth — Work log
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
+
+## 2026-11-18 (Windows) — the Test button shows its progress
+- His words: "I pressed test, no feedback or progress bar? Can we color the button as if it was
+  a progress bar so we know its running please?"
+- Found: the first press is the free cost quote (about 30 s). It only dimmed the button, with no
+  count. The record's green fill moved only when a whole script finished. A refused press showed
+  its reason only in the hover hint.
+- Built: the quote reports `checked` (dev_server.py › `estimate_record`) and fills the button
+  with a pale wash; the record fills with green as before; the step under way pulses on both;
+  "Tests" for the last step; "Not started" with the reason in the hint. New skin tokens
+  `--progress-wash`, `--progress-pulse-low`, `--dur-pulse`. CONSOLE.md §9 (the Test bullets).
+- Decided inside his ask: the quote's fill is a pale wash, not green, so green still means a
+  recording; the pulse values (1.2 s, down to 25%).
+- Desk test: restart `npm run dev`. On Config › Agent press Test: the button fills pale, "1 of
+  15" counts up. Press again at the cost: it fills green, the next part pulses, "Tests" at the
+  end. Not verified in a browser. Nothing committed.
 
 ## 2026-11-16 (Windows, night) — one Rust build folder
 - The cause: C: fell to 5.8 GB free. `target/` held 85 GB six days after a clean, in about ten

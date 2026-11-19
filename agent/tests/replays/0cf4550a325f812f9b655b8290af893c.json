@@ -1,0 +1,139 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011ChBEvNPiJScdQwCByC5HQ",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 264
+     },
+     "cache_creation_input_tokens": 264,
+     "cache_read_input_tokens": 7825,
+     "inference_geo": "us",
+     "input_tokens": 2,
+     "output_tokens": 3,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSnggKEAgTGAI4AUIIdGhpbmtpbmcSDH7LNhkEEVnyrAo/5hoMKacmsV7URdnMyLVVIjCcILLgUHCoTzxF9c6xEJ88SCGLPb7FoPDSDjMYWz9EC5njfWQqxKRYfgkR2I0g0y8quwcAEwz+QPE9p3HHsJHot8W+jJAB1q581Kxu1DO9KxdzgHcld4OHZX0fU/MPdRkGoPF/T30yQE0nV66JXb3knKYcBFsZk3cTuLe+wvi9EbyhOMAAqA0zlGKTZO84oQYQFed2j/0WmRSu9wcP8zRyX+/wgp1ymQZaPMO1xa1rwn2CEElTQQ+jY2QSYRge/HI0apd8CkaTRYs14UIYO2urhBhFaOBHdD3OxFgACpC7arkZVCHKysfImQQoUuu9yjpPIWakSFvX3xSQ0MoW15ZTGoMv1MQRsJgmmhryUrmuyVK9iiBE7PrPMjCqlIZWQt+rLcwaE7kPndBJPg0i6fdrqasfLar3iLfobdE6Ph79yBjOh6pdJfPBAYf4aZVECyTBeHv3WXHRgQzQzt4xP7CwFnh4V6yvxeqjudvTFpu01lAUR42YvC0/08KaViGKIKM8mgOFpPE6auluUFQ+GAaRWPukT3ueG8WR/Dqfi2guDqMwWoak8WHu0QioZomIZ2PYnBbGH/piFZ0BCKhUWNqI9OgBx6yOeoV1ApFL9zlaFoORGJ8yaVH7qfRmy/LEMJgOShSdDj4uv5QnerPE5HEm4OJwWsea9paEgOM2yMHXLM06AIpGTbZktM8hpYEcBEuNv9WLkDn3+3WnO/w0jV/t0Gv3WEAThI61dnonwNWh3Rrq0jT2A6ItLsvZwwHO+pCCO0lAWkRBO7PBkVHAnIdFbxmoIIJGkTiPqCi4Nxwdw3A1YSLKVx6dTCkA7GJ6Wo6s+VC3itrptNesjR0ylHOCubWv8nMLTfdh1yI9DKJ4cJZLEBMrm+KkDtsubmC/xYyyE84kTJXVn4DGSWoMA2KGrmu6qyaHYUvgAQmBETkJunx1W7pxVaWZVFf9qZ16Be9scmKFLgSzDmuCryyVdCwAE7x7YzKfA0qtIv7oU16uGk+ltaOgVelBPJkOJGgPELKCqsKZbL8wzVIWJ/82ux0PU9qVtSPxHVOguInzqhsAJb1dahaMsQD9RP9fWlEkeab30iCl1+KmfazqP8dX5iYEENvvivvZ8SQ4f7qYQFCUsAqQM+MBV7o2mSk4jBJqc+/g0FianMzSRhI1+viPC21JwCxZ0GD09oXmDpSfFFPXsaNR++aeN5RAcy0w7FgyqkJax4O8LEhOMMjMcrG3xpt/GxMvT47jH9YVFiSE+arMjcaA7lRHTwe4X9vAufwhsGmSdZ6R+aJzQmFxeGT0e3u+DrddBHvUpNmyOjdLnqwiCAecP8D/XILAV2Q51H76GAE=",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "The",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " visit is in",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " person, not online. Is there",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " anything else I can help you with",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 264,
+    "cache_read_input_tokens": 7825,
+    "input_tokens": 2,
+    "output_tokens": 120,
+    "output_tokens_details": {
+     "thinking_tokens": 96
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

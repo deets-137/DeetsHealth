@@ -1,0 +1,163 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011ChBF6Ai2ikxxgTKCeWLth",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 44
+     },
+     "cache_creation_input_tokens": 44,
+     "cache_read_input_tokens": 3720,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 8,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQS/QYKEAgTGAI4AUIIdGhpbmtpbmcSDGONNu72DfWVVodZEhoMMBQkoo1TpjZ/8k+OIjCNBxTttTzWjmqourgEzAmIok3eup47MqxJXvArm3zSKH58DToxxTr8aw6hBKI9D+QqmgbdO1HbSAQ0YXX0V0lFTolYYOYKWZPTjpcbv6BIj4AJo+px+qIuL/FeBKoq8skLkoE9uCoR8AIt8wT/H5FO96l0/MenFOM4NQ6ex4AJYmu11EKg2r/YepDbHow00VMVeGpIDuutwlqo39swHe2NeFXelHzbW38UKh2nuWtpg7jfLRxLQMX1lmfGcjqezzEcqgxjnoMufmt1ug+yIznWVQ161ZR3abX9eH61UPCrh2XpqJH8vV6UdkCB9nR9FDvwBn7QQNjvZWbZxX8+42tm57EDm5X1z5vhufGrLJqbNnbynGG5jfGR+0VK+ZWucy0WIDX0I2J9yTGhV5yUT8nVYrqaD/SYn1/RJAXsLtgzAvuYb6iUlyCit5/NxZTAWjlXElJm84Fca4F5UVTz6CHlC/Noj0uzLMVxGI6rujKIGzbAsb0YYNnjBFrwqnOgyUa1jPkhdk4b1a4g8YHqX29D79yzaFUc5yX3EFNhB+7AhPaysIEXVDVZ81kUHovrDHCHZueBHYafBlzfdWQHWcL+rrelIraWNholbFHrZmu1M4u5M6DN5mSDV7/73o8B7cMglNFov/5M7T+cwJ0dlifLlFzmjIZhNHfgHhC7O3g7ciZDZD08mhvSo9TROAp0KZXfK/GSNzYfhrg0JM3plTbwLXJsg6Mm2UOBpE8PGo/wCSnjTbK0sjSUvXZ15YBA2gG0VmdzQWLaR8e4rVx/ZNN1wtcGPXuyvw80HERWbatdjqSNCQada7aqJVMw6ggBLG1bTwDEKPJzPQQtoSiMYf7NnrwZve7O7GnjaLDkIS+hdQu/JVsDPeWjv15+EvR+W0dLjdriupdHfo/Qq2c1Gq/WNb6FSdzMG5UywTWniVm5GUtnLNbefaQ+fc44aVWNXWgRrKJqApDsmJugdzwPF+1eDMS39KW7HJYRQ4QtEeDyq+YbZAivRXFdpO2sQfV6eFkAVFgb+IDmsbdy+usZhjjuFQtqHemiz2yMFWw96ThwOanX6rJU1wbSOwB+eOObN7piFwV3Q6v+mQQXPW93Eq0t6Skr5tZEvHgjtfNq0RgB",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "I'",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "m only set",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " up to help with this",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " clinic's visits.",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " Would you like to book a visit",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " or h",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "ear about one you already",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " have?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 44,
+    "cache_read_input_tokens": 3720,
+    "input_tokens": 4,
+    "output_tokens": 106,
+    "output_tokens_details": {
+     "thinking_tokens": 69
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

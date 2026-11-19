@@ -1,0 +1,152 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011ChBEwEbSDjTrgBTCiHvQS",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 82
+     },
+     "cache_creation_input_tokens": 82,
+     "cache_read_input_tokens": 5840,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 3,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSwAYKEAgTGAI4AUIIdGhpbmtpbmcSDLXtfSITfXYMHt/XHhoMjLPC6hNctYHX8hGVIjCxMGgFM5wI79O/ge00nNoa0Knm0fKtEp7HL6BRy08tg2XiLuy/ZrXqFip9eHbIHVYq3QUkT/egXbKvhFX2ZkN/Uwj/NNNk0SBAT0ym1nJw/izAvNXwwwi2U3w37wPGHUfalGCph6wIXpDBG0CIiiUcbHh9ygPvax4b72y+hFSh66+c5Ia2KmYwInG3KExaq0fpSvNchAf2juhatjYNzbRiqpenqxN25JQSzxtxeXExtqV+bXY0QWGyujlH/byvgjFyxBbxkmDNmDw4Xlr89lGykrRnKJabYdhZrsl9oeRMQ7twNRfIcSTH21/3AckZ/wJGLX3ESgMq/l3sTTwSLNk4b0T84J4p4iaTSbfjl4XRcSjScQCBW3h3jNg66yv/5gDlWxXra12FKgbj2ejmu4U4+qGCqDe8+/8fTmBrCntwbUv9CdQISlLkqaQ9U35/uO5y+v7YRYwz4DosW+kXAlKKtSZHskY1bpAXbi1xuKydD6cHAphnWQMoCQiE46nGqmMqLF6xkGtMvM6m+gYeN427Ptv7VKKhyv22qBJ4BC6ei+fp4IPfhWCXDaKDN5ZbUn29cGjwtveqRtKm50HCbdYsw3Un1eeYBwfkZTi71DyTTitv+MkdulhxavDvBhzxj3FHLz5hQyM+4UFVgRV0hioOY70HQ8dGBjhx33GPCRcNCaYITG+gM5tbsSkFVi/FK5d72fqkdRkf+U7HroJVaqsD8ZQ2Fg4IpZqd14oFn8Cq3M9Ma/pVzhlRgTN1QRdaXQ6dtamDMs7AdxPYdP2aLLKVw8bTO8O3pMn+TjeqgSAbVvE8EkFNS9xStHrHQUv5baOB/U8MEHGwGCSwCY1d45VqMxEFNCuc0ZqanZHx+Apo/fTFsANoEUFQ3wpfw8vGaNkj9gwSvC78NUo8Q+Y4K4Zb0PqaDwg1fjvHo2LsRNotxQyxA2hPzucRF1vFG3rK8GcpOMXXXMQHNg4A/5aBqpPlM8D7vbbM5QfBZcFnFKh0x4zfuwqbHHRXfeGYuwowi7lMMfoBFtuFI2pnVxQ3Rn4WGAE=",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01BTCnRf55JGq99s3AnNhEJW",
+    "input": {},
+    "name": "find_slots",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"reaso",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "n\": \"se",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "vere he",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "adaches",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "\"}",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 82,
+    "cache_read_input_tokens": 5840,
+    "input_tokens": 4,
+    "output_tokens": 113,
+    "output_tokens_details": {
+     "thinking_tokens": 59
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

@@ -1381,7 +1381,8 @@ async def estimate_record(state: State) -> None:
     none). About 30 s, no tokens. An over-estimate: the lines before the first changed one are
     replayed for free."""
     words = _words_now()
-    run: dict[str, Any] = {"words": words, "state": "running", "missing": [], "usd": None}
+    # `checked`: the scripts dry-run so far, the count the Test button fills in by (2026-11-18).
+    run: dict[str, Any] = {"words": words, "state": "running", "missing": [], "usd": None, "checked": 0}
     state.estimate = run
     # Any error ends the quote as "failed", never "running": the page stops showing "Working out
     # the cost" and Record and test still records (2026-11-14: a crash left it waiting forever).
@@ -1390,6 +1391,7 @@ async def estimate_record(state: State) -> None:
         mean = sum(costs.values()) / len(costs) if costs else RECORD_CENTS_PER_SCRIPT / 100
         for script in sorted(SCRIPTS.glob("*.txt")):
             ok, _ = await _dry(script)
+            run["checked"] += 1
             if not ok:
                 run["missing"].append(script.stem)
         run["usd"] = round(sum(costs.get(s, mean) for s in run["missing"]), 2)

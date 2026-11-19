@@ -1,0 +1,139 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011ChBF4Jpd7BEYLYZN168fA",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 306
+     },
+     "cache_creation_input_tokens": 306,
+     "cache_read_input_tokens": 3305,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 8,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSkwcKEAgTGAI4AUIIdGhpbmtpbmcSDLFWHrJrAoxHdy32GxoMaz3jO0Pen/34fsADIjAIK3fUkaGdpcxDH+Y9DxwcE9IDHn0RnohpCXuxAWK+XMfq+3x0nno6qqWGQmCuZFwqsAbchPNEun4rj/O253Rb/5GRjvx+NmXILDPiDnmwfuQSZEx+HXpo3w3WTvAwR8SmH6H1aSD4AEqTFI1sI/flAY2A512ft4IbOiXb+nvuJKDNzaN+TlroeMsNCS1ksg5Ry5Vqs7Oyy/J3MmvjJYs7hwiKq2J5he6MsIfu9/BwX/Bex/fvU2H2R183c+mHznxmMUCV6iEFBFAEDWQPkCJ5JlRzdjfnRM6hSNle5wLigHNbE0Jc2WbC+y5fzqbaz7zCMEpIxu2cjZrP8qACR2L9nolvdyjCn4e8HgVgmz6NGwUvgrc1tfqVDMQKBsb/zbWle3kJEwf1uvkDnPPQGeiolz+LEASAiardHxSCnilnzAnRKVG8/mWZ852t1D7orQ40LmKHsYTxV1J17q5sOz/xWd3rwwTle9O4edEKcpu2kG9XW2f/bv3gtLs2N7zbLLE7fiLHv6wSQmYyA4dcSQ+nVBdzyUH6c0YPbEtUPR3xknlm36tK+m2lgVEwSaLrp8yDpNK0jayDHyCLjYnUY9v1nlcUO7+6x3jfaeNop9LyDuHJd7nWzJ+m96siGCb3mbFJp/Wws7BwCFi5nlbJbW/S8lkh5IFEkzePjMbC14Kd4Abi4bCKlyTe909kSTKVDRzA2kfEm0/HQ36VRAbWktzSaLP80jr2eV5MBNrEr80u2wr26rsx3CYg/oYlXaIV9NrenefOKCzaouaR4MxhNsiLDEDsHprOXpmcZzHQ3NEuAlaR3YpdaT/d4cH5sPMLfBjeAhOHdOsS/x9/2fcUpo5SegMwF9cKYNbygpNT73H+Lf9TOAY8BOpPPEG5IsueAPhNMSkncglyVvZFWOm4geXECcldFFWwlAZBvF+8952Lf5yW0pQ+yRqceuUs6VEx4Uf1NQmP1a9gl4zQy/rAK6dA7wYYieJdXpLPvcfSmz7DIYq7SRHaJWMSdXLxD19nKLItLgw8mUCpRX0kTnmdYP9r7B/nXDB19c+0B9uCmfvIjuzW3T1gr0NhvqvlbQ+RjDUdvIVqHZtY0phrXaPusihL0RSi8JsfUhKeBEMe9Db0cfjqr1VxIydspi8cR10EcnI1ogwYAQ==",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "Thanks",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": ", Casey. I",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " can help you book that",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": ". What is your date of birth",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 306,
+    "cache_read_input_tokens": 3305,
+    "input_tokens": 4,
+    "output_tokens": 139,
+    "output_tokens_details": {
+     "thinking_tokens": 113
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

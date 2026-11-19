@@ -482,7 +482,8 @@ export const savePrompt = (values: Record<string, string>) => saveSettings<Promp
 /** Record and test's quote (dev_server.py › estimate_record): the kept scripts that need new
  * replies, by name, and the dollars recording them cost last time. */
 /** "failed": the quote stopped on an error; Record and test still records, with no quote. */
-export type Estimate = { state: "running" | "done" | "failed"; missing: string[]; usd: number | null };
+/** `checked`: the scripts dry-run so far (absent from a dev server older than 2026-11-18). */
+export type Estimate = { state: "running" | "done" | "failed"; missing: string[]; usd: number | null; checked?: number };
 
 /** Ask for the quote: a dry run with no Claude call, in the background. */
 export async function estimatePrompt(): Promise<Estimate | null> {
