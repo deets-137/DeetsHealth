@@ -163,8 +163,9 @@ FREE_PLAN_CREDITS = 20_000
 
 
 # The voices Cartesia recommends for agents (its "Choosing a voice" guide, read 2026-11-12): the
-# Config page's list. An id is known only where Cartesia's docs print it; the rest resolve by
-# name from Cartesia's voice list when saving is built.
+# top of the Config page's Voice menu. Cartesia's API has no "recommended" mark, so these names
+# stay here; the page checks each against Cartesia's live list (voice_catalog.py) and takes its
+# id from there. An id here is a fallback where Cartesia's docs print one (no key, no list).
 RECOMMENDED_VOICES: tuple[tuple[str, str | None], ...] = (
     ("Skylar", DEFAULT_VOICE_ID),
     ("Gemma", None),

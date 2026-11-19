@@ -166,12 +166,27 @@
   gap: var(--gap);
 }
 
+/* Config › Cartesia with its table of every voice open: the table under Voice. Its own layout,
+   so a closed table leaves no empty row and no extra gap. */
+.cfg-body[data-layout="cartesia-voices"] {
+  grid-template-areas: "voice" "voices" "hearing" "guard" "usage" "facts";
+}
+
 /* Config › Anthropic (CONSOLE.md §8): Model, Reply and cache, Usage, Key and facts. */
 .cfg-body[data-layout="anthropic"] {
   grid-template-areas: "model" "reply" "usage" "facts";
 }
 
 .cfg-card[data-card="voice"] { grid-area: voice; }
+
+/* Config › Cartesia's table of every voice (CONSOLE.md §7.8), opened from More voices. It
+   takes the columns' width and never sets it: width 0 adds nothing to a max-content column,
+   min-width 100% fills it. Its table scrolls sideways when narrower (data-table.css). */
+.cfg-card[data-card="voices"] {
+  grid-area: voices;
+  width: 0;
+  min-width: 100%;
+}
 .cfg-card[data-card="hearing"] { grid-area: hearing; }
 .cfg-card[data-card="guard"] { grid-area: guard; }
 .cfg-card[data-card="usage"] { grid-area: usage; }
@@ -189,6 +204,14 @@
     grid-template-areas:
       "voice hearing"
       "voice guard"
+      "usage facts";
+  }
+
+  .cfg-body[data-layout="cartesia-voices"] {
+    grid-template-areas:
+      "voice hearing"
+      "voice guard"
+      "voices voices"
       "usage facts";
   }
 

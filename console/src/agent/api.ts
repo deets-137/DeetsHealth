@@ -192,6 +192,24 @@ export type CartesiaSettings = {
 export const cartesiaSettings = (version = 0) =>
   get<CartesiaSettings>(version ? `/agent/cartesia?version=${version}` : "/agent/cartesia");
 
+/** One of Cartesia's English voices (agent/deets_agent/voice_catalog.py): public catalog facts
+ * only. `accent`: the voice's own locale ("en-US"); `locales`: every accent it speaks. */
+export type CartesiaVoice = {
+  id: string;
+  name: string;
+  tagline: string;
+  description: string;
+  gender: "masculine" | "feminine" | "gender_neutral" | null;
+  accent: string | null;
+  locales: string[];
+};
+/** Cartesia's voice list as the dev server holds it (10 minutes). `checked_at`: the last good
+ * read, or null. `fault`: why the last read failed (Cartesia's status), or null. */
+export type CartesiaVoices = { key: boolean; checked_at: string | null; fault: string | null; ttl_s: number; voices: CartesiaVoice[] };
+/** `fresh`: read Cartesia again now (Refresh), when the held list is older than 15 s. */
+export const cartesiaVoices = (fresh = false) =>
+  get<CartesiaVoices>(fresh ? "/agent/cartesia/voices?fresh=true" : "/agent/cartesia/voices");
+
 /** Save the whole set as a new, active version (CONSOLE.md §7.3). A refusal's reason names a
  * setting, never a value, so the page may show it. */
 export const saveCartesia = (values: VoiceValues) => saveSettings<CartesiaSettings>("/agent/cartesia", values);

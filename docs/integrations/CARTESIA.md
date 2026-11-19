@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: open
-sources: [agent/deets_agent/voice.py, agent/deets_agent/config.py, agent/deets_agent/resources.py, agent/deets_agent/flow.py]
+sources: [agent/deets_agent/voice.py, agent/deets_agent/voice_catalog.py, agent/deets_agent/config.py, agent/deets_agent/resources.py, agent/deets_agent/flow.py]
 updated: 2026-11-16
 ---
 # Cartesia — speech in (Ink) and speech out (Sonic)
@@ -57,6 +57,11 @@ updated: 2026-11-16
   **Emma is gone (2026-11-16):** Cartesia's voice list has no voice of that name, and its old id
   answers 404 (`voice_not_found`); it left the console's list (`config.RECOMMENDED_VOICES`). The
   other nine answer. A voice call now checks the active voice before it starts.
+  **Checked live (2026-11-16):** Cartesia's API has no "recommended for agents" mark, so the
+  shortlist's names stay in `config.RECOMMENDED_VOICES`. Config › Cartesia checks each against
+  Cartesia's List Voices (`voice_catalog.py`; no credits; English only; owned and cloned voices
+  left out) and takes the ids from it. More voices… shows every English voice in a table
+  (CONSOLE.md §7.8). The guide's list itself can still change: read it again now and then.
 
 ## 4. Cost
 > **Part:** project · 2026-11-12

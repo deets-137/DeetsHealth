@@ -142,6 +142,7 @@ number of requests to Epic does not grow.
 | Config › Cartesia, Anthropic, System, Hospital | `settings.<section>` keyed by version; its Save is the write | `config-kit.ts` loads once |
 | Config › Agent | `settings.agent` keyed by version; the Test status is a poll on it while a run is `running` | `agent.ts` `follow()` |
 | Config › Cartesia's credits | `resources` keyed `null` | read once |
+| Config › Cartesia's voice list | `cartesia.voices` (`leaves`: it reaches Cartesia); Refresh is its write | as built 2026-11-16 (CONSOLE.md §7.8) |
 | Chat | `health`, `catalog`, `sandbox` keyed by EHR, `resources` keyed by call (a poll while a call is live); a call's events by `once` (never kept: as built) | each read on its own; `RESOURCES_LIVE_MS` timer |
 
 **Stays outside the layer:** the live streams. Each keeps its own order on one connection: the

@@ -11,6 +11,8 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
   test call; without the Cartesia key, no voice call.
 - `GET  /agent/cartesia` — the Cartesia levers as set now, with their ranges, for the Config
   page (read only; never the key, only whether it is set).
+- `GET  /agent/cartesia/voices?fresh=` — Cartesia's English voices for the Voice menu and its
+  table (voice_catalog.py): held 10 minutes; no credits.
 - `GET  /agent/anthropic`, `POST /agent/anthropic` — Config › Anthropic (CONSOLE.md §8): the
   llm settings' versions, each model's rules and prices, this cycle's spend; a save makes a new
   active version for the next test call. Never the key.
@@ -127,6 +129,8 @@ from deets_agent.rtvi_json import RtviJsonSerializer
 from deets_agent.security_headers import MAX_REPORT_BYTES, SecurityHeaders
 from deets_agent.turn import TurnError, TurnSettings, for_aiortc, ice_servers
 from deets_agent.voice import Voice
+from deets_agent.voice_catalog import VERSION as CARTESIA_VOICES_VERSION
+from deets_agent.voice_catalog import VoiceCatalog
 
 TOKEN_HEADER = "x-deets-token"
 # Who a request is (State.admit): the owner, through the launch token; else a guest's email.
@@ -147,9 +151,6 @@ BUILD_POLL_S = 1.0
 BUILD_KEEPALIVE_S = 15.0
 # The longest SDP offer the voice route takes: a browser's audio offer is a few kilobytes.
 MAX_OFFER_BYTES = 64 * 1024
-# Cartesia's List Voices takes only this API version (docs.cartesia.ai › Voices › List, read
-# 2026-11-13); Pipecat's speech sockets use their own.
-CARTESIA_VOICES_VERSION = "2026-08-14"
 
 
 SANDBOX = config.REPO / "ehr" / "fixtures" / "sandbox.json"
@@ -259,6 +260,8 @@ class State:
         # Voice (CHAT.md §17): the Cartesia key's presence. Each live voice call's parts are on
         # its own `LiveCall`.
         self.has_voice = config.cartesia_key() is not None
+        # Cartesia's English voices for Config › Cartesia, held 10 minutes (voice_catalog.py).
+        self.voices = VoiceCatalog(config.cartesia_key())
         # The settings services whose Default version is known to exist (ensure_default).
         self.seeded: set[str] = set()
         self.ehr: EhrClient | None = None
@@ -412,6 +415,13 @@ def build_app(state: State) -> FastAPI:
         except LookupError:
             raise HTTPException(404, "no such version") from None
 
+    @app.get("/agent/cartesia/voices")
+    async def cartesia_voices(fresh: bool = False):
+        """Cartesia's English voices (voice_catalog.py; CONSOLE.md §7): held 10 minutes, read
+        again with `fresh` (Refresh) when older than 15 s. No credits. Never the key: only
+        whether it is set. `fault` names Cartesia's status, never a value."""
+        return await state.voices.view(fresh)
+
     @app.post("/agent/cartesia")
     async def save_cartesia(request: Request):
         """Save the whole set as a new version; it becomes the active one and the next call runs
@@ -426,7 +436,7 @@ def build_app(state: State) -> FastAPI:
         if state.ehr is None:
             raise HTTPException(409, "ehr is not up yet")
         try:
-            values = await resolve_voice(values)
+            values = await resolve_voice(state, values)
         except VoiceNotFound as e:
             raise HTTPException(400, str(e)) from None
         await save_settings(state, "voice", values)
@@ -1787,21 +1797,31 @@ class VoiceNotFound(Exception):
     """Cartesia has no voice of that name, or its id cannot be found (the message is safe)."""
 
 
-async def resolve_voice(values: dict[str, Any]) -> dict[str, Any]:
-    """Give the voice its Cartesia id before a save. A voice from Cartesia's docs has one
-    (config.RECOMMENDED_VOICES); any other is found by name in Cartesia's voice list, which needs
-    the key and costs no credits. The name never leaves this machine except to Cartesia."""
+async def resolve_voice(state: State, values: dict[str, Any]) -> dict[str, Any]:
+    """Give the voice its Cartesia id before a save, and check it. The id is the voice: a name
+    can belong to several voices. The page sends the id from Cartesia's list (voice_catalog.py);
+    with none, a voice from Cartesia's docs has one (config.RECOMMENDED_VOICES), and any other is
+    found by name. An id the held list does not have is asked of Cartesia's Get Voice. No credits;
+    the name never leaves this machine except to Cartesia."""
     voice = values.get("voice")
     if not isinstance(voice, dict) or not isinstance(voice.get("name"), str):
         raise VoiceNotFound("voice: a name")
     name = voice["name"].strip()
-    known = dict(config.RECOMMENDED_VOICES)
-    vid = voice.get("id") or known.get(name)
+    vid = voice.get("id")
+    if vid is not None and (not isinstance(vid, str) or not re.fullmatch(r"[0-9a-fA-F-]{8,64}", vid)):
+        raise VoiceNotFound("voice: not a Cartesia voice id")
+    key = config.cartesia_key()
     if not vid:
-        key = config.cartesia_key()
+        vid = dict(config.RECOMMENDED_VOICES).get(name)
+    if not vid:
         if key is None:
             raise VoiceNotFound("voice: finding its id needs the Cartesia key in .env")
         vid = await _find_voice_id(key, name)
+    held = state.voices.find(vid)
+    if held is not None:
+        name = held["name"]
+    elif key is not None and await _voice_missing(key, vid):
+        raise VoiceNotFound("voice: Cartesia no longer has that voice")
     return {**values, "voice": {"name": name, "id": vid}}
 
 

@@ -8,15 +8,20 @@
 // Each row (the owner, 2026-11-13): an "i" button at the left that opens the setting's help,
 // its name, then its control. No line under the name. The frame, the rows and the controls are
 // config-kit.ts, shared with Config › Anthropic.
-import { saveCartesia, type CartesiaCycle, type CartesiaSettings, type VoiceValues } from "../agent/api";
-import { cartesiaSettings, resources } from "../agent/stores";
+import * as api from "../agent/api";
+import { saveCartesia, type CartesiaCycle, type CartesiaSettings, type CartesiaVoice, type CartesiaVoices, type VoiceValues } from "../agent/api";
+import type { State } from "../agent/store";
+import { cartesiaSettings, cartesiaVoices, resources } from "../agent/stores";
 import { cap, settingsView, type Kit } from "./config-kit";
+import { row as dtRow, table as dtTable, titleLine } from "./data-table";
+import { fillTable, heightsOf } from "./list-window";
 import { el } from "./page";
 import type { View } from "./subnav";
 
-/** What the page edits: one value per lever. Null is "Cartesia's default". */
+/** What the page edits: one value per lever. Null is "Cartesia's default". The voice is its id
+ * (a name can belong to several voices); null only for a voice from the docs not yet resolved. */
 type Draft = {
-  voice: string;
+  voice: { name: string; id: string | null };
   speed: number | null;
   volume: number | null;
   emotion: string | null;
@@ -37,6 +42,9 @@ type Draft = {
 const HELP: Record<string, string> = {
   voice:
     "Who speaks for the agent. The list is Cartesia's stable voices for agents: Cartesia says they do better on calls than studio or emotive voices. Listen will play one fixed sentence in the voice (about 150 credits, once). Skylar is a draft until you pick one by ear.",
+  // A draft for the owner's words (CONSOLE.md §7.8).
+  voiceCheck:
+    "The menu's voices are checked against Cartesia's own list, read at most every 10 minutes (no credits). A voice Cartesia no longer has is marked and cannot be chosen. More voices opens every English voice Cartesia lists, to search and choose from. Refresh reads the list again now.",
   speed:
     "How fast the voice speaks, from 0.6 to 1.5. The line on the track marks Cartesia's default (1.0). Slower can help older callers. Applies from the next call.",
   volume: "How loud the voice is, from 0.5 to 2.0. The line on the track marks Cartesia's default (1.0).",
@@ -88,7 +96,7 @@ const TURN_KEYS = ["turn_start_threshold", "turn_eager_end_threshold", "turn_end
 /** The stored values (api.ts › VoiceValues) as the page edits them. */
 function fromValues(v: VoiceValues): Draft {
   return {
-    voice: v.voice.name,
+    voice: { name: v.voice.name, id: v.voice.id },
     speed: v.speed,
     volume: v.volume,
     emotion: v.emotion,
@@ -106,12 +114,11 @@ function fromValues(v: VoiceValues): Draft {
   };
 }
 
-/** The page's draft as the whole set a save sends. A voice from Cartesia's docs carries its id;
- * the dev server finds any other's by name. */
-function toValues(d: Draft, voices: { name: string; id: string | null }[], current: VoiceValues): VoiceValues {
-  const id = d.voice === current.voice.name ? current.voice.id : (voices.find((v) => v.name === d.voice)?.id ?? null);
+/** The page's draft as the whole set a save sends. The voice carries its id from Cartesia's list;
+ * with none (no list held), the dev server finds it by name and checks it. */
+function toValues(d: Draft): VoiceValues {
   return {
-    voice: { name: d.voice, id },
+    voice: { ...d.voice },
     speed: d.speed,
     volume: d.volume,
     emotion: d.emotion,
@@ -149,41 +156,248 @@ function blankCell(name: string, rows: string[][]): string | null {
   return i < 0 ? null : `${name}, row ${i + 1}: a cell is empty`;
 }
 
+/** The Voice menu's state for the view's life: Cartesia's list as the store holds it, whether
+ * the table of every voice is open, and its search. */
+type Voices = {
+  state: State<CartesiaVoices> | null;
+  open: boolean;
+  search: HTMLElement;
+  box: HTMLInputElement;
+  kit: Kit | null;
+  /** Draws the table's rows again for the search, without drawing the cards. */
+  refill: (() => void) | null;
+};
+
+const MORE = "more";
+
 export const cartesiaView = (): View => {
   let cycle: CartesiaCycle | undefined;
+  const v = voicesState();
   return settingsView<VoiceValues, Draft, CartesiaSettings>({
     id: "cartesia",
     title: "Cartesia",
     store: cartesiaSettings,
-    save: (s, d) => saveCartesia(toValues(d, s.tts.voices, s.values)),
+    save: (_s, d) => saveCartesia(toValues(d)),
     fromValues,
     differing,
     // A row added in place starts blank (TABLES.md §3.16): Save waits until each cell has
     // words, so an empty word never reaches Cartesia.
     blocked: (d) => blankCell("Pronunciations", d.pronunciations) ?? blankCell("Keyterms", d.keyterms),
     extra: async () => {
+      // Cartesia's voice list: its own store, so the settings never wait on Cartesia. Its answer
+      // draws the cards again (edits stay); the search box keeps the cursor (it is one box for
+      // the view's life).
+      cartesiaVoices.subscribe(v.search, (st) => {
+        const before = v.state;
+        v.state = st;
+        if (v.kit && (st.value !== before?.value || st.status !== before?.status)) v.kit.rerender();
+      });
       const use = resources(null);
       await use.refresh("open");
       cycle = use.get().value?.cartesia;
     },
-    render: (s, d, kit) => render(s, d, kit, cycle),
+    render: (s, d, kit) => ((v.kit = kit), render(s, d, kit, cycle, v)),
   });
 };
 
-function render(s: CartesiaSettings, d: Draft, kit: Kit, cycle: CartesiaCycle | undefined) {
+/** The search box over the table of every voice (TABLES.md §6.3): one box for the view's life,
+ * so a search's redraw never takes the cursor out of it. Ctrl+F goes to it while it shows. */
+function voicesState(): Voices {
+  const search = el(`
+    <div class="cfg-search" role="search">
+      <input class="cfg-field cfg-search-box" type="search" spellcheck="false" autocomplete="off"
+        placeholder="Search voices" aria-label="Search voices" aria-keyshortcuts="Control+F Meta+F" />
+    </div>`);
+  const box = search.querySelector<HTMLInputElement>("input")!;
+  box.title = "Ctrl+F. Press Ctrl+F again for the browser's own find. Esc clears.";
+  const v: Voices = { state: null, open: false, search, box, kit: null, refill: null };
+  let queued = false;
+  box.addEventListener("input", () => {
+    // One redraw a frame, however fast the typing.
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      v.refill?.();
+    });
+  });
+  box.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    if (!box.value) return box.blur();
+    box.value = "";
+    box.dispatchEvent(new Event("input"));
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== "f") return;
+    if (!box.isConnected || !box.offsetParent || document.activeElement === box) return;
+    e.preventDefault();
+    box.focus();
+    box.select();
+  });
+  return v;
+}
+
+const GENDER: Record<string, string> = { masculine: "Masculine", feminine: "Feminine", gender_neutral: "Neutral" };
+
+/** "3 min ago", from an ISO time. */
+function ago(iso: string): string {
+  const m = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60_000));
+  return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+}
+
+/** The Voice menu: Cartesia's shortlist for agents, each checked against Cartesia's list (a
+ * voice it no longer has is marked and cannot be chosen; a name with several voices shows each
+ * with its tagline), the voice in the draft if it is not one of them, then More voices. Each
+ * option's value is the voice's id; a docs voice with no id yet (no list held) is "name:". */
+function voiceMenu(s: CartesiaSettings, d: Draft, list: CartesiaVoice[] | null) {
+  const opts: [string, string][] = [];
+  const off = new Set<string>();
+  for (const short of s.tts.voices) {
+    if (!list) {
+      opts.push([short.id ?? `name:${short.name}`, short.name]);
+      continue;
+    }
+    // A voice whose id Cartesia's docs print is matched by that id; the rest by name.
+    const hits = short.id
+      ? list.filter((x) => x.id === short.id)
+      : list.filter((x) => x.name.toLowerCase() === short.name.toLowerCase());
+    if (!hits.length) {
+      opts.push([`missing:${short.name}`, `${short.name}: not in Cartesia's list`]);
+      off.add(`missing:${short.name}`);
+    }
+    for (const x of hits) opts.push([x.id, hits.length > 1 && x.tagline ? `${x.name}: ${x.tagline}` : x.name]);
+  }
+  const current = d.voice.id ?? `name:${d.voice.name}`;
+  if (!opts.some(([value]) => value === current)) {
+    const gone = list && d.voice.id && !list.some((x) => x.id === d.voice.id);
+    opts.unshift([current, gone ? `${d.voice.name}: not in Cartesia's list` : d.voice.name]);
+  }
+  if (list?.length) opts.push([MORE, "More voices…"]);
+  return { opts, off, current };
+}
+
+/** The table of every English voice Cartesia lists (TABLES.md; §6 for the window and search):
+ * Name, Gender, Accent, Tagline, then Use. The "i" opens the description and the id. */
+function voicesCard(d: Draft, kit: Kit, v: Voices, list: CartesiaVoice[]) {
+  // A new table for each search: a long list's window ends only when its rows leave the page
+  // (list-window.ts), so the same body is never filled twice.
+  const newTable = () =>
+    dtTable("Cartesia's English voices", [
+      { head: "Name", kind: "short" },
+      { head: "Gender", kind: "choice" },
+      { head: "Accent", kind: "choice" },
+      "Tagline",
+      { head: "", kind: "choice" },
+    ]);
+  let t = newTable();
+  const close = el(`<button class="cfg-button" type="button">Close</button>`);
+  close.addEventListener("click", () => {
+    v.open = false;
+    kit.rerender();
+  });
+  // The card: its title and count, the search and Close at the right (TABLES.md §3: the title
+  // line), then the table.
+  const c = el(`<section class="cfg-card" data-card="voices"></section>`);
+  const line = titleLine("Cartesia's English voices", "", null, v.search, close);
+  const count = line[0].querySelector<HTMLElement>(".dt-count")!;
+  c.append(...line, t.wrap);
+  const fill = () => {
+    const terms = v.box.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const rows = terms.length
+      ? list.filter((x) => {
+          const words = `${x.name} ${x.tagline} ${x.description} ${x.accent ?? ""} ${x.gender ? GENDER[x.gender] : ""}`.toLowerCase();
+          return terms.every((w) => words.includes(w));
+        })
+      : list;
+    const next = newTable();
+    next.wrap.dataset.empty = terms.length ? "No match" : "None yet";
+    count.textContent = terms.length ? `${rows.length} of ${list.length}` : String(list.length);
+    t.wrap.replaceWith(next.wrap);
+    t = next;
+    const draw = (x: CartesiaVoice) => {
+      const chosen = x.id === d.voice.id;
+      const use = el(`<div class="cfg-control"><button class="cfg-button" type="button"></button></div>`);
+      const b = use.querySelector<HTMLButtonElement>("button")!;
+      b.textContent = chosen ? "In use" : "Use";
+      if (chosen) b.dataset.off = "";
+      b.setAttribute("aria-label", chosen ? `${x.name} is the voice` : `Use ${x.name}`);
+      b.addEventListener("click", () => {
+        d.voice = { name: x.name, id: x.id };
+        kit.changed();
+        kit.rerender();
+      });
+      const facts: [string, string][] = [];
+      if (x.description) facts.push(["About", x.description]);
+      if (x.locales.length > 1) facts.push(["Accents", x.locales.join(", ")]);
+      facts.push(["Id", x.id]);
+      return dtRow(x, x.name, [x.name, x.gender ? GENDER[x.gender] : "", x.accent ?? "", x.tagline, use], facts);
+    };
+    fillTable(
+      t,
+      rows.map((x) => ({ item: x, draw: () => draw(x) })),
+      { heights: heightsOf("cartesia-voices"), drawn: (nodes) => kit.apply(nodes) },
+    );
+    kit.apply([t.body]);
+  };
+  v.refill = () => (t.wrap.isConnected ? fill() : undefined);
+  fill();
+  return c;
+}
+
+function render(s: CartesiaSettings, d: Draft, kit: Kit, cycle: CartesiaCycle | undefined, v: Voices) {
   const { row, keyed: k, fixed, select, slider, number, pair, table, card } = kit;
   const n = (x: number) => Math.round(x).toLocaleString("en-US");
 
   const listen = el(`<button class="cfg-button" type="button" data-off disabled>Listen</button>`);
   listen.title = "Not built yet";
-  const voices: [string, string][] = s.tts.voices.map((v) => [v.name, v.name]);
-  if (!voices.some(([name]) => name === d.voice)) voices.unshift([d.voice, d.voice]);
+  const held = v.state?.value ?? null;
+  // An empty list is never a check: it would grey every name (the server calls it a fault too).
+  const list = held && held.checked_at && held.voices.length ? held.voices : null;
+  const menu = voiceMenu(s, d, list);
+  const voiceSelect = select(menu.opts, menu.current, (value) => {
+    if (value === MORE) {
+      v.open = true;
+      voiceSelect.value = menu.current;
+      kit.rerender();
+      requestAnimationFrame(() => v.box.focus());
+      return;
+    }
+    const found = list?.find((x) => x.id === value) ?? s.tts.voices.find((x) => x.id === value);
+    const name = value.startsWith("name:") ? value.slice(5) : (found?.name ?? d.voice.name);
+    d.voice = { name, id: value.startsWith("name:") ? null : value };
+  });
+  for (const o of voiceSelect.options) if (menu.off.has(o.value)) o.disabled = true;
+
+  // Where the menu's list came from, and Refresh.
+  const st = v.state;
+  const checked =
+    !st || (st.status === "loading" && !held)
+      ? "Checking with Cartesia"
+      : !held
+        ? st.status === "refused"
+          ? "Not checked: the agent's dev server refused"
+          : "Not checked: the agent's dev server did not answer"
+        : !held.key
+          ? "Not checked: no Cartesia key in .env"
+          : held.fault && held.checked_at
+            ? `Checked ${ago(held.checked_at)}; the last read failed (${held.fault})`
+            : held.fault
+              ? `Not checked: ${held.fault}`
+              : `Checked ${ago(held.checked_at!)}: ${n(held.voices.length)} English voices`;
+  const refresh = el(`<button class="cfg-button" type="button">Refresh</button>`) as HTMLButtonElement;
+  refresh.addEventListener("click", () => {
+    refresh.disabled = true;
+    void cartesiaVoices.write(() => api.cartesiaVoices(true)).catch(() => kit.rerender());
+  });
+  if (held && !held.key) refresh.dataset.off = "";
 
   const voice = card(
     "Voice (Sonic)",
     "voice",
     row("Model", HELP.ttsModel, fixed(s.tts.model)),
-    k("voice", row("Voice", HELP.voice, select(voices, d.voice, (v) => (d.voice = v)), listen)),
+    k("voice", row("Voice", HELP.voice, voiceSelect, listen)),
+    row("Voice list", HELP.voiceCheck, fixed(checked), refresh),
     k("speed", row("Speed", HELP.speed, slider(s.tts.ranges.speed, d.speed, (v) => (d.speed = v)))),
     k("volume", row("Volume", HELP.volume, slider(s.tts.ranges.volume, d.volume, (v) => (d.volume = v)))),
     k("emotion", row(
@@ -307,9 +521,10 @@ function render(s: CartesiaSettings, d: Draft, kit: Kit, cycle: CartesiaCycle | 
   // Voice and Hearing side by side when there is room, the rest below them (config.css ›
   // .cfg-body[data-layout="cartesia"]). On an older version the profile glows with any turn
   // value; Plan credits with the offset beside it.
+  const all = v.open && list?.length ? [voicesCard(d, kit, v, list)] : [];
   return {
-    cards: [voice, hearing, guard, usage, facts],
-    layout: "cartesia",
+    cards: [voice, ...all, hearing, guard, usage, facts],
+    layout: all.length ? "cartesia-voices" : "cartesia",
     glow: (diff: Set<string>) => {
       if ([...diff].some((x) => x.startsWith("turn."))) diff.add("profile");
       if (diff.has("offset")) diff.add("planCredits");

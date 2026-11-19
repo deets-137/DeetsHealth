@@ -15,6 +15,10 @@ export const systemSettings = keyed("settings.system", (v: number) => api.system
 export const hospitalSettings = keyed("settings.hospital", (v: number) => api.hospitalSettings(v));
 export const promptSettings = keyed("settings.agent", (v: number) => api.promptSettings(v));
 
+/** Config › Cartesia's voice list. It leaves this machine (Cartesia): never on focus, never
+ * holds the first-load wave. Refresh is a write whose answer is the new list. */
+export const cartesiaVoices = store("cartesia.voices", () => api.cartesiaVoices(), { leaves: true });
+
 /** Chat. */
 export const health = store("health", () => api.health());
 export const catalog = store("catalog", () => api.catalog());

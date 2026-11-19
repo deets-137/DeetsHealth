@@ -2,7 +2,7 @@
 status: built
 desk_test: passed 2026-11-11
 sources: [docs/architecture/images/hospital-places-cards-dark-2026-11-15.png, docs/architecture/images/hospital-places-cards-charcoal-2026-11-15.png, console/src/styles/people.css, console/src/styles/palette.css, console/security-headers.json, agent/deets_agent/security_headers.py, scripts/html-sinks.mjs, docs/architecture/images/chat-compact-toggles-2026-11-14.png, docs/architecture/images/nav-compact-layout-2026-11-14.png, console/src/picker.ts, console/src/pages/page.ts, console/src/styles/subnav.css, console/src/styles/chat.css, docs/architecture/images/config-agent-test-button-2026-11-14.png, console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
-updated: 2026-11-16
+updated: 2026-11-18
 ---
 # DeetsHealth — The console
 
@@ -488,8 +488,9 @@ version Active](images/config-cartesia-2026-11-13.png)
   scrolls, and its scrollbar's track stops a radius short of each end, so the thumb stays inside
   the rounded corners; the owner, 2026-11-13: "the scrollbar is leaving the panel"):
   - **Model first in each card** (the owner, 2026-11-13).
-  - **Voice (Sonic):** Model (`sonic-3.6`, shown only); Voice (Cartesia's 10 stable voices for
-    agents; Listen shows, disabled: not built); Speed and Volume (sliders); Emotion (Cartesia's
+  - **Voice (Sonic):** Model (`sonic-3.6`, shown only); Voice (Cartesia's stable voices for
+    agents, checked live, then More voices; Listen shows, disabled: not built; §7.8); Voice list
+    (when the list was checked, and Refresh); Speed and Volume (sliders); Emotion (Cartesia's
     default, or one of five); Number reading (Auto, Off); Pronunciations (a table).
   - **Hearing (Ink)**, every row open (the owner, 2026-11-13: no "Advanced" fold), in the order a
     turn happens: Model (`ink-2`, shown only); Turn profile; Start of a turn; End of a turn;
@@ -557,7 +558,8 @@ version Active](images/config-cartesia-2026-11-13.png)
 - The profile select's words: "Balanced (Cartesia's default)", "Responsive", "Patient",
   "Custom".
 - A voice outside the 10 with ids in Cartesia's docs gets its id from Cartesia's voice list by
-  name when saved (no credits; it needs the key).
+  name when saved (no credits; it needs the key). Since 2026-11-16 the page sends the id itself
+  (§7.8); the name search is the fallback when no list is held.
 - The offset is one number for the cycle, with no note; Credits left may go below zero.
 - The versions' words: "Active | [MM-DD | n]", "MM-DD | n", "Default", "No settings store". The Default is made by the dev server on first view, by "default".
 - Save returns the page to Read on the new Active version.
@@ -600,8 +602,10 @@ version Active](images/config-cartesia-2026-11-13.png)
 - **Pronunciations:** make or update a Cartesia pronunciation dictionary from the saved table,
   and send its id with Sonic.
 - **Make active:** restore an older version as a new activation.
-- **Listen:** Cartesia's voice list can give each voice's preview file, which plays with no
-  credits; the dev server would fetch it, so the page loads no remote file.
+- **Listen:** Cartesia's voice list can give each voice's preview file
+  (`expand[]=preview_file_url`; it needs the key), which plays with no credits; the dev server
+  would fetch it, so the page loads no remote file. A fork for the owner: Cartesia's sample, our
+  fixed sentence (about 150 credits), or both. The list route (§7.8) is where it would go.
 
 **Levers Pipecat or Cartesia take that the page does not show** (a review, 2026-11-13; each
 needs the owner's fork before it is built; CARTESIA.md §9 has the full lever list):
@@ -674,6 +678,65 @@ who holds the Cartesia contract:
 7. Widen the window: with room for two cards, Voice and Hearing sit side
    by side, the test-call guard under Hearing, then Usage and Key and facts. Narrow it: one
    column. No field or slider stretches past its column.
+
+### 7.8 The voice list, checked live (as built, 2026-11-16)
+> **Part:** built · 2026-11-16 · desk test open. The owner's fork A (2026-11-16): the shortlist
+> checked live, plus every English voice in a table to search and choose from.
+
+- **Why:** the menu was a list copied by hand from Cartesia's "Choosing a voice" guide. Emma left
+  Cartesia on 2026-11-16 and the page could not tell. Cartesia's API has no "recommended for
+  agents" mark, so the shortlist's names stay in `config.RECOMMENDED_VOICES`; the API checks them.
+- **The list:** the dev server reads Cartesia's List Voices (`voice_catalog.py`;
+  `GET /agent/cartesia/voices`, DEV-API.md §2) for English voices, every page, with no credits.
+  It holds the list for `TTL_S` and reads one at a time. Left out: archived voices, voices our
+  organization owns, and pro clones (no cloning, CARTESIA.md §1). A failed read keeps the list
+  it held, and says why with Cartesia's status.
+- **Its own store** (`stores.ts › cartesiaVoices`, `leaves: true`): the settings never wait on
+  Cartesia. When the list lands, the cards draw again and the draft stays.
+- **The Voice menu:** each shortlist name, matched by name in the list. A name Cartesia no
+  longer has reads "Name: not in Cartesia's list" and cannot be chosen. A name with several
+  voices shows each with its tagline. The voice in the draft shows first when it is not in the
+  shortlist. Then **More voices…**, only when a list is held.
+- **The voice is its id** (a name can belong to several voices). The draft holds `{name, id}`;
+  Save sends the id. The dev server checks it against the held list, or with Cartesia's Get
+  Voice when the list lacks it, and refuses a voice Cartesia no longer has
+  (`dev_server.py › resolve_voice`).
+- **Voice list row:** "Checked N min ago: N English voices", or why it is not checked (no key;
+  the dev server did not answer; Cartesia's status). Refresh reads again now (at most every
+  `FRESH_GAP_S`). Like every control, it works in Edit only.
+- **The table of every voice** (More voices…; the one table, TABLES.md): a card under Voice,
+  as wide as the cards' columns. Name, Gender, Accent (the voice's own locale), Tagline, then
+  Use ("In use" on the voice in the draft). The "i" opens the description, the other accents
+  and the id. The search box on the title line (TABLES.md §6.3: Ctrl+F, Esc clears) matches
+  every word in the name, tagline, description, accent and gender; the count reads "n of N".
+  Past 200 rows the list windows (`list-window.ts`). Close shuts the card.
+- **Decided inside his choice (for his review):** the 10-minute hold and the 15-second Refresh
+  gap; English only (`language=en`); archived, owned and cloned voices left out; the table as a
+  card in the page, not a dialog (the console has no dialog yet); the columns and their order;
+  the words "More voices…", "not in Cartesia's list", "Checked … ago", "Use", "In use"; the
+  Voice list row's help (`HELP.voiceCheck`, a draft for his words).
+- **Not verified:** no read of Cartesia's real list has run yet (Claude's shell could not use
+  the key). The answer's shape is from Cartesia's docs.
+
+**Desk test** (restart `npm run dev` first):
+1. Config, Cartesia. The Voice list row reads "Checking with Cartesia", then "Checked just now:
+   N English voices".
+2. Press Edit. Open the Voice menu: the shortlist names, and "More voices…" last. A name
+   Cartesia no longer has is greyed with "not in Cartesia's list".
+3. Choose More voices…: the "Cartesia's English voices" card opens under Voice, with the cursor
+   in its search box. Type "calm": the rows narrow and the count reads "n of N". Esc clears.
+4. Press a row's "i": its description, accents and id open under it.
+5. Press Use on a voice: the menu now shows that voice first, its row reads "In use", and
+   Discard | Save light. Save: the page says "Saved as …". Start a voice call: it speaks in that
+   voice.
+6. Press Refresh: the row reads "Checked just now". Close shuts the table.
+7. Without `CARTESIA_API_KEY` in `.env` (restart): the row reads "Not checked: no Cartesia key in
+   .env", the menu is the shortlist as before, and there is no More voices.
+
+Signs that Cartesia's answer is not the shape its docs give (no real read has run yet): the
+count is exactly 100 (paging stopped after one page), or every shortlist name is greyed (the
+English filter matched nothing). Skylar and Daniel match by the ids in Cartesia's docs; the
+other seven match by name until their ids are pinned in `config.RECOMMENDED_VOICES`.
 
 ### 7.7 The owner's screenshots (2026-11-13), in the order of his notes
 Kept so the reason for each change stays with it. Each one is what he saw before the change.

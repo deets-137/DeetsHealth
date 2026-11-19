@@ -115,6 +115,14 @@ Nothing ships yet. The deploy is A2: a separate deploy per hospital in our cloud
 interface (VOICE-AGENT.md §7.2).
 
 ## Open now
+**Cartesia's voice list, checked live (2026-11-16, night): built, not committed** (CONSOLE.md
+§7.8; his fork A). His desk test, §7.8 (restart `npm run dev`). No real read of Cartesia's list
+has run: Claude's shell may not use the key. Signs the API's shape was guessed wrong: a count of
+exactly 100 (paging stopped), or every shortlist name greyed (the English filter). Seven of the
+nine shortlist names match by name until their ids are pinned in `config.RECOMMENDED_VOICES`.
+Next: his words for the Voice list row's help (`HELP.voiceCheck`, a draft); Listen's fork
+(§7.6).
+
 **The calls of 2026-11-15, 22:30 to 22:38: fixes built 2026-11-16, not committed** (WORKLOG of
 that day). **His step first:** choose a new voice on Config › Cartesia: the active version names
 "Emma", whom Cartesia no longer has, so a voice call now refuses to start. Fixed: the voice check

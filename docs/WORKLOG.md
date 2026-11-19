@@ -24,6 +24,22 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   `tmp`.
 - Not verified: no dev server or full check ran. Nothing committed.
 
+## 2026-11-16 (Windows, night) — Cartesia's voice list, checked live
+- His questions: "can you check our list of cartesia voices available? Can we get a more
+  accurate list via Cartesia's api?", then "Can we wire in the official route to keep the list
+  accurate?"
+- Found: the Voice menu was `config.RECOMMENDED_VOICES`, copied by hand from Cartesia's guide
+  (9 names, 2 ids). Cartesia's List Voices gives every voice and its id, with no credits, but
+  has no "recommended for agents" mark.
+- His fork A: the shortlist checked live, plus every English voice in a table to search.
+- Built: `agent/deets_agent/voice_catalog.py` and `GET /agent/cartesia/voices` (held 10 min,
+  Refresh); the store `cartesiaVoices`; on Config › Cartesia the menu checked against the list,
+  More voices… and its table, the Voice list row; the voice saved by id and checked by the dev
+  server (`resolve_voice`). CONSOLE.md §7.8 (with the desk test and what was decided inside his
+  choice), DEV-API.md §2, CARTESIA.md §3.
+- Not verified: no real read of Cartesia's list ran. Claude's shell was refused the key in
+  `.env`; the answer's shape is from Cartesia's docs. Nothing committed.
+
 ## 2026-11-16 (Windows, late) — booking steps 2, 4 and 5 built
 - His word: "Let's finish building out the booking rules / steps." Every fork was closed in
   BOOKING-RULES.md, so the build went step by step with no new fork; what was decided inside
