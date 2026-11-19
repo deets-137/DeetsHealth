@@ -161,8 +161,9 @@ Plain columns hold no protected data; sealed columns are bytes under `seal.rs`.
 - **Running it:** `ehr ingest [--calls DIR]` (`ehr/src/main.rs`). `npm run db:ingest` files
   the records by hand; `npm run dev` files them at each start, after it builds `ehr`.
   `npm run db:test` runs `ehr/tests/store.rs` against the dev cluster in a database of its own,
-  dropped after, built in `target/store-test` so a running dev server never blocks it.
-  `DEETS_EHR_BIN` points `db:ingest` at another build for the same reason.
+  dropped after, built in `target/debug` like every build (CLAUDE.md › Conventions). A running
+  dev server does not block it: it runs a copy of ehr from `target/run/` (`DEETS_EHR_BIN`).
+  `DEETS_EHR_BIN` also points `db:ingest` at another build.
 - **First run, 2026-11-12 (Postgres 18.7 on the PC):** 128 calls, 1,505 transcript lines,
   4,664 events, 25 staff flags and 46 annotation lines filed in 3.4 s; a second run filed none.
 - **The live path (built 2026-11-12):** when a call ends, the agent streams its record to `ehr`

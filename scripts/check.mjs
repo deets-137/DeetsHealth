@@ -17,7 +17,7 @@
 // The output of a passing step is not shown. The dev records in agent/calls/ hold synthetic
 // data only, and no step prints a value from a record (CLAUDE.md › Privacy rules).
 import { spawnSync, execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,9 +26,12 @@ import { ensureProtoc } from "./protoc.mjs";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const AGENT = join(ROOT, "agent");
 const WORKER = join(ROOT, "ehr", "jwks-worker");
-// The ehr that the agent's tests run: its own build, apart from the dev server's (see `agent`).
-const CHECK_TARGET = join(ROOT, "target", "check");
-const CHECK_EHR = join(CHECK_TARGET, "debug", `deetshealth-ehr${process.platform === "win32" ? ".exe" : ""}`);
+// The ehr that the agent's tests run: target/debug's. The dev server runs a copy in target/run,
+// so nothing locks this one (CLAUDE.md › Conventions: one Rust build folder).
+const TARGET = join(ROOT, "target");
+const CHECK_EHR = join(TARGET, "debug", `deetshealth-ehr${process.platform === "win32" ? ".exe" : ""}`);
+// The folders cargo and the dev server make in target/. Any other is a side build of 4-16 GB.
+const TARGET_KEEP = new Set(["debug", "run", "tmp", "doc", "wasm32-unknown-unknown"]);
 const TTY = Boolean(process.stdout.isTTY);
 
 // Each scope: what it checks, the files that make it run, and its steps.
@@ -76,9 +79,8 @@ const SCOPES = {
 		match: [/^agent\/(?!calls\/)/], // agent/calls/ holds dev call records, not code
 		needs: ["ehr"],
 		steps: [
-			// Its own target folder: a running dev server holds target/debug's ehr, and Windows
-			// will not replace a running .exe (2026-11-12). The tests run this build.
-			["ehr build for the agent", "cargo", ["build", "-q", "-p", "deetshealth-ehr", "--target-dir", CHECK_TARGET]],
+			// The tests run this build (CHECK_EHR).
+			["ehr build for the agent", "cargo", ["build", "-q", "-p", "deetshealth-ehr"]],
 			["agent proto code", "uv", ["run", "python", "scripts/gen_proto.py"], AGENT],
 			["agent lint", "uv", ["run", "ruff", "check", "."], AGENT],
 			["agent tests", "uv", ["run", "pytest", "-q"], AGENT, { DEETS_EHR_BIN: CHECK_EHR }],
@@ -181,6 +183,17 @@ console.log(baseInfo ? `check: changes since ${baseInfo.ref}${flag("--no-worktre
 for (const s of order) console.log(`  ${s.padEnd(6)} ${SCOPES[s].about} — ${reasons.get(s)}`);
 const skipped = Object.keys(SCOPES).filter((s) => !reasons.has(s));
 if (skipped.length) console.log(`  skipped: ${skipped.join(", ")} (no changes there; --all runs them)`);
+// Side build folders (the owner, 2026-11-16): each is a full Rust build, and ten of them filled
+// C: three times. Name them; deleting is the person's call.
+const stray = existsSync(TARGET)
+	? readdirSync(TARGET, { withFileTypes: true }).filter((d) => d.isDirectory() && !TARGET_KEEP.has(d.name)).map((d) => d.name)
+	: [];
+if (stray.length) {
+	console.log(
+		`  WARNING: side build folder${stray.length > 1 ? "s" : ""} in target/: ${stray.join(", ")}. ` +
+			"Each is a full Rust build (4-16 GB). Delete it when no program runs from it (CLAUDE.md › Conventions).",
+	);
+}
 if (flag("--list")) process.exit(0);
 
 // --- preconditions ---

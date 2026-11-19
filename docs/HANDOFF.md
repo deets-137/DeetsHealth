@@ -581,9 +581,9 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   - **A missing recording fails at once** (`CallFailed: ReplayMiss`). Before 2026-11-12 it
     left the call's pipeline running, and pytest hung at the end of the run. `TypedCall.hang_up`
     now cancels a failed call, and `test_typed_call.run` hangs up in `finally`.
-  - **The check builds its own ehr** in `target/check` (2026-11-12): a running dev server holds
-    `target/debug/deetshealth-ehr.exe`, and Windows will not replace a running .exe. The first
-    check after a clean takes a few minutes to build it.
+  - **The check builds ehr in `target/debug`**, like every build (2026-11-16). `npm run dev`
+    runs a copy from `target/run/`, so a running dev server does not lock it. The first check
+    after a clean takes a few minutes to build it.
 - **Size each check to the change** (the owner, 2026-11-13: "feels like a small change since the
   last test"). While working:
   - a console CSS or page tweak: `npx tsc -p console --noEmit` only;
@@ -595,11 +595,15 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   The full `npm run check` runs once: before a commit or push, or at the end of a round that
   touched the proto, the store schema or more than one side. Not after each small fix in a
   feedback loop.
-- **Windows only: `npm run dev` locks `target/debug/deetshealth-ehr.exe`,** so the full check (its
-  `ehr` tests) and the pre-push hook fail with "Access is denied (os error 5)". Ask the owner to
-  stop the dev server, then run the check. Never build in another `CARGO_TARGET_DIR` to get
-  around it, and never start or stop his dev server unless he says so. macOS does not lock a
-  running program, so this does not happen there.
+- **One Rust build folder: `target/`** (CLAUDE.md › Conventions; the owner, 2026-11-16). Windows
+  locks a running .exe, so `npm run dev` copies `target/debug/deetshealth-ehr.exe` to
+  `target/run/` and runs the copy (`DEETS_EHR_BIN`). Builds and checks then write
+  `target/debug` while the dev server runs. Before this, the check, `db:test` and many sessions
+  built into side folders (`target/check`, `target/store-test`, `target/probe`, a scratchpad),
+  4–16 GB each; they filled C: three times. If a build still fails with "Access is denied
+  (os error 5)", an old ehr from before this change runs from `target/debug`: ask the owner to
+  stop it. Never build in another `CARGO_TARGET_DIR` to get around it, and never start or stop
+  his dev server unless he says so. `npm run check` warns about any side folder in `target/`.
 - **Casey Morgan never verifies, on purpose.** The fakes hold Casey Morgan and Casey Morgen on
   one date of birth, so no code goes out. Use Jordan Ellis, 1984-03-12, code `246810`.
 - **Several Deets* apps run at once on the owner's PC.** Never hard-code a dev port; Vite takes

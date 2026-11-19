@@ -215,12 +215,12 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       console.log(`[db] ${e.message}`);
       process.exit(1);
     }
-    // Its own target folder: a running dev server holds target/debug's ehr binary, which an
-    // integration test build would have to replace (Windows locks a running .exe).
+    // Into target/debug like every build: the dev server runs a copy of ehr from target/run, so
+    // nothing locks it (CLAUDE.md › Conventions: one Rust build folder).
     const t = spawnSync("cargo", ["test", "-p", "deetshealth-ehr", "--test", "store"], {
       cwd: root,
       stdio: "inherit",
-      env: { ...process.env, ...db.env, CARGO_TARGET_DIR: join(root, "target", "store-test") },
+      env: { ...process.env, ...db.env },
     });
     process.exit(t.status ?? 1);
   } else {

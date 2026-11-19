@@ -303,6 +303,15 @@ See HANDOFF.md › Run it. Nothing runs end to end yet; the checks do.
   calls the Rust service for every chart read, booking and write; it never opens the database
   (VOICE-AGENT.md §8.7).
 - Never hard-code a dev-server port. Vite takes the next free one from 1420.
+- **One Rust build folder: `target/`** (the owner, 2026-11-16). Every cargo command builds into
+  `target/` (`.cargo/config.toml`). Never pass `--target-dir`. Never set `CARGO_TARGET_DIR`.
+  Never build Rust in a scratchpad or a temp folder. Reason: each side folder is a full build of
+  4–16 GB. On 2026-11-16, ten of them filled C: (85 GB in six days, the third time).
+  - The dev server does not lock `target/debug`: it runs a copy of ehr from `target/run/`. If a
+    build still fails with "Access is denied (os error 5)", an old ehr is still running. Ask the
+    owner to stop it. Do not build around it.
+  - If you make another build folder anyway, delete it before your turn ends, and say so in the
+    hand-off. `npm run check` names any stray folder in `target/`.
 
 ## Repo
 The remote is `origin`: the **private** GitHub repo `deets-137/DeetsHealth` (since

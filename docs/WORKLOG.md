@@ -8,6 +8,22 @@ updated: 2026-11-16
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-16 (Windows, night) — one Rust build folder
+- The cause: C: fell to 5.8 GB free. `target/` held 85 GB six days after a clean, in about ten
+  side build folders of 4–16 GB each (the third time). The dev server's ehr locked
+  `target/debug`, so `npm run check` built into `target/check`, `npm run db:test` into
+  `target/store-test`, and sessions copied the pattern (`probe`, `check-alt`, `epic-check`,
+  `alt`, a scratchpad).
+- His word: "Yes, fix and rule."
+- Built: `npm run dev` copies ehr to `target/run/` and runs the copy (`DEETS_EHR_BIN`);
+  `check.mjs` and `postgres.mjs` build into `target/debug`; `npm run check` warns about any
+  other folder in `target/`. The rule is in CLAUDE.md › Conventions; HANDOFF.md and
+  DATABASE.md follow.
+- Desk test: run `npm run dev`, then `npm run check -- --all` in another terminal. The check
+  builds and passes with the dev server running, and `target/` holds only `debug`, `run` and
+  `tmp`.
+- Not verified: no dev server or full check ran. Nothing committed.
+
 ## 2026-11-16 (Windows, late) — booking steps 2, 4 and 5 built
 - His word: "Let's finish building out the booking rules / steps." Every fork was closed in
   BOOKING-RULES.md, so the build went step by step with no new fork; what was decided inside

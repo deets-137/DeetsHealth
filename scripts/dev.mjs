@@ -27,7 +27,7 @@
 // tunnel's credentials file; without them it stays off and says which is missing.
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { connect, createServer } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -276,6 +276,23 @@ if (built.status !== 0) {
   recordStart("ehr build failed");
   process.exit(1);
 }
+// Run a copy of ehr from target/run, never target/debug's own file: Windows locks a running .exe,
+// and a locked target/debug made sessions build into side folders of 4-16 GB each (the owner,
+// 2026-11-16; CLAUDE.md › Conventions). With the copy, every check builds into target/debug.
+const exe = `deetshealth-ehr${process.platform === "win32" ? ".exe" : ""}`;
+const ehrRun = join(root, "target", "run", exe);
+try {
+  mkdirSync(dirname(ehrRun), { recursive: true });
+  copyFileSync(join(root, "target", "debug", exe), ehrRun);
+} catch (e) {
+  console.error(
+    `[dev] ehr could not be copied to target/run (${e.code ?? e.message}). If the code is EBUSY or ` +
+      "EPERM, an older dev server or an ehr it left behind is still running: stop it (Task Manager › " +
+      "deetshealth-ehr.exe) and run npm run dev again.",
+  );
+  recordStart("ehr copy failed");
+  process.exit(1);
+}
 // File the call records into the store (DATABASE.md): idempotent, so only new or changed ones.
 if (!db.error) {
   const filed = await timed("ingest", () => ingest(db));
@@ -351,8 +368,8 @@ const agent = spawn(
   {
     cwd: join(root, "agent"),
     // DEETS_DATABASE_URL and the two key files (DATABASE.md §7.4): for ehr, the store's only writer (DATABASE.md
-    // §2), which the agent starts; unset without Postgres.
-    env: { ...process.env, DEETS_DEV_TOKEN: token, ...(db.env ?? {}) },
+    // §2), which the agent starts; unset without Postgres. DEETS_EHR_BIN: the copy in target/run.
+    env: { ...process.env, DEETS_DEV_TOKEN: token, DEETS_EHR_BIN: ehrRun, ...(db.env ?? {}) },
     stdio: ["ignore", "pipe", "inherit"],
   },
 );

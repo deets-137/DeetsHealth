@@ -52,8 +52,8 @@ def hospital_defaults() -> dict:
     """The hospital's Default version: ehr/fixtures/hospital.json, each list and number."""
     data = json.loads(HOSPITAL.read_text(encoding="utf-8"))
     return {k: data[k] for k in HOSPITAL_KEYS}
-# DEETS_EHR_BIN points at another build, for when a running dev server holds this one (Windows
-# locks a running .exe; scripts/postgres.mjs reads the same setting).
+# DEETS_EHR_BIN points at another copy of ehr: npm run dev sets it to target/run's copy, so a
+# running dev server never locks target/debug's (Windows locks a running .exe).
 EHR_BINARY = Path(os.environ["DEETS_EHR_BIN"]) if os.environ.get("DEETS_EHR_BIN") else (
     REPO / "target" / "debug" / ("deetshealth-ehr.exe" if os.name == "nt" else "deetshealth-ehr")
 )
