@@ -60,6 +60,11 @@ service Ehr {
   rpc AddAnnotation(Annotation) returns (AddAnnotationReply);
   // Every annotation of the synthetic class, oldest first, for the dev catalog.
   rpc ListAnnotations(ListAnnotationsRequest) returns (ListAnnotationsReply);
+  // Analytics › Logs (ANALYTICS.md §3.1; Analytics View): the calls of one class started in a
+  // range, newest first. Plain columns, names and numbers only; each turn's wait is worked out
+  // in ehr when the record is filed. FAILED_PRECONDITION without a store, or for the real class
+  // on an ehr with no real store.
+  rpc ListCalls(ListCallsRequest) returns (ListCallsReply);
   // The settings store (CONSOLE.md §7.3): versions of one service's settings, insert-only. Every
   // version holds every setting; each save is a new version and becomes the active one. No
   // field is protected data. FAILED_PRECONDITION when ehr runs without a store.
@@ -515,6 +520,65 @@ message ListAnnotationsRequest {}
 
 message ListAnnotationsReply {
   repeated Annotation annotations = 1;
+}
+
+message ListCallsRequest {
+  DataClass data_class = 1;
+  // The range, on the clock the records were written on (each record's `started` is local time):
+  // a date (2026-11-22) or a date-time (2026-11-22T14:30:00); empty for no bound. `until` is not
+  // included.
+  string since = 2;
+  string until = 3;
+  // At most this many, 1 to 5000.
+  int32 limit = 4;
+}
+
+message ListCallsReply {
+  repeated LoggedCall calls = 1;
+}
+
+// One call in Analytics › Logs (store.rs › LoggedCall).
+message LoggedCall {
+  string id = 1;
+  // The local start time, YYYY-MM-DDTHH:MM:SS; empty when the record has none.
+  string started = 2;
+  // `typed`, `test`, `kept` or `live`.
+  string origin = 3;
+  // `text` or `voice`; empty for a record before schema 7.
+  string seat = 4;
+  // `local` or `epic`; empty for a record before schema 6.
+  string ehr = 5;
+  string mode = 6;
+  string model = 7;
+  string prompt_version = 8;
+  string system_version = 9;
+  string hospital_version = 10;
+  string scenario = 11;
+  string outcome = 12;
+  // The end's reason, in the agent's fixed words.
+  string end_reason = 13;
+  // The Flow's steps, in the order the call reached them.
+  repeated string reached = 14;
+  int32 turns = 15;
+  double duration_ms = 16;
+  double cost_usd = 17;
+  // Each caller turn's wait, in ms (store.rs › turn_waits).
+  repeated double turn_waits_ms = 18;
+  // Each tool call's name, in order, and whether it failed.
+  repeated string tools = 19;
+  repeated bool tool_failed = 20;
+  // The kinds of staff flags (FLAGS.md §3) and the reasons of review flags (§8).
+  repeated string staff_flags = 21;
+  repeated string review_flags = 22;
+  // The current label, a person's own words: a synthetic call's only.
+  string label = 23 [(phi) = true];
+  // The current ratings' verdicts (the newest per grader and dimension).
+  int32 ratings_passed = 24;
+  int32 ratings_failed = 25;
+  // The requests to Claude answered live and from the replay cache: a call with replayed
+  // requests waited on the cache, so its waits are not a caller's.
+  int32 requests_live = 26;
+  int32 requests_replayed = 27;
 }
 
 // What a call's data is (DATABASE.md §7): a sandbox's or a simulated caller's, or a real

@@ -188,6 +188,110 @@ pub struct Summary {
     pub tokens_in: i64,
     pub tokens_out: i64,
     pub cost_usd: f64,
+    /// `text` or `voice` (schema 7).
+    pub seat: Option<String>,
+    /// `local` or `epic` (schema 6).
+    pub ehr: Option<String>,
+    /// Each caller turn's wait, in ms (migration 0013; `turn_waits`).
+    pub turn_waits_ms: Vec<f64>,
+    /// The requests to Claude answered live and from the replay cache (`call_end.requests`).
+    pub requests_live: i32,
+    pub requests_replayed: i32,
+}
+
+/// Each caller turn's wait, in order (ANALYTICS.md §3.1, CHAT.md §18): from the turn's start to
+/// the moment the caller hears the answer. The start is Ink's `last_words_ms` (a voice turn,
+/// schema 15) or the caller line's time; a caller line less than 1 s from Ink's final line is
+/// the same turn. The end is the seat speaking when the record has those events, else the
+/// agent's first frame (`first_ms`, schema 4), else the agent line's time. A turn the agent
+/// never answered has no wait. Times only.
+pub fn turn_waits(events: &[Value]) -> Vec<f64> {
+    let num = |e: &Value, k: &str| e.get(k).and_then(Value::as_f64);
+    let stage = |e: &Value| e.get("stage").and_then(Value::as_str).map(str::to_owned);
+    let kind = |e: &Value| e.get("kind").and_then(Value::as_str).unwrap_or("").to_owned();
+    let speaks = events.iter().any(|e| kind(e) == "voice" && stage(e).as_deref() == Some("speaking"));
+    let mut out = Vec::new();
+    // The open turn's start, and when its caller line or Ink's final line came.
+    let mut start: Option<f64> = None;
+    let mut line_at: Option<f64> = None;
+    let mut heard_at: Option<f64> = None;
+    for e in events {
+        let t = num(e, "t_ms").unwrap_or(0.0);
+        match (kind(e).as_str(), stage(e).as_deref()) {
+            ("voice", Some("heard")) => {
+                let from = num(e, "last_words_ms").unwrap_or(t);
+                if start.is_some() && line_at.is_some_and(|l| t - l < 1000.0) && heard_at.is_none() {
+                    start = start.map(|s| s.min(from));
+                } else {
+                    start = Some(from);
+                    line_at = None;
+                }
+                heard_at = Some(t);
+            }
+            ("caller", _) => {
+                if !(start.is_some() && heard_at.is_some_and(|h| t - h < 1000.0) && line_at.is_none()) {
+                    start = Some(t);
+                    heard_at = None;
+                }
+                line_at = Some(t);
+            }
+            ("voice", Some("speaking")) if speaks => {
+                if let Some(s) = start.take() {
+                    out.push((t - s).max(0.0));
+                }
+                line_at = None;
+                heard_at = None;
+            }
+            ("agent", _) if !speaks => {
+                // An agent line whose first frame came before this turn began is the turn
+                // before's, stamped late (the harness's turn grace): it closes nothing.
+                let at = num(e, "first_ms").unwrap_or(t);
+                if start.is_some_and(|s| at < s) {
+                    continue;
+                }
+                if let Some(s) = start.take() {
+                    out.push(at - s);
+                }
+                line_at = None;
+                heard_at = None;
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// One call as Analytics › Logs lists it (`ClassStore::list_calls`): plain columns and names.
+#[derive(Debug, Clone, Default)]
+pub struct LoggedCall {
+    pub id: String,
+    pub started: String,
+    pub origin: String,
+    pub seat: Option<String>,
+    pub ehr: Option<String>,
+    pub mode: Option<String>,
+    pub model: Option<String>,
+    pub prompt_version: Option<String>,
+    pub system_version: Option<String>,
+    pub hospital_version: Option<String>,
+    pub scenario: Option<String>,
+    pub outcome: String,
+    pub end_reason: Option<String>,
+    pub reached: Vec<String>,
+    pub turns: i32,
+    pub duration_ms: f64,
+    pub cost_usd: f64,
+    pub turn_waits_ms: Vec<f64>,
+    pub requests_live: i32,
+    pub requests_replayed: i32,
+    pub tools: Vec<String>,
+    pub tool_failed: Vec<bool>,
+    pub staff_flags: Vec<String>,
+    pub review_flags: Vec<String>,
+    /// A synthetic call's current label; none for a real call.
+    pub label: Option<String>,
+    pub ratings_passed: i32,
+    pub ratings_failed: i32,
 }
 
 fn text(v: &Value, key: &str) -> Option<String> {
@@ -214,6 +318,8 @@ pub fn summarize(events: &[Value]) -> Summary {
                 s.prompt_version = text(e, "prompt_version");
                 s.system_version = text(e, "system_version");
                 s.scenario = text(e, "scenario");
+                s.seat = text(e, "seat");
+                s.ehr = text(e, "ehr");
             }
             // The hospital version the call opened with (schema 13): known only once ehr
             // answers OpenCall, so its own event.
@@ -248,6 +354,11 @@ pub fn summarize(events: &[Value]) -> Summary {
                     s.tokens_out = t.get("output_tokens").and_then(Value::as_i64).unwrap_or(0);
                 }
                 s.cost_usd = e.get("cost_usd").and_then(Value::as_f64).unwrap_or(0.0);
+                if let Some(r) = e.get("requests") {
+                    let n = |k: &str| r.get(k).and_then(Value::as_i64).unwrap_or(0) as i32;
+                    s.requests_live = n("live");
+                    s.requests_replayed = n("replayed");
+                }
             }
             _ => {}
         }
@@ -265,6 +376,7 @@ pub fn summarize(events: &[Value]) -> Summary {
     } else {
         "abandoned"
     };
+    s.turn_waits_ms = turn_waits(events);
     s
 }
 
@@ -773,9 +885,12 @@ impl ClassStore {
         let mut tx = self.pool.begin().await.map_err(|e| db("begin", e))?;
         sqlx::query(
             "INSERT INTO calls (id, schema_version, started, origin, data_class, mode, model, prompt_version, system_version, hospital_version, scenario, outcome, end_reason,
-                reached, turns, tool_calls, duration_ms, tokens_in, tokens_out, cost_usd, record_sha256)
-             VALUES ($1, $2, $3::timestamp, $4, $21, $5, $6, $18, $19, $20, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                reached, turns, tool_calls, duration_ms, tokens_in, tokens_out, cost_usd, record_sha256, seat, ehr, turn_waits_ms,
+                requests_live, requests_replayed)
+             VALUES ($1, $2, $3::timestamp, $4, $21, $5, $6, $18, $19, $20, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $22, $23, $24, $25, $26)
              ON CONFLICT (id) DO UPDATE SET schema_version = EXCLUDED.schema_version, started = EXCLUDED.started,
+                seat = EXCLUDED.seat, ehr = EXCLUDED.ehr, turn_waits_ms = EXCLUDED.turn_waits_ms,
+                requests_live = EXCLUDED.requests_live, requests_replayed = EXCLUDED.requests_replayed,
                 origin = EXCLUDED.origin, mode = EXCLUDED.mode, model = EXCLUDED.model, prompt_version = EXCLUDED.prompt_version, system_version = EXCLUDED.system_version, hospital_version = EXCLUDED.hospital_version, scenario = EXCLUDED.scenario,
                 outcome = EXCLUDED.outcome, end_reason = EXCLUDED.end_reason, reached = EXCLUDED.reached,
                 turns = EXCLUDED.turns, tool_calls = EXCLUDED.tool_calls, duration_ms = EXCLUDED.duration_ms,
@@ -803,6 +918,11 @@ impl ClassStore {
         .bind(&s.system_version)
         .bind(&s.hospital_version)
         .bind(&s.data_class)
+        .bind(&s.seat)
+        .bind(&s.ehr)
+        .bind(&s.turn_waits_ms)
+        .bind(s.requests_live)
+        .bind(s.requests_replayed)
         .execute(&mut *tx)
         .await
         .map_err(|e| db("file a call", e))?;
@@ -1002,6 +1122,117 @@ impl ClassStore {
         Ok(out)
     }
 
+    /// Analytics › Logs (ANALYTICS.md §3.1): the calls started in [`since`, `until`) (each a
+    /// local date-time or a date; empty for no bound), newest first, at most `limit`. Plain
+    /// columns and fixed words only, never a word of the call: the tools and flags are names, the
+    /// waits are numbers. The label is a person's own words; it is given for a synthetic call
+    /// only (a real call's label is read under PHI, not here).
+    pub async fn list_calls(&self, since: &str, until: &str, limit: i64) -> Result<Vec<LoggedCall>, String> {
+        let rows = sqlx::query(
+            "SELECT c.id, COALESCE(to_char(c.started, 'YYYY-MM-DD\"T\"HH24:MI:SS'), '') AS started_text, c.origin, c.seat, c.ehr,
+                c.mode, c.model, c.prompt_version, c.system_version, c.hospital_version, c.scenario, c.outcome, c.end_reason,
+                c.reached, c.turns, c.duration_ms, c.cost_usd, c.turn_waits_ms, c.requests_live, c.requests_replayed,
+                COALESCE((SELECT array_agg(t.tool ORDER BY t.seq) FROM tool_calls t WHERE t.call_id = c.id), '{}') AS tools,
+                COALESCE((SELECT array_agg(t.failed ORDER BY t.seq) FROM tool_calls t WHERE t.call_id = c.id), '{}') AS tool_failed,
+                COALESCE((SELECT array_agg(f.kind ORDER BY f.seq) FROM staff_flags f WHERE f.call_id = c.id), '{}') AS staff_flags,
+                COALESCE((SELECT array_agg(r.reason ORDER BY r.seq) FROM review_flags r WHERE r.call_id = c.id), '{}') AS review_flags
+             FROM calls c
+             WHERE ($1 = '' OR c.started >= $1::timestamp) AND ($2 = '' OR c.started < $2::timestamp)
+             ORDER BY c.started DESC NULLS LAST, c.id DESC
+             LIMIT $3",
+        )
+        .bind(since)
+        .bind(until)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| db("list the calls", e))?;
+
+        // The current label (the newest line wins, DATABASE.md §9) and the current ratings (the
+        // newest per grader and dimension), for the calls listed.
+        let ids: Vec<String> = rows.iter().map(|r| r.get::<String, _>("id")).collect();
+        let mut labels: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        if self.class == DataClass::Synthetic && !ids.is_empty() {
+            let found = sqlx::query(
+                "SELECT DISTINCT ON (call_id) call_id, line_sha256, words FROM annotations
+                 WHERE kind = 'label' AND call_id = ANY($1)
+                 ORDER BY call_id, at DESC NULLS LAST, line_sha256 DESC",
+            )
+            .bind(&ids)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| db("read the labels", e))?;
+            for r in found {
+                let words: Option<Vec<u8>> = r.get("words");
+                if let Some(w) = words {
+                    let sha: String = r.get("line_sha256");
+                    let text = self.open("annotations", &sha, "words", &w)?;
+                    if !text.trim().is_empty() {
+                        labels.insert(r.get("call_id"), text.to_string());
+                    }
+                }
+            }
+        }
+        let mut verdicts: std::collections::HashMap<String, (i32, i32)> = std::collections::HashMap::new();
+        if !ids.is_empty() {
+            let found = sqlx::query(
+                "SELECT DISTINCT ON (call_id, grader, dimension) call_id, verdict FROM annotations
+                 WHERE kind = 'rating' AND call_id = ANY($1)
+                 ORDER BY call_id, grader, dimension, at DESC NULLS LAST, line_sha256 DESC",
+            )
+            .bind(&ids)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| db("read the ratings", e))?;
+            for r in found {
+                let verdict: Option<String> = r.get("verdict");
+                let n = verdicts.entry(r.get("call_id")).or_default();
+                match verdict.as_deref() {
+                    Some("pass") => n.0 += 1,
+                    Some("fail") => n.1 += 1,
+                    _ => {}
+                }
+            }
+        }
+
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                let id: String = r.get("id");
+                let (passed, failed) = verdicts.get(&id).copied().unwrap_or((0, 0));
+                LoggedCall {
+                    label: labels.remove(&id),
+                    ratings_passed: passed,
+                    ratings_failed: failed,
+                    started: r.get("started_text"),
+                    origin: r.get("origin"),
+                    seat: r.get("seat"),
+                    ehr: r.get("ehr"),
+                    mode: r.get("mode"),
+                    model: r.get("model"),
+                    prompt_version: r.get("prompt_version"),
+                    system_version: r.get("system_version"),
+                    hospital_version: r.get("hospital_version"),
+                    scenario: r.get("scenario"),
+                    outcome: r.get("outcome"),
+                    end_reason: r.get("end_reason"),
+                    reached: r.get("reached"),
+                    turns: r.get("turns"),
+                    duration_ms: r.get("duration_ms"),
+                    cost_usd: r.get("cost_usd"),
+                    turn_waits_ms: r.get("turn_waits_ms"),
+                    requests_live: r.get("requests_live"),
+                    requests_replayed: r.get("requests_replayed"),
+                    tools: r.get("tools"),
+                    tool_failed: r.get("tool_failed"),
+                    staff_flags: r.get("staff_flags"),
+                    review_flags: r.get("review_flags"),
+                    id,
+                }
+            })
+            .collect())
+    }
+
     /// File one run of the kept scripts (DATABASE.md §8), decide which draws' records the store
     /// needs (option C, §8.2), and run the kept-record retention (§8.6). Synthetic only.
     pub async fn file_test_run(&self, run: &TestRun) -> Result<FiledRun, String> {
@@ -1143,6 +1374,46 @@ impl ClassStore {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn each_turns_wait_runs_from_its_start_to_the_answer() {
+        // A typed call: from the caller's line to the agent's first frame; the greeting is no turn.
+        let typed = vec![
+            json!({"t_ms": 0, "kind": "call_start", "seat": "text", "ehr": "local"}),
+            json!({"t_ms": 900, "kind": "agent", "first_ms": 400}),
+            json!({"t_ms": 1000, "kind": "caller", "text": "hi"}),
+            json!({"t_ms": 2500, "kind": "agent", "first_ms": 1700}),
+            json!({"t_ms": 3000, "kind": "caller", "text": "no answer"}),
+        ];
+        assert_eq!(turn_waits(&typed), vec![700.0]);
+        // A late agent line whose first frame came before the next caller line closes nothing.
+        let late = vec![
+            json!({"t_ms": 1000, "kind": "caller", "text": "a"}),
+            json!({"t_ms": 1500, "kind": "caller", "text": "b"}),
+            json!({"t_ms": 1600, "kind": "agent", "first_ms": 1400}),
+            json!({"t_ms": 2600, "kind": "agent", "first_ms": 2100}),
+        ];
+        assert_eq!(turn_waits(&late), vec![600.0]);
+        let s = summarize(&typed);
+        assert_eq!((s.seat.as_deref(), s.ehr.as_deref()), (Some("text"), Some("local")));
+
+        // A voice call: from the caller's silence to the seat speaking, in either order of Ink's
+        // final line and the caller event; a typed line in it starts at the line.
+        let voice = vec![
+            json!({"t_ms": 0, "kind": "call_start", "seat": "voice"}),
+            json!({"t_ms": 500, "kind": "voice", "stage": "speaking"}),
+            json!({"t_ms": 2000, "kind": "voice", "stage": "heard", "last_words_ms": 1600}),
+            json!({"t_ms": 2005, "kind": "caller", "text": "a"}),
+            json!({"t_ms": 2400, "kind": "agent", "first_ms": 2300}),
+            json!({"t_ms": 2600, "kind": "voice", "stage": "speaking"}),
+            json!({"t_ms": 5000, "kind": "caller", "text": "b"}),
+            json!({"t_ms": 5004, "kind": "voice", "stage": "heard", "last_words_ms": 4700}),
+            json!({"t_ms": 5900, "kind": "voice", "stage": "speaking"}),
+            json!({"t_ms": 8000, "kind": "caller", "text": "typed"}),
+            json!({"t_ms": 8450, "kind": "voice", "stage": "speaking"}),
+        ];
+        assert_eq!(turn_waits(&voice), vec![1000.0, 1200.0, 450.0]);
+    }
 
     #[test]
     fn the_outcome_is_the_real_end_state() {

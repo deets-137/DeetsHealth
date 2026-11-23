@@ -88,6 +88,7 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `FileTestRun` | `file_test_run` | `file_test_run` |
 | `AddAnnotation` | `add_annotation` | `add_annotation` |
 | `ListAnnotations` | `list_annotations` | `list_annotations` |
+| `ListCalls` | `list_calls` | `list_calls` |
 | `ListSettingVersions` | `list_setting_versions` | `list_setting_versions` |
 | `GetSettings` | `get_settings` | `get_settings` |
 | `SaveSettings` | `save_settings` | `save_settings` |
@@ -121,7 +122,8 @@ actor`) and never takes levels from the agent. The needs:
   Roles). With a person: View to read, Edit to save. With none: the agent itself (a call reading
   its settings, the prompt file synced, a Default seed), allowed and audited as the system.
 - **Person** (`Levels`, `LogAccess`): any person on the list.
-- **A lever and level** for the rest (Testing, People, Roles, Audit logs, Rules).
+- **A lever and level** for the rest (Testing, People, Roles, Audit logs, Rules, Analytics:
+  `ListCalls` at Analytics View, ANALYTICS.md §3.1).
 
 A refusal is `PERMISSION_DENIED` with fixed words ("needs people view", or the rule's line) and
 an audit row. The roles list itself is the settings service `roles` (`Get`/`SaveSettings`), not

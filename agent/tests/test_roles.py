@@ -79,6 +79,10 @@ class RolesEhr:
     async def list_setting_versions(self, service):
         self.asked.append(("ListSettingVersions", ACTOR.get()))
 
+    async def list_calls(self, since="", until="", limit=2000):
+        self.asked.append((f"ListCalls {since}|{until}|{limit}", ACTOR.get()))
+        return [{"id": "test_20261122-164539", "outcome": "booked", "turn_waits_ms": [700.0]}]
+
     async def log_access(self, lever, level, action, kind="", object_id="", data_class=""):
         self.asked.append((f"LogAccess {action}", ACTOR.get()))
         self.looks.append((lever, level, action, kind, object_id))
@@ -134,6 +138,28 @@ def test_the_wall_refuses_by_lever_and_level(tmp_path):
     assert "email" not in me
     # The owner, through the launch token, holds every lever.
     assert c.get("/agent/me", headers=OWNER_HEADERS).json()["levels"] == {lv: "edit" for lv in LEVERS}
+
+
+def test_logs_list_the_calls_under_analytics_view(tmp_path):
+    """Analytics › Logs (ANALYTICS.md §3.1): the analyst's Analytics View reads the list; the
+    range goes to ehr as given, with the person; a bad limit never reaches ehr."""
+    state, c = make(tmp_path)
+    from datetime import date, timedelta
+
+    r = c.get("/agent/logs?days=7&limit=50", headers=ANALYST)
+    assert r.status_code == 200
+    call = {"id": "test_20261122-164539", "outcome": "booked", "turn_waits_ms": [700.0], "record": False}
+    assert r.json() == {"calls": [call], "class": "synthetic", "limit": 50}
+    since = (date.today() - timedelta(days=7)).isoformat()
+    assert (f"ListCalls {since}||50", ANALYST_ID) in state.ehr.asked  # type: ignore[union-attr]
+    c.get("/agent/logs", headers=ANALYST)
+    assert ("ListCalls ||2000", ANALYST_ID) in state.ehr.asked  # type: ignore[union-attr]
+    assert c.get("/agent/logs?limit=0", headers=ANALYST).status_code == 400
+    assert c.get("/agent/logs?days=-1", headers=ANALYST).status_code == 400
+    # Without Analytics View (a fresh server: levels are kept for a while), the wall refuses.
+    other_state, other = make(tmp_path / "other")
+    other_state.ehr.analyst = {"testing": "edit"}  # type: ignore[union-attr]
+    assert other.get("/agent/logs", headers=ANALYST).status_code == 403
 
 
 def test_someone_not_on_the_list_gets_nothing(tmp_path):

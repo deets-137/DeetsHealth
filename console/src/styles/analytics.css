@@ -1,0 +1,105 @@
+/* Analytics' views (docs/architecture/ANALYTICS.md): the filter bar shared by every view
+   (pages/analytics-filter.ts) and Logs (pages/logs.ts, §3.1). Every value is a token. */
+
+/* ------------------------------------------------------------- the filter bar */
+
+/* One line of controls that wraps when the panel is narrow; the search box takes the rest of
+   the line. The data class comes first. */
+.an-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.an-select {
+  flex: none;
+  width: auto;
+  height: var(--control-height);
+}
+
+/* The data class: the accent's edge, so the class is never missed. */
+.an-class {
+  border-color: var(--accent);
+}
+
+/* A filter that is on or off: one tab in its frame, the accent when on. */
+.an-toggle .tab[aria-pressed="true"],
+.an-toggle .tab[aria-pressed="true"]:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.an-search {
+  flex: 1 1 var(--search-width);
+}
+
+/* ------------------------------------------------------------- Logs */
+
+/* The count line at the right of the title: counts only. */
+.lg-count {
+  margin-left: auto;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A row opens its panel on a click anywhere on it. */
+.lg-table .dt-row {
+  cursor: pointer;
+}
+
+/* The hover wash only where a pointer hovers (MOBILE-UI.md §2): a tap leaves none behind. */
+@media (hover: hover) {
+  .lg-table .dt-row:hover td {
+    background: var(--hover);
+  }
+}
+
+/* A slowest turn over the target. */
+.lg-over {
+  color: var(--error);
+}
+
+/* The panel: each turn's wait as a bar, as tall as its share of the slowest (or the target),
+   with a thin line across at the target. */
+.lg-strip {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  height: var(--wait-strip);
+  vertical-align: middle;
+}
+
+.lg-strip.is-empty {
+  height: auto;
+  color: var(--text-3);
+}
+
+.lg-bar {
+  width: var(--space-3);
+  min-height: var(--edge);
+  border-radius: var(--radius-small) var(--radius-small) 0 0;
+  background: var(--accent);
+}
+
+.lg-bar.is-over {
+  background: var(--error);
+}
+
+.lg-target {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--edge);
+  background: var(--text-3);
+}
+
+.lg-open {
+  display: inline-flex;
+  margin-top: var(--space-2);
+}

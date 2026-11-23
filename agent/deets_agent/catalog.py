@@ -388,6 +388,11 @@ class Catalog:
             ratings.setdefault(r["call_id"], []).append(_rating(r))
         return [_call(r, ratings.get(r["id"], [])) for r in rows]
 
+    def ids(self) -> set[str]:
+        """Every call id in the catalog: the calls whose record Demo can play (`events`)."""
+        assert self.db is not None
+        return {row[0] for row in self.db.execute("SELECT id FROM calls")}
+
     def events(self, call_id: str) -> list[dict[str, Any]] | None:
         """A record's events, or None. The id must name a record in the catalog, so it can never
         reach outside the folder."""

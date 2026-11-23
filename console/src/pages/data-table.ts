@@ -15,7 +15,7 @@ import { flushWindows, revealItem } from "./list-window";
 import { el } from "./page";
 
 /** A column's kind: its width (TABLES.md §3.1). `text` shares what the others leave. */
-export type Kind = "text" | "id" | "short" | "choice" | "flag";
+export type Kind = "text" | "id" | "short" | "choice" | "flag" | "num";
 export type Column = { head: string; kind?: Kind };
 
 const WIDTH: Record<Exclude<Kind, "text">, string> = {
@@ -23,6 +23,7 @@ const WIDTH: Record<Exclude<Kind, "text">, string> = {
   short: "var(--col-short)",
   choice: "var(--col-choice)",
   flag: "var(--col-flag)",
+  num: "var(--col-num)",
 };
 
 /** Which tools a table's rows carry; `wide` holds Auth's "Confirm?". No tools: no column. */

@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: closed 2026-11-22
-sources: [scripts/postgres.mjs, scripts/dev.mjs, agent/deets_agent/catalog.py, ehr/src/store.rs, ehr/migrations/0010_data_classes.sql, ehr/migrations/0011_roles.sql, ehr/migrations/0012_audit.sql, ehr/src/access.rs, ehr/src/audit.rs, ehr/src/edge.rs, agent/tests/test_typed_call.py, agent/harness/typed_call.py, agent/deets_agent/call_record.py, ehr/src/seal_key.rs, core/src/seal.rs, ehr/src/service.rs, ehr/migrations/0001_calls.sql, ehr/migrations/0002_settings.sql, ehr/src/settings.rs, ehr/tests/store.rs, agent/deets_agent/ehr_client.py, agent/deets_agent/ehr_process.py, agent/deets_agent/dev_server.py]
+sources: [scripts/postgres.mjs, scripts/dev.mjs, agent/deets_agent/catalog.py, ehr/src/store.rs, ehr/migrations/0010_data_classes.sql, ehr/migrations/0011_roles.sql, ehr/migrations/0012_audit.sql, ehr/migrations/0013_call_waits.sql, ehr/src/access.rs, ehr/src/audit.rs, ehr/src/edge.rs, agent/tests/test_typed_call.py, agent/harness/typed_call.py, agent/deets_agent/call_record.py, ehr/src/seal_key.rs, core/src/seal.rs, ehr/src/service.rs, ehr/migrations/0001_calls.sql, ehr/migrations/0002_settings.sql, ehr/src/settings.rs, ehr/tests/store.rs, agent/deets_agent/ehr_client.py, agent/deets_agent/ehr_process.py, agent/deets_agent/dev_server.py]
 updated: 2026-11-18
 ---
 # The database — dev today, shaped for production
@@ -139,7 +139,10 @@ Plain columns hold no protected data; sealed columns are bytes under `seal.rs`.
   (`MIGRATOR`). `file_dir` files every record in a folder, then the annotations.
   `file_record` skips a record whose hash is filed, and files a changed one again, whole, in one
   transaction. `file_annotations` files each line once, by its hash. `summarize` works out the
-  plain columns (the outcome as the dev catalog does).
+  plain columns (the outcome as the dev catalog does); since migration 0013 (2026-11-22) also the
+  seat, the EHR and each caller turn's wait (`turn_waits`), for Analytics › Logs (ANALYTICS.md
+  §3.1). `list_calls` reads them back (ehr's `ListCalls`): plain columns, and a synthetic call's
+  label opened in ehr.
 - **Sealing:** `ehr/src/seal_key.rs`. `AwsLc` fills core's `Cipher` with AES-256-GCM from
   AWS-LC (its FIPS module under `--features fips`); core's `seal.rs` owns the format and binds
   each value to its table, row and column. The dev key is `.pg/seal.key`, made by

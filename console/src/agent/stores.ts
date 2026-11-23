@@ -30,6 +30,13 @@ export const promptSettings = keyed("settings.agent", (v: number) => api.promptS
  * holds the first-load wave. Refresh is a write whose answer is the new list. */
 export const cartesiaVoices = store("cartesia.voices", () => api.cartesiaVoices(), { leaves: true });
 
+/** Analytics › Logs (ANALYTICS.md §3.1), by the filter bar's range, a fixed word. The dev server
+ * counts the days on its own clock at each read, so "7d" stays the last seven days. */
+export type Range = "today" | "7d" | "30d" | "90d" | "all";
+export const RANGES: Range[] = ["today", "7d", "30d", "90d", "all"];
+const RANGE_DAYS: Record<Range, number | null> = { today: 0, "7d": 6, "30d": 29, "90d": 89, all: null };
+export const logs = keyed("logs", (r: Range) => api.logs(RANGE_DAYS[r]), { words: RANGES });
+
 /** Chat. */
 export const health = store("health", () => api.health());
 export const catalog = store("catalog", () => api.catalog());

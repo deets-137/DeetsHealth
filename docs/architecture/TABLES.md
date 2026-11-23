@@ -43,7 +43,7 @@ What the code did wrong:
 Each column names a kind; the table is `table-layout: fixed`, with the
 widths on `<col>` elements (a help row or a group row can come first). Kinds and their widths:
 `text` (shares what is left, at least `--col-min`), `id` (`--col-id`), `short` (`--col-short`:
-a time, a date, a count), `choice` (`--col-choice`), `flag` (`--col-flag`: Off | On). The "i"
+a time, a date, a count), `choice` (`--col-choice`), `flag` (`--col-flag`: Off | On), `num` (`--col-num`: a short word or number in a read-only list, Analytics › Logs; since 2026-11-22). The "i"
 and the tools have their own columns. Below the sum, the table scrolls sideways inside its box,
 never the page.
 

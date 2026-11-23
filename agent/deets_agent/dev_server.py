@@ -85,7 +85,7 @@ import time
 import xml.etree.ElementTree as ET
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -169,6 +169,7 @@ ROUTE_NEEDS: dict[tuple[str, str], tuple[str, str] | str | None] = {
     ("POST", "/agent/hospital/import-places"): ("rules", "edit"),
     ("GET", "/agent/resources"): ("analytics", "view"),
     ("GET", "/agent/latency"): ("analytics", "view"),
+    ("GET", "/agent/logs"): ("analytics", "view"),
     ("GET", "/agent/sandbox"): ("testing", "edit"),
     ("GET", "/agent/ice"): ("testing", "edit"),
     ("POST", "/agent/voice"): ("testing", "edit"),
@@ -1246,6 +1247,37 @@ def build_app(state: State) -> FastAPI:
         except EhrError as e:
             raise HTTPException(409 if e.kind is ErrorKind.NOT_ALLOWED_NOW else 502, "no audit trail without a store") from None
         return {"rows": rows}
+
+    @app.get("/agent/logs")
+    async def logs(days: int | None = None, limit: int = 2000):
+        """Analytics › Logs (ANALYTICS.md §3.1): the synthetic calls of the last `days` days
+        (0: today; none: all), newest first, through ehr's `ListCalls`: `{calls, class, limit}`.
+        The days are counted on this server's clock, the one the records' start times are
+        written on, so a viewer in another time zone sees the same list. Names and numbers, and
+        each call's own label; `record` on each call says whether Demo can play it (its record
+        file is here). 400 for days or a limit out of range; 409 without a store."""
+        if not 1 <= limit <= 5000:
+            raise HTTPException(400, "limit: 1 to 5000")
+        if days is not None and not 0 <= days <= 3650:
+            raise HTTPException(400, "days: 0 to 3650")
+        if state.ehr is None:
+            raise HTTPException(409, "ehr is not up yet")
+        since = "" if days is None else (date.today() - timedelta(days=days)).isoformat()
+        try:
+            calls = await state.ehr.list_calls(since, "", limit)
+        except EhrError as e:
+            if e.kind is ErrorKind.NOT_ALLOWED_NOW:
+                raise HTTPException(409, "no call list without a store") from None
+            if e.kind is ErrorKind.BAD_INPUT:
+                # ehr's reason names the field and its shape, never a value.
+                raise HTTPException(400, getattr(e, "detail", "") or "since and until: a date or a date-time") from None
+            if e.kind is ErrorKind.FORBIDDEN:
+                raise HTTPException(403, "Analytics View is needed") from None
+            raise HTTPException(502, "ehr could not list the calls") from None
+        playable = state.catalog.ids() if state.catalog.db is not None else set()
+        for c in calls:
+            c["record"] = c["id"] in playable
+        return {"calls": calls, "class": "synthetic", "limit": limit}
 
     @app.get("/agent/audit/verify")
     async def audit_verify():

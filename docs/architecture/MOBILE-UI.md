@@ -55,6 +55,7 @@ We never ask "is this a phone?". We ask three things the browser answers well.
 | Config › Hospital › Places: the facility cards wrap, one full-width column when the panel is narrower than a card; the drill-in and the Table view use the tables above | built 2026-11-15, not looked at on a phone | HOSPITAL-CONFIG.md §8.2 |
 | Chat › Timeline: each row's label and span on one line, its track under them at the full width, so the track keeps its room in a narrow rail | built 2026-11-22, not looked at on a phone | CHAT.md §18 |
 | Rules › Booking: the Booking rules table (the one table, as on Config › Hospital before) | built 2026-11-22, not looked at on a phone | BOOKING-RULES.md §5.5 |
+| Analytics › Logs: the filter bar wraps line by line; the table (16 columns) scrolls sideways in its box | built 2026-11-22, not looked at on a phone | ANALYTICS.md §3.1.1 |
 | Config, Rules, Teams, Analytics, Security, Audit Logs, Settings: their own narrow layouts | not looked at (Config's rows and Security › Auth have container queries at their own widths) | — |
 
 ## 5. Open

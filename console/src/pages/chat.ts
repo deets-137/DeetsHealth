@@ -40,6 +40,7 @@ import { placePill } from "./subnav";
 import { picker, type Picker } from "../picker";
 import { growHandle } from "./panel-grow";
 import { Timeline } from "./timeline";
+import { onOpenCall, takeCall } from "../open-call";
 import { may, onAccess } from "../access";
 import type { Level, Lever } from "../agent/api";
 
@@ -1116,6 +1117,20 @@ export function chatPage(): Page {
 
       markNav(false);
       showMode();
+
+      // Open in Chat (open-call.ts; ANALYTICS.md §3.1): a call asked for from Analytics › Logs
+      // is chosen in Demo and plays at once, with its Timeline, Tools and Review.
+      const openAsked = () => {
+        const id = takeCall();
+        if (!id) return;
+        goMode("demo");
+        chosen = id;
+        markChosen();
+        pickedCall();
+        void startDemo();
+      };
+      onOpenCall(openAsked);
+      openAsked();
       return page;
     },
   };
@@ -1626,7 +1641,7 @@ class StepLog {
 
 const CHECK = `<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
 
-function stepWord(name: string): string {
+export function stepWord(name: string): string {
   return STEP_WORDS[name] ?? name;
 }
 
@@ -2011,7 +2026,7 @@ function callTime(c: CallRow): string {
 }
 
 /** A call's outcome as a title: "handed_off" → "Handed off". */
-function outcomeWords(outcome: string): string {
+export function outcomeWords(outcome: string): string {
   const words = outcome.replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
 }

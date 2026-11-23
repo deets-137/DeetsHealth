@@ -1,5 +1,7 @@
-// Analytics (ANALYTICS.md): one panel with its own nav (subnav.ts). Every view is empty until
-// the owner designs it.
+// Analytics (ANALYTICS.md): one panel with its own nav (subnav.ts). Logs is built (§3.1); the
+// other views are empty until the owner designs them, in his order: Outcome and Cost, then Speed
+// and Flags, Home last.
+import { logsView } from "./logs";
 import type { Page } from "./page";
 import { blankView, subnavPage } from "./subnav";
 
@@ -14,7 +16,7 @@ export function analyticsPage(): Page {
       blankView("home", "Home"),
       blankView("outcome", "Outcome"),
       blankView("cost", "Cost"),
-      blankView("logs", "Logs"),
+      logsView(),
       blankView("speed", "Speed"),
       blankView("flags", "Flags"),
     ],

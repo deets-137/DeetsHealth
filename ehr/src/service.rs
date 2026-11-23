@@ -118,6 +118,7 @@ pub const RPC_LEVERS: &[(&str, Need)] = &[
     ("FileTestRun", Need::Lever(Lever::Testing, Level::Edit)),
     ("AddAnnotation", Need::Lever(Lever::Testing, Level::Edit)),
     ("ListAnnotations", Need::LeverOrSystem(Lever::Testing, Level::View)),
+    ("ListCalls", Need::Lever(Lever::Analytics, Level::View)),
     ("ListSettingVersions", Need::Settings(Level::View)),
     ("GetSettings", Need::Settings(Level::View)),
     ("SaveSettings", Need::Settings(Level::Edit)),
@@ -1180,6 +1181,33 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         Ok(Response::new(pb::ListAnnotationsReply { annotations: found.into_iter().map(edge::annotation_out).collect() }))
     }
 
+    async fn list_calls(&self, req: Request<pb::ListCallsRequest>) -> Result<Response<pb::ListCallsReply>, Status> {
+        let meta = req.metadata().clone();
+        let r = req.into_inner();
+        // Checked first, so a bad request is refused the same way with or without a store.
+        let class = match pb::DataClass::try_from(r.data_class) {
+            Ok(pb::DataClass::Synthetic) => store::DataClass::Synthetic,
+            Ok(pb::DataClass::Real) => store::DataClass::Real,
+            _ => return Err(Status::invalid_argument("data_class: synthetic or real")),
+        };
+        for (name, v) in [("since", &r.since), ("until", &r.until)] {
+            if !v.is_empty() && !local_time(v) {
+                return Err(Status::invalid_argument(format!("{name}: a date (YYYY-MM-DD) or a date-time (YYYY-MM-DDTHH:MM:SS)")));
+            }
+        }
+        if !(1..=5000).contains(&r.limit) {
+            return Err(Status::invalid_argument("limit: 1 to 5000"));
+        }
+        self.gate("ListCalls", &meta, None).await?;
+        let store = self.settings_store()?;
+        let store = store.class(class).ok_or_else(|| Status::failed_precondition("no real store on this ehr"))?;
+        let calls = store
+            .list_calls(&r.since, &r.until, i64::from(r.limit))
+            .await
+            .map_err(|_| Status::internal("the store could not list the calls"))?;
+        Ok(Response::new(pb::ListCallsReply { calls: calls.into_iter().map(edge::logged_call_out).collect() }))
+    }
+
     async fn list_setting_versions(
         &self,
         req: Request<pb::ListSettingVersionsRequest>,
@@ -1536,6 +1564,14 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
 
 /// The service a settings request names, with its list and table (settings.rs).
 /// The People list's errors (users.rs) as statuses: fixed words, never an email or a name.
+/// A local date (YYYY-MM-DD) or date-time (YYYY-MM-DDTHH:MM:SS), by shape: ListCalls' bounds.
+fn local_time(v: &str) -> bool {
+    let shape = |pattern: &str| {
+        v.len() == pattern.len() && v.chars().zip(pattern.chars()).all(|(c, p)| if p == 'd' { c.is_ascii_digit() } else { c == p })
+    };
+    shape("dddd-dd-dd") || shape("dddd-dd-ddTdd:dd:dd")
+}
+
 fn users_status(e: users::UsersError) -> Status {
     match e {
         users::UsersError::Bad(why) => Status::invalid_argument(why),
@@ -2336,6 +2372,8 @@ mod tests {
             // A kept-script draw's failure line and an annotation's words (DATABASE.md §8, §9).
             ("TestRunResult", "failure"),
             ("Annotation", "words"),
+            // Analytics › Logs: a synthetic call's label, a person's own words (ANALYTICS.md §3.1).
+            ("LoggedCall", "label"),
             ("OpenCallReply", "handle"),
             ("CloseCallRequest", "handle"),
             ("IdentifyRequest", "handle"),

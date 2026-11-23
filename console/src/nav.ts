@@ -7,6 +7,7 @@ import { picker, type Picker } from "./picker";
 import { anyAccess, known, may, onAccess, startAccess } from "./access";
 import { noRolePage } from "./pages/no-role";
 import { logLook } from "./agent/api";
+import { onOpenCall } from "./open-call";
 
 const LAST_PAGE = "deets.console.page";
 
@@ -135,6 +136,9 @@ export function initNav(allPages: Page[]) {
     next.focus();
     go(next.dataset.page!);
   });
+
+  // Open in Chat (open-call.ts): the Chat page takes the call once it shows.
+  onOpenCall(() => go("chat"));
 
   // A hidden tab pauses the visible page's work.
   document.addEventListener("visibilitychange", () => {

@@ -380,7 +380,7 @@ tenant first.
 | `POST /agent/prompt`, `POST /agent/system`, `POST /agent/prompt/estimate`, `POST /agent/prompt/record` | Agent Edit |
 | `GET /agent/cartesia`, `GET /agent/anthropic` | Vendors View |
 | `POST /agent/cartesia`, `POST /agent/anthropic` | Vendors Edit |
-| `GET /agent/resources`, `GET /agent/latency` | Analytics View |
+| `GET /agent/resources`, `GET /agent/latency`, `GET /agent/logs` (and its RPC `ListCalls`) | Analytics View |
 | `GET /agent/people`, `GET /agent/people/{id}/photo` | People View |
 | `POST`, `PATCH`, `DELETE /agent/people…`, the photo's `PUT` and `DELETE` | People Edit |
 | `GET /agent/roles` | Roles View |

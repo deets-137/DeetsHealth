@@ -599,6 +599,75 @@ async fn an_annotation_is_filed_once_and_read_back() {
     sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
 }
 
+/// Analytics › Logs (ListCalls; migration 0013): a filed call comes back with its plain columns,
+/// its turn waits, its tools, flags, label and ratings; the range and the limit hold.
+#[tokio::test]
+async fn the_call_list_holds_names_numbers_and_the_label() {
+    use deetshealth_ehr::store::Annotation;
+    use zeroize::Zeroizing;
+    let Ok(url) = std::env::var("DEETS_DATABASE_URL") else {
+        eprintln!("skipped: DEETS_DATABASE_URL is not set");
+        return;
+    };
+    let mut admin = PgConnection::connect(&url).await.unwrap();
+    let name = format!("deets_logs_test_{}", std::process::id());
+    sqlx::query(sql(format!("DROP DATABASE IF EXISTS {name}"))).execute(&mut admin).await.unwrap();
+    sqlx::query(sql(format!("CREATE DATABASE {name}"))).execute(&mut admin).await.unwrap();
+    let base = url.rsplit_once('/').unwrap().0;
+    let store = Store::connect(&format!("{base}/{name}"), keys()).await.unwrap();
+    let voice = r#"{"t_ms": 0, "kind": "call_start", "schema_version": 15, "source": "test", "started": "2026-11-22T16:45:00", "seat": "voice", "ehr": "epic", "prompt_version": "11-21 | 3"}
+{"t_ms": 2000, "kind": "voice", "stage": "heard", "last_words_ms": 1600}
+{"t_ms": 2005, "kind": "caller", "text": "a check-up"}
+{"t_ms": 2100, "kind": "tool_call", "name": "find_slots", "arguments": {}}
+{"t_ms": 2300, "kind": "tool_result", "name": "find_slots", "result": {}, "ms": 200, "error": "down"}
+{"t_ms": 2600, "kind": "voice", "stage": "speaking"}
+{"t_ms": 2700, "kind": "staff_flag", "flag": "referral_check", "source": "code", "summary": null, "evidence": [], "unverified": 0}
+{"t_ms": 3000, "kind": "call_end", "reason": "the caller hung up", "tokens": {}, "cost_usd": 0.03, "requests": {"live": 2, "replayed": 1, "failed": 0}}
+"#;
+    store.file_record("typed_a", RECORD.as_bytes()).await.unwrap();
+    store.file_record("test_20261122-164500", voice.as_bytes()).await.unwrap();
+    let synthetic = store.synthetic();
+    let label = Annotation {
+        call_id: "test_20261122-164500".into(),
+        kind: "label".into(),
+        at: "2026-11-22T17:00:00".into(),
+        words: Some(Zeroizing::new("slow find".into())),
+        ..Default::default()
+    };
+    synthetic.add_annotation(&label).await.unwrap();
+    let rating = Annotation {
+        call_id: "test_20261122-164500".into(),
+        kind: "rating".into(),
+        at: "2026-11-22T17:01:00".into(),
+        grader_kind: Some("human".into()),
+        grader: Some("owner".into()),
+        dimension: Some("right_outcome".into()),
+        verdict: Some("fail".into()),
+        rubric_version: Some("2026-11-12".into()),
+        ..Default::default()
+    };
+    synthetic.add_annotation(&rating).await.unwrap();
+
+    let all = synthetic.list_calls("", "", 10).await.unwrap();
+    assert_eq!(all.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(), ["test_20261122-164500", "typed_a"], "newest first");
+    let c = &all[0];
+    assert_eq!((c.seat.as_deref(), c.ehr.as_deref(), c.prompt_version.as_deref()), (Some("voice"), Some("epic"), Some("11-21 | 3")));
+    assert_eq!(c.turn_waits_ms, vec![1000.0]);
+    assert_eq!((c.tools.clone(), c.tool_failed.clone()), (vec!["find_slots".to_string()], vec![true]));
+    assert_eq!(c.staff_flags, ["referral_check"]);
+    assert_eq!(c.label.as_deref(), Some("slow find"));
+    assert_eq!((c.ratings_passed, c.ratings_failed), (0, 1));
+    assert_eq!((c.requests_live, c.requests_replayed), (2, 1));
+    assert_eq!(all[1].review_flags, ["token_cap"]);
+
+    let since = synthetic.list_calls("2026-11-20", "", 10).await.unwrap();
+    assert_eq!(since.len(), 1, "the range holds");
+    assert_eq!(synthetic.list_calls("", "", 1).await.unwrap().len(), 1, "the limit holds");
+
+    store.close().await;
+    sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
+}
+
 /// A person's card (users.rs › update, the picture; migration 0008): the old name split, a save
 /// sealed, the email moved to its new hash, a taken email refused, the phone's mark, the owner's
 /// last seen, and the picture sealed under the person's id.

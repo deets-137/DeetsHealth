@@ -715,6 +715,47 @@ class EhrClient:
             for r in reply.rows
         ]
 
+    async def list_calls(self, since: str = "", until: str = "", limit: int = 2000) -> list[dict[str, Any]]:
+        """Analytics › Logs (Analytics View; ANALYTICS.md §3.1): the synthetic calls started in
+        [since, until), newest first. Names and numbers, and each call's own label. Raises
+        EhrError: NOT_ALLOWED_NOW without a store."""
+        reply = await self._users_call(
+            "ListCalls",
+            pb.ListCallsRequest(data_class=pb.DATA_CLASS_SYNTHETIC, since=since, until=until, limit=limit),
+        )
+        return [
+            {
+                "id": c.id,
+                "started": c.started or None,
+                "origin": c.origin,
+                "seat": c.seat or None,
+                "ehr": c.ehr or None,
+                "mode": c.mode or None,
+                "model": c.model or None,
+                "prompt_version": c.prompt_version or None,
+                "system_version": c.system_version or None,
+                "hospital_version": c.hospital_version or None,
+                "scenario": c.scenario or None,
+                "outcome": c.outcome,
+                "end_reason": c.end_reason or None,
+                "reached": list(c.reached),
+                "turns": c.turns,
+                "duration_ms": c.duration_ms,
+                "cost_usd": c.cost_usd,
+                "turn_waits_ms": list(c.turn_waits_ms),
+                "tools": list(c.tools),
+                "tool_failed": list(c.tool_failed),
+                "staff_flags": list(c.staff_flags),
+                "review_flags": list(c.review_flags),
+                "label": c.label or None,
+                "ratings_passed": c.ratings_passed,
+                "ratings_failed": c.ratings_failed,
+                "requests_live": c.requests_live,
+                "requests_replayed": c.requests_replayed,
+            }
+            for c in reply.calls
+        ]
+
     async def verify_audit(self) -> dict[str, Any]:
         """Walks the whole chain: `{ok, rows, first_bad}`."""
         reply = await self._users_call("VerifyAudit", pb.VerifyAuditRequest())

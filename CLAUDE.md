@@ -144,7 +144,8 @@ the branch `archive/patient-app`.
   for debugging and health later, and the first-load wave (the owner's fork A: hold, then one
   wave top left to bottom right).
 - `ANALYTICS.md` — the Analytics page: the owner's sketch, its own nav inside the panel (Home,
-  Outcome, Cost, Logs, Speed, Flags), each view empty till he designs it.
+  Outcome, Cost, Logs, Speed, Flags), the reader each view is for, the shared filter bar; Logs
+  built (§3.1), the rest empty till he designs them.
 - `TEXTS.md` — the code by text: the random code, Twilio's Messages request from `ehr`, the
   settings, `TextPass`, the fake Twilio in the dev server, the sandbox fixture, the tests, the
   Phase 5 steps.

@@ -142,6 +142,40 @@ pub fn annotation_out(a: Annotation) -> pb::Annotation {
     }
 }
 
+/// One call in Analytics › Logs to the wire (ListCalls): names and numbers, and a synthetic
+/// call's label (the one field tagged PHI).
+pub fn logged_call_out(c: crate::store::LoggedCall) -> pb::LoggedCall {
+    pb::LoggedCall {
+        id: c.id,
+        started: c.started,
+        origin: c.origin,
+        seat: c.seat.unwrap_or_default(),
+        ehr: c.ehr.unwrap_or_default(),
+        mode: c.mode.unwrap_or_default(),
+        model: c.model.unwrap_or_default(),
+        prompt_version: c.prompt_version.unwrap_or_default(),
+        system_version: c.system_version.unwrap_or_default(),
+        hospital_version: c.hospital_version.unwrap_or_default(),
+        scenario: c.scenario.unwrap_or_default(),
+        outcome: c.outcome,
+        end_reason: c.end_reason.unwrap_or_default(),
+        reached: c.reached,
+        turns: c.turns,
+        duration_ms: c.duration_ms,
+        cost_usd: c.cost_usd,
+        turn_waits_ms: c.turn_waits_ms,
+        tools: c.tools,
+        tool_failed: c.tool_failed,
+        staff_flags: c.staff_flags,
+        review_flags: c.review_flags,
+        label: c.label.unwrap_or_default(),
+        ratings_passed: c.ratings_passed,
+        ratings_failed: c.ratings_failed,
+        requests_live: c.requests_live,
+        requests_replayed: c.requests_replayed,
+    }
+}
+
 /// A kept-script run from the wire (DATABASE.md §8), its shape checked.
 pub fn test_run(req: pb::FileTestRunRequest) -> Result<TestRun, Status> {
     let time = |s: &str| s.len() <= 40 && s.chars().all(|c| c.is_ascii_digit() || "-:T.+Z".contains(c));

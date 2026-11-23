@@ -712,6 +712,46 @@ export const audit = (before = 0, changes = false, limit = 100) =>
   );
 export const auditVerify = () => get<{ ok: boolean; rows: number; first_bad: number | null }>("/agent/audit/verify");
 
+/** One call in Analytics › Logs (ANALYTICS.md §3.1; ehr's `ListCalls`, dev_server.py › logs):
+ * names and numbers, and a synthetic call's own label. */
+export type LoggedCall = {
+  id: string;
+  started: string | null;
+  origin: string;
+  seat: string | null;
+  ehr: string | null;
+  mode: string | null;
+  model: string | null;
+  prompt_version: string | null;
+  system_version: string | null;
+  hospital_version: string | null;
+  scenario: string | null;
+  outcome: string;
+  end_reason: string | null;
+  reached: string[];
+  turns: number;
+  duration_ms: number;
+  cost_usd: number;
+  /** Each caller turn's wait, in ms. */
+  turn_waits_ms: number[];
+  tools: string[];
+  tool_failed: boolean[];
+  staff_flags: string[];
+  review_flags: string[];
+  label: string | null;
+  ratings_passed: number;
+  ratings_failed: number;
+  /** Requests to Claude answered live, and from the replay cache (a kept-script draw). */
+  requests_live: number;
+  requests_replayed: number;
+  /** Demo can play it: its record file is on the dev server. */
+  record: boolean;
+};
+export type Logs = { calls: LoggedCall[]; class: "synthetic"; limit: number };
+/** The calls of the last `days` days (0: today) on the dev server's clock; all when null. */
+export const logs = (days: number | null) =>
+  get<Logs>(`/agent/logs?${new URLSearchParams({ ...(days === null ? {} : { days: String(days) }), limit: "2000" })}`);
+
 /** Records a look that changes nothing (a page opened) in the audit trail. Never throws: a look
  * the trail could not record does not stop the page. */
 export async function logLook(lever: Lever, level: Level, action: string, objectKind = "", objectId = ""): Promise<void> {

@@ -8,6 +8,20 @@ updated: 2026-11-19
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-22 (Windows, evening) — Analytics: the readers, and Logs built
+- Committed the Timeline, Rules › Booking and Org Chart work as `dc8f30e` (not pushed).
+- His words on Analytics: "the pages cater to different people": Home, Cost and Outcome for an
+  executive; Speed and Flags for an analyst; Logs above all for the analyst. No role split.
+  2B: the console's test calls feed it, no synthetic batch. 3: his "whichever makes sense";
+  Claude's 3A (change since the last period; versions compared). Logs first (his pick).
+- Logs' forks: a panel under each row (A); the data class as the filter bar's first control (A).
+  Then "Build as drafted" (the columns and filters as drafted).
+- Built: migration 0013 (seat, EHR, turn waits on `calls`), ehr's `ListCalls`, `GET
+  /agent/logs`, the filter bar, the Logs view, Open in Chat (ANALYTICS.md §3.1.1). Tests: the
+  waits rule (store.rs), the list against Postgres (`ehr/tests/store.rs`), the route's lever
+  (`agent/tests/test_roles.py`). A new column kind, `num` (`--col-num`).
+- No screenshots this sitting.
+
 ## 2026-11-22 (Windows, later) — The empty views; Chat › Timeline; Rules › Booking
 - His words: "voice works, let's chat the unused pages". Counted from the code: 12 views said
   "Empty for now" (Analytics 6, Rules 3, Org Chart, Personalization, Chat's Timeline tab).

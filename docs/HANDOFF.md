@@ -128,8 +128,14 @@ owner's forks that day). The Timeline tab is a waterfall per turn against the 80
 with voice stages recorded as new `voice` events (schema 15): CHAT.md §18, its desk test there.
 The Booking rules table moved from Config › Hospital to **Rules › Booking** (his 2A: one place
 for every rule): BOOKING-RULES.md §5.5. Teams has People only. **Restart `npm run dev`**: the
-agent's Python changed. **Next, his:** design Analytics view by view (ANALYTICS.md §3), with
-the built pages as the guide.
+agent's Python changed.
+
+**Built 2026-11-22, desk test open: Analytics › Logs** (ANALYTICS.md §3.1, §3.1.1; his "Build as
+drafted"). Every call from the store through ehr's new `ListCalls` (Analytics View) and `GET
+/agent/logs`; migration 0013 adds each call's seat, EHR and turn waits, filled when the next
+ingest files every record again. The shared filter bar (class first), the count line, the one
+table, a panel under each row, Open in Chat. **Restart `npm run dev`**: ehr, its migration and
+the agent changed. **Next, his order:** Outcome and Cost, then Speed and Flags, Home last.
 
 **Roles and the audit trail: built 2026-11-18 (`0f417e0`), desk test passed 2026-11-19**
 ("looks good for now"). docs/architecture/ACCESS-ROLES.md (moved from `docs/ideas/`; §5.1, §6
