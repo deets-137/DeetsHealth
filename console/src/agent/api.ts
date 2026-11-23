@@ -166,6 +166,8 @@ export type VoiceValues = {
   idle_s: number;
   max_s: number;
   plan_credits: number;
+  /** The plan's price a month in dollars; 0 is not set. */
+  plan_price_usd: number;
   offset: number;
   cycle_day: number;
 };
@@ -748,6 +750,53 @@ export type LoggedCall = {
   record: boolean;
 };
 export type Logs = { calls: LoggedCall[]; class: "synthetic"; limit: number };
+
+/** Analytics' sums (ANALYTICS.md §3.2; ehr's `CallStats`, dev_server.py › stats). `outcomes`:
+ * booked, handed_off, abandoned, crashed, locked, ended, in that order. */
+export type StatTotals = {
+  calls: number;
+  outcomes: number[];
+  cost_usd: number;
+  cartesia_credits: number;
+  flagged_calls: number;
+  staff_flags: number;
+  review_flags: number;
+  turns_answered: number;
+  turns_within: number;
+  wait_p50_ms: number;
+  wait_p90_ms: number;
+  replayed_calls: number;
+};
+export type Stats = {
+  totals: StatTotals;
+  prev: StatTotals | null;
+  days: { day: string; calls: number; outcomes: number[]; cost_usd: number; cartesia_credits: number; staff_flags: number; review_flags: number }[];
+  reached: { name: string; count: number }[];
+  end_reasons: { name: string; count: number }[];
+  models: { model: string; calls: number; cost_usd: number }[];
+  costliest: { id: string; started: string; cost_usd: number; cartesia_credits: number; outcome: string }[];
+  wait_bucket_ms: number;
+  wait_hist: number[];
+  stages: { turns: number; ink_ms: number; claude_ms: number; tools_ms: number; ehr_ms: number; voice_ms: number; other_ms: number } | null;
+  tools: { tool: string; calls: number; failed: number; p50_ms: number; p90_ms: number }[];
+  slowest: { call_id: string; started: string; turn: number; wait_ms: number }[];
+  staff_flags: { kind: string; source: string; count: number; unverified: number }[];
+  review_flags: { name: string; count: number }[];
+  versions: { kind: string; label: string; calls: number; booked: number; turns_answered: number; turns_within: number; wait_p50_ms: number; wait_p90_ms: number; cost_usd: number }[];
+  class: "synthetic";
+  /** The range asked for, in days (null: all). */
+  range_days: number | null;
+  /** The active Cartesia plan's price over its credits; null when the price is not set. */
+  usd_per_credit: number | null;
+};
+/** The sums for the last `days` days (null: all) and the filter bar's other filters. */
+export const stats = (days: number | null, filters: Record<string, string>) =>
+  get<Stats>(`/agent/stats?${new URLSearchParams({ ...(days === null ? {} : { days: String(days) }), ...filters })}`);
+
+/** One staff flag's words (PHI View; each read audited in ehr as `flag.view`). Protected data:
+ * shown on the page only, never logged or put in a hint. */
+export type FlagWords = { seq: number; kind: string; source: string; unverified: number; summary: string; evidence: string[] };
+export const flagWords = (callId: string) => get<{ flags: FlagWords[] }>(`/agent/flags/${encodeURIComponent(callId)}`);
 /** The calls of the last `days` days (0: today) on the dev server's clock; all when null. */
 export const logs = (days: number | null) =>
   get<Logs>(`/agent/logs?${new URLSearchParams({ ...(days === null ? {} : { days: String(days) }), limit: "2000" })}`);

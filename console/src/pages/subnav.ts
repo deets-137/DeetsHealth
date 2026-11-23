@@ -19,6 +19,13 @@ export interface View {
   build(): HTMLElement;
 }
 
+const GO_VIEW = "deets:go-view";
+
+/** Opens view `id` of the page that holds `from` (an element inside a view). */
+export function goView(from: HTMLElement, id: string): void {
+  from.dispatchEvent(new CustomEvent(GO_VIEW, { detail: id, bubbles: true }));
+}
+
 /** An empty view: "Empty for now", till it has a design. */
 export const blankView = (id: string, title: string): View => ({
   id,
@@ -166,6 +173,8 @@ function initViews(page: HTMLElement, spec: SubnavPageSpec, pickHolder: HTMLElem
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>(".nav-item");
     if (b) go(b.dataset.view!);
   });
+  // A view opens another (`goView`): Home's tiles, a chart's drill-down into Logs.
+  host.addEventListener(GO_VIEW, (e) => go((e as CustomEvent<string>).detail));
 
   // Up and down move between views, as in a list.
   nav.addEventListener("keydown", (e) => {

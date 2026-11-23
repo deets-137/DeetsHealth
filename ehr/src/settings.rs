@@ -79,6 +79,9 @@ pub const VOICE: &[Setting] = &[
     s("idle_s", Kind::Whole { min: 10, max: 600 }),
     s("max_s", Kind::Whole { min: 60, max: 3600 }),
     s("plan_credits", Kind::Whole { min: 0, max: 1_000_000_000 }),
+    // What the plan costs a month in dollars (Analytics › Cost: Cartesia's credits as dollars);
+    // 0 is not set, and Cost then shows credits (ANALYTICS.md §3.2).
+    s("plan_price_usd", Kind::Number { min: 0.0, max: 100_000.0, nullable: false }),
     s("offset", Kind::Whole { min: 0, max: 1_000_000_000 }),
     s("cycle_day", Kind::Whole { min: 1, max: 28 }),
 ];
@@ -917,6 +920,7 @@ mod tests {
             v("idle_s", json!(60)),
             v("max_s", json!(360)),
             v("plan_credits", json!(20000)),
+            v("plan_price_usd", json!(0)),
             v("offset", json!(270)),
             v("cycle_day", json!(12)),
         ]
@@ -946,7 +950,8 @@ mod tests {
         assert_eq!(check(VOICE, &set).unwrap_err(), "speed: out of range or the wrong kind");
 
         let mut set = full();
-        set[17].1 = "29".into(); // cycle_day above 28
+        let at = set.iter().position(|(k, _)| k == "cycle_day").unwrap();
+        set[at].1 = "29".into(); // cycle_day above 28
         assert!(check(VOICE, &set).unwrap_err().starts_with("cycle_day:"));
     }
 

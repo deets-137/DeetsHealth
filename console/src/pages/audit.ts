@@ -45,6 +45,7 @@ const ACTION: Record<string, string> = {
   "role.revoke": "Role revoked",
   "page.open": "Page opened",
   "transcript.view": "Transcript read",
+  "flag.view": "Flag's words read",
   "call.watch": "Live calls watched",
   "test.run": "Test run",
 };

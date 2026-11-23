@@ -134,8 +134,14 @@ agent's Python changed.
 drafted"). Every call from the store through ehr's new `ListCalls` (Analytics View) and `GET
 /agent/logs`; migration 0013 adds each call's seat, EHR and turn waits, filled when the next
 ingest files every record again. The shared filter bar (class first), the count line, the one
-table, a panel under each row, Open in Chat. **Restart `npm run dev`**: ehr, its migration and
-the agent changed. **Next, his order:** Outcome and Cost, then Speed and Flags, Home last.
+table, a panel under each row, Open in Chat. Committed `23aef48`; his "looks good".
+
+**Built 2026-11-22, desk test open: Analytics › Home, Outcome, Cost, Speed, Flags** (ANALYTICS.md
+§3.2; his "all five now"). The sums in ehr (`CallStats`, `stats.rs`; Analytics View) with the
+range before; migration 0014 (Cartesia credits, each turn's stages); Config › Cartesia's *Plan
+price*; Flags reads a flag's words with PHI View through `ReadFlags`, which writes `flag.view`.
+Our own charts (`analytics-kit.ts`). **Restart `npm run dev`** first. Every Analytics view is
+now built; the empty views left are Rules › Agents, Flags, Tools and Settings › Personalization.
 
 **Roles and the audit trail: built 2026-11-18 (`0f417e0`), desk test passed 2026-11-19**
 ("looks good for now"). docs/architecture/ACCESS-ROLES.md (moved from `docs/ideas/`; §5.1, §6

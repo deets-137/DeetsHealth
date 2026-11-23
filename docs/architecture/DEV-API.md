@@ -64,6 +64,8 @@ decorators in `dev_server.py`, both ways. Check 14 asks that every client named 
 | `GET /agent/calls/{call_id}` | `call_events` | `callEvents()` | one record's events, for Demo; 404 when there is no such call |
 | `GET /agent/latency` | `tool_latency` | none yet | latency per tool; the query and the reply are CHAT.md §10.3 |
 | `GET /agent/logs` | `logs` | `logs()` | Analytics › Logs (ANALYTICS.md §3.1): the synthetic calls of the last `?days=` days (0 to 3650; 0 is today; none for all), counted on the dev server's clock (the one the records' start times are written on), newest first, at most `?limit=` (1 to 5000; 2000 by default), through `ehr`'s `ListCalls`: `{calls, class, limit}`. Each call: its id, start, origin, seat, EHR, mode, model, versions, scenario, outcome, end reason, the steps reached, turns, length, dollars, each turn's wait, the requests live and replayed, the tools and which failed, the staff flags' kinds and the review flags' reasons, its own label, its ratings passed and failed, and `record` (Demo can play it: the catalog holds its record). 400 for days or a limit out of range; 409 without a store |
+| `GET /agent/stats` | `stats` | `stats()` | Analytics' sums (ANALYTICS.md §3.2) through `ehr`'s `CallStats`, for the synthetic calls of the last `?days=` days (as `/agent/logs`) that pass the filter bar's filters: `?origin=`, `?outcome=`, `?ehr=`, `?seat=` (each one of its words), `?version=` (`prompt`, `system`, `hospital` or `model`, a colon, a label), `?flagged=`, `?slow=`. The reply: `totals` and, with `days`, `prev` (the same length before); `days`, `reached`, `end_reasons`, `models`, `costliest`, `wait_bucket_ms` and `wait_hist`, `stages`, `tools`, `slowest`, `staff_flags`, `review_flags`, `versions`; `class`, `range_days` (the days asked for), and `usd_per_credit` (the active Cartesia plan's price over its credits, null when not set). Names, counts, times and dollars only. 400 for a filter out of its words; 409 without a store |
+| `GET /agent/flags/{call_id}` | `flag_words` | `flagWords()` | Analytics › Flags (ANALYTICS.md §3.2): one call's staff flags with their summary and evidence, through `ehr`'s `ReadFlags`, which writes a `flag.view` audit row. `{flags}`, each `{seq, kind, source, unverified, summary, evidence}`. Protected data. 404 for a call the store does not hold |
 | `POST /agent/annotations` | `annotate` | `annotate()` | `{ok: true}`, or 400 with the gate's reason (§4), or 503 when the call store is not running (DATABASE.md §9) |
 | `WS /agent/watch` | `watch` | `watch()` | the watch stream (§5) |
 | `WS /agent/call` | `call` | `TextSeat` | the caller's seat (§6) |
@@ -124,6 +126,8 @@ are checked when they open; a watch closes (1008) within 15 s of its viewer losi
 | `GET /agent/resources` | Analytics View |
 | `GET /agent/latency` | Analytics View |
 | `GET /agent/logs` | Analytics View |
+| `GET /agent/stats` | Analytics View |
+| `GET /agent/flags/{call_id}` | PHI View |
 | `GET /agent/sandbox` | Testing Edit |
 | `GET /agent/ice` | Testing Edit |
 | `POST /agent/voice` | Testing Edit |

@@ -514,7 +514,9 @@ version Active](images/config-cartesia-2026-11-13.png)
     Left" as plan credits − offset − usage): Plan credits, then "−" and an Offset box on the same
     row; Cycle day; **Credits left**, in the page's normal type (the owner, 2026-11-13: a larger
     figure belongs on Analytics, not Settings): the plan's credits, less the offset, less what
-    this cycle's voice calls used (`/agent/resources`). It updates as you type.
+    this cycle's voice calls used (`/agent/resources`). It updates as you type. Since
+    2026-11-22, **Plan price ($ a month)** (`plan_price_usd`; 0 is not set): Analytics › Cost
+    turns credits into dollars with it (ANALYTICS.md §3.2).
   - **Key and facts:** the API key ("Set", or "Not set: add CARTESIA_API_KEY to .env"; never the
     key), the API version, the rates.
 - **The sliders** (the owner, 2026-11-13: the bar changed size, and in place of the Default

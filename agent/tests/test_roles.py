@@ -83,6 +83,14 @@ class RolesEhr:
         self.asked.append((f"ListCalls {since}|{until}|{limit}", ACTOR.get()))
         return [{"id": "test_20261122-164539", "outcome": "booked", "turn_waits_ms": [700.0]}]
 
+    async def call_stats(self, since, until, prev, filters):
+        self.asked.append((f"CallStats {since}|{until}|{prev}|{sorted(filters.items())}", ACTOR.get()))
+        return {"totals": {"calls": 1}}
+
+    async def read_flags(self, call_id):
+        self.asked.append((f"ReadFlags {call_id}", ACTOR.get()))
+        return None if call_id == "test_nope" else [{"kind": "referral_check", "summary": "s", "evidence": ["e"]}]
+
     async def log_access(self, lever, level, action, kind="", object_id="", data_class=""):
         self.asked.append((f"LogAccess {action}", ACTOR.get()))
         self.looks.append((lever, level, action, kind, object_id))
@@ -160,6 +168,35 @@ def test_logs_list_the_calls_under_analytics_view(tmp_path):
     other_state, other = make(tmp_path / "other")
     other_state.ehr.analyst = {"testing": "edit"}  # type: ignore[union-attr]
     assert other.get("/agent/logs", headers=ANALYST).status_code == 403
+
+
+def test_the_sums_take_the_filters_and_the_range_before(tmp_path):
+    """Analytics' sums (ANALYTICS.md §3.2): Analytics View; the range before is as long as the
+    range; a filter out of its words never reaches ehr."""
+    from datetime import date, timedelta
+
+    state, c = make(tmp_path)
+    r = c.get("/agent/stats?days=6&outcome=booked&version=prompt:11-21 | 3&flagged=true", headers=ANALYST)
+    assert r.status_code == 200
+    assert r.json()["totals"] == {"calls": 1} and r.json()["usd_per_credit"] is None
+    today = date.today()
+    since = (today - timedelta(days=6)).isoformat()
+    prev = ((today - timedelta(days=13)).isoformat(), since)
+    asked = [a for a, _ in state.ehr.asked if a.startswith("CallStats")]  # type: ignore[union-attr]
+    assert asked[-1].startswith(f"CallStats {since}||{prev}|")
+    assert "('outcome', 'booked')" in asked[-1] and "('version_label', '11-21 | 3')" in asked[-1]
+    assert c.get("/agent/stats?origin=nobody", headers=ANALYST).status_code == 400
+    assert c.get("/agent/stats?version=colour:x", headers=ANALYST).status_code == 400
+
+
+def test_a_flag_s_words_need_phi_view(tmp_path):
+    """Analytics › Flags (the owner's A): the words need PHI View; ehr writes the audit row."""
+    state, c = make(tmp_path)
+    assert c.get("/agent/flags/test_a", headers=ANALYST).status_code == 403
+    r = c.get("/agent/flags/test_a", headers=OWNER_HEADERS)
+    assert r.status_code == 200 and r.json()["flags"][0]["kind"] == "referral_check"
+    assert ("ReadFlags test_a", OWNER_ID) in state.ehr.asked  # type: ignore[union-attr]
+    assert c.get("/agent/flags/test_nope", headers=OWNER_HEADERS).status_code == 404
 
 
 def test_someone_not_on_the_list_gets_nothing(tmp_path):

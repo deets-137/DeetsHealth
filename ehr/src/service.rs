@@ -21,7 +21,7 @@ use crate::{
     visit_about::BookNote,
     visits::{narrow, Found, Narrow},
     session::{Pending, PatientKey, Refusal, Sessions, Source, Stage, Token},
-    settings,
+    settings, stats,
     store::{self, Store},
     users,
     verify::{one_match, Candidate, Codes, Down, Patients},
@@ -119,6 +119,8 @@ pub const RPC_LEVERS: &[(&str, Need)] = &[
     ("AddAnnotation", Need::Lever(Lever::Testing, Level::Edit)),
     ("ListAnnotations", Need::LeverOrSystem(Lever::Testing, Level::View)),
     ("ListCalls", Need::Lever(Lever::Analytics, Level::View)),
+    ("CallStats", Need::Lever(Lever::Analytics, Level::View)),
+    ("ReadFlags", Need::Lever(Lever::Phi, Level::View)),
     ("ListSettingVersions", Need::Settings(Level::View)),
     ("GetSettings", Need::Settings(Level::View)),
     ("SaveSettings", Need::Settings(Level::Edit)),
@@ -1206,6 +1208,85 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             .await
             .map_err(|_| Status::internal("the store could not list the calls"))?;
         Ok(Response::new(pb::ListCallsReply { calls: calls.into_iter().map(edge::logged_call_out).collect() }))
+    }
+
+    async fn call_stats(&self, req: Request<pb::CallStatsRequest>) -> Result<Response<pb::CallStatsReply>, Status> {
+        let meta = req.metadata().clone();
+        let r = req.into_inner();
+        let class = match pb::DataClass::try_from(r.data_class) {
+            Ok(pb::DataClass::Synthetic) => store::DataClass::Synthetic,
+            Ok(pb::DataClass::Real) => store::DataClass::Real,
+            _ => return Err(Status::invalid_argument("data_class: synthetic or real")),
+        };
+        for (name, v) in [("since", &r.since), ("until", &r.until), ("prev_since", &r.prev_since), ("prev_until", &r.prev_until)] {
+            if !v.is_empty() && !local_time(v) {
+                return Err(Status::invalid_argument(format!("{name}: a date (YYYY-MM-DD) or a date-time (YYYY-MM-DDTHH:MM:SS)")));
+            }
+        }
+        if !["", "prompt", "system", "hospital", "model"].contains(&r.version_kind.as_str()) {
+            return Err(Status::invalid_argument("version_kind: prompt, system, hospital or model"));
+        }
+        // Each filter is a word or a label: short, never free text from a call.
+        if [&r.origin, &r.outcome, &r.ehr, &r.seat, &r.version_label].iter().any(|v| v.len() > 64) {
+            return Err(Status::invalid_argument("a filter: at most 64 characters"));
+        }
+        self.gate("CallStats", &meta, None).await?;
+        let store = self.settings_store()?;
+        let store = store.class(class).ok_or_else(|| Status::failed_precondition("no real store on this ehr"))?;
+        let filter = stats::Filter {
+            origin: r.origin,
+            outcome: r.outcome,
+            ehr: r.ehr,
+            seat: r.seat,
+            version_kind: r.version_kind,
+            version_label: r.version_label,
+            flagged: r.flagged,
+            slow: r.slow,
+        };
+        let failed = |_| Status::internal("the store could not sum the calls");
+        let rows = store.stats_rows(&r.since, &r.until, &filter).await.map_err(failed)?;
+        let tools = store.stats_tools(&r.since, &r.until, &filter).await.map_err(failed)?;
+        let prev = if r.has_prev {
+            Some(stats::totals(&store.stats_rows(&r.prev_since, &r.prev_until, &filter).await.map_err(failed)?))
+        } else {
+            None
+        };
+        Ok(Response::new(edge::stats_out(stats::aggregate(&rows, &tools), prev)))
+    }
+
+    async fn read_flags(&self, req: Request<pb::ReadFlagsRequest>) -> Result<Response<pb::ReadFlagsReply>, Status> {
+        let meta = req.metadata().clone();
+        let id = req.into_inner().call_id;
+        if store::origin_of(&id).is_none() || id.len() > 64 {
+            return Err(Status::invalid_argument("call_id: does not start with its origin"));
+        }
+        let who = self.gate("ReadFlags", &meta, None).await?.ok_or_else(|| Status::permission_denied("no person named"))?;
+        let store = self.settings_store()?;
+        let held = store.class_of_call(&id).await.map_err(|_| Status::internal("the store could not find the call"))?;
+        let held = held.ok_or_else(|| Status::not_found("no such call"))?;
+        let class = held.class();
+        let found = held
+            .read_flags(&id)
+            .await
+            .map_err(|_| Status::internal("the store could not read the flags"))?
+            .ok_or_else(|| Status::not_found("no such call"))?;
+        // The look at the words is kept in the trail before they leave (ACCESS-ROLES.md §5.1).
+        let mut entry = Entry::by(Some(&who), "flag.view").lever(Lever::Phi, Level::View).object("call", id.clone());
+        entry.data_class = Some(class.as_str());
+        audit::write_alone(store.pool(), &entry).await.map_err(|_| Status::internal("the store could not write the audit row"))?;
+        Ok(Response::new(pb::ReadFlagsReply {
+            flags: found
+                .into_iter()
+                .map(|f| pb::FlagWords {
+                    seq: f.seq,
+                    kind: f.kind,
+                    source: f.source,
+                    unverified: f.unverified,
+                    summary: f.summary.as_str().to_owned(),
+                    evidence: f.evidence.iter().map(|e| e.as_str().to_owned()).collect(),
+                })
+                .collect(),
+        }))
     }
 
     async fn list_setting_versions(
@@ -2372,6 +2453,9 @@ mod tests {
             // A kept-script draw's failure line and an annotation's words (DATABASE.md §8, §9).
             ("TestRunResult", "failure"),
             ("Annotation", "words"),
+            // Analytics › Flags: a staff flag's summary and evidence (ANALYTICS.md §3.2).
+            ("FlagWords", "summary"),
+            ("FlagWords", "evidence"),
             // Analytics › Logs: a synthetic call's label, a person's own words (ANALYTICS.md §3.1).
             ("LoggedCall", "label"),
             ("OpenCallReply", "handle"),

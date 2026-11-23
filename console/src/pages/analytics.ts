@@ -1,9 +1,10 @@
-// Analytics (ANALYTICS.md): one panel with its own nav (subnav.ts). Logs is built (§3.1); the
-// other views are empty until the owner designs them, in his order: Outcome and Cost, then Speed
-// and Flags, Home last.
+// Analytics (ANALYTICS.md): one panel with its own nav (subnav.ts). Home, Outcome and Cost for an
+// executive; Logs, Speed and Flags for an analyst (the owner, 2026-11-22). Logs is §3.1; the
+// views on the sums are §3.2 (analytics-views.ts).
+import { costView, flagsView, homeView, outcomeView, speedView } from "./analytics-views";
 import { logsView } from "./logs";
 import type { Page } from "./page";
-import { blankView, subnavPage } from "./subnav";
+import { subnavPage } from "./subnav";
 
 export function analyticsPage(): Page {
   return subnavPage({
@@ -12,13 +13,6 @@ export function analyticsPage(): Page {
     lastViewKey: "deets.console.analytics",
     lever: "analytics",
     // The order is the owner's (2026-11-12): Home first, Flags last.
-    views: [
-      blankView("home", "Home"),
-      blankView("outcome", "Outcome"),
-      blankView("cost", "Cost"),
-      logsView(),
-      blankView("speed", "Speed"),
-      blankView("flags", "Flags"),
-    ],
+    views: [homeView(), outcomeView(), costView(), logsView(), speedView(), flagsView()],
   });
 }

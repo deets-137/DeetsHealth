@@ -34,6 +34,7 @@ type Draft = {
   idleS: number;
   maxS: number;
   planCredits: number;
+  planPrice: number;
   offset: number;
   cycleDay: number;
 };
@@ -78,6 +79,8 @@ const HELP: Record<string, string> = {
   planCredits:
     "The plan's credits for the cycle (Free: 20,000), then a manual offset: credits used outside these calls, such as the playground or another machine. Credits left subtracts both, and this cycle's voice calls.",
   cycleDay: "The day of the month the plan's credits renew: the day the account was opened.",
+  planPrice:
+    "What the plan costs a month, in dollars, from Cartesia's billing page. Analytics › Cost turns credits into dollars with it (the price over the plan's credits). 0: not set, and Cost shows Cartesia in credits.",
   left: "The plan's credits, less the offset, less what this machine's voice calls used this cycle. Cartesia's dashboard has the true balance.",
   key: "Never shown here. On this machine it is CARTESIA_API_KEY in .env; in the cloud, the secret manager (CONSOLE.md §7.4).",
   apiVersion: "The Cartesia API version. Pipecat fixes it; it moves when Pipecat moves.",
@@ -109,6 +112,7 @@ function fromValues(v: VoiceValues): Draft {
     idleS: v.idle_s,
     maxS: v.max_s,
     planCredits: v.plan_credits,
+    planPrice: v.plan_price_usd ?? 0,
     offset: v.offset,
     cycleDay: v.cycle_day,
   };
@@ -134,6 +138,7 @@ function toValues(d: Draft): VoiceValues {
     idle_s: d.idleS,
     max_s: d.maxS,
     plan_credits: d.planCredits,
+    plan_price_usd: d.planPrice,
     offset: d.offset,
     cycle_day: d.cycleDay,
   };
@@ -499,6 +504,7 @@ function render(s: CartesiaSettings, d: Draft, kit: Kit, cycle: CartesiaCycle | 
       number(d.offset, 0, 1_000_000_000, (v) => ((d.offset = v), showLeft()), "Offset"),
     )),
     k("cycleDay", row("Cycle day", HELP.cycleDay, number(d.cycleDay, 1, 28, (v) => (d.cycleDay = v)))),
+    k("planPrice", row("Plan price ($ a month)", HELP.planPrice, number(d.planPrice, 0, 100_000, (v) => (d.planPrice = v), "Plan price", 0.01))),
     row("Credits left", HELP.left, left),
   );
 

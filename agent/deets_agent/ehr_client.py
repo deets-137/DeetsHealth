@@ -107,6 +107,22 @@ def _staff_error(e: grpc.aio.AioRpcError, name: str) -> EhrError:
     return error
 
 
+def _plain(message) -> dict[str, Any]:
+    """A reply message as plain values, every field present: numbers stay numbers (protobuf's own
+    JSON form writes an int64 as a string), an unset message is None."""
+    out: dict[str, Any] = {}
+    for f in message.DESCRIPTOR.fields:
+        value = getattr(message, f.name)
+        if f.message_type is not None:
+            if f.is_repeated:
+                out[f.name] = [_plain(v) for v in value]
+            else:
+                out[f.name] = _plain(value) if message.HasField(f.name) else None
+        else:
+            out[f.name] = list(value) if f.is_repeated else value
+    return out
+
+
 class _NoStore(Exception):
     """ehr runs without a store: the settings fall back to the code's defaults."""
 
@@ -755,6 +771,35 @@ class EhrClient:
             }
             for c in reply.calls
         ]
+
+    async def call_stats(
+        self, since: str, until: str, prev: tuple[str, str] | None, filters: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Analytics' sums (Analytics View; ANALYTICS.md §3.2) for the synthetic calls in [since,
+        until) that pass `filters` (stats.rs › Filter's names), and the totals of `prev`, the
+        range before. Names, counts, times and dollars only."""
+        request = pb.CallStatsRequest(
+            data_class=pb.DATA_CLASS_SYNTHETIC,
+            since=since,
+            until=until,
+            prev_since=prev[0] if prev else "",
+            prev_until=prev[1] if prev else "",
+            has_prev=prev is not None,
+            **filters,
+        )
+        reply = await self._users_call("CallStats", request)
+        return _plain(reply)
+
+    async def read_flags(self, call_id: str) -> list[dict[str, Any]] | None:
+        """One call's staff flags with their summary and evidence (PHI View; ANALYTICS.md §3.2).
+        ehr writes the `flag.view` audit row. None for a call the store does not hold."""
+        try:
+            reply = await self._stub.ReadFlags(pb.ReadFlagsRequest(call_id=call_id), timeout=DEADLINE_S, metadata=_meta())
+        except grpc.aio.AioRpcError as e:
+            if e.code() == grpc.StatusCode.NOT_FOUND:
+                return None
+            raise _staff_error(e, "ReadFlags") from None
+        return [_plain(f) for f in reply.flags]
 
     async def verify_audit(self) -> dict[str, Any]:
         """Walks the whole chain: `{ok, rows, first_bad}`."""

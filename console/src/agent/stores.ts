@@ -36,6 +36,14 @@ export type Range = "today" | "7d" | "30d" | "90d" | "all";
 export const RANGES: Range[] = ["today", "7d", "30d", "90d", "all"];
 const RANGE_DAYS: Record<Range, number | null> = { today: 0, "7d": 6, "30d": 29, "90d": 89, all: null };
 export const logs = keyed("logs", (r: Range) => api.logs(RANGE_DAYS[r]), { words: RANGES });
+/** Analytics' sums (ANALYTICS.md §3.2), by the range and the filters: the key is the filters as
+ * one string (`statsKey`), so the ledger names no key (a version label could be in it). */
+export const stats = keyed("stats", (key: string) => {
+  const { range, ...rest } = JSON.parse(key) as { range: Range } & Record<string, string>;
+  return api.stats(RANGE_DAYS[range] ?? null, rest);
+});
+/** The key of `stats` for a range and the filters as the route takes them. */
+export const statsKey = (range: Range, filters: Record<string, string>) => JSON.stringify({ range, ...filters });
 
 /** Chat. */
 export const health = store("health", () => api.health());

@@ -77,6 +77,7 @@ the last manager) is the change's own action word with `allowed` false.
 |---|---|---|
 | `page.open` | the console's nav, once per visit to a page (`nav.ts`, `POST /agent/log`) | the first lever the person holds the page by |
 | `transcript.view` | `GET /agent/calls/{id}` (a call's events) | Testing View |
+| `flag.view` | ehr's `ReadFlags` (`GET /agent/flags/{id}`: a call's staff flags with their summary and evidence; ANALYTICS.md §3.2), written by ehr before the words leave | PHI View |
 | `call.watch` | `WS /agent/watch` opened (another person's live call) | PHI View |
 | `test.run` | `POST /agent/prompt/record` (it spends tokens) | Agent Edit |
 | `route.get`, `route.post`, `route.patch`, `route.put`, `route.delete`, `route.ws` | the dev server's wall, when it refuses a route (`dev_server.py › record_refusal`; the HTTP wall and `ws_principal`) | the route's row in `ROUTE_NEEDS`; always refused |

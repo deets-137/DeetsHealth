@@ -16,7 +16,7 @@ sources: [console/src/styles/palette.css, console/src/styles/themes.css, console
 |---|---|---|
 | Palette (raw paints) | palette.css | 19 |
 | Theme (color roles) | themes.css | 36 roles · 3 themes (dark, light, moonlight) |
-| Skin (everything else) | skin.css base block | 131 tokens · overrides:  |
+| Skin (everything else) | skin.css base block | 134 tokens · overrides:  |
 
 ## Theme roles
 
@@ -158,6 +158,9 @@ The base block is Glass, the one skin so far. *Overridden by* lists the skins th
 | `--col-flag` | `144px` | — | Off \| On (two --pair-part parts in their frame) |
 | `--col-num` | `104px` | — | a short word or number in a read-only list: "Booked", "1.42 s", "$0.031" (Analytics › Logs) |
 | `--wait-strip` | `28px` | — | Logs' row panel: the tallest bar of a call's turn waits |
+| `--chart-height` | `160px` | — | Analytics: a chart's plot, its tallest column |
+| `--tile-min` | `176px` | — | Analytics: a headline tile at its narrowest; the tiles wrap below it |
+| `--tile-value` | `28px` | — | Analytics: a headline tile's number |
 | `--icon-size` | `16px` | — | an icon in the "i"'s square: the row tools' ↑ ↓ ✕ |
 | `--search-width` | `280px` | — | a page's search box, on its tab bar's line (TABLES.md §6), at its widest |
 | `--prompt-max` | `1100px` | — | Config › Agent: the column of sections, at its widest: the name column and about 110 characters of words, so long sections wrap less |

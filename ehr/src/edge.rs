@@ -176,6 +176,93 @@ pub fn logged_call_out(c: crate::store::LoggedCall) -> pb::LoggedCall {
     }
 }
 
+/// Analytics' sums to the wire (CallStats): names, counts, times and dollars.
+pub fn stats_out(s: crate::stats::Stats, prev: Option<crate::stats::Totals>) -> pb::CallStatsReply {
+    use crate::stats::{Totals, WAIT_BUCKET_MS};
+    let totals = |t: Totals| pb::StatTotals {
+        calls: t.calls,
+        outcomes: t.outcomes.to_vec(),
+        cost_usd: t.cost_usd,
+        cartesia_credits: t.cartesia_credits,
+        flagged_calls: t.flagged_calls,
+        staff_flags: t.staff_flags,
+        review_flags: t.review_flags,
+        turns_answered: t.turns_answered,
+        turns_within: t.turns_within,
+        wait_p50_ms: t.wait_p50_ms,
+        wait_p90_ms: t.wait_p90_ms,
+        replayed_calls: t.replayed_calls,
+    };
+    let named = |v: Vec<(String, i64)>| v.into_iter().map(|(name, count)| pb::NamedCount { name, count }).collect();
+    pb::CallStatsReply {
+        totals: Some(totals(s.totals)),
+        prev: prev.map(totals),
+        days: s
+            .days
+            .into_iter()
+            .map(|d| pb::StatDay {
+                day: d.day,
+                calls: d.calls,
+                outcomes: d.outcomes.to_vec(),
+                cost_usd: d.cost_usd,
+                cartesia_credits: d.cartesia_credits,
+                staff_flags: d.staff_flags,
+                review_flags: d.review_flags,
+            })
+            .collect(),
+        reached: named(s.reached),
+        end_reasons: named(s.end_reasons),
+        models: s.models.into_iter().map(|m| pb::ModelCost { model: m.model, calls: m.calls, cost_usd: m.cost_usd }).collect(),
+        costliest: s
+            .costliest
+            .into_iter()
+            .map(|c| pb::CostlyCall { id: c.id, started: c.started, cost_usd: c.cost_usd, cartesia_credits: c.cartesia_credits, outcome: c.outcome })
+            .collect(),
+        wait_bucket_ms: WAIT_BUCKET_MS,
+        wait_hist: s.wait_hist,
+        stages: Some(pb::StageMeans {
+            turns: s.staged_turns,
+            ink_ms: s.stages.ink,
+            claude_ms: s.stages.claude,
+            tools_ms: s.stages.tools,
+            ehr_ms: s.stages.ehr,
+            voice_ms: s.stages.voice,
+            other_ms: s.stages.other,
+        }),
+        tools: s
+            .tools
+            .into_iter()
+            .map(|t| pb::ToolSpeed { tool: t.tool, calls: t.calls, failed: t.failed, p50_ms: t.p50_ms, p90_ms: t.p90_ms })
+            .collect(),
+        slowest: s
+            .slowest
+            .into_iter()
+            .map(|t| pb::SlowTurn { call_id: t.call_id, started: t.started, turn: t.turn, wait_ms: t.wait_ms })
+            .collect(),
+        staff_flags: s
+            .staff_flags
+            .into_iter()
+            .map(|f| pb::FlagCount { kind: f.kind, source: f.source, count: f.count, unverified: f.unverified })
+            .collect(),
+        review_flags: named(s.review_flags),
+        versions: s
+            .versions
+            .into_iter()
+            .map(|v| pb::VersionStats {
+                kind: v.kind,
+                label: v.label,
+                calls: v.calls,
+                booked: v.booked,
+                turns_answered: v.turns_answered,
+                turns_within: v.turns_within,
+                wait_p50_ms: v.wait_p50_ms,
+                wait_p90_ms: v.wait_p90_ms,
+                cost_usd: v.cost_usd,
+            })
+            .collect(),
+    }
+}
+
 /// A kept-script run from the wire (DATABASE.md §8), its shape checked.
 pub fn test_run(req: pb::FileTestRunRequest) -> Result<TestRun, Status> {
     let time = |s: &str| s.len() <= 40 && s.chars().all(|c| c.is_ascii_digit() || "-:T.+Z".contains(c));

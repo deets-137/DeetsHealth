@@ -65,6 +65,14 @@ service Ehr {
   // in ehr when the record is filed. FAILED_PRECONDITION without a store, or for the real class
   // on an ehr with no real store.
   rpc ListCalls(ListCallsRequest) returns (ListCallsReply);
+  // Analytics' sums (ANALYTICS.md §3.2; Analytics View): Home, Outcome, Cost, Speed and Flags,
+  // for one class, a range and the filter bar's filters, and the totals of the range before.
+  // Names, counts, times and dollars only (stats.rs).
+  rpc CallStats(CallStatsRequest) returns (CallStatsReply);
+  // Analytics › Flags (PHI View): one call's staff flags with their summary and evidence. ehr
+  // writes a `flag.view` audit row for each allowed read, before the words leave; a refusal is
+  // the gate's own row (`rpc.read_flags`). NOT_FOUND for a call the store does not hold.
+  rpc ReadFlags(ReadFlagsRequest) returns (ReadFlagsReply);
   // The settings store (CONSOLE.md §7.3): versions of one service's settings, insert-only. Every
   // version holds every setting; each save is a new version and becomes the active one. No
   // field is protected data. FAILED_PRECONDITION when ehr runs without a store.
@@ -520,6 +528,156 @@ message ListAnnotationsRequest {}
 
 message ListAnnotationsReply {
   repeated Annotation annotations = 1;
+}
+
+message CallStatsRequest {
+  DataClass data_class = 1;
+  // The range, as ListCallsRequest's; and the range before it, for the change (empty: none).
+  string since = 2;
+  string until = 3;
+  string prev_since = 4;
+  string prev_until = 5;
+  bool has_prev = 6;
+  // The filter bar's filters, each empty or false for any (stats.rs › Filter).
+  string origin = 7;
+  string outcome = 8;
+  string ehr = 9;
+  string seat = 10;
+  // `prompt`, `system`, `hospital` or `model`, with its label.
+  string version_kind = 11;
+  string version_label = 12;
+  bool flagged = 13;
+  bool slow = 14;
+}
+
+// The totals of some calls (stats.rs › Totals). `outcomes` is booked, handed_off, abandoned,
+// crashed, locked, ended, in that order.
+message StatTotals {
+  int64 calls = 1;
+  repeated int64 outcomes = 2;
+  double cost_usd = 3;
+  double cartesia_credits = 4;
+  int64 flagged_calls = 5;
+  int64 staff_flags = 6;
+  int64 review_flags = 7;
+  int64 turns_answered = 8;
+  int64 turns_within = 9;
+  double wait_p50_ms = 10;
+  double wait_p90_ms = 11;
+  int64 replayed_calls = 12;
+}
+
+message StatDay {
+  string day = 1;
+  int64 calls = 2;
+  repeated int64 outcomes = 3;
+  double cost_usd = 4;
+  double cartesia_credits = 5;
+  int64 staff_flags = 6;
+  int64 review_flags = 7;
+}
+
+message NamedCount {
+  string name = 1;
+  int64 count = 2;
+}
+
+message ModelCost {
+  string model = 1;
+  int64 calls = 2;
+  double cost_usd = 3;
+}
+
+message CostlyCall {
+  string id = 1;
+  string started = 2;
+  double cost_usd = 3;
+  double cartesia_credits = 4;
+  string outcome = 5;
+}
+
+// The mean of each stage of a turn's wait, in ms, over `turns` turns.
+message StageMeans {
+  int64 turns = 1;
+  double ink_ms = 2;
+  double claude_ms = 3;
+  double tools_ms = 4;
+  double ehr_ms = 5;
+  double voice_ms = 6;
+  double other_ms = 7;
+}
+
+message ToolSpeed {
+  string tool = 1;
+  int64 calls = 2;
+  int64 failed = 3;
+  double p50_ms = 4;
+  double p90_ms = 5;
+}
+
+message SlowTurn {
+  string call_id = 1;
+  string started = 2;
+  int32 turn = 3;
+  double wait_ms = 4;
+}
+
+message FlagCount {
+  string kind = 1;
+  string source = 2;
+  int64 count = 3;
+  int64 unverified = 4;
+}
+
+message VersionStats {
+  string kind = 1;
+  string label = 2;
+  int64 calls = 3;
+  int64 booked = 4;
+  int64 turns_answered = 5;
+  int64 turns_within = 6;
+  double wait_p50_ms = 7;
+  double wait_p90_ms = 8;
+  double cost_usd = 9;
+}
+
+message CallStatsReply {
+  StatTotals totals = 1;
+  // The range before's totals; unset when there is none.
+  StatTotals prev = 2;
+  repeated StatDay days = 3;
+  // How many calls reached each step, by its name.
+  repeated NamedCount reached = 4;
+  repeated NamedCount end_reasons = 5;
+  repeated ModelCost models = 6;
+  repeated CostlyCall costliest = 7;
+  // Turns by wait: buckets `wait_bucket_ms` wide, the last one open-ended.
+  double wait_bucket_ms = 8;
+  repeated int64 wait_hist = 9;
+  StageMeans stages = 10;
+  repeated ToolSpeed tools = 11;
+  repeated SlowTurn slowest = 12;
+  repeated FlagCount staff_flags = 13;
+  repeated NamedCount review_flags = 14;
+  repeated VersionStats versions = 15;
+}
+
+message ReadFlagsRequest {
+  string call_id = 1;
+}
+
+message ReadFlagsReply {
+  repeated FlagWords flags = 1;
+}
+
+// One staff flag, opened: the summary and the evidence are protected data.
+message FlagWords {
+  int32 seq = 1;
+  string kind = 2;
+  string source = 3;
+  int32 unverified = 4;
+  string summary = 5 [(phi) = true];
+  repeated string evidence = 6 [(phi) = true];
 }
 
 message ListCallsRequest {

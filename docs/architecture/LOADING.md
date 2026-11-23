@@ -146,6 +146,7 @@ number of requests to Epic does not grow.
 | The nav and every page's access | `me` (`focus`), read by `access.ts` only; a grant, revoke or roles save reads it again (`accessChanged`) | as built 2026-11-18 (docs/architecture/ACCESS-ROLES.md §6, Hand-over 3) |
 | Security › Roles | `roles` keyed by version; Save is its write | as built 2026-11-18 |
 | Audit Logs | `audit` keyed `all` (the newest 100 rows); older pages and Check chain by `once` (`audit`, `audit.verify`) | as built 2026-11-18 |
+| Analytics › Home, Outcome, Cost, Speed, Flags | `stats` keyed by the range and the filters (one string; the ledger names no key); Flags also reads `logs`, and a flag's words by a one-off read, never kept | as built 2026-11-22 (ANALYTICS.md §3.2) |
 | Analytics › Logs | `logs` keyed by the range (`today`, `7d`, `30d`, `90d`, `all`: fixed words); read on its first showing, each time the view opens again, and on a new range | as built 2026-11-22 (ANALYTICS.md §3.1.1) |
 | Chat | `health`, `catalog`, `sandbox` keyed by EHR, `resources` keyed by call (a poll while a call is live); a call's events by `once` (never kept: as built) | each read on its own; `RESOURCES_LIVE_MS` timer |
 

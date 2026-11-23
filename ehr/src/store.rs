@@ -197,6 +197,10 @@ pub struct Summary {
     /// The requests to Claude answered live and from the replay cache (`call_end.requests`).
     pub requests_live: i32,
     pub requests_replayed: i32,
+    /// Ink's and Sonic's credits (`call_end.cartesia.credits`; migration 0014).
+    pub cartesia_credits: f64,
+    /// Each answered turn's stages, as `Stages::to_json` (migration 0014).
+    pub turn_stages: Vec<Value>,
 }
 
 /// Each caller turn's wait, in order (ANALYTICS.md §3.1, CHAT.md §18): from the turn's start to
@@ -206,6 +210,95 @@ pub struct Summary {
 /// agent's first frame (`first_ms`, schema 4), else the agent line's time. A turn the agent
 /// never answered has no wait. Times only.
 pub fn turn_waits(events: &[Value]) -> Vec<f64> {
+    turn_spans(events).into_iter().map(|(s, e)| e - s).collect()
+}
+
+/// One answered turn's wait split by stage, in ms (migration 0014; ANALYTICS.md §3.2): `ink`
+/// the caller's silence to Ink's final line, `claude` the requests to Claude, `tools` the tools'
+/// own runs less the ehr calls in them, `ehr` the ehr calls, `voice` the first frame out to the
+/// caller hearing it, `other` the rest. Each span counts only where it falls inside the turn.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Stages {
+    pub ink: f64,
+    pub claude: f64,
+    pub tools: f64,
+    pub ehr: f64,
+    pub voice: f64,
+    pub other: f64,
+}
+
+impl Stages {
+    pub fn to_json(self) -> Value {
+        let r = |x: f64| (x * 10.0).round() / 10.0;
+        serde_json::json!({"ink": r(self.ink), "claude": r(self.claude), "tools": r(self.tools), "ehr": r(self.ehr), "voice": r(self.voice), "other": r(self.other)})
+    }
+
+    pub fn from_json(v: &Value) -> Stages {
+        let n = |k: &str| v.get(k).and_then(Value::as_f64).unwrap_or(0.0);
+        Stages { ink: n("ink"), claude: n("claude"), tools: n("tools"), ehr: n("ehr"), voice: n("voice"), other: n("other") }
+    }
+}
+
+/// Each answered turn's stages, in the order of `turn_waits`.
+pub fn turn_stages(events: &[Value]) -> Vec<Stages> {
+    let num = |e: &Value, k: &str| e.get(k).and_then(Value::as_f64);
+    fn kind(e: &Value) -> &str {
+        e.get("kind").and_then(Value::as_str).unwrap_or("")
+    }
+    fn stage(e: &Value) -> &str {
+        e.get("stage").and_then(Value::as_str).unwrap_or("")
+    }
+    let speaks = events.iter().any(|e| kind(e) == "voice" && stage(e) == "speaking");
+    // Every span of each kind on the call's clock.
+    let (mut llm, mut tools, mut ehr) = (Vec::new(), Vec::new(), Vec::new());
+    let mut open: Vec<(String, f64)> = Vec::new();
+    let mut heard: Vec<(f64, f64)> = Vec::new();
+    let mut first_frames: Vec<f64> = Vec::new();
+    for e in events {
+        let t = num(e, "t_ms").unwrap_or(0.0);
+        let name = e.get("name").and_then(Value::as_str).unwrap_or("").to_owned();
+        match kind(e) {
+            "llm" => llm.push((t - num(e, "total_ms").unwrap_or(0.0), t)),
+            "tool_call" => open.push((name, t)),
+            "tool_result" => {
+                if let Some(i) = open.iter().position(|(n, _)| *n == name) {
+                    let (_, from) = open.remove(i);
+                    tools.push((from, num(e, "ms").map_or(t, |ms| from + ms)));
+                }
+            }
+            "ehr" => ehr.push((t - num(e, "ms").unwrap_or(0.0), t)),
+            "voice" if stage(e) == "heard" => {
+                if let Some(last) = num(e, "last_words_ms") {
+                    heard.push((last, t));
+                }
+            }
+            "agent" => first_frames.push(num(e, "first_ms").unwrap_or(t)),
+            _ => {}
+        }
+    }
+    let within = |spans: &[(f64, f64)], (s, end): (f64, f64)| -> f64 {
+        spans.iter().map(|&(a, b)| (b.min(end) - a.max(s)).max(0.0)).sum()
+    };
+    turn_spans(events)
+        .into_iter()
+        .map(|(s, end)| {
+            let ink = heard.iter().filter(|&&(a, b)| a >= s - 1.0 && b <= end).map(|&(a, b)| b - a).sum::<f64>();
+            // On a voice call the wait after the first frame is Voice out; Claude's stream, a
+            // tool or an ehr call still running then is not counted twice.
+            let first = if speaks { first_frames.iter().copied().find(|&f| f >= s && f <= end) } else { None };
+            let cut = first.unwrap_or(end);
+            let claude = within(&llm, (s, cut));
+            let ehr_ms = within(&ehr, (s, cut));
+            let tools_ms = (within(&tools, (s, cut)) - ehr_ms).max(0.0);
+            let voice = first.map_or(0.0, |f| end - f);
+            let other = ((end - s) - ink - claude - tools_ms - ehr_ms - voice).max(0.0);
+            Stages { ink, claude, tools: tools_ms, ehr: ehr_ms, voice, other }
+        })
+        .collect()
+}
+
+/// Each answered turn's start and end on the call's clock (`turn_waits`'s rule).
+fn turn_spans(events: &[Value]) -> Vec<(f64, f64)> {
     let num = |e: &Value, k: &str| e.get(k).and_then(Value::as_f64);
     let stage = |e: &Value| e.get("stage").and_then(Value::as_str).map(str::to_owned);
     let kind = |e: &Value| e.get("kind").and_then(Value::as_str).unwrap_or("").to_owned();
@@ -237,7 +330,7 @@ pub fn turn_waits(events: &[Value]) -> Vec<f64> {
             }
             ("voice", Some("speaking")) if speaks => {
                 if let Some(s) = start.take() {
-                    out.push((t - s).max(0.0));
+                    out.push((s, t.max(s)));
                 }
                 line_at = None;
                 heard_at = None;
@@ -250,7 +343,7 @@ pub fn turn_waits(events: &[Value]) -> Vec<f64> {
                     continue;
                 }
                 if let Some(s) = start.take() {
-                    out.push(at - s);
+                    out.push((s, at));
                 }
                 line_at = None;
                 heard_at = None;
@@ -259,6 +352,51 @@ pub fn turn_waits(events: &[Value]) -> Vec<f64> {
         }
     }
     out
+}
+
+/// The filter bar's filters as SQL (ANALYTICS.md §3.2): the range, then `stats::Filter`, each
+/// empty or false for any. `bind_filter` binds $1 to $10 in this order. A record with no seat
+/// or EHR is a text call on Local, as Logs reads it.
+macro_rules! stats_where {
+    () => {
+        " WHERE ($1 = '' OR c.started >= $1::timestamp) AND ($2 = '' OR c.started < $2::timestamp)
+            AND ($3 = '' OR c.origin = $3) AND ($4 = '' OR c.outcome = $4)
+            AND ($5 = '' OR COALESCE(c.ehr, 'local') = $5) AND ($6 = '' OR COALESCE(c.seat, 'text') = $6)
+            AND ($7 = '' OR ($7 = 'prompt' AND c.prompt_version = $8) OR ($7 = 'system' AND c.system_version = $8)
+                 OR ($7 = 'hospital' AND c.hospital_version = $8) OR ($7 = 'model' AND c.model = $8))
+            AND (NOT $9 OR EXISTS (SELECT 1 FROM staff_flags sf WHERE sf.call_id = c.id)
+                 OR EXISTS (SELECT 1 FROM review_flags rf WHERE rf.call_id = c.id))
+            AND (NOT $10 OR (c.requests_replayed = 0 AND EXISTS (SELECT 1 FROM unnest(c.turn_waits_ms) AS w(ms) WHERE w.ms > 800)))"
+    };
+}
+fn bind_filter<'q>(
+    q: sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments>,
+    since: &'q str,
+    until: &'q str,
+    f: &'q crate::stats::Filter,
+) -> sqlx::query::Query<'q, sqlx::Postgres, sqlx::postgres::PgArguments> {
+    q.bind(since)
+        .bind(until)
+        .bind(f.origin.as_str())
+        .bind(f.outcome.as_str())
+        .bind(f.ehr.as_str())
+        .bind(f.seat.as_str())
+        .bind(f.version_kind.as_str())
+        .bind(f.version_label.as_str())
+        .bind(f.flagged)
+        .bind(f.slow)
+}
+
+/// One staff flag opened (`ClassStore::read_flags`): its kind and source, and its summary and
+/// evidence, which are protected data, wiped when dropped.
+#[derive(Debug)]
+pub struct FlagWords {
+    pub seq: i32,
+    pub kind: String,
+    pub source: String,
+    pub unverified: i32,
+    pub summary: Zeroizing<String>,
+    pub evidence: Vec<Zeroizing<String>>,
 }
 
 /// One call as Analytics › Logs lists it (`ClassStore::list_calls`): plain columns and names.
@@ -359,6 +497,7 @@ pub fn summarize(events: &[Value]) -> Summary {
                     s.requests_live = n("live");
                     s.requests_replayed = n("replayed");
                 }
+                s.cartesia_credits = e.get("cartesia").and_then(|c| c.get("credits")).and_then(Value::as_f64).unwrap_or(0.0);
             }
             _ => {}
         }
@@ -377,6 +516,7 @@ pub fn summarize(events: &[Value]) -> Summary {
         "abandoned"
     };
     s.turn_waits_ms = turn_waits(events);
+    s.turn_stages = turn_stages(events).into_iter().map(Stages::to_json).collect();
     s
 }
 
@@ -886,11 +1026,12 @@ impl ClassStore {
         sqlx::query(
             "INSERT INTO calls (id, schema_version, started, origin, data_class, mode, model, prompt_version, system_version, hospital_version, scenario, outcome, end_reason,
                 reached, turns, tool_calls, duration_ms, tokens_in, tokens_out, cost_usd, record_sha256, seat, ehr, turn_waits_ms,
-                requests_live, requests_replayed)
-             VALUES ($1, $2, $3::timestamp, $4, $21, $5, $6, $18, $19, $20, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $22, $23, $24, $25, $26)
+                requests_live, requests_replayed, cartesia_credits, turn_stages)
+             VALUES ($1, $2, $3::timestamp, $4, $21, $5, $6, $18, $19, $20, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $22, $23, $24, $25, $26, $27, $28::jsonb)
              ON CONFLICT (id) DO UPDATE SET schema_version = EXCLUDED.schema_version, started = EXCLUDED.started,
                 seat = EXCLUDED.seat, ehr = EXCLUDED.ehr, turn_waits_ms = EXCLUDED.turn_waits_ms,
                 requests_live = EXCLUDED.requests_live, requests_replayed = EXCLUDED.requests_replayed,
+                cartesia_credits = EXCLUDED.cartesia_credits, turn_stages = EXCLUDED.turn_stages,
                 origin = EXCLUDED.origin, mode = EXCLUDED.mode, model = EXCLUDED.model, prompt_version = EXCLUDED.prompt_version, system_version = EXCLUDED.system_version, hospital_version = EXCLUDED.hospital_version, scenario = EXCLUDED.scenario,
                 outcome = EXCLUDED.outcome, end_reason = EXCLUDED.end_reason, reached = EXCLUDED.reached,
                 turns = EXCLUDED.turns, tool_calls = EXCLUDED.tool_calls, duration_ms = EXCLUDED.duration_ms,
@@ -923,6 +1064,8 @@ impl ClassStore {
         .bind(&s.turn_waits_ms)
         .bind(s.requests_live)
         .bind(s.requests_replayed)
+        .bind(s.cartesia_credits)
+        .bind(Value::Array(s.turn_stages.clone()).to_string())
         .execute(&mut *tx)
         .await
         .map_err(|e| db("file a call", e))?;
@@ -1120,6 +1263,108 @@ impl ClassStore {
             });
         }
         Ok(out)
+    }
+
+    /// Analytics' sums (ANALYTICS.md §3.2; `stats::aggregate`): every call started in [`since`,
+    /// `until`) that passes the filter, as the sums need it. Plain columns only.
+    pub async fn stats_rows(&self, since: &str, until: &str, f: &crate::stats::Filter) -> Result<Vec<crate::stats::StatsRow>, String> {
+        let rows = bind_filter(
+            sqlx::query(concat!(
+                "SELECT c.id, COALESCE(to_char(c.started, 'YYYY-MM-DD\"T\"HH24:MI:SS'), '') AS started_text, c.model,
+                    c.prompt_version, c.system_version, c.hospital_version, c.outcome, c.end_reason, c.reached, c.cost_usd,
+                    c.cartesia_credits, c.turn_waits_ms, c.turn_stages::text AS stages_text, c.requests_replayed,
+                    COALESCE((SELECT array_agg(f.kind ORDER BY f.seq) FROM staff_flags f WHERE f.call_id = c.id), '{}') AS flag_kinds,
+                    COALESCE((SELECT array_agg(f.source ORDER BY f.seq) FROM staff_flags f WHERE f.call_id = c.id), '{}') AS flag_sources,
+                    COALESCE((SELECT array_agg(f.unverified ORDER BY f.seq) FROM staff_flags f WHERE f.call_id = c.id), '{}') AS flag_unverified,
+                    COALESCE((SELECT array_agg(r.reason ORDER BY r.seq) FROM review_flags r WHERE r.call_id = c.id), '{}') AS review_flags
+                 FROM calls c",
+                stats_where!()
+            )),
+            since,
+            until,
+            f,
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| db("sum the calls", e))?;
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                let kinds: Vec<String> = r.get("flag_kinds");
+                let sources: Vec<String> = r.get("flag_sources");
+                let unverified: Vec<i32> = r.get("flag_unverified");
+                let stages: String = r.get("stages_text");
+                let stages: Value = serde_json::from_str(&stages).unwrap_or(Value::Array(vec![]));
+                crate::stats::StatsRow {
+                    id: r.get("id"),
+                    started: r.get("started_text"),
+                    model: r.get("model"),
+                    prompt_version: r.get("prompt_version"),
+                    system_version: r.get("system_version"),
+                    hospital_version: r.get("hospital_version"),
+                    outcome: r.get("outcome"),
+                    end_reason: r.get("end_reason"),
+                    reached: r.get("reached"),
+                    cost_usd: r.get("cost_usd"),
+                    cartesia_credits: r.get("cartesia_credits"),
+                    turn_waits_ms: r.get("turn_waits_ms"),
+                    turn_stages: stages.as_array().map(|a| a.iter().map(Stages::from_json).collect()).unwrap_or_default(),
+                    requests_replayed: r.get("requests_replayed"),
+                    staff_flags: kinds.into_iter().zip(sources).zip(unverified).map(|((k, s), u)| (k, s, u)).collect(),
+                    review_flags: r.get("review_flags"),
+                }
+            })
+            .collect())
+    }
+
+    /// Analytics › Flags (ANALYTICS.md §3.2; the owner's A): one call's staff flags with their
+    /// summary and evidence, opened. Protected data: the caller (service.rs › read_flags) holds
+    /// PHI View and writes the audit row in the same request. None when the store has no call.
+    pub async fn read_flags(&self, id: &str) -> Result<Option<Vec<FlagWords>>, String> {
+        if !self.has_call(id).await? {
+            return Ok(None);
+        }
+        let rows = sqlx::query("SELECT seq, kind, source, unverified, summary, evidence FROM staff_flags WHERE call_id = $1 ORDER BY seq")
+            .bind(id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| db("read the flags", e))?;
+        let mut out = Vec::with_capacity(rows.len());
+        for r in rows {
+            let seq: i32 = r.get("seq");
+            let row = format!("{id}/{seq}");
+            let summary: Vec<u8> = r.get("summary");
+            let evidence: Vec<u8> = r.get("evidence");
+            let evidence = self.open("staff_flags", &row, "evidence", &evidence)?;
+            let evidence: Vec<String> = serde_json::from_str::<Vec<Value>>(&evidence)
+                .unwrap_or_default()
+                .into_iter()
+                .filter_map(|v| v.as_str().map(str::to_owned))
+                .collect();
+            out.push(FlagWords {
+                seq,
+                kind: r.get("kind"),
+                source: r.get("source"),
+                unverified: r.get("unverified"),
+                summary: self.open("staff_flags", &row, "summary", &summary)?,
+                evidence: evidence.into_iter().map(Zeroizing::new).collect(),
+            });
+        }
+        Ok(Some(out))
+    }
+
+    /// The tool calls of the same calls as `stats_rows`: each tool, its own run, whether it failed.
+    pub async fn stats_tools(&self, since: &str, until: &str, f: &crate::stats::Filter) -> Result<Vec<crate::stats::ToolRow>, String> {
+        let rows = bind_filter(
+            sqlx::query(concat!("SELECT t.tool, t.ms, t.failed FROM tool_calls t JOIN calls c ON c.id = t.call_id", stats_where!())),
+            since,
+            until,
+            f,
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| db("sum the tool calls", e))?;
+        Ok(rows.into_iter().map(|r| crate::stats::ToolRow { tool: r.get("tool"), ms: r.get("ms"), failed: r.get("failed") }).collect())
     }
 
     /// Analytics › Logs (ANALYTICS.md §3.1): the calls started in [`since`, `until`) (each a
@@ -1413,6 +1658,27 @@ mod tests {
             json!({"t_ms": 8450, "kind": "voice", "stage": "speaking"}),
         ];
         assert_eq!(turn_waits(&voice), vec![1000.0, 1200.0, 450.0]);
+
+        // The stages of a voice turn add up to its wait: Claude's stream past the first frame is
+        // Voice out, not Claude as well.
+        let staged = vec![
+            json!({"t_ms": 0, "kind": "call_start", "seat": "voice"}),
+            json!({"t_ms": 2000, "kind": "voice", "stage": "heard", "last_words_ms": 1600}),
+            json!({"t_ms": 2005, "kind": "caller", "text": "a"}),
+            json!({"t_ms": 2100, "kind": "tool_call", "name": "find_slots"}),
+            json!({"t_ms": 2400, "kind": "ehr", "call": "FindSlots", "ms": 250}),
+            json!({"t_ms": 2450, "kind": "tool_result", "name": "find_slots", "ms": 350}),
+            json!({"t_ms": 2700, "kind": "voice", "stage": "speaking"}),
+            json!({"t_ms": 2750, "kind": "agent", "first_ms": 2500}),
+            json!({"t_ms": 2900, "kind": "llm", "total_ms": 400}),
+        ];
+        let st = turn_stages(&staged);
+        assert_eq!(st.len(), 1);
+        let s = st[0];
+        assert_eq!((s.ink, s.ehr, s.tools, s.voice), (400.0, 250.0, 100.0, 200.0));
+        assert_eq!(s.claude, 0.0, "the request ran from 2500, the first frame: all of it is Voice out");
+        let sum = s.ink + s.claude + s.tools + s.ehr + s.voice + s.other;
+        assert!((sum - turn_waits(&staged)[0]).abs() < 0.01, "the parts add up to the wait");
     }
 
     #[test]

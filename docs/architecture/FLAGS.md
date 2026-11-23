@@ -103,7 +103,7 @@ becomes `other`. A hospital will add its own (FUTURE-SETTINGS.md §5).
 - **In memory:** `StaffFlag` holds the summary and the evidence as `Shielded`.
 - **In test mode:** the dev call record keeps them in full (`StaffFlag.test_record`), like the
   rest of a test call (REGULATIONS.md §8). The catalog's label is the kind only.
-- **In the store (not built):** sealed under the hospital's key, like a transcript; read in the
+- **In the store (built for synthetic calls, 2026-11-22):** sealed, like a transcript; read in the
   console only by the roles the hospital allows, with one audit row for each read
   (SECURITY.md §4.10).
 
@@ -125,7 +125,7 @@ and the confused caller's hand-off (`verification_failed`). Desk test closed 202
 
 ## 7. Open
 - The kinds list: the owner's to edit (§3).
-- The console's view of a flag and the nurse's controls (FUTURE-SETTINGS.md §5).
+- The nurse's view of a flag and their controls (FUTURE-SETTINGS.md §5). An analyst's view is built: Analytics › Flags counts flags by kind and source, and shows a flag's summary and evidence with PHI View, each read audited (`flag.view`; ANALYTICS.md §3.2, 2026-11-22).
 - Whether the model over-flags. The kept scripts show a flag in most calls that go wrong; a
   measure across simulated callers comes with the voice work.
 

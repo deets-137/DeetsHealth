@@ -103,3 +103,381 @@
   display: inline-flex;
   margin-top: var(--space-2);
 }
+
+/* ------------------------------------------------------------- the views on the sums */
+
+/* analytics-kit.ts › statsView: the title line, the filter bar, then the body, which scrolls. */
+.an-count {
+  margin-left: auto;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.an-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding-bottom: var(--space-4);
+}
+
+.an-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.an-section-title {
+  margin: 0;
+  font-size: var(--text-panel);
+  font-weight: var(--weight-bold);
+  color: var(--title);
+}
+
+.an-note {
+  margin: 0;
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+/* The headline tiles: as many to a line as fit at --tile-min, the number large. A tile that
+   opens a view is a button, with the hover wash where a pointer hovers. */
+.ch-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--tile-min), 1fr));
+  gap: var(--gap);
+}
+
+.ch-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--pad-panel);
+  border: var(--edge) solid var(--glass-edge);
+  border-radius: var(--radius);
+  background: var(--canvas);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+button.ch-tile {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  button.ch-tile:hover {
+    background: var(--hover);
+  }
+}
+
+.ch-tile-label {
+  font-size: var(--text-small);
+  color: var(--text-2);
+}
+
+.ch-tile-value {
+  font-size: var(--tile-value);
+  font-weight: var(--weight-bold);
+  line-height: var(--line-height-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-tile-sub,
+.ch-tile-delta {
+  font-size: var(--text-small);
+  color: var(--text-3);
+}
+
+.ch-tile-delta.is-better {
+  color: var(--go);
+}
+
+.ch-tile-delta.is-worse {
+  color: var(--error);
+}
+
+/* A chart: the axis at the left (its top value and 0), the plot, the first and last day under
+   it, the legend. */
+.ch-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ch-frame {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-3);
+}
+
+.ch-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: var(--text-small);
+  color: var(--text-3);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-cols {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  height: var(--chart-height);
+  border-bottom: var(--edge) solid var(--line);
+}
+
+/* A day: its parts stacked from the bottom. */
+.ch-col {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+}
+
+.ch-seg {
+  display: block;
+  width: 100%;
+  min-height: var(--edge);
+}
+
+.ch-seg:last-child {
+  border-radius: var(--radius-small) var(--radius-small) 0 0;
+}
+
+.ch-seg.is-pickable {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .ch-seg.is-pickable:hover {
+    opacity: 0.75;
+  }
+}
+
+/* The target on the spread of waits: a line up the plot. */
+.ch-target {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--edge);
+  background: var(--text);
+}
+
+.ch-xlabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-small);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-small);
+  color: var(--text-2);
+}
+
+.ch-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ch-key {
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: var(--radius-small);
+}
+
+/* Bars across: the label, the track, the value. */
+.ch-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ch-bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, var(--col-choice)) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-small);
+  text-align: left;
+}
+
+button.ch-bar-row {
+  cursor: pointer;
+}
+
+.ch-bar-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-2);
+}
+
+.ch-bar-track {
+  height: var(--meter-height);
+  border-radius: var(--radius-small);
+  background: var(--line);
+}
+
+.ch-bar {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-small);
+}
+
+.ch-bar-value {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* One bar split into parts (Speed's stages). */
+.ch-split {
+  display: flex;
+  height: var(--meter-height);
+  border-radius: var(--radius-small);
+  overflow: hidden;
+  background: var(--line);
+}
+
+.ch-split-part {
+  display: block;
+  height: 100%;
+}
+
+/* A short list: a grid of --ch-cols columns, the first wider. A row that opens something is a
+   button with the hover wash. */
+.ch-list {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-small);
+}
+
+.ch-list-row {
+  display: grid;
+  /* --ch-grid: set by the list itself (analytics-kit.ts › list): the first column wider. */
+  grid-template-columns: var(--ch-grid, minmax(0, 2fr) minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border: 0;
+  border-bottom: var(--edge) solid var(--line);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+.ch-list-row > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ch-list-head {
+  color: var(--text-3);
+}
+
+button.ch-list-row {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  button.ch-list-row:hover {
+    background: var(--hover);
+  }
+}
+
+.ch-list-row.is-worse > span:last-child {
+  color: var(--error);
+}
+
+/* Flags' list: a row per flagged call, its panel under it. */
+.an-flags {
+  display: flex;
+  flex-direction: column;
+}
+
+.an-flag-head {
+  --ch-grid: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr);
+  width: 100%;
+}
+
+.an-flag-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) 0 var(--space-4) var(--bullet-indent);
+}
+
+.an-flag-words {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-small);
+}
+
+.an-flag-kind {
+  margin: 0;
+  color: var(--text-3);
+}
+
+.an-flag-summary {
+  margin: 0;
+  color: var(--text);
+}
+
+/* The series, each a theme role (decided inside the owner's choice; for his desk test). */
+.ch-booked,
+.ch-tools {
+  background: var(--go);
+}
+
+.ch-handed,
+.ch-claude,
+.ch-accent {
+  background: var(--accent);
+}
+
+.ch-abandoned,
+.ch-quiet {
+  background: var(--text-3);
+}
+
+.ch-crashed,
+.ch-worse {
+  background: var(--error);
+}
+
+.ch-locked,
+.ch-ink {
+  background: var(--unverified);
+}
+
+.ch-ended,
+.ch-ehr {
+  background: var(--text-2);
+}
+
+.ch-cartesia,
+.ch-voice {
+  background: var(--shape-2);
+}

@@ -8,6 +8,20 @@ updated: 2026-11-19
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-22 (Windows, night) — Analytics: the other five views
+- Committed Logs as `23aef48` (his "looks good"; not pushed). His words: "let's build out the
+  other pages".
+- His forks: Flags shows a flag's summary and evidence with PHI View, each read audited (A); all
+  five views at once, over two batches (he chose against CLAUDE.md's one-at-a-time rule).
+- One option each, stated: the sums in ehr, not from Logs' list; our own charts, no library;
+  Cartesia in dollars once its plan's price is set (a new Config › Cartesia row), credits until
+  then; Speed's stages in the store.
+- Built (ANALYTICS.md §3.2): migration 0014; `ehr/src/stats.rs` and `CallStats`; `ReadFlags`
+  with the `flag.view` audit row; `GET /agent/stats` and `GET /agent/flags/{id}`; the kit and
+  the five views; `goView` and `findInLogs` for the drill-downs. Tests: `stats.rs`, the store
+  test against Postgres, the routes' levers (`test_roles.py`).
+- No screenshots this sitting.
+
 ## 2026-11-22 (Windows, evening) — Analytics: the readers, and Logs built
 - Committed the Timeline, Rules › Booking and Org Chart work as `dc8f30e` (not pushed).
 - His words on Analytics: "the pages cater to different people": Home, Cost and Outcome for an

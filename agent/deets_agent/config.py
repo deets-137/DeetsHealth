@@ -221,6 +221,8 @@ def voice_defaults() -> dict:
         "idle_s": VOICE_IDLE_S,
         "max_s": VOICE_MAX_S,
         "plan_credits": plan_credits(),
+        # The plan's price a month in dollars; 0 is not set (Analytics › Cost shows credits).
+        "plan_price_usd": 0,
         "offset": 0,
         "cycle_day": cycle_day(),
     }

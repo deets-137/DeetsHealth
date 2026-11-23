@@ -142,7 +142,10 @@ Plain columns hold no protected data; sealed columns are bytes under `seal.rs`.
   plain columns (the outcome as the dev catalog does); since migration 0013 (2026-11-22) also the
   seat, the EHR and each caller turn's wait (`turn_waits`), for Analytics › Logs (ANALYTICS.md
   §3.1). `list_calls` reads them back (ehr's `ListCalls`): plain columns, and a synthetic call's
-  label opened in ehr.
+  label opened in ehr. Since migration 0014 (the same day) also each call's Cartesia credits and
+  each answered turn's stages (`turn_stages`, jsonb), for Analytics' sums (`stats_rows`,
+  `stats_tools`, ehr's `CallStats`; ANALYTICS.md §3.2); `read_flags` opens a call's staff flags
+  for ehr's `ReadFlags`, which audits each read.
 - **Sealing:** `ehr/src/seal_key.rs`. `AwsLc` fills core's `Cipher` with AES-256-GCM from
   AWS-LC (its FIPS module under `--features fips`); core's `seal.rs` owns the format and binds
   each value to its table, row and column. The dev key is `.pg/seal.key`, made by

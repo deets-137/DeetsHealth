@@ -17,7 +17,7 @@ import { outcomeWords, stepWord } from "./chat";
 import { row, table, type Column } from "./data-table";
 import { fillTable, heightsOf } from "./list-window";
 import { el } from "./page";
-import type { View } from "./subnav";
+import { goView, type View } from "./subnav";
 
 const COLUMNS: Column[] = [
   { head: "Started", kind: "short" },
@@ -176,6 +176,17 @@ function facts(c: LoggedCall): [string, string | Node][] {
   return out;
 }
 
+/** A search another view asked for (`findInLogs`), taken when Logs next shows. */
+let asked: string | null = null;
+let takeAsk: (() => void) | null = null;
+
+/** Opens Logs with `text` in its search box: a call's id, a tool's name. */
+export function findInLogs(from: HTMLElement, text: string): void {
+  asked = text;
+  takeAsk?.();
+  goView(from, "logs");
+}
+
 export function logsView(): View {
   return {
     id: "logs",
@@ -294,6 +305,14 @@ export function logsView(): View {
       });
       // Each time the view opens again (it is kept while hidden), the list is read again: a
       // call may have ended since.
+      // A search asked for by another view: put in the box, the list narrowed to it.
+      takeAsk = () => {
+        if (asked === null) return;
+        search.value = asked;
+        asked = null;
+        draw();
+      };
+      takeAsk();
       // The first showing is the subscription's own read.
       let open: boolean | null = null;
       new ResizeObserver(() => {

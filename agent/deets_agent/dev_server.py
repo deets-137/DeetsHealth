@@ -170,6 +170,8 @@ ROUTE_NEEDS: dict[tuple[str, str], tuple[str, str] | str | None] = {
     ("GET", "/agent/resources"): ("analytics", "view"),
     ("GET", "/agent/latency"): ("analytics", "view"),
     ("GET", "/agent/logs"): ("analytics", "view"),
+    ("GET", "/agent/stats"): ("analytics", "view"),
+    ("GET", "/agent/flags/{call_id}"): ("phi", "view"),
     ("GET", "/agent/sandbox"): ("testing", "edit"),
     ("GET", "/agent/ice"): ("testing", "edit"),
     ("POST", "/agent/voice"): ("testing", "edit"),
@@ -1278,6 +1280,77 @@ def build_app(state: State) -> FastAPI:
         for c in calls:
             c["record"] = c["id"] in playable
         return {"calls": calls, "class": "synthetic", "limit": limit}
+
+    @app.get("/agent/stats")
+    async def stats(
+        days: int | None = None,
+        origin: str = "",
+        outcome: str = "",
+        ehr: str = "",
+        seat: str = "",
+        version: str = "",
+        flagged: bool = False,
+        slow: bool = False,
+    ):
+        """Analytics' sums (ANALYTICS.md §3.2): Home, Outcome, Cost, Speed and Flags for the
+        synthetic calls of the last `days` days (0: today; none: all) that pass the filter bar's
+        filters, through ehr's `CallStats`; with `days`, `prev` holds the totals of the same
+        length before. `usd_per_credit`: the active Cartesia plan's price over its credits, or
+        null when the price is not set. Names, counts, times and dollars only. 400 for a filter
+        out of its words; 409 without a store."""
+        if days is not None and not 0 <= days <= 3650:
+            raise HTTPException(400, "days: 0 to 3650")
+        words = {
+            "origin": ("", "test", "kept", "typed", "live"),
+            "outcome": ("", "booked", "handed_off", "abandoned", "crashed", "locked", "ended"),
+            "ehr": ("", "local", "epic"),
+            "seat": ("", "text", "voice"),
+        }
+        given = {"origin": origin, "outcome": outcome, "ehr": ehr, "seat": seat}
+        for name, value in given.items():
+            if value not in words[name]:
+                raise HTTPException(400, f"{name}: one of {', '.join(w for w in words[name] if w)}")
+        kind, _, label = version.partition(":")
+        if version and (kind not in ("prompt", "system", "hospital", "model") or not label or len(label) > 64):
+            raise HTTPException(400, "version: prompt, system, hospital or model, a colon, and a label")
+        if state.ehr is None:
+            raise HTTPException(409, "ehr is not up yet")
+        today = date.today()
+        since = "" if days is None else (today - timedelta(days=days)).isoformat()
+        prev = None if days is None else ((today - timedelta(days=2 * days + 1)).isoformat(), since)
+        filters = {**given, "version_kind": kind if version else "", "version_label": label, "flagged": flagged, "slow": slow}
+        try:
+            sums = await state.ehr.call_stats(since, "", prev, filters)
+        except EhrError as e:
+            if e.kind is ErrorKind.NOT_ALLOWED_NOW:
+                raise HTTPException(409, "no sums without a store") from None
+            if e.kind is ErrorKind.BAD_INPUT:
+                raise HTTPException(400, getattr(e, "detail", "") or "a filter ehr does not take") from None
+            if e.kind is ErrorKind.FORBIDDEN:
+                raise HTTPException(403, "Analytics View is needed") from None
+            raise HTTPException(502, "ehr could not sum the calls") from None
+        voice = await active_voice_settings(state)
+        price, plan = float(voice.get("plan_price_usd") or 0), int(voice.get("plan_credits") or 0)
+        return {**sums, "class": "synthetic", "range_days": days, "usd_per_credit": price / plan if price > 0 and plan > 0 else None}
+
+    @app.get("/agent/flags/{call_id}")
+    async def flag_words(call_id: str):
+        """Analytics › Flags (ANALYTICS.md §3.2; the owner's A): one call's staff flags with their
+        summary and evidence, through ehr's `ReadFlags` (PHI View), which writes the `flag.view`
+        audit row. `{flags}`. 404 for a call the store does not hold."""
+        if state.ehr is None:
+            raise HTTPException(409, "ehr is not up yet")
+        try:
+            flags = await state.ehr.read_flags(call_id)
+        except EhrError as e:
+            if e.kind is ErrorKind.BAD_INPUT:
+                raise HTTPException(400, "call_id: not a call's id") from None
+            if e.kind is ErrorKind.FORBIDDEN:
+                raise HTTPException(403, "PHI View is needed") from None
+            raise HTTPException(409 if e.kind is ErrorKind.NOT_ALLOWED_NOW else 502, "the flags could not be read") from None
+        if flags is None:
+            raise HTTPException(404, "no such call")
+        return {"flags": flags}
 
     @app.get("/agent/audit/verify")
     async def audit_verify():

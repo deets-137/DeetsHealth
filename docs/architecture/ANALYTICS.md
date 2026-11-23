@@ -71,15 +71,34 @@ call's words or a flag's summary and evidence are sealed, so each look at them i
 
 | View | Reader | Intent | State |
 |---|---|---|---|
-| Home | Executive | A summary of all the others | Empty |
-| Outcome | Executive | How calls end: booked, handed off, abandoned, crashed, locked | Empty |
-| Cost | Executive | Dollars: per call, per booking; Claude and Cartesia | Empty |
-| Speed | Analyst | Each turn's wait against 800 ms, and where it went | Empty |
-| Flags | Analyst | — (see [FLAGS.md](FLAGS.md)) | Empty |
-| Logs | Analyst | Every call, each one opening in Chat | Designed (§3.1) |
+| Home | Executive | A summary of all the others | Built (§3.2) |
+| Outcome | Executive | How calls end: booked, handed off, abandoned, crashed, locked | Built (§3.2) |
+| Cost | Executive | Dollars: per call, per booking; Claude and Cartesia | Built (§3.2) |
+| Speed | Analyst | Each turn's wait against 800 ms, and where it went | Built (§3.2) |
+| Flags | Analyst | Flags by kind and source; each flag's words with PHI View (see [FLAGS.md](FLAGS.md)) | Built (§3.2) |
+| Logs | Analyst | Every call, each one opening in Chat | Built (§3.1) |
 
 The order of work (the owner, 2026-11-22): **Logs first**, since every other view is a sum of
-its rows and every drill-down ends in it; then Outcome and Cost, then Speed and Flags; Home last.
+its rows and every drill-down ends in it; then the other five **all at once** (his pick over two
+batches, the same evening).
+
+**The other five, decided (the owner, 2026-11-22):**
+- **Flags shows a flag's words** (his A): the summary and the evidence of each staff flag, to a
+  role with PHI View only, and each opening writes an audit row (`flag.view`) in ehr. Without PHI
+  View: kinds, sources and counts.
+- **No fork (one option each):** the sums are worked out in ehr (`CallStats`), never from Logs'
+  2000 rows; the charts are drawn by our own code (HTML, not SVG as said in the chat) in the theme's roles, no chart library; Cost counts
+  Cartesia too, in dollars once Config › Cartesia has the plan's price per credit, in credits
+  until then (never a guessed price); Speed splits each wait by stage, kept in the store as
+  numbers; each executive number shows its change against the period before; each number names
+  how many calls it rests on.
+- **The draft he took** (the table in the chat of 2026-11-22): Home: calls, % booked, $ per
+  call, typical wait, open flags, each opening its view, and calls per day by outcome. Outcome:
+  the shares by outcome, outcomes per day, where calls stop, the end reasons. Cost: $ total, per
+  call, per booking, Claude and Cartesia, $ per day, by model, the 5 most costly calls. Speed:
+  median and 90th-percentile wait, % within 800 ms, the spread of waits, the split by stage, the
+  slowest tools and turns, a compare by version. Flags: staff and review flags, % flagged, flags
+  per day by kind, by kind and source, the flagged calls.
 
 ### 3.1 Logs
 > **Part:** designed · 2026-11-22 — the owner's forks that day; the columns and the filters are
@@ -175,7 +194,87 @@ its rows and every drill-down ends in it; then Outcome and Cost, then Speed and 
 6. Make a Test call on Chat, then open Analytics › Logs again: the new call is at the top.
 7. A role without Testing View has no Open in Chat; without Analytics View, no Analytics page.
 
-## 4. Desk test
+### 3.2 Home, Outcome, Cost, Speed and Flags
+> **Part:** built · 2026-11-22 · desk test open — the owner's "all five now", the draft he took
+> (§3), and Flags' words with PHI View (his A).
+
+**The parts they share**
+- **The store** (migration 0014, `ehr/src/store.rs`): each call's `cartesia_credits` (from
+  `call_end.cartesia`) and `turn_stages`, one set per answered turn (`turn_stages`): *Ink* (the
+  caller's silence to Ink's final line), *Claude* (its requests), *Tools* (the tools' own runs
+  less the ehr calls in them), *EHR*, *Voice out* (the first frame to the caller hearing it) and
+  *Other* (the rest). Each span counts only where it falls inside the turn. Filled at the next
+  ingest, as 0013 did.
+- **The sums** (`ehr/src/stats.rs`, ehr's `CallStats`, `GET /agent/stats`; Analytics View):
+  every number in ehr, over every call that passes the filter bar (the filters in SQL, the sums
+  in `stats::aggregate`), and the totals of the range before (as long as the range; none for All
+  time). Replayed calls' waits are left out, as in Logs. `usd_per_credit` is the active Cartesia
+  plan's price over its credits.
+- **Config › Cartesia, Usage:** a new row, *Plan price ($ a month)*, `plan_price_usd` (0: not
+  set). Cost turns credits into dollars with it; until it is set, Cartesia shows in credits.
+- **The kit** (`pages/analytics-kit.ts`, `styles/analytics.css`): the view's frame (the title,
+  the shared filter bar, a count line, the body), the headline tiles, and the charts: columns
+  per day (stacked by series, every day of the range shown), bars across, one split bar, the
+  spread of waits with a line at 800 ms, and short lists. All drawn by our own code in HTML, in
+  the theme's roles; no chart library. Each view reads again when it opens.
+- **Drill-downs:** a tile opens its view (Home) or Logs with a filter set; a chart's part opens
+  Logs on that outcome or on flagged calls; a list's row opens Logs with that call or tool in
+  its search box (`findInLogs`). The filter bar on every view follows a change made on another.
+
+**The views**
+- **Home** (executive): *Calls*, *Booked*, *Cost per call*, *Typical wait* (the median turn),
+  *Flagged calls*, each with its change and each opening its view; *Calls per day*, by outcome.
+- **Outcome** (executive): *Booked*, *Handed off*, *Abandoned*, *Crashed* as shares, each opening
+  Logs on it; *Outcomes per day*; *Where calls reach* (how many reached each step, in the Flow's
+  order); *How calls end* (the end reasons, at most 10).
+- **Cost** (executive): *Total*, *Per call*, *Per booking*, *Cartesia*; *Dollars per day*
+  (Claude and Cartesia stacked, or Claude alone until the price is set); *By model*; *The most
+  costly calls* (5).
+- **Speed** (analyst): *Median wait*, *90th percentile*, *Within 800 ms*; *The spread of waits*;
+  *Where the wait goes* (the mean of each stage); *The slowest tools* (median and 90th of their
+  own runs, the failures); *The slowest turns* (10); *Compare versions* (by words, System,
+  Hospital or model: calls, booked, median, 90th, within 800 ms, $ per call; a row sets the
+  Version filter for every view).
+- **Flags** (analyst): *Flagged calls*, *Staff flags*, *Review flags*, *Unverified evidence*;
+  *Flags per day*; *Staff flags by kind* (with the source: code or model); *Review flags by
+  reason*; *The flagged calls* (from Logs' list, at most 200): a row opens its panel. With PHI
+  View, the panel reads the call's flags through `GET /agent/flags/{id}` (ehr's `ReadFlags`,
+  which writes a `flag.view` audit row before the words leave) and shows each flag's kind, its
+  source, its summary and its evidence. Without PHI View: the kinds, and a line that says what
+  is needed. *Find in Logs* in each panel.
+
+**Decided inside the owner's choice (for his review):**
+- The series' colors are theme roles: Booked and Tools `--go`; Handed off and Claude `--accent`;
+  Abandoned and Other `--text-3`; Crashed and staff flags `--error`; Locked and Ink
+  `--unverified`; Ended and EHR `--text-2`; Cartesia and Voice out `--shape-2`. No new theme
+  role was made; a theme where two read alike is for the desk test.
+- A change is "▲/▼ size vs the 7 days before", green when better, red when worse, plain when a
+  rise is neither (Handed off, Calls). Shares change in points.
+- "Flagged calls" on Home in place of "open flags": a flag has no open or closed state yet.
+- **Every call counts on every view** (the owner, 2026-11-22: "Count every call"), the
+  kept-script draws too; the Origin filter narrows it. Replayed calls' waits stay out of Speed.
+- *Cost per call* and *Total* add Cartesia's dollars only when the price is set; the tile says
+  "Claude only" until then.
+- The x axis names the first and last day; each column's hint names its day and numbers.
+- The day axis uses this browser's day for the range's first day; the sums use the server's.
+- The flagged calls list reads Logs' list (2000 at most), so a range past that shows the newest.
+
+**Desk test** (restart `npm run dev` first: ehr, migration 0014 and the agent changed):
+1. Analytics › **Home**: five tiles with numbers and "of N calls" lines; with Last 7 days, each
+   has a change line ("▲ … vs the 7 days before"). *Calls per day* shows a column per day.
+2. Click *Booked*: Outcome opens. Click a column's green part: Logs opens with Outcome Booked,
+   and the filter bar on every view shows Booked. Set Outcome back to Any.
+3. **Cost**: *Cartesia* says to set the plan's price. In Config › Cartesia, Edit, set *Plan
+   price* (Free: 0; a paid plan: its price), Save. Back on Cost: Cartesia in dollars, and
+   *Dollars per day* stacks Claude and Cartesia.
+4. **Speed**: the three tiles, *The spread of waits* with the 800 ms line, *Where the wait goes*.
+   Make a voice call first to see Ink and Voice out. Click a slow turn: Logs opens with that call
+   in its search box. Choose *Compare by words* and click a row: every view's Version filter is
+   set.
+5. **Flags**: open a flagged call. With PHI View (the owner): its flags' summary and evidence.
+   Audit Logs › Calls shows a `flag.view` row for it. As a guest without PHI View: kinds only.
+6. Change the dates on any view: every view follows, and the numbers change.
+
 **Open.**
 1. `npm run dev`, open the console, click **Analytics** in the big nav. One panel fills the
    page: the title, then the Analytics nav at the left with Home, Outcome, Cost, Logs, Speed

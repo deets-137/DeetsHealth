@@ -71,6 +71,11 @@ const listeners = new Set<() => void>();
 
 export const filters = (): Filters => state;
 
+/** Changes the filters for every view: a chart's drill-down sets one before it opens Logs. */
+export function setFilters(change: Partial<Filters>): void {
+  set(change);
+}
+
 function set(change: Partial<Filters>): void {
   state = { ...state, ...change };
   try {
@@ -151,18 +156,28 @@ export function filterBar(search?: HTMLElement): FilterBar {
   klass.title = "The class of calls listed. A dev machine holds synthetic calls only (DATABASE.md §7)";
   klass.classList.add("an-class");
   const version = select("Version", [["", "Any version"]], f.version, (v) => set({ version: v }));
-  bar.append(
-    klass,
-    select("Dates", RANGES.map((r) => [r, RANGE_WORDS[r]]), f.range, (v) => set({ range: v as Range })),
-    select("Origin", ORIGINS, f.origin, (v) => set({ origin: v })),
-    select("Outcome", OUTCOMES, f.outcome, (v) => set({ outcome: v })),
-    select("EHR", EHRS, f.ehr, (v) => set({ ehr: v })),
-    select("Seat", SEATS, f.seat, (v) => set({ seat: v })),
-    version,
-    toggle("Flagged only", f.flagged, (v) => set({ flagged: v })),
-    toggle(`Over ${TURN_TARGET_MS} ms only`, f.slow, (v) => set({ slow: v })),
-  );
+  const selects: [keyof Filters, HTMLSelectElement][] = [
+    ["range", select("Dates", RANGES.map((r) => [r, RANGE_WORDS[r]]), f.range, (v) => set({ range: v as Range }))],
+    ["origin", select("Origin", ORIGINS, f.origin, (v) => set({ origin: v }))],
+    ["outcome", select("Outcome", OUTCOMES, f.outcome, (v) => set({ outcome: v }))],
+    ["ehr", select("EHR", EHRS, f.ehr, (v) => set({ ehr: v }))],
+    ["seat", select("Seat", SEATS, f.seat, (v) => set({ seat: v }))],
+  ];
+  const toggles: [keyof Filters, HTMLElement][] = [
+    ["flagged", toggle("Flagged only", f.flagged, (v) => set({ flagged: v }))],
+    ["slow", toggle(`Over ${TURN_TARGET_MS} ms only`, f.slow, (v) => set({ slow: v }))],
+  ];
+  bar.append(klass, ...selects.map(([, s]) => s), version, ...toggles.map(([, t]) => t));
   if (search) bar.append(search);
+  // Another view's bar, or a drill-down, changed the filters: this bar shows them too.
+  onFilters(() => {
+    for (const [k, s] of selects) if (s.value !== state[k]) s.value = String(state[k]);
+    for (const [k, t] of toggles) t.querySelector("button")!.setAttribute("aria-pressed", String(state[k]));
+    if (version.value !== state.version) {
+      if (![...version.options].some((o) => o.value === state.version)) version.add(new Option(state.version.replace(":", " "), state.version));
+      version.value = state.version;
+    }
+  });
   return {
     el: bar,
     setVersions(calls) {

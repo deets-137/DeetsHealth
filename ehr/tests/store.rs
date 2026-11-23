@@ -664,6 +664,26 @@ async fn the_call_list_holds_names_numbers_and_the_label() {
     assert_eq!(since.len(), 1, "the range holds");
     assert_eq!(synthetic.list_calls("", "", 1).await.unwrap().len(), 1, "the limit holds");
 
+    // Analytics' sums (ANALYTICS.md §3.2): the filters hold in SQL; the stages and credits fill.
+    use deetshealth_ehr::stats::Filter;
+    let any = Filter::default();
+    assert_eq!(synthetic.stats_rows("", "", &any).await.unwrap().len(), 2);
+    let voice_only = Filter { seat: "voice".into(), ..Filter::default() };
+    let rows = synthetic.stats_rows("", "", &voice_only).await.unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].turn_stages.len(), 1, "one answered turn, one set of stages");
+    assert!((rows[0].turn_stages[0].ink - 400.0).abs() < 0.01, "the caller's silence to Ink's final line");
+    let flagged = Filter { flagged: true, origin: "typed".into(), ..Filter::default() };
+    assert_eq!(synthetic.stats_rows("", "", &flagged).await.unwrap().len(), 1, "typed_a has a review flag");
+    let words = Filter { version_kind: "prompt".into(), version_label: "11-21 | 3".into(), ..Filter::default() };
+    assert_eq!(synthetic.stats_rows("", "", &words).await.unwrap().len(), 1);
+    assert_eq!(synthetic.stats_tools("", "", &voice_only).await.unwrap().len(), 1);
+
+    // A flag's words, opened (the service writes the audit row and needs PHI View).
+    let flags = synthetic.read_flags("test_20261122-164500").await.unwrap().unwrap();
+    assert_eq!((flags.len(), flags[0].kind.as_str()), (1, "referral_check"));
+    assert!(synthetic.read_flags("test_nope").await.unwrap().is_none());
+
     store.close().await;
     sqlx::query(sql(format!("DROP DATABASE {name}"))).execute(&mut admin).await.unwrap();
 }
@@ -987,6 +1007,25 @@ async fn roles_are_granted_by_the_rules_and_every_change_is_chained() {
         assert!(trail.iter().find(|r| r.action == "rpc.list_users" && r.actor.is_empty()).unwrap().source == "unknown");
         let ok = svc.verify_audit(as_person(&o.id, Request::new(pb::VerifyAuditRequest {}))).await.unwrap().into_inner();
         assert!(ok.ok && ok.rows == trail.len() as i64);
+
+        // Analytics › Flags (ANALYTICS.md §3.2): a flag's words need PHI View, and each read
+        // writes `flag.view` with the call's id before the words leave.
+        store.file_record("typed_a", RECORD.as_bytes()).await.unwrap();
+        let ask = || pb::ReadFlagsRequest { call_id: "typed_a".into() };
+        let err = svc.read_flags(as_person(&guest_id, Request::new(ask()))).await.unwrap_err();
+        assert_eq!(err.code(), Code::PermissionDenied);
+        let flags = svc.read_flags(as_person(&o.id, Request::new(ask()))).await.unwrap().into_inner().flags;
+        assert_eq!((flags.len(), flags[0].kind.as_str(), flags[0].evidence.clone()), (1, "possible_emergency", vec!["chest pains".to_string()]));
+        let newest = svc
+            .read_audit(as_person(&o.id, Request::new(pb::ReadAuditRequest { before: 0, limit: 2, changes: false })))
+            .await
+            .unwrap()
+            .into_inner()
+            .rows;
+        assert_eq!((newest[0].action.as_str(), newest[0].object_id.as_str(), newest[0].lever.as_str()), ("flag.view", "typed_a", "phi"));
+        assert_eq!((newest[1].action.as_str(), newest[1].allowed), ("rpc.read_flags", false), "the guest's refusal");
+        let none = svc.read_flags(as_person(&o.id, Request::new(pb::ReadFlagsRequest { call_id: "typed_zzz".into() }))).await.unwrap_err();
+        assert_eq!(none.code(), Code::NotFound);
     }
 
     // With the guard off (only a superuser can), a changed row breaks the chain at that row.
