@@ -6,7 +6,14 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
-from pipecat.frames.frames import LLMMessagesAppendFrame, TranscriptionFrame, TTSSpeakFrame
+from pipecat.frames.frames import (
+    BotStartedSpeakingFrame,
+    LLMMessagesAppendFrame,
+    TranscriptionFrame,
+    TTSAudioRawFrame,
+    TTSSpeakFrame,
+    TTSStartedFrame,
+)
 from pipecat.processors.frame_processor import FrameDirection
 
 from deets_agent import config
@@ -49,6 +56,37 @@ def test_the_911_line_cannot_be_interrupted():
     frame = emergency_frame()
     assert frame.text == emergency_line() and frame.interruptible is False
     assert TTSSpeakFrame(text="x").interruptible is True
+
+
+class _Meter(VoiceMeter):
+    """The meter with its output caught, not sent down a pipeline."""
+
+    async def push_frame(self, frame, direction=FrameDirection.DOWNSTREAM):
+        pass
+
+
+class _Record:
+    def __init__(self) -> None:
+        self.events: list[tuple[str, dict]] = []
+
+    def event(self, kind: str, **fields) -> None:
+        self.events.append((kind, fields))
+
+
+async def test_the_meter_records_each_lines_first_audio_and_the_seat_speaking():
+    m, r = _Meter(), _Record()
+    m.record = r
+    audio = lambda: TTSAudioRawFrame(audio=b"\0\0", sample_rate=16000, num_channels=1)
+    for frame, way in [
+        (TTSStartedFrame(), FrameDirection.DOWNSTREAM),
+        (audio(), FrameDirection.DOWNSTREAM),
+        (audio(), FrameDirection.DOWNSTREAM),  # not the first: no event
+        (BotStartedSpeakingFrame(), FrameDirection.DOWNSTREAM),  # the seat's own copy: no event
+        (BotStartedSpeakingFrame(), FrameDirection.UPSTREAM),
+    ]:
+        await m.process_frame(frame, way)
+    assert r.events == [("voice", {"stage": "sonic_audio"}), ("voice", {"stage": "speaking"})]
+    assert all("text" not in f for _, f in r.events), "times only, never words"
 
 
 class _Screen(CallerScreen):

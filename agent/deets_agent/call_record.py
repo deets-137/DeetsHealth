@@ -42,6 +42,11 @@ Each line is one event: `t_ms` (from the call's start; to a tenth of a milliseco
 - `text` — a text message the fake Twilio took from ehr during the call (fake_twilio.py): the
   number it went to and its words, the code among them. Test calls only. A real call never
   has one: Twilio itself sends a real text, and nothing copies it here.
+- `voice` (schema 15) — a voice call's stages, for the Chat page's Timeline (CHAT.md §18). Times
+  only, never words or audio. Its `stage`: `heard` (Ink's `turn.end`: the caller's line is final;
+  `last_words_ms`, on the call's clock, when Ink's words last changed, about when the caller
+  stopped), `sonic_audio` (Sonic's first audio for a line) and `speaking` (the seat began to play
+  that line to the caller).
 - `log` — a library warning or error, with its text (the console shows it withheld).
 - `error` — the harness itself failed.
 """
@@ -83,8 +88,10 @@ CALLS = config.AGENT / "calls"
 # 14: since 2026-11-15, late: `data_class` on `call_start` (always `synthetic` here: a dev record
 # is never a real call; DATABASE.md §7), the origin `kept` for a kept-script draw, and every call
 # id starts with its origin (`test_20261115-201500`; DATABASE.md §7.5).
-# The catalog reads all fourteen.
-SCHEMA_VERSION = 14
+# 15: since 2026-11-22: `voice` events on a voice call (Ink's final line, Sonic's first audio,
+# the seat speaking), for the Chat page's Timeline.
+# The catalog reads all fifteen.
+SCHEMA_VERSION = 15
 
 # Who starts a call (DATABASE.md §7.1); a call id starts with its origin and `_`.
 ORIGINS = ("typed", "test", "kept", "live")
@@ -295,6 +302,10 @@ class CallRecord:
         self._file.flush()
         for listener in self.listeners:
             listener(text)
+
+    def clock(self, at: float) -> float:
+        """A `time.perf_counter()` reading on the call's clock, in ms."""
+        return _ms(at - self._start)
 
     # ---- the hooks ----
 

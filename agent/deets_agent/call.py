@@ -397,6 +397,8 @@ class TypedCall:
             self._collector.manager = self._manager
             self._screen.record = record
             ehr.record = record
+            if voice is not None:
+                voice.record = record  # the voice stages, for the Timeline (voice.py)
             # Each staff flag goes to the record, and so to the watch stream (FLAGS.md §5).
             self.flow.on_flag = lambda flag: record.event("staff_flag", **flag.test_record())
             # Each move between steps, when it happens, with the tools the model has there

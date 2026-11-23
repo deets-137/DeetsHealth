@@ -18,6 +18,11 @@ API that reports usage, and its dashboard is the full count (CARTESIA.md §4).
 **The limits** (`config.VOICE_IDLE_S`, `config.VOICE_MAX_S`) end a voice test call with no
 spoken line: a dev guard for the Free plan's credits, not a caller's experience.
 
+**The stages** (the Chat page's Timeline, CHAT.md §18): with a dev call record open, each turn's
+voice stages go to it as `voice` events (call_record.py): Ink's final line with the time its
+words last changed, Sonic's first audio for each line, and the seat beginning to play it. Times
+only, never words or audio.
+
 Logs carry the kind of event only, never the words (SECURITY.md §4).
 """
 
@@ -25,7 +30,13 @@ from __future__ import annotations
 
 import time
 
-from pipecat.frames.frames import Frame, MetricsFrame
+from pipecat.frames.frames import (
+    BotStartedSpeakingFrame,
+    Frame,
+    MetricsFrame,
+    TTSAudioRawFrame,
+    TTSStartedFrame,
+)
 from pipecat.metrics.metrics import STTUsageMetricsData, TTSUsageMetricsData
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.services.cartesia.tts import CartesiaTTSService, GenerationConfig
@@ -87,6 +98,9 @@ class VoiceMeter(FrameProcessor):
         # The test-call guard (CONSOLE.md §7, the active settings).
         self.idle_s = idle_s
         self.max_s = max_s
+        # The dev call record (Voice sets it): each line's first audio and its start at the seat.
+        self.record = None
+        self._line_started = False
 
     @property
     def credits(self) -> int:
@@ -103,6 +117,15 @@ class VoiceMeter(FrameProcessor):
                     self.ink_s += data.value.audio_seconds
                 elif isinstance(data, TTSUsageMetricsData):
                     self.sonic_chars += data.value
+        if self.record is not None:
+            # Sonic's frames come down from it; the seat's "speaking" comes back up to here.
+            if isinstance(frame, TTSStartedFrame):
+                self._line_started = True
+            elif isinstance(frame, TTSAudioRawFrame) and self._line_started:
+                self._line_started = False
+                self.record.event("voice", stage="sonic_audio")
+            elif isinstance(frame, BotStartedSpeakingFrame) and direction == FrameDirection.UPSTREAM:
+                self.record.event("voice", stage="speaking")
         await self.push_frame(frame, direction)
 
     def heard(self) -> None:
@@ -131,11 +154,34 @@ class Voice:
         self.stt = build_stt(key, v)
         self.tts = build_tts(key, v)
         self.meter = VoiceMeter(int(v.get("idle_s") or config.VOICE_IDLE_S), int(v.get("max_s") or config.VOICE_MAX_S))
+        self._record = None
+        # When Ink's words for the current turn last changed (perf_counter): about when the
+        # caller stopped speaking, since Ink's turn.end waits for its own silence after it.
+        self._last_words: float | None = None
 
         @self.stt.event_handler("on_turn_start")
         async def _start(service, *args):
             self.meter.heard()
+            self._last_words = time.perf_counter()
+
+        @self.stt.event_handler("on_turn_update")
+        async def _update(service, *args):
+            self._last_words = time.perf_counter()
 
         @self.stt.event_handler("on_turn_end")
         async def _end(service, *args):
             self.meter.heard()
+            if self._record is not None:
+                fields = {"last_words_ms": self._record.clock(self._last_words)} if self._last_words else {}
+                self._record.event("voice", stage="heard", **fields)
+            self._last_words = None
+
+    @property
+    def record(self):
+        return self._record
+
+    @record.setter
+    def record(self, record) -> None:
+        """The dev call record: the stages go to it (call.py sets it when one is open)."""
+        self._record = record
+        self.meter.record = record

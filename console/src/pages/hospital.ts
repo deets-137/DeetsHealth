@@ -57,10 +57,18 @@ type ListKey = "visit_type_list" | "diagnosis_list" | "specialty_list";
 type Limits = HospitalSettings["limits"];
 // Specialties has a tab of its own (the owner, W1 A, 2026-11-15): a long list never sits under
 // another one (TABLES.md §6.3).
-// Rules after Booking (BOOKING-RULES.md §4: a placement, the owner's to move).
+// The Booking rules moved to Rules › Booking (the owner's 2A, 2026-11-22): one place for every
+// rule. That view is this one with the rules tab alone (bookingRulesView).
 const TABS = ["visits", "times", "places", "specialties", "booking", "rules"] as const;
 type Tab = (typeof TABS)[number];
-const TAB_KEY = "deets.console.hospital.tab";
+const TAB_WORDS: Record<Tab, string> = {
+  visits: "Visits",
+  times: "Times",
+  places: "Places",
+  specialties: "Specialties",
+  booking: "Booking",
+  rules: "Rules",
+};
 /** Each tab's lists, in the page's order. */
 const TAB_KEYS: Record<Tab, Key[]> = {
   visits: ["visit_type_list", "visit_types", "visit_groups", "diagnosis_list", "reasons"],
@@ -547,8 +555,37 @@ function differing(a: Draft, b: Draft): Set<string> {
   return out;
 }
 
-export const hospitalView = (): View => {
-  let tab: Tab = remembered(TAB_KEY, TABS, "visits");
+/** One view of the hospital's settings: Config › Hospital (every tab but Rules), or Rules ›
+ * Booking (the rules tab alone). Both edit the same versions. A save sends this view's own
+ * lists over the newest active version, so one view's save never undoes the other's. */
+type HospitalSpec = { id: string; title: string; tabs: readonly Tab[]; tabKey: string };
+
+const HOSPITAL: HospitalSpec = {
+  id: "hospital",
+  title: "Hospital",
+  tabs: TABS.filter((t) => t !== "rules"),
+  tabKey: "deets.console.hospital.tab",
+};
+
+/** Rules › Booking (BOOKING-RULES.md §5.5): the Booking rules table, in the Config frame. */
+export const bookingRulesView = (): View =>
+  hospitalView({ id: "booking", title: "Booking", tabs: ["rules"], tabKey: "deets.console.rules.booking.tab" });
+
+export const hospitalView = (spec: HospitalSpec = HOSPITAL): View => {
+  const TABS = spec.tabs;
+  const TAB_KEY = spec.tabKey;
+  const ownKeys = TABS.flatMap((t) => TAB_KEYS[t]);
+  // This view's lists from the draft; the rest from the newest active version the store holds.
+  // The other view (Config › Hospital or Rules › Booking) may have saved since this one drew,
+  // so the checks and a save use its lists, never this view's stale copy.
+  const whole = (d: Draft): Draft => {
+    const now = hospitalSettings(0).get().value?.active;
+    if (!now) return d;
+    const out = withRowDefaults(structuredClone(now)) as Record<Key, unknown>;
+    for (const k of ownKeys) out[k] = d[k];
+    return out as Draft;
+  };
+  let tab: Tab = remembered(TAB_KEY, TABS, TABS[0]);
   let slideTab: string | undefined;
   let latest: HospitalSettings | undefined;
   let kitNow: Kit | undefined;
@@ -683,8 +720,8 @@ export const hospitalView = (): View => {
   let cardWatch: ResizeObserver | undefined;
 
   return settingsView<HospitalValues, Draft, HospitalSettings>({
-    id: "hospital",
-    title: "Hospital",
+    id: spec.id,
+    title: spec.title,
     store: hospitalSettings,
     took: (s) => {
       latest = s;
@@ -693,10 +730,14 @@ export const hospitalView = (): View => {
       ui.importSay = "";
       ui.older = s.version && !s.version.active ? s.active : null;
     },
-    save: (_s, d) => saveHospital(d),
+    // This view's lists over the newest active version, read again first.
+    save: async (_s, d) => {
+      await hospitalSettings(0).refresh();
+      return saveHospital(whole(d));
+    },
     fromValues: (v) => withRowDefaults(structuredClone(v)),
     differing,
-    blocked: (d) => (latest ? problem(d, latest.limits) : null),
+    blocked: (d) => (latest ? problem(whole(d), latest.limits) : null),
     render: (s, d, kit) => render(s, d, kit),
   });
 
@@ -706,15 +747,8 @@ export const hospitalView = (): View => {
     const from = slideTab;
     slideTab = undefined;
     const bar = tabBar(
-      "Hospital",
-      [
-        ["visits", "Visits"],
-        ["times", "Times"],
-        ["places", "Places"],
-        ["specialties", "Specialties"],
-        ["booking", "Booking"],
-        ["rules", "Rules"],
-      ],
+      spec.title,
+      TABS.map((t): [string, string] => [t, TAB_WORDS[t]]),
       tab,
       (v) => {
         slideTab = tab;
@@ -725,13 +759,15 @@ export const hospitalView = (): View => {
       from,
     );
     const bars = el(`<div class="prompt-bars"></div>`);
+    // A view of one tab has no tab bar: the search box alone.
+    bar.el.hidden = TABS.length < 2;
     bars.append(bar.el, searchWrap);
     const body = el(`<div class="prompt-sections"></div>`);
     kitNow = kit;
     draftNow = d;
     const err = el(`<p class="prompt-problem" role="status" hidden></p>`);
     const showProblem = () => {
-      const msg = problem(d, s.limits);
+      const msg = problem(whole(d), s.limits);
       err.textContent = msg ?? "";
       err.hidden = !msg;
     };

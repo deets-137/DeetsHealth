@@ -1,8 +1,8 @@
 ---
 status: built
 desk_test: closed 2026-11-22
-sources: [docs/architecture/images/chat-panel-no-collapse-2026-11-14.png, docs/architecture/images/chat-panel-overlap-2026-11-14.png, console/src/pages/panel-grow.ts, docs/architecture/images/chat-panel-handle-2026-11-14.png, console/src/tokens.ts, docs/architecture/images/chat-resources-tab-2026-11-14.png, agent/deets_agent/resources.py, docs/architecture/images/chat-title-box-move-2026-11-14.png, docs/architecture/images/chat-harness-failed-ehrerror-2026-11-14.webp, ehr/src/epic_ehr.rs, agent/deets_agent/ehr_process.py, console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/voice.py, agent/deets_agent/resources.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
-updated: 2026-11-16
+sources: [console/src/pages/timeline.ts, docs/architecture/images/chat-panel-no-collapse-2026-11-14.png, docs/architecture/images/chat-panel-overlap-2026-11-14.png, console/src/pages/panel-grow.ts, docs/architecture/images/chat-panel-handle-2026-11-14.png, console/src/tokens.ts, docs/architecture/images/chat-resources-tab-2026-11-14.png, agent/deets_agent/resources.py, docs/architecture/images/chat-title-box-move-2026-11-14.png, docs/architecture/images/chat-harness-failed-ehrerror-2026-11-14.webp, ehr/src/epic_ehr.rs, agent/deets_agent/ehr_process.py, console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/voice.py, agent/deets_agent/resources.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
+updated: 2026-11-22
 ---
 # DeetsHealth — The Chat page
 
@@ -858,8 +858,7 @@ is left.
 - **The call** (`#rail-call`, on top): **Sandbox EPTs** (in PHI the tab says **Caller**, empty
   for now, as §8.2 had it), **Steps** (§11), and **Review** (§12), which shows only after a
   call ends.
-- **The technical record** (`#rail-tech`, below): **Tools** (§9) and **Timeline** (empty for
-  now).
+- **The technical record** (`#rail-tech`, below): **Tools** (§9) and **Timeline** (§18).
 - Each panel takes half the rail (`flex: 1 1 0`), never less than `--rail-panel-min` (240 px).
   The tab's content scrolls inside the panel, so the tab bars never move. Under 1100 px the
   panels sit side by side under the stage, as the rail's panels did.
@@ -1167,3 +1166,67 @@ and `_watch_limits`), `screen.py` (a spoken line), `flow.py › emergency_frame`
 5. Stay silent for 60 s: the call ends with "Call ended: 60 s with no speech from the caller".
    The bar is back on Text, and Resources shows one voice call and the credits it used.
 6. Without the key in `.env`: Voice is dimmed, and its hint names the key.
+
+## 18. The Timeline tab: where each turn's time went
+> **Part:** built · 2026-11-22 · desk test open — the owner's forks (2026-11-22): a waterfall
+> per turn (option A of three: a waterfall, one strip for the whole call, a list of events), and
+> the voice stages recorded now (A).
+
+**What it answers:** where the caller's wait went in each turn, against the 800 ms target
+(ops/DEBUGGING.md §1). It is the console's call timeline; DEBUGGING.md's trace (OpenTelemetry,
+Jaeger) stays a later step.
+
+**The tab** (`pages/timeline.ts`, `styles/chat.css` › the Timeline panel): the bottom panel's
+second tab, one log per mode (Testing, Demo, PHI), filled from the same events as Tools and
+Steps (`CallView`), live during a call and in full for a Demo replay.
+- **One block per turn:** the greeting, then each caller line. The head says *Turn n* and the
+  wait: from the turn's start to the moment the caller hears the answer, and "within" or "over"
+  the target (in `--error` when over). The greeting shows its time with no verdict: it waits on
+  the call's set-up, not on a line. Under the head, the caller's line on one line, cut with "…".
+- **A row:** its label and its span on one line, and its track under them at the panel's full
+  width, so the track keeps its room in a rail of 300 px.
+- **The turn's start:** on a voice call, when Ink's words last changed (about when the caller
+  stopped speaking); on a typed line, when the line arrived; the greeting, at the call's start.
+- **The rows,** each on the turn's own time axis (from its start to its last moment, or the
+  target if that is later), with a thin line at the target:
+  - *Ink: end of turn* (voice): the caller's silence → Ink's final line.
+  - *Claude*, or *Claude (replayed)*: each request, with an upright mark at its first token.
+  - each tool by name, and indented under it (when inside the tool's run), each *ehr* call (`ehr FindSlots`) and each Epic
+    request (`Epic GET Patient?…`: the method and the parameter names, never a value).
+  - the moments: *First words out* (the agent's first frame), *Sonic: first audio*, *Caller
+    hears* (the seat begins to play it).
+  - a failed request or call is in `--error`, with "· failed"; a span still running is faint.
+- **The end of the wait:** *Caller hears* on a voice call; else *First words out*.
+- **Epic's requests** come at the call's end (CloseCall's ledger), so they join their turns
+  then. Their times are on ehr's clock, which starts at OpenCall, a few ms after the call.
+
+**The new events** (`agent/deets_agent/voice.py`, `call_record.py`, schema 15): `voice` with a
+`stage`: `heard` (Ink's `turn.end`, with `last_words_ms`), `sonic_audio` (Sonic's first audio
+for a line, `VoiceMeter`) and `speaking` (the seat's `BotStartedSpeakingFrame`, on its way back
+up). Times only, never words or audio. A record before schema 15 shows what it has: a voice
+turn there starts at Ink's final line and ends at the first frame out, before Sonic.
+
+**Decided inside the owner's choice (for his review):**
+- The target is 800 ms, a constant in `timeline.ts` (`TURN_TARGET_MS`), not a setting yet.
+- Each turn has its own axis, so a short turn is not a sliver beside a long one; the target
+  line makes turns comparable.
+- Colors: Claude `--accent`, a tool `--go`, ehr and Epic `--text-2`, Ink `--text-3`, failed
+  `--error`. The bar is `--meter-height` tall.
+- The caller's line heads its block, as the Tools tab shows it; no other words of the call.
+- On a voice call, Ink's final line and the caller event can come in either order; a caller
+  event less than 1 s before Ink's final line is the same turn.
+- The greeting has no "within" or "over".
+- "Caller hears" is the server's moment; the network to the caller's ear adds a little more.
+
+**Desk test** (restart `npm run dev` first: the agent's Python changed):
+1. Chat, Testing, Text, Local. Start a call and book a visit. Open the bottom panel's
+   **Timeline** tab: *Greeting*, then *Turn 1*, *Turn 2*… Each block shows *Claude* bars with
+   a mark at the first token, the tool rows (`find_slots`), the indented `ehr` rows, and
+   *First words out*. Each head shows the wait, "within" or "over 800 ms".
+2. Press **Voice**, Start, and speak. Each turn now starts with *Ink: end of turn* and ends
+   with *Sonic: first audio* and *Caller hears*.
+3. Epic, Test, as a sandbox patient: at the call's end, *Epic …* rows join the turns that sent
+   them.
+4. Demo: play a recorded call. The Timeline fills as it plays. An older voice record has no
+   Ink or Sonic rows.
+5. Switch Testing → Demo → PHI: each mode keeps its own Timeline.

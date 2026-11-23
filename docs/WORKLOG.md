@@ -8,6 +8,23 @@ updated: 2026-11-19
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-22 (Windows, later) — The empty views; Chat › Timeline; Rules › Booking
+- His words: "voice works, let's chat the unused pages". Counted from the code: 12 views said
+  "Empty for now" (Analytics 6, Rules 3, Org Chart, Personalization, Chat's Timeline tab).
+  Audit Logs and PHI's Caller tab were already built; HANDOFF said otherwise and is corrected.
+- His picks: the Timeline first, then Analytics designed view by view with the built pages as
+  the guide; **2A**, one place for every rule (the Booking rules move to the Rules page);
+  remove Org Chart for now.
+- **Chat › Timeline** (CHAT.md §18): his forks, a waterfall per turn (A) and the voice stages
+  recorded now (A). `pages/timeline.ts`; new `voice` events in the call record (schema 15:
+  Ink's final line with `last_words_ms`, Sonic's first audio, the seat speaking), from
+  `voice.py`; a test in `tests/test_voice.py`.
+- **Rules › Booking** (BOOKING-RULES.md §5.5): the hospital view with the rules tab alone
+  (`bookingRulesView`). Found while moving it: two views of one hospital version could undo
+  each other's save, so a save now sends its own lists over the newest active version.
+- **Teams:** Org Chart removed; People alone.
+- No screenshots this sitting.
+
 ## 2026-11-22 (Windows) — Claude runs the booking desk tests; a new aim
 - His words: "remember we're now aiming for a portfolio piece / plug-and-play no-code agent
   harness designed for healthcare professionals". DESIGN.md and BUILD-ORDER.md still say a

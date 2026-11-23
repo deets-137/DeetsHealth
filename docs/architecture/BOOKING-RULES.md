@@ -2,7 +2,7 @@
 status: built
 desk_test: closed 2026-11-22
 sources: [ehr/src/hospital.rs, ehr/src/epic_ehr.rs, ehr/src/scheduler.rs, ehr/src/service.rs, ehr/proto/deets/ehr/v1/ehr.proto, core/src/shielded.rs, ehr/fixtures/hospital.json, agent/deets_agent/flow.py, agent/deets_agent/ehr_client.py, agent/prompts/AGENT-PROMPT.md, agent/prompts/TOOLS.md, console/src/pages/hospital.ts, docs/integrations/EPIC.md, docs/architecture/HOSPITAL-CONFIG.md]
-updated: 2026-11-16
+updated: 2026-11-22
 ---
 # DeetsHealth — Booking by place, specialty and the hospital's rules
 
@@ -465,8 +465,9 @@ no usual place is asked where.
 4. Verify as Jordan, book a visit, then "Where do I go?": Main Street Clinic's address.
 
 ### 5.5 Step 4: the Booking rules (built 2026-11-16)
-> **Part:** built · 2026-11-16 · desk test closed 2026-11-22. Where this part and §3.5 disagree, this part is
-> the code.
+> **Part:** built · 2026-11-16 · desk test closed 2026-11-22; the move to Rules › Booking
+> (2026-11-22): desk test open, the "move" steps at this part's end. Where this part and §3.5
+> disagree, this part is the code.
 
 - **ehr › `hospital.rs`:** `BookingRule` (specialty ID, department record name, visit type
   record name, provider name, patients, outcome; each condition empty for any) and
@@ -488,9 +489,15 @@ no usual place is asked where.
   whose evidence is the caller's reason, checked as theirs. A booking with `check_referral`
   files a code flag `referral_check` with the visit's CSN; the caller hears nothing. The flag
   kinds are drafts (FLAGS.md §3).
-- **The console:** Config › Hospital › **Rules** (after Booking): the one table, with Specialty,
+- **The console:** **Rules › Booking** (since 2026-11-22, the owner's 2A: one place for every
+  rule; it was Config › Hospital › Rules): the one table, with Specialty,
   Department, Visit type, Provider, Patients and Outcome; ↑ ↓ ✕ (the order matters); each
-  outcome's "i" says what it does. The page checks a rule's rows as ehr does.
+  outcome's "i" says what it does. The page checks a rule's rows as ehr does. It is the
+  hospital's settings in the same Config frame, with this table alone and no tab bar
+  (`hospital.ts › bookingRulesView`): its versions are the hospital's. A save from either view
+  sends that view's own lists over the newest active version, so a save on one never undoes the
+  other's. Booking is first in the Rules nav, as the one built view (a placement, the owner's to
+  move).
 - **The Default:** no rules (every visit is Book).
 - **Tests:** `hospital.rs › a_booking_rule_must_name_rows_on_the_lists`; `service.rs ›
   booking_rules_hold_back_hand_off_refer_flag_and_keep_to_the_pcp`.
@@ -504,7 +511,7 @@ no usual place is asked where.
 - **Flag kinds:** `referral_check` and `booking_rule_hand_off` (drafts, FLAGS.md §3).
 
 **Desk test** (restart `npm run dev` first).
-1. Config › Hospital › **Rules**, Edit. Add three rules and Save:
+1. **Rules › Booking**, Edit. Add three rules and Save:
    1. Specialty Cardiology, Patients New, Outcome Hand off.
    2. Provider "Dr. Rosa Patel", Outcome Referral needed.
    3. Visit type Office Visit, Outcome Book and flag for a referral check.
@@ -516,6 +523,17 @@ no usual place is asked where.
 4. As Jordan, book an in-person visit at his usual place: the booking reads back as usual, and
    the call has a `referral_check` flag (rule 3). An online visit has none.
 5. Type a department that is not on Places in a rule: the page names the row and does not save.
+
+**Desk test of the move** (2026-11-22; restart `npm run dev` first):
+1. Config › Hospital: five tabs, Visits to Booking; no Rules tab. Rules: its nav reads
+   Booking, Agents, Flags, Tools; Booking shows the rules table in the Config frame (Read |
+   Edit, the version, Discard | Save) with no tab bar, and the search box.
+2. With both pages visited: on Rules › Booking, Edit, add a rule, Save. On Config › Hospital,
+   Edit, change a time of day, Save. Back on Rules › Booking, reload: the rule is still there.
+   Config › Hospital: the time of day is kept too.
+3. On Config › Hospital › Places, add a department and Save. Without a reload, on Rules ›
+   Booking, name that department in a rule: the page takes it and saves.
+4. A Hospital tab remembered as "Rules" from before opens on Visits.
 
 ### 5.6 The later steps
 None: steps 0 to 5 are built. §7 holds what is open.

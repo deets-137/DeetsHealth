@@ -39,6 +39,7 @@ import { el, setHtml, type Page } from "./page";
 import { placePill } from "./subnav";
 import { picker, type Picker } from "../picker";
 import { growHandle } from "./panel-grow";
+import { Timeline } from "./timeline";
 import { may, onAccess } from "../access";
 import type { Level, Lever } from "../agent/api";
 
@@ -257,8 +258,11 @@ export function chatPage(): Page {
                       `<p class="empty">No tool calls yet</p></div>`,
                   ).join("")}
                 </div>
-                <div class="tab-body" role="tabpanel" data-tab="timeline" translate="no" hidden>
-                  <p class="empty">Empty for now</p>
+                <div class="tab-body" role="tabpanel" data-tab="timeline" hidden>
+                  ${MODES.map(
+                    (m) => `<div class="timeline-log" data-for="${m}" translate="no" aria-label="Where each turn's time went">` +
+                      `<p class="empty">No call yet</p></div>`,
+                  ).join("")}
                 </div>
                 <div class="tab-body resources" role="tabpanel" data-tab="resources" id="chat-resources" hidden>
                   <p class="empty">Loading</p>
@@ -274,8 +278,13 @@ export function chatPage(): Page {
       const lines = (m: Mode) => page.querySelector<HTMLElement>(`.chat-lines[data-for="${m}"]`)!;
       const toolsBox = (m: Mode) => page.querySelector<HTMLElement>(`.tools-log[data-for="${m}"]`)!;
       const stepsBox = (m: Mode) => page.querySelector<HTMLElement>(`.steps-log[data-for="${m}"]`)!;
+      const timelineBox = (m: Mode) => page.querySelector<HTMLElement>(`.timeline-log[data-for="${m}"]`)!;
       // The rail's panels for a new call in mode `m`: each starts empty.
-      const panels = (m: Mode) => ({ tools: new ToolLog(toolsBox(m)), steps: new StepLog(stepsBox(m)) });
+      const panels = (m: Mode) => ({
+        tools: new ToolLog(toolsBox(m)),
+        steps: new StepLog(stepsBox(m)),
+        timeline: new Timeline(timelineBox(m)),
+      });
       // The rail's two panels and their tab bars (CHAT.md §15).
       const callTabs = new Tabs($("rail-call"), "deets.console.chat.tab.call");
       new Tabs($("rail-tech"), "deets.console.chat.tab.tech");
@@ -390,6 +399,7 @@ export function chatPage(): Page {
           lines(m).hidden = m !== mode;
           toolsBox(m).hidden = m !== mode;
           stepsBox(m).hidden = m !== mode;
+          timelineBox(m).hidden = m !== mode;
         });
         closeCode();
         showSandbox(); // the rail's list follows the mode: Test's toggle, Demo's call
@@ -1118,12 +1128,13 @@ class CallView {
    * `tools`: the rail's Tools panel for this call. */
   constructor(
     private readonly box: HTMLElement,
-    private readonly hooks: { onText?: (e: CallEvent) => void; tools?: ToolLog; steps?: StepLog } = {},
+    private readonly hooks: { onText?: (e: CallEvent) => void; tools?: ToolLog; steps?: StepLog; timeline?: Timeline } = {},
   ) {}
 
   add(e: CallEvent): void {
-    // The Step panel reads every kind it needs itself (steps, limits, marks, the end).
+    // The Step and Timeline panels read every kind they need themselves.
     this.hooks.steps?.add(e);
+    this.hooks.timeline?.add(e);
     if (e.kind === "llm") {
       this.llm.push(e);
       return;

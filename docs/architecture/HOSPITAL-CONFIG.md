@@ -33,7 +33,7 @@ doctor". Each needs a list that only the hospital can fill. Until 2026-11-15 eac
 value in one of three fixtures or a constant in the code.
 
 ## 2. The sections
-Six tabs: **Visits**, **Times**, **Places**, **Specialties**, **Booking**, **Rules**. "Used now" means a call reads it
+Five tabs: **Visits**, **Times**, **Places**, **Specialties**, **Booking**. The Booking rules are on **Rules › Booking** since 2026-11-22 (BOOKING-RULES.md §5.5). "Used now" means a call reads it
 today. "Not used yet" means the page keeps it and no call reads it; its note on the page says
 so.
 
@@ -149,7 +149,7 @@ so.
   (`Hospital::booking_note`). Empty: the words alone. Epic mode only: the local fake keeps the
   words, so a read-back never says the label.
 
-### 2.9a Booking rules — Rules tab, used now (2026-11-16)
+### 2.9a Booking rules — Rules › Booking since 2026-11-22 (was the Rules tab), used now (2026-11-16)
 - The rules engine's start (the owner's E-A; BOOKING-RULES.md §3.5, as built §5.5). Columns:
   Specialty, Department, Visit type, Provider, Patients (Any, New, Established), Outcome (Book;
   Book and flag for a referral check; Book with the PCP only; Referral needed; Hand off). Each
@@ -196,7 +196,7 @@ so.
 ## 4. Every place it runs
 - **The call:** the same on any phone. The model sees only the spoken names it may offer and
   the time-of-day names, never a code.
-- **The console:** one page, six tabs of tables (Visits, Times, Places, Specialties, Booking, Rules),
+- **The console:** one page, five tabs of tables (Visits, Times, Places, Specialties, Booking; the Rules tab moved to Rules › Booking on 2026-11-22),
   each row edited in place; a search box on the tab bar's line and long lists windowed
   (TABLES.md §6). Who may edit waits on
   the roles (ACCESS-ROLES.md). On a phone each table scrolls on its own (`.dt-wrap`, TABLES.md).

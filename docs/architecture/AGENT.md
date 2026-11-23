@@ -287,9 +287,9 @@ for something the agent cannot do: the offer of a person, a "no", and the call g
   In the dev seat no person can take the call; a real call's transfer comes with Twilio.
 - **The end's reason names Pipecat's idle limit** (2026-11-16): a call the idle limit cancels is
   filed as "no activity on the call", not "the caller hung up".
-- **No call timeline.** The dev call record covers the agent's side of a typed call. The
-  timeline is the Chat page's Timeline panel, fed by the watch stream once the agent is wired
-  in (CHAT.md §5); the voice timings come with the phone-and-voice work (BUILD-ORDER.md §3.3).
+- **The call timeline is the Chat page's Timeline tab** (built 2026-11-22, CHAT.md §18), from
+  the record's events; a voice call's stages are `voice` events since schema 15 (`voice.py`).
+  No trace across the services yet (DEBUGGING.md §1).
 - **Simulated callers** (layer 4) are not built; they come with the chart track
   (BUILD-ORDER.md §3.2).
 - **What the kept scripts catch, and what they miss** (the owner asked, 2026-11-14, after a

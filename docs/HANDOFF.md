@@ -123,6 +123,14 @@ interface (VOICE-AGENT.md §7.2).
 The list, and the issues found that day, is [PRE-LIVE-VERIFICATIONS.md](PRE-LIVE-VERIFICATIONS.md):
 every row is run before going live. MIT license since 2026-11-22 (`LICENSE`).
 
+**Built 2026-11-22, desk test open: Chat › Timeline, Rules › Booking, Org Chart gone** (the
+owner's forks that day). The Timeline tab is a waterfall per turn against the 800 ms target,
+with voice stages recorded as new `voice` events (schema 15): CHAT.md §18, its desk test there.
+The Booking rules table moved from Config › Hospital to **Rules › Booking** (his 2A: one place
+for every rule): BOOKING-RULES.md §5.5. Teams has People only. **Restart `npm run dev`**: the
+agent's Python changed. **Next, his:** design Analytics view by view (ANALYTICS.md §3), with
+the built pages as the guide.
+
 **Roles and the audit trail: built 2026-11-18 (`0f417e0`), desk test passed 2026-11-19**
 ("looks good for now"). docs/architecture/ACCESS-ROLES.md (moved from `docs/ideas/`; §5.1, §6
 "As built" for each hand-over); DATABASE.md §11; EHR-SERVICE.md §3 "Who is asking"; DEV-API.md
@@ -330,7 +338,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   Phone verification by text code is not built: every number shows the scarlet X. Role is a
   placeholder (`users.role` is not read) until roles exist. "Added by" is "First L."; the
   owner's own row says "Deets". Commits `819b7e3` and `a445276`; the full `npm run check` has
-  not run on them (the dev server held the ehr exe). Org Chart is still empty.
+  not run on them (the dev server held the ehr exe). Org Chart was removed 2026-11-22.
 - **Built, desk-tested 2026-11-14 (the owner): the console's read layer** (LOADING.md §2–§5). Every page
   reads through a store (`agent/store.ts`, `agent/stores.ts`): the newest answer wins, writes in
   click order, polls one at a time, retries when the agent is back; every read in the ledger
@@ -426,7 +434,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   analysts, Demo's recorded calls with a play button per row and a 0.5× | 1× | 2× speed bar,
   our own scrollbars (CONSOLE.md). **Desk tests passed 2026-11-13**, all but the Review tab's
   last three steps (CHAT.md §12: a dimension's note, a Demo replay keeps the choices, the
-  model's line). **Next, the owner's:** the Timeline and Caller tabs are "Empty for now".
+  model's line). The Timeline tab is built since 2026-11-22 (CHAT.md §18).
 - **In flight: the Chat page** (CHAT.md). The UI passed its first
   desk test (2026-11-12). **The connection is built, desk test closed 2026-11-22** (CHAT.md §6): `npm run
   dev` starts both; Test calls the agent through client-js and our own text transport (not
@@ -531,8 +539,8 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   an agents file at the root.
 - **SECURITY.md's drafts** (§7): the roles, the retention values, the list of verification
   questions that reveal nothing, how a hospital approves our emergency support access.
-- **The console** (DESIGN.md §2 C): what each page shows (the views of Analytics, Teams,
-  Config, Security, Audit Logs and Settings are all empty), staff sign-in. The look is decided
+- **The console** (DESIGN.md §2 C): what each page shows (empty since 2026-11-22: every
+  Analytics view, Rules › Agents, Flags and Tools, Settings › Personalization), staff sign-in. The look is decided
   (DESIGN.md §2 D); the 16 px radius is a trial for the owner to keep or end (CONSOLE.md §3).
   The 2026-11-13 pages' desk test is open (CONSOLE.md §6).
 - **The repo layout** (CONVERSION.md §6, a draft).

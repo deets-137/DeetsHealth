@@ -1251,6 +1251,172 @@
   color: var(--text-3);
 }
 
+/* ------------------------------------------------------------- the Timeline panel */
+
+/* The bottom panel's second tab (CHAT.md §18; timeline.ts): a waterfall per turn. Each row is a
+   label, a track on the turn's own time axis, and the span in words. The same size as Tools. */
+.timeline-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-size: var(--text-small);
+  user-select: text;
+}
+
+.timeline-log[hidden] {
+  display: none;
+}
+
+.timeline-log .empty {
+  margin: 0;
+}
+
+.tl-turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.tl-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tl-title {
+  font-weight: var(--weight-bold);
+}
+
+.tl-total {
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tl-total.is-over {
+  color: var(--error);
+}
+
+/* The caller's line, one line only: the Tools tab shows it whole. */
+.tl-line {
+  margin: 0;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tl-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* A row: the label and the span on one line, the track under them at the full width, so the
+   track keeps its room in a rail as narrow as --rail-min. */
+.tl-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+}
+
+.tl-row > .tl-label {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.tl-row > .tl-time {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.tl-row > .tl-track {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.tl-label {
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* An ehr or Epic call inside a tool: its label indented under the tool's. */
+.tl-row.is-nested .tl-label {
+  padding-left: var(--bullet-indent);
+  color: var(--text-3);
+}
+
+.tl-time {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tl-track {
+  position: relative;
+  height: var(--meter-height);
+  border-radius: var(--radius-small);
+  background: var(--line);
+}
+
+/* The target for a turn: a thin line across the track. */
+.tl-target {
+  position: absolute;
+  top: calc(var(--edge) * -2);
+  bottom: calc(var(--edge) * -2);
+  width: var(--edge);
+  background: var(--text-3);
+}
+
+.tl-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: var(--edge);
+  border-radius: var(--radius-small);
+}
+
+.tl-bar--voice {
+  background: var(--text-3);
+}
+
+.tl-bar--claude {
+  background: var(--accent);
+}
+
+.tl-bar--tool {
+  background: var(--go);
+}
+
+.tl-bar--ehr,
+.tl-bar--epic {
+  background: var(--text-2);
+}
+
+.tl-bar.is-failed {
+  background: var(--error);
+}
+
+.tl-bar.is-running {
+  opacity: 0.6;
+}
+
+/* Claude's first token, and a moment (Sonic's first audio, the caller hears): a short upright. */
+.tl-tick,
+.tl-pin {
+  position: absolute;
+  top: calc(var(--edge) * -2);
+  bottom: calc(var(--edge) * -2);
+  width: calc(var(--edge) * 2);
+  transform: translateX(-50%);
+  background: var(--text);
+}
+
 /* ------------------------------------------------------------- the rail's panels */
 
 /* Two panels (CHAT.md §15): the call in plain words on top, the technical record under it.

@@ -2,7 +2,7 @@
 status: built
 desk_test: passed 2026-11-11
 sources: [docs/architecture/images/hospital-places-cards-dark-2026-11-15.png, docs/architecture/images/hospital-places-cards-charcoal-2026-11-15.png, console/src/styles/people.css, console/src/styles/palette.css, console/security-headers.json, agent/deets_agent/security_headers.py, scripts/html-sinks.mjs, docs/architecture/images/chat-compact-toggles-2026-11-14.png, docs/architecture/images/nav-compact-layout-2026-11-14.png, console/src/picker.ts, console/src/pages/page.ts, console/src/styles/subnav.css, console/src/styles/chat.css, docs/architecture/images/config-agent-test-button-2026-11-14.png, console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
-updated: 2026-11-19
+updated: 2026-11-22
 ---
 # DeetsHealth — The console
 
@@ -81,7 +81,9 @@ web app cannot do.
   both are instant. The last page is reopened on the next visit (`localStorage`,
   `deets.console.page`).
 - **Pages** are built once, on the first visit, and kept (`pages/page.ts`).
-- **Chat** (`pages/chat.ts`): DeetsMotion's Visualizer layout. A large stage panel and a rail
+- **Chat** (`pages/chat.ts`): DeetsMotion's Visualizer layout. A large stage panel and a rail.
+  *Since 2026-11-13 the rail is two panels with tabs, all built ([CHAT.md](CHAT.md) §15; the
+  Timeline tab, §18); the rest of this item is the first layout of 2026-11-11.* Then: a rail
   of four panels. The rail takes a third of the page's width (`--stage-share` 2fr,
   `--rail-share` 1fr), and never less than 300 px (`--rail-min`) (the owner, 2026-11-11: a
   wider rail for the Timeline). The last rail panel fills to the stage's bottom edge. Below
@@ -96,11 +98,14 @@ web app cannot do.
   (`pages/subnav.ts`; [ANALYTICS.md](ANALYTICS.md) §2). The head is the title alone. Each view
   says "Empty for now". The last view is reopened on the next visit (`localStorage`,
   `deets.console.<page>`). The nav items, in order (the owner, 2026-11-13):
-  - Teams: **Org Chart**, **People**. People is built (2026-11-14, `pages/people.ts`): who may
+  - Teams: **People** (built 2026-11-14, `pages/people.ts`): who may
     sign in, ops/DEMO.md §3.5 and §7; since the owner's sketch of 2026-11-14, one card per
-    person, read only. Org Chart is still empty.
+    person, read only. Org Chart was removed on 2026-11-22 (the owner: "for now").
   - Config: **Agent**, **System**, **Cartesia** (§7).
-  - Rules (2026-11-14): **Agents**, **Flags**, **Tools**. All three are empty.
+  - Rules (2026-11-14): **Booking**, **Agents**, **Flags**, **Tools**. One place for every rule
+    (the owner's 2A, 2026-11-22). Booking is the Booking rules table, moved from Config ›
+    Hospital ([BOOKING-RULES.md](BOOKING-RULES.md) §5.5): the same Config frame and the same
+    hospital versions (`hospital.ts › bookingRulesView`). Agents, Flags and Tools are empty.
   - Security: **Auth**, **Roles**. Auth is built (2026-11-14, `pages/auth.ts`): who may sign
     in as a table that can be edited, a panel under each row (ops/DEMO.md §7). Roles (2026-11-14, `pages/roles.ts`,
     `styles/roles.css`) is the role templates as a table in Auth's look: one row per role, one
@@ -421,9 +426,10 @@ wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
 
 1. The nav reads Chat, Config, Rules, Teams, Analytics at the top (since 2026-11-14), and
    Security, Audit Logs, Settings at the foot.
-   Click **Rules**: its own nav reads Agents, Flags, Tools; each view says "Empty for now".
+   Click **Rules**: its own nav reads Booking, Agents, Flags, Tools (since 2026-11-22); Agents,
+   Flags and Tools say "Empty for now".
 2. Click **Teams**, **Config**, **Security**, **Audit Logs** and **Settings** in turn. Each shows one panel:
-   the title alone, then its own nav at the left (Org Chart, People · Agent, System · Auth,
+   the title alone, then its own nav at the left (People · Agent, System · Auth,
    Roles · Config, Calls, Security · Personalization). The first item is chosen; the view says "Empty for now".
 3. On one of them, click the second item. The pill slides and the view fades. Press ↑ and ↓:
    the choice moves. Reload: the same item is chosen.
