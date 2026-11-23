@@ -1,8 +1,8 @@
 ---
 status: project
-desk_test: open
+desk_test: passed 2026-11-21
 sources: [console/src/picker.ts, console/src/pages/panel-grow.ts, console/src/tokens.ts, console/src/nav.ts, console/src/pages/subnav.ts, console/src/pages/chat.ts, console/src/pages/page.ts, console/index.html, console/src/styles/app.css, console/src/styles/chat.css, console/src/styles/subnav.css, console/src/styles/skin.css, docs/architecture/images/nav-compact-layout-2026-11-14.png, docs/architecture/images/chat-compact-toggles-2026-11-14.png, docs/architecture/images/chat-panel-handle-2026-11-14.png, docs/architecture/images/chat-panel-overlap-2026-11-14.png, docs/architecture/images/chat-panel-no-collapse-2026-11-14.png]
-updated: 2026-11-16
+updated: 2026-11-21
 ---
 # DeetsHealth — The console on a phone
 
@@ -43,12 +43,12 @@ We never ask "is this a phone?". We ask three things the browser answers well.
 ## 4. Built, page by page
 | Part | State | Doc |
 |---|---|---|
-| The shell: the page dropdown under DeetsHealth, a page's own nav as a dropdown at the right of the same row, in halves (`picker.ts`, the compact bar) | built 2026-11-14, desk test open | CONSOLE.md §11 |
+| The shell: the page dropdown under DeetsHealth, a page's own nav as a dropdown at the right of the same row, in halves (`picker.ts`, the compact bar) | built 2026-11-14, desk test passed 2026-11-21 | CONSOLE.md §11 |
 | Hover washes on the nav, the menus and the app name only with `hover: hover` | built 2026-11-14 | CONSOLE.md §11.1 |
-| Chat: the seat, EHR and speed bars under the text box; the title box alone, full width | built 2026-11-14, desk test open | CONSOLE.md §11.4 |
-| Chat: Start / End call and Play / Stop fill the canvas's width in halves | built 2026-11-14, desk test open | CONSOLE.md §11.4 |
-| Chat: the call panel above the stage in Demo and PHI until a pick; it closes in place and opens under the stage (no crossing) | built 2026-11-14, desk test open | CHAT.md §15.1 |
-| Chat: the grow handle at each rail panel's foot (shown only when useful; nothing saved) | built 2026-11-14, desk test open | CHAT.md §15.2 |
+| Chat: the seat, EHR and speed bars under the text box; the title box alone, full width | built 2026-11-14, desk test passed 2026-11-21 | CONSOLE.md §11.4 |
+| Chat: Start / End call and Play / Stop fill the canvas's width in halves | built 2026-11-14, desk test passed 2026-11-21 | CONSOLE.md §11.4 |
+| Chat: the call panel above the stage in Demo and PHI until a pick; it closes in place and opens under the stage (no crossing) | built 2026-11-14, desk test passed 2026-11-21 | CHAT.md §15.1 |
+| Chat: the grow handle at each rail panel's foot (shown only when useful; nothing saved) | built 2026-11-14, desk test passed 2026-11-21 | CHAT.md §15.2 |
 | Chat: the page grows with its rows, so a grown panel pushes the panels after it down | built 2026-11-14 | CHAT.md §15.2 |
 | Config › Hospital: System's tables, each one scrolling on its own (`.sys-table-wrap`); no narrow layout of its own | built 2026-11-15, not looked at on a phone | HOSPITAL-CONFIG.md §4 |
 | Every table (the one table): sideways scroll inside its own box below the sum of its column widths (`--col-min` per text column); a title line's buttons wrap under the title | built 2026-11-15, not looked at on a phone | TABLES.md §3.1 |
@@ -73,6 +73,8 @@ One line per piece built; the full record of each sitting is WORKLOG.md.
   halves; Chat's toggles under the text box; Start / End call in halves; the call panel first in
   Demo and PHI (his fork A); the grow handle (his fork B, hidden when the list fits); the narrow
   page grows with its rows; the pick move closes and opens instead of crossing.
+- 2026-11-21 — the owner's desk test of the 2026-11-14 pieces passed ("console on a phone also
+  good to go"). §5 stays open.
 - 2026-11-15 — Config › Hospital: System's tables, each scrolling on its own; not looked at on a
   phone yet. Later the same day: Places' facility cards, one column on a phone. Late: the one
   table (TABLES.md) for every table; not looked at on a phone yet.

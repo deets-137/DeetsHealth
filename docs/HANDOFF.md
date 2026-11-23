@@ -263,7 +263,7 @@ and the console starts; each next step follows from what the console needs (the 
 
 Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-ORDER.md §3.4).
 
-- **Built, desk tests open: the console on a phone** (2026-11-14; the tracker is
+- **Built, desk test passed 2026-11-21: the console on a phone** (2026-11-14; the tracker is
   architecture/MOBILE-UI.md). The compact nav (CONSOLE.md §11: the page and view dropdowns in
   halves); Chat's toggles under the text box and Start / End call in halves (CONSOLE.md §11.4);
   the call panel first in Demo and PHI (CHAT.md §15.1); the rail panels' grow handle (CHAT.md
@@ -304,14 +304,14 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   Plain | Code animated in place.
   Names and "plays when" live in `agent/prompts/GUIDE.md`; the owner edits them there after the
   desk test. AGENT-PAGE.md §8 to §10 (the desk tests to run).
-- **Built, desk test open: the demo over the tunnel** (2026-11-13/14; ops/DEMO.md). `npm run
+- **Built, desk test passed 2026-11-21: the demo over the tunnel** (2026-11-13/14; ops/DEMO.md). `npm run
   dev` opens `deetshealth.deets.solutions/demo/` behind Access when every guard passes (one
   connector, the main checkout, `cf` and `cloudflared` ready); it prints `[demo] on` or
   `[demo] off: <reason>`. Several calls at once, a label beside Start, PHI's Caller list, live
   reload from a watched build, TURN for guest voice. Desk test: DEMO.md §6. Then DEMO.md
   becomes `built`. A Cloudflare error 1033 at the address means no connector runs: read the
   `[demo]` line.
-- **Built, desk test open: Teams › People (cards, read only) and Security › Auth (the table
+- **Built; the Access writes desk-tested 2026-11-21 ("cloudflare access is good to go"): Teams › People (cards, read only) and Security › Auth (the table
   that edits them)** (2026-11-14; DEMO.md §3.5, §7). Who may sign in: the `users` table
   (migrations 0007 and 0008: email, name, first and last name, phone sealed; `user_photos`
   sealed), nine RPCs in `ehr`, and Cloudflare's Access group kept equal to the list. The token

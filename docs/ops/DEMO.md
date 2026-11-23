@@ -1,13 +1,14 @@
 ---
-status: project
-desk_test: none
+status: built
+desk_test: passed 2026-11-21
 sources: [docs/architecture/images/demo-tunnel-error-1033-2026-11-14.png, docs/architecture/images/people-owner-card-sketch-2026-11-14.png, docs/architecture/images/auth-panel-actions-2026-11-14.png, docs/architecture/images/auth-users-title-2026-11-14.png, docs/architecture/images/auth-users-title-size-2026-11-14.png, scripts/dev.mjs, console/vite.config.ts, agent/deets_agent/cloudflare.py, ehr/src/users.rs, ehr/migrations/0007_users.sql, console/src/pages/people.ts, console/src/pages/auth.ts, console/src/pages/person.ts, ehr/migrations/0008_user_profile.sql, agent/deets_agent/dev_server.py, agent/deets_agent/access.py, agent/deets_agent/turn.py, console/src/agent/api.ts, console/src/agent/transport.ts, console/src/reload.ts, console/public/manifest.webmanifest]
-updated: 2026-11-14
+updated: 2026-11-21
 ---
 # DeetsHealth — The demo over a tunnel
 
-> Part built (2026-11-13): steps 1 to 5 of §5 are done; read §7 first. Not yet: the guest
-> list page, the `calls` row at Start and the user profile table, the desk test. Friends open
+> Built; read §7 first. **Desk test passed 2026-11-21** (the owner: "cloudflare access is good
+> to go, demo tunnel as well"): the tunnel (§6) and the guest list's writes to the Access group
+> (Security › Auth, §3.5). Friends open
 > the console from their own PCs at `https://deetshealth.deets.solutions/demo/` and use it as
 > an analyst would.
 
@@ -214,9 +215,9 @@ their row in [architecture/DEV-API.md](../architecture/DEV-API.md) in the same c
    2A). Built (§7).
 5. STUN and TURN for guest voice calls (§3.7). Built (§7).
 6. The guest list page (§3.5), after its forks.
-7. The desk test (§6). Then this doc's status becomes `built`.
+7. The desk test (§6). Then this doc's status becomes `built`. Passed 2026-11-21.
 
-## 6. Desk test (draft)
+## 6. Desk test (passed 2026-11-21)
 1. `npm run dev`. The output says `[demo] on: https://deetshealth.deets.solutions/demo/`.
 2. On a phone on mobile data, open the address: Access asks for an email. A non-listed email
    gets no code.
@@ -235,7 +236,7 @@ their row in [architecture/DEV-API.md](../architecture/DEV-API.md) in the same c
    last line, then the prompt. The address stops answering.
 
 ## 7. As built
-> **Part:** built · 2026-11-13 — steps 1 to 5 of §5. Not desk tested.
+> **Part:** built · 2026-11-13 — steps 1 to 5 of §5. Desk test passed 2026-11-21.
 
 **Run it:** `npm run dev`. The demo is part of it (the owner, 2026-11-13: "tie it to npm run
 dev with the guards"; there is no `npm run demo`). `scripts/dev.mjs` checks first, and when
@@ -366,7 +367,7 @@ and the view as drafted, "will mess with it more when we implement RBAC"):
   a user token `deetshealth-demo-people` (`794de8b2…`) with only "Access: Groups Write" and
   "Access: Organizations Revoke" on this account, made by a script that wrote its value into
   `.env` unseen (append only, the owner's leave). Checked: it reads the group (1 email). No
-  write was tried before the owner's desk test.
+  write was tried before the owner's desk test, which passed on 2026-11-21.
 - **Teams › People** (`console/src/pages/people.ts`, `styles/people.css`), from the owner's
   sketch of 2026-11-14: one card per person, **read only** (the owner, the same day: "let's make
   the teams tab's people uneditable"). The owner's card first, then the rest as they are added.

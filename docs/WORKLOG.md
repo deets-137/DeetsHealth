@@ -8,6 +8,16 @@ updated: 2026-11-19
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-21 (Windows) — state of the repo; three desk tests passed
+- His words: "cloudflare access is good to go, demo tunnel as well. console on a phone also
+  good to go".
+- Marked passed: the demo over the tunnel (DEMO.md, now `built`), the guest list's writes to the
+  Access group (Security › Auth), the console on a phone (MOBILE-UI.md §4; §5 stays open).
+- His goal, said this sitting: a portfolio piece and a captured demo on Deets.Solutions.
+- Found: of the open desk tests, Claude can run booking rules, the Places import and the
+  call-path tests itself (typed Test calls in his Chrome); voice needs him, and a voice call
+  will not start until he picks a new voice ("Emma" is gone from Cartesia).
+
 ## 2026-11-19 (Windows) — the wall's refusals in the audit trail
 - His words: "Yes, fix it" (the gap in AUDIT.md §7: a 403 from the dev server's own wall wrote
   no row).
