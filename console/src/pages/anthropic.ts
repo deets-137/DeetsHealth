@@ -127,7 +127,7 @@ function render(s: AnthropicSettings, d: LlmValues, kit: Kit) {
 
   const left = fixed("");
   const showLeft = () => {
-    left.textContent = dollars(d.budget_usd - d.offset_usd - s.usage.spent);
+    left.textContent = s.usage ? dollars(d.budget_usd - d.offset_usd - s.usage.spent) : "Not counted: ehr is not up";
   };
   showLeft();
   const minus = el(`<span class="cfg-minus" aria-hidden="true">−</span>`);

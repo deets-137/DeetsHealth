@@ -37,7 +37,7 @@ const PREV_WORDS: Record<string, string> = {
   "90d": "the 90 days before",
 };
 
-/** The voice's dollars (priced by ehr with the voice crate), or null while a vendor with credits
+/** The voice's dollars (priced by ehr with the vendors crate), or null while a vendor with credits
  * has no plan price. */
 export const voiceUsd = (v: VoiceCost) => (v.priced ? v.usd : null);
 /** Claude's dollars and, when every vendor is priced, the voice's. */

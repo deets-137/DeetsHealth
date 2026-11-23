@@ -31,7 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from deets_agent import config, llm, redact
+from deets_agent import config, llm, models, redact
 from deets_agent.call import CallFailed, TypedCall
 from deets_agent.call_record import CALLS, CallRecord
 from deets_agent.ehr_client import EhrClient, EhrError
@@ -95,7 +95,7 @@ async def main() -> int:
         if args.no_record
         else CallRecord(
             args.mode,
-            config.MODEL,
+            models.defaults()["model"],
             folder=args.calls or CALLS,
             source=args.origin,
             scenario=args.script.stem if args.script else None,

@@ -22,7 +22,7 @@ from typing import Any
 
 import pytest
 
-from deets_agent import config, llm
+from deets_agent import llm, models
 from deets_agent.call import TypedCall
 from deets_agent.call_record import CallRecord
 from deets_agent.catalog import read_events
@@ -78,7 +78,7 @@ def _test_name() -> str:
 
 async def draw(ehr, name: str) -> Draw:
     folder = Path(_KEPT) if _KEPT else Path(_SCRATCH.name)
-    record = CallRecord("replay", config.MODEL, folder=folder, source="kept", scenario=Path(name).stem)
+    record = CallRecord("replay", models.defaults()["model"], folder=folder, source="kept", scenario=Path(name).stem)
     llm.SEEN = []
     call = TypedCall(ehr, build_llm(Mode.REPLAY), record)
     reason = "the agent ended it"

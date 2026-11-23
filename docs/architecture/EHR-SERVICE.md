@@ -96,6 +96,8 @@ Not chosen: HTTP with JSON. Its strict decoding is matched here by the edge (§5
 | `SaveSettings` | `save_settings` | `save_settings` |
 | `GetVoiceCatalog` | `get_voice_catalog` | `voice_catalog` |
 | `PriceVoiceUse` | `price_voice_use` | `price_voice_use` |
+| `GetModelCatalog` | `get_model_catalog` | `model_catalog` |
+| `PriceModelUse` | `price_model_use` | `price_model_use` |
 | `ListUsers` | `list_users` | `list_users` |
 | `AddUser` | `add_user` | `add_user` |
 | `RemoveUser` | `remove_user` | `remove_user` |
@@ -119,9 +121,10 @@ no row. The person behind a staff request travels in the gRPC metadata `deets-ac
 id), never in a message. `ehr` reads that person's levels from the store itself (`access.rs ›
 actor`) and never takes levels from the agent. The needs:
 - **Call** (`OpenCall` … `FileCall`): no person; a call is bound to its caller by its handle.
-- **System** (`AdmitUser`, `SeedUsers`, `SeenOwner`, `GetVoiceCatalog`, `PriceVoiceUse`): the
-  agent on its own. `PriceVoiceUse` takes counts and dates and answers counts and dates (the
-  voice crate's cost.rs, VOICE-VENDORS.md §9).
+- **System** (`AdmitUser`, `SeedUsers`, `SeenOwner`, `GetVoiceCatalog`, `PriceVoiceUse`,
+  `GetModelCatalog`, `PriceModelUse`): the agent on its own. The two price calls take counts,
+  tokens and dates and answer counts, dollars and dates (the vendors crate, VOICE-VENDORS.md §9,
+  §10).
   `AdmitUser` and `SeenOwner` answer with the person's id, which the agent then sends as
   `deets-actor`. `GetVoiceCatalog` is the code's own data (VOICE-VENDORS.md §2.1), the same for
   everyone, and needs no store.

@@ -534,16 +534,27 @@ class EhrClient:
     async def voice_catalog(self) -> dict[str, Any]:
         """The voice catalog: every vendor, its levers and rates, and every voice setting's first
         value (`defaults`). The code's own data; no store needed."""
-        reply = await self._stub.GetVoiceCatalog(pb.GetVoiceCatalogRequest(), timeout=DEADLINE_S, metadata=_meta())
+        reply = await self._users_call("GetVoiceCatalog", pb.GetVoiceCatalogRequest())
         return json.loads(reply.catalog)
 
+    async def model_catalog(self) -> dict[str, Any]:
+        """The model catalog (VOICE-VENDORS.md §10): each model vendor, its models, prices and
+        rules, and every `llm` setting's first value (`defaults`). No store needed."""
+        reply = await self._users_call("GetModelCatalog", pb.GetModelCatalogRequest())
+        return json.loads(reply.catalog)
+
+    async def price_model_use(self, request: dict[str, Any]) -> dict[str, Any]:
+        """The model's cost from the vendors crate (VOICE-VENDORS.md §10): each call's dollars,
+        the live calls', a list of uses, and the budget's cycle. `request`: `today`, `settings`
+        (the llm settings), `calls` (`{id, day, usd | use}`), `live` and `uses` (uses)."""
+        reply = await self._users_call("PriceModelUse", pb.PriceModelUseRequest(request=json.dumps(request)))
+        return json.loads(reply.reply)
+
     async def price_voice_use(self, request: dict[str, Any]) -> dict[str, Any]:
-        """The voice's cost from the voice crate (VOICE-VENDORS.md §9): each call's credits by
+        """The voice's cost from the vendors crate (VOICE-VENDORS.md §9): each call's credits by
         vendor, the live calls' credits, each chosen vendor's cycle. `request`: `today`,
         `settings`, `calls` (`{id, day, use}`), `live` (uses). Counts and dates only."""
-        reply = await self._stub.PriceVoiceUse(
-            pb.PriceVoiceUseRequest(request=json.dumps(request)), timeout=DEADLINE_S, metadata=_meta()
-        )
+        reply = await self._users_call("PriceVoiceUse", pb.PriceVoiceUseRequest(request=json.dumps(request)))
         return json.loads(reply.reply)
 
     # ---- the settings store (CONSOLE.md §7.3) ----

@@ -115,7 +115,7 @@ pub struct CostlyCall {
     pub outcome: String,
 }
 
-/// Dollars per credit for each vendor whose plan has a price (the voice crate's
+/// Dollars per credit for each vendor whose plan has a price (the vendors crate's
 /// `cost::usd_per_credit`, from the active voice settings).
 pub type Prices = BTreeMap<String, f64>;
 

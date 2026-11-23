@@ -60,16 +60,16 @@ const SCOPES = {
 			["core for WebAssembly", "cargo", ["check", "-q", "-p", "deetshealth-core", "--target", "wasm32-unknown-unknown"]],
 		],
 	},
-	voice: {
-		about: "the voice crate: the catalog of voice vendors and its tests",
-		match: [/^voice\//, /^Cargo\.(toml|lock)$/, /^\.cargo\//],
-		steps: [["voice tests", "cargo", ["test", "-q", "-p", "deetshealth-voice"]]],
-		full: [["voice lints", "cargo", ["clippy", "-q", "-p", "deetshealth-voice", "--all-targets", "--", "-D", "warnings"]]],
+	vendors: {
+		about: "the vendors crate: the voice and model catalogs, their cost functions, and the tests",
+		match: [/^vendors\//, /^Cargo\.(toml|lock)$/, /^\.cargo\//],
+		steps: [["vendors tests", "cargo", ["test", "-q", "-p", "deetshealth-vendors"]]],
+		full: [["vendors lints", "cargo", ["clippy", "-q", "-p", "deetshealth-vendors", "--all-targets", "--", "-D", "warnings"]]],
 	},
 	ehr: {
 		about: "the ehr service: its tests, its banned crates, the advisories",
-		match: [/^ehr\/(?!jwks-worker\/)/, /^voice\//, /^Cargo\.(toml|lock)$/, /^\.cargo\//, /^scripts\/protoc\.mjs$/, /^deny\.toml$/],
-		needs: ["core", "voice"],
+		match: [/^ehr\/(?!jwks-worker\/)/, /^vendors\//, /^Cargo\.(toml|lock)$/, /^\.cargo\//, /^scripts\/protoc\.mjs$/, /^deny\.toml$/],
+		needs: ["core", "vendors"],
 		steps: [
 			["ehr tests", "cargo", ["test", "-q", "-p", "deetshealth-ehr"]],
 			// cargo-deny (deny.toml; SECURITY.md §7.1, items 2 and 5): no second TLS stack or crypto

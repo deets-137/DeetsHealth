@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from deets_agent import models
 from deets_agent.llm import GaClient, Mode, ReplayMiss, drop_stale_thinking, request_key
 
 PARAMS = {
@@ -50,16 +51,6 @@ def test_the_code_values_build_the_same_requests_as_before():
     assert llm._settings.thinking.type == "between_tools" and llm._settings.system_prompt_cache_ttl == "1h"
 
 
-def test_the_cost_uses_each_models_prices():
-    from deets_agent.call_record import cost_usd
-
-    tokens = {"input_tokens": 1_000_000, "output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}
-    assert cost_usd(tokens, "claude-opus-5-5", geo=False) == 4.0
-    assert round(cost_usd(tokens, "claude-opus-5-5"), 6) == 4.4  # US-only, 1.1×
-    write = {"cache_creation_input_tokens": 1_000_000}
-    assert cost_usd(write, "claude-sonnet-5-5", "1h", geo=False) == 4.0
-
-
 CUT_OFF = [
     {"type": "content_block_start", "index": 0, "content_block": {"type": "thinking", "thinking": "", "signature": ""}},
     {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": "Hmm..."}},
@@ -73,10 +64,9 @@ async def test_a_reply_cut_off_with_nothing_to_say_is_retried_after_the_holding_
     """The owner, 2026-11-12: a reply that thinks through the whole cap and says nothing is
     dropped; the holding line and a review flag come first, then one retry with the retry cap.
     Pipecat sees only the retry's events."""
-    from deets_agent import config
 
     (tmp_path / f"{request_key(PARAMS)}.json").write_text(json.dumps({"stream": True, "events": CUT_OFF}))
-    retry = dict(PARAMS, max_tokens=config.RETRY_MAX_TOKENS)
+    retry = dict(PARAMS, max_tokens=models.defaults()["retry_max_tokens"])
     (tmp_path / f"{request_key(retry)}.json").write_text(json.dumps({"stream": True, "events": EVENTS}))
     client = GaClient(Mode.REPLAY, tmp_path)
     calls = []

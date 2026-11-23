@@ -156,8 +156,8 @@ def test_the_resources_give_claudes_dollars_and_one_calls_use(tmp_path):
     # The catalog reads the folder when the state is made, so the records go in first.
     client = TestClient(build_app(State(TOKEN, {ORIGIN}, 8790, calls=tmp_path)))
     r = client.get("/agent/resources", headers=OK).json()
-    a = r["anthropic"]
-    assert (a["calls"], a["spent"]) == (2, 0.042) and a["left"] == round(a["budget"] - a["offset"] - 0.042, 4)
+    # No ehr here: the budget's cycle waits for ehr (model/cost.rs; its sums are tested with ehr).
+    assert r["anthropic"] is None
     assert r["call"] is None
     one = client.get(f"/agent/resources?call={stamp}-120000-test", headers=OK).json()["call"]
     # No ehr here: the voice call's credits wait for ehr to price them.
@@ -209,20 +209,32 @@ async def test_ehr_serves_the_catalog_the_binary_prints(ehr):
         assert listed == adapter.MAPPED, "each adapter maps every lever its catalog file lists"
 
 
-def test_the_llm_defaults_name_every_setting_ehr_checks():
-    """The agent's llm defaults and ehr's settings.rs › LLM list the same settings, and the
-    models and efforts agree."""
-    import re
+async def test_ehr_serves_the_model_catalog_and_prices_the_model(ehr):
+    """One model catalog (VOICE-VENDORS.md §10): the RPC and `ehr model-catalog` agree, and ehr
+    prices tokens, records and the budget's cycle (model/cost.rs)."""
+    from datetime import date
 
-    from deets_agent import config
+    from deets_agent import models
 
-    rust = (config.REPO / "ehr" / "src" / "settings.rs").read_text(encoding="utf-8")
-    block = rust.split("pub const LLM: &[Setting] = &[", 1)[1].split("];", 1)[0]
-    assert sorted(re.findall(r's\("([a-z_]+)"', block)) == sorted(config.llm_defaults())
-    models = rust.split("pub const MODELS: &[&str] = &[", 1)[1].split("];", 1)[0]
-    assert re.findall(r'"([a-z0-9-]+)"', models) == list(config.LLM_MODELS)
-    efforts = rust.split("pub const EFFORTS: &[&str] = &[", 1)[1].split("];", 1)[0]
-    assert tuple(re.findall(r'"([a-z]+)"', efforts)) == config.EFFORTS
+    assert await ehr.model_catalog() == models.current()
+    million = {"input_tokens": 1_000_000}
+    today = date.today().isoformat()
+    got = await ehr.price_model_use({
+        "today": today,
+        "settings": {**models.defaults(), "budget_usd": 100, "offset_usd": 10, "cycle_day": 1},
+        "calls": [
+            {"id": "priced", "day": today, "usd": 0.25},
+            {"id": "tokens", "day": today, "use": models.use("claude-opus-5-5", "5m", "", million)},
+            {"id": "long_ago", "day": "1999-01-01", "usd": 9.0},
+        ],
+        "live": [models.use("claude-opus-5-5", "5m", "us", million)],
+        "uses": [models.use("claude-sonnet-5-5", "1h", "", {"cache_creation_input_tokens": 1_000_000})],
+    })
+    assert got["calls"] == {"priced": 0.25, "tokens": 4.0, "long_ago": 9.0}
+    assert round(got["live"][0], 6) == 4.4, "US-only, 1.1x"
+    assert got["uses"] == [4.0], "an hour's cache write is 2x the input price"
+    cycle = got["cycle"]
+    assert (cycle["calls"], cycle["spent"], cycle["left"]) == (2, 8.65, 81.35)
 
 
 def test_the_hospital_keys_and_limits_are_ehr_s(client):
@@ -260,14 +272,17 @@ def test_a_hospital_save_needs_every_list_and_waits_for_ehr(client):
 def test_the_anthropic_view_shows_the_models_and_never_the_key(client):
     c = client.get("/agent/anthropic", headers=OK).json()
     assert (c["store"], c["versions"], c["version"]) == (False, [], None)
-    from deets_agent import config
+    from deets_agent import models
 
-    assert c["values"] == c["active"] == config.llm_defaults()
-    assert [m["id"] for m in c["models"]] == list(config.LLM_MODELS)
+    assert c["values"] == c["active"] == models.defaults()
+    assert [m["id"] for m in c["models"]] == [m["id"] for m in models.vendor()["models"]]
     opus = next(m for m in c["models"] if m["id"] == "claude-opus-5-5")
     assert opus["thinking_off"] is False and opus["price"]["output"] == 20.0
-    assert c["inference_geo"] == "us" and c["usage"]["budget"] == c["active"]["budget_usd"]
+    # No ehr here: the spend waits for ehr to work it out.
+    assert c["inference_geo"] == "us" and c["usage"] is None
     assert isinstance(c["key"], bool)
+    from deets_agent import config
+
     secret = config.anthropic_key()
     assert secret is None or secret not in json.dumps(c)
 
@@ -314,17 +329,18 @@ def test_every_kept_script_has_a_cost_for_the_quote():
     assert all(0 <= v < 1 for v in costs.values())
 
 
-def test_the_spend_counts_this_cycles_records(tmp_path):
-    from datetime import date
+def test_the_spend_gathers_each_records_dollars_or_tokens(tmp_path):
+    """Python gathers; ehr prices and sums (model/cost.rs)."""
+    from deets_agent.resources import model_records
 
-    from deets_agent.resources import anthropic_cycle
-
-    end = {"t_ms": 9, "kind": "call_end", "reason": "x", "cost_usd": 0.25}
-    stamp = date.today().strftime("%Y%m%d")
-    (tmp_path / f"{stamp}-120000-test.jsonl").write_text(json.dumps(end) + "\n", encoding="utf-8")
-    (tmp_path / "19990101-120000-test.jsonl").write_text(json.dumps(end) + "\n", encoding="utf-8")
-    c = anthropic_cycle(tmp_path, live=0.05, budget=100, offset=10, day=1)
-    assert (c["spent"], c["calls"], c["left"]) == (0.3, 1, 89.7)
+    start = {"t_ms": 0, "kind": "call_start", "model": "claude-haiku-5-5", "llm": {"cache_ttl": "5m"}, "inference_geo": "us"}
+    priced = {"t_ms": 9, "kind": "call_end", "reason": "x", "cost_usd": 0.25}
+    unpriced = {"t_ms": 9, "kind": "call_end", "reason": "x", "tokens": {"input_tokens": 10}}
+    (tmp_path / "test_20261113-120000.jsonl").write_text(json.dumps(start) + "\n" + json.dumps(priced) + "\n", encoding="utf-8")
+    (tmp_path / "test_20261113-130000.jsonl").write_text(json.dumps(start) + "\n" + json.dumps(unpriced) + "\n", encoding="utf-8")
+    got = model_records(tmp_path)
+    assert got[0] == {"id": "test_20261113-120000", "day": "2026-11-13", "usd": 0.25}
+    assert got[1]["use"] == {"model": "claude-haiku-5-5", "cache_ttl": "5m", "geo": "us", "usage": {"input_tokens": 10}}
 
 
 def test_the_sandbox_list_takes_local_or_epic_only(client):

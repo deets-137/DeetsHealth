@@ -86,7 +86,8 @@ def line(e: dict, show_all: bool) -> str | None:
         r = e["requests"]
         return (
             f"{t}  CALL END  {e['reason']} - {e['turns']} caller turns - Claude {r['live']} live, "
-            f"{r['replayed']} replayed, {r['failed']} failed - about ${e['cost_usd']:.4f}"
+            f"{r['replayed']} replayed, {r['failed']} failed"
+            + (f" - about ${e['cost_usd']:.4f}" if isinstance(e.get("cost_usd"), (int, float)) else "")
         )
     return f"{t}  {kind} {_short(e)}"
 

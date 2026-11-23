@@ -1,7 +1,7 @@
 [package]
-name = "deetshealth-voice"
+name = "deetshealth-vendors"
 version = "0.1.0"
-description = "DeetsHealth's voice catalog: each voice vendor, its levers and its costs, and the voice settings they make (docs/architecture/VOICE-VENDORS.md)."
+description = "DeetsHealth's vendors: the voice and model vendors as data, their settings, and the functions that price them (docs/architecture/VOICE-VENDORS.md)."
 authors = ["Aditya Sundaram"]
 edition = "2021"
 license = "MIT"

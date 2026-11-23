@@ -492,14 +492,24 @@ pub fn summarize(events: &[Value]) -> Summary {
                     s.tokens_in = t.get("input_tokens").and_then(Value::as_i64).unwrap_or(0);
                     s.tokens_out = t.get("output_tokens").and_then(Value::as_i64).unwrap_or(0);
                 }
-                s.cost_usd = e.get("cost_usd").and_then(Value::as_f64).unwrap_or(0.0);
+                // The dollars the record holds (priced by the vendors crate when it closed), or,
+                // for a record closed without them, its tokens priced now (model/cost.rs).
+                s.cost_usd = match e.get("cost_usd").and_then(Value::as_f64) {
+                    Some(x) => x,
+                    None => {
+                        let start = events.iter().find(|x| x.get("kind").and_then(Value::as_str) == Some("call_start"));
+                        start
+                            .and_then(|st| deetshealth_vendors::model::cost::call_use(st, e))
+                            .map_or(0.0, |u| deetshealth_vendors::model::cost::usd(deetshealth_vendors::model::catalog(), &u))
+                    }
+                };
                 if let Some(r) = e.get("requests") {
                     let n = |k: &str| r.get(k).and_then(Value::as_i64).unwrap_or(0) as i32;
                     s.requests_live = n("live");
                     s.requests_replayed = n("replayed");
                 }
-                s.voice_credits = deetshealth_voice::cost::call_use(e)
-                    .map(|u| deetshealth_voice::cost::credits(deetshealth_voice::catalog(), &u))
+                s.voice_credits = deetshealth_vendors::voice::cost::call_use(e)
+                    .map(|u| deetshealth_vendors::voice::cost::credits(deetshealth_vendors::voice::catalog(), &u))
                     .unwrap_or_default();
             }
             _ => {}

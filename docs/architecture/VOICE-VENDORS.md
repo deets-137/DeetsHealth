@@ -1,10 +1,10 @@
 ---
 status: built
 desk_test: open
-sources: [voice/src/lib.rs, voice/src/cost.rs, ehr/migrations/0015_voice_credits.sql, voice/catalog/cartesia.json, voice/catalog/shared.json, agent/deets_agent/voice/__init__.py, agent/deets_agent/voice/vendors.py, agent/deets_agent/voice/cartesia.py, ehr/src/main.rs, ehr/src/service.rs, ehr/proto/deets/ehr/v1/ehr.proto, console/src/agent/api.ts, agent/deets_agent/config.py, agent/deets_agent/call.py, agent/deets_agent/resources.py, agent/deets_agent/voice_catalog.py, agent/deets_agent/dev_server.py, ehr/src/settings.rs, ehr/src/store.rs, ehr/src/stats.rs, ehr/migrations/0014_call_stages.sql, console/src/pages/voice.ts, Cargo.toml, docs/integrations/CARTESIA.md, docs/architecture/VOICE-AGENT.md, docs/architecture/CONSOLE.md]
+sources: [vendors/src/lib.rs, vendors/src/cycle.rs, vendors/src/model/mod.rs, vendors/src/model/cost.rs, vendors/catalog/model/anthropic.json, agent/deets_agent/models.py, agent/deets_agent/call_record.py, vendors/src/voice/mod.rs, vendors/src/voice/cost.rs, ehr/migrations/0015_voice_credits.sql, vendors/catalog/voice/cartesia.json, vendors/catalog/voice/shared.json, agent/deets_agent/voice/__init__.py, agent/deets_agent/voice/vendors.py, agent/deets_agent/voice/cartesia.py, ehr/src/main.rs, ehr/src/service.rs, ehr/proto/deets/ehr/v1/ehr.proto, console/src/agent/api.ts, agent/deets_agent/config.py, agent/deets_agent/call.py, agent/deets_agent/resources.py, agent/deets_agent/voice_catalog.py, agent/deets_agent/dev_server.py, ehr/src/settings.rs, ehr/src/store.rs, ehr/src/stats.rs, ehr/migrations/0014_call_stages.sql, console/src/pages/voice.ts, Cargo.toml, docs/integrations/CARTESIA.md, docs/architecture/VOICE-AGENT.md, docs/architecture/CONSOLE.md]
 updated: 2026-11-23
 ---
-# DeetsHealth — Voice vendors: the `voice` crate and a vendor for each direction
+# DeetsHealth — Voice vendors: the `vendors` crate and a vendor for each direction
 
 > **Part:** designed · 2026-11-23 · forks closed (§3). The owner asked: "how plug and play is the
 > voice side of things? can we use eleven labs?" Then, to the offer of a design: "Yup, let's
@@ -12,9 +12,10 @@ updated: 2026-11-23
 > (`ehr` serves the catalog), **V-2 A** (one voice version holds every vendor), **V-3 A** (one
 > page, Config › Voice).
 >
-> **Part:** built · 2026-11-23 · desk test open (CONSOLE.md §7.5a, §9.4 below). Steps 1 to 5 of
-> §7 are built; step 6 (ElevenLabs) is not. **Read §8 and §9 first**: where they and the design
-> differ, they are the code.
+> **Part:** built · 2026-11-23 · desk test open (CONSOLE.md §7.5a, §9.4 and §10.5 below). Steps 1
+> to 5 of §7 are built, and the model side (§10); step 6 (ElevenLabs) is not. **Read §8, §9 and
+> §10 first**: where they and the design differ, they are the code. The crate is `vendors/` now
+> (§10.1); where the text says `voice/` for the crate, read `vendors/`.
 
 **Terms.**
 - **A direction** is one end of the voice: **hearing** (speech to text: the caller's words in)
@@ -30,7 +31,7 @@ updated: 2026-11-23
   (Ink does). A vendor without own turns needs Pipecat's local voice detector and turn model.
 
 **How "crate" is read.** The owner's word is taken literally: a new Rust crate, `voice/`
-(`deetshealth-voice`), the third member of the workspace with `core` and `ehr`. The crate holds
+(`deetshealth-vendors`), the third member of the workspace with `core` and `ehr`. The crate holds
 the catalog as data and the rules that check a voice version. It cannot hold the vendors'
 Pipecat services: Pipecat is Python, and the call loop stays Python (VOICE-AGENT.md §8, F6). So
 each vendor also gets one small Python adapter in the agent. That is the only reading the code
@@ -66,8 +67,8 @@ Counted from the code on 2026-11-23.
 - `pipecat.services.elevenlabs.stt` and `.tts` import in our venv today, with no new extra.
 
 ## 2. The design
-### 2.1 The `voice` crate (Rust)
-- **`voice/catalog/<vendor>.toml`**, one file per vendor: its name; each direction it offers;
+### 2.1 The `vendors` crate (Rust)
+- **`vendors/catalog/voice/<vendor>.toml`**, one file per vendor: its name; each direction it offers;
   per direction, the pinned models, the levers (key, kind, range, the vendor's default, the
   words of a word lever), the cost unit (credits a second, credits a character, dollars an
   hour), whether it has own turns, whether it reads pronunciations, whether a BAA and zero
@@ -230,13 +231,13 @@ Each step compiles and passes `npm run check` on its own.
 > **Part:** built · 2026-11-23 · desk test open (CONSOLE.md §7.5a). Steps 1, 2, 3 and 5. The
 > behaviour of a call is unchanged: Cartesia is the only vendor in the catalog.
 
-**The crate** (`voice/`, `deetshealth-voice`, a workspace member; `npm run check` runs its tests
-as the `voice` scope, and `ehr`'s scope also runs when it changes):
-- `voice/catalog/cartesia.json` and `voice/catalog/shared.json`: the catalog as **JSON, not
+**The crate** (`voice/` then, now `vendors/`, `deetshealth-vendors`, a workspace member; `npm run check` runs its tests
+as the `vendors` scope, and `ehr`'s scope also runs when it changes):
+- `vendors/catalog/voice/cartesia.json` and `vendors/catalog/voice/shared.json`: the catalog as **JSON, not
   TOML** (serde_json is already in the tree; TOML would add a crate and its trust review). Each
   file lists its vendor's directions, pinned models, levers (kind, range, step, the vendor's
   default), rates, Ink's turn profiles, Sonic's recommended voices, the account's levers.
-- `voice/src/lib.rs`: `catalog()` (parsed once; a bad file fails the crate's tests),
+- `vendors/src/voice/mod.rs`: `catalog()` (parsed once; a bad file fails the crate's tests),
   `settings()` (every key of a voice version and what it may hold), `defaults()`, `upgrade()`
   (an old version in today's shape), `catalog_json()` (the catalog plus `defaults`, for the RPC).
 - A lever that is nullable starts as `null` (the vendor's default, nothing sent); the others
@@ -289,7 +290,7 @@ go-ahead and ElevenLabs' prices (§6).
 > hard coded pieces and set it in the voice/ crate as functions that can be pulled upon"; then,
 > on how the agent reaches them, "through ehr is fine". Python never prices the voice now.
 
-### 9.1 The functions (`voice/src/cost.rs`)
+### 9.1 The functions (`vendors/src/voice/cost.rs`)
 - `call_use(end)`: one call's raw use from its `call_end`: `voice_use` (record schema 16:
   `{hearing: {vendor, amount}, speaking: {vendor, amount}}`, amounts in seconds heard and
   characters spoken), or the older `cartesia: {ink_s, sonic_chars}` read as Cartesia.
@@ -345,3 +346,68 @@ Resources' bar, as before.
 4. Analytics › Cost, the most costly calls: the Voice column shows each call's voice cost.
 5. Config › Voice, Usage: Credits left is the same number as Chat › Resources shows, less any
    change you type in Offset.
+
+
+## 10. As built: the model vendors in the crate (2026-11-23)
+> **Part:** built · 2026-11-23 · desk test open (§10.5). The owner, on the voice's cost functions:
+> "can we integrate model vendors as available function calls as well (anthropic for now, and
+> openai if we do it later)?" Then, to the fork of the crate's shape: "A: one vendors crate".
+
+### 10.1 One crate: `vendors/` (`deetshealth-vendors`)
+The `voice` crate of §8 is renamed and holds both sides:
+- `src/lib.rs`: what a lever may hold (`Kind`, `Lever`, `fits`), shared.
+- `src/cycle.rs`: a plan's billing cycle (`Day`, `cycle_start`, `next_cycle`), shared.
+- `src/voice/` and `catalog/voice/`: §8 and §9, unchanged in behaviour.
+- `src/model/` and `catalog/model/anthropic.json`: the model catalog and its cost.
+- `npm run check` runs it as the `vendors` scope; `ehr`'s scope runs when it changes.
+
+### 10.2 The model catalog (`catalog/model/anthropic.json`, `src/model/mod.rs`)
+- Each model: its id (pinned), name, the API's own effort default, how thinking turns off
+  (none for Opus 5.5), and its prices in dollars per 1M tokens (input, output, cache read).
+- The vendor: its efforts, the efforts at which thinking may be off, the cache-write factor by
+  the cache's life (5 minutes 1.25×, 1 hour 2×), where inference runs (`us`) and its factor
+  (1.1×), the code's defaults (Haiku 5.5, effort low), and the `llm` settings' levers with their
+  ranges and defaults (thinking, the two token caps, the cache's life, the budget, the offset, the
+  cycle day). The reasons for the defaults are in the file's `about`.
+- `settings()` makes the `llm` list `ehr` checks (`settings.rs › llm_list`, which replaces the
+  `LLM`, `MODELS` and `EFFORTS` lists); `rules()` replaces `coherent`'s llm rules; `defaults()`
+  is the Default version. The keys of the `llm` settings are unchanged: there is one model
+  vendor. A second one adds `model.vendor` and its own keys, read through an upgrade as the
+  voice's were (§8).
+
+### 10.3 The model's cost (`src/model/cost.rs`)
+- `usd(catalog, use)`: input, cache writes at the input price times the factor for the cache's
+  life, cache reads, output; times the place's factor. A use is the model, the cache's life, the
+  place and the tokens (Anthropic's usage names).
+- `call_use(start, end)`: a record's use from its `call_start` (`model`, `llm.cache_ttl`,
+  `inference_geo`) and its `call_end` (`tokens`).
+- `cycle(settings, today, calls, live)`: the budget's cycle: the budget, the offset, what this
+  cycle's calls and the live calls spent, what is left, the days.
+- For OpenAI later: its prices fit the same table (input, cached input as cache read, output; no
+  cache-write factor). Running calls on it is a second model client, not this work.
+
+### 10.4 Who calls them
+- **`ehr`:** `GetModelCatalog` and `ehr model-catalog` (the agent's tests); `PriceModelUse` (need:
+  System), JSON in and out: each call's dollars, the live calls', a list of uses (a quote), and
+  the budget's cycle. Filing a record with no `cost_usd`, `ehr` prices its tokens.
+- **The agent:** `models.py` reads the catalog (as `voice/vendors.py` does). `config.py` keeps no
+  model, price, effort or range. The record keeps raw use (`CallRecord.use()`) and no longer
+  prices itself; the dev server has `ehr` price each call as it ends (`cost_usd` on `call_end`,
+  the price of that day), the live calls on the Resources tab and Config › Anthropic, the budget's
+  cycle, and the Record-and-test quote (`replay_use`). While `ehr` is not up, Claude's spend shows
+  "Not counted: ehr is not up".
+
+**Decided inside his choice** (for his review): the crate's name `vendors` and its layout above;
+the `llm` keys left as they are until a second model vendor; one `PriceModelUse` call with JSON in
+and out (as the voice); a record keeps the dollars of the day it ended, and one closed without them
+is priced when filed; "Not counted: ehr is not up" while `ehr` is down.
+
+### 10.5 Desk test
+**First:** stop the dev server (Ctrl+C) and start it again with `npm run dev`. `ehr` and the
+agent's Python changed.
+1. Config › Anthropic: the model list, the efforts, the prices and the facts are as before. Save
+   thinking "off" on Opus 5.5: it is refused with "thinking: Opus 5.5 cannot turn thinking off".
+2. Config › Anthropic, Usage: the spend this cycle is the same number as before the restart.
+3. Make a short call on Chat. Resources › Anthropic counts up while it runs; after it ends, the
+   call's cents stay and "calls this cycle" is one higher.
+4. Analytics › Cost: Claude's dollars per day are as before, and the new call is in them.

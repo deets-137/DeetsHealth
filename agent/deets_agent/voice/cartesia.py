@@ -8,7 +8,7 @@ Eager end of turn stays off: it starts Claude on a guess that Ink may withdraw.
 **Sonic** is `CartesiaTTSService`. Fixed lines arrive as `TTSSpeakFrame` (flow.py, screen.py) and
 Sonic speaks them word for word; the 911 line cannot be interrupted (screen.py, flow.py).
 
-Each lever's range, default and the pinned models come from the catalog (`voice/catalog/
+Each lever's range, default and the pinned models come from the catalog (`vendors/catalog/voice/
 cartesia.json`, served by ehr); this file maps them to Pipecat's parameters only.
 """
 

@@ -1,5 +1,5 @@
 """The voice catalog as the agent reads it (VOICE-VENDORS.md §2.1; the owner's V-1 A: ehr serves
-it). The catalog itself lives in the `deetshealth-voice` crate (`voice/catalog/*.json`); the
+it). The catalog itself lives in the `deetshealth-vendors` crate (`vendors/catalog/voice/*.json`); the
 agent never keeps a copy of a lever, a range or a rate.
 
 - `load(ehr)` asks ehr (`GetVoiceCatalog`) once it is up.

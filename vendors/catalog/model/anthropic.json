@@ -1,0 +1,27 @@
+{
+  "id": "anthropic",
+  "name": "Anthropic",
+  "key_env": "ANTHROPIC_API_KEY",
+  "baa": "HIPAA-ready API organization, with zero data retention (ANTHROPIC.md)",
+  "about": "Prices are dollars per 1M tokens (ANTHROPIC.md §3; Anthropic's pricing, cached 2026-11-03). Thinking 'off' is the model's own way: `disabled` on Haiku, `between_tools` on Sonnet; Opus 5.5 cannot turn it off. The 5.5 family only, pinned by name. The defaults: the cheapest model first, moving up only when a named test call shows it falls short (VOICE-AGENT.md §8.3; the owner, 2026-10-20); effort low, the fastest first token; max_tokens 1200, since at 600 one reply spent the whole cap thinking (2026-11-12) and of 663 requests the 95th percentile used 261; the retry cap 2400 for a reply cut off with nothing to say (llm.py _CutOffGuard); a $100 budget a month (the owner).",
+  "models": [
+    { "id": "claude-haiku-5-5", "name": "Haiku 5.5", "effort_default": "medium", "thinking_off": "disabled", "prices": { "input": 0.10, "output": 0.50, "cache_read": 0.01 } },
+    { "id": "claude-sonnet-5-5", "name": "Sonnet 5.5", "effort_default": "high", "thinking_off": "between_tools", "prices": { "input": 2.00, "output": 10.00, "cache_read": 0.10 } },
+    { "id": "claude-opus-5-5", "name": "Opus 5.5", "effort_default": "medium", "prices": { "input": 4.00, "output": 20.00, "cache_read": 0.20 } }
+  ],
+  "efforts": ["low", "medium", "high", "xhigh", "max"],
+  "thinking_off_efforts": ["low", "medium", "high"],
+  "cache_write": { "5m": 1.25, "1h": 2.0 },
+  "inference_geo": "us",
+  "geo_price": { "us": 1.1 },
+  "defaults": { "model": "claude-haiku-5-5", "effort": "low" },
+  "levers": [
+    { "key": "thinking", "kind": "word", "words": ["on", "off"], "default": "on" },
+    { "key": "max_tokens", "kind": "whole", "min": 256, "max": 16000, "default": 1200 },
+    { "key": "retry_max_tokens", "kind": "whole", "min": 256, "max": 32000, "default": 2400 },
+    { "key": "cache_ttl", "kind": "word", "words": ["5m", "1h"], "default": "5m" },
+    { "key": "budget_usd", "kind": "whole", "min": 0, "max": 1000000, "default": 100 },
+    { "key": "offset_usd", "kind": "number", "min": 0, "max": 1000000, "default": 0 },
+    { "key": "cycle_day", "kind": "whole", "min": 1, "max": 28, "default": 1 }
+  ]
+}

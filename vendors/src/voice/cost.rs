@@ -23,7 +23,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{lever_key, Catalog, DIRECTIONS};
+pub use crate::cycle::{cycle_start, next_cycle, Day};
+use crate::voice::{lever_key, Catalog, DIRECTIONS};
 
 /// The account levers every vendor's catalog file holds (checked by `parse`).
 pub const ACCOUNT_LEVERS: &[&str] = &["plan_credits", "plan_price_usd", "offset", "cycle_day"];
@@ -101,48 +102,6 @@ pub fn usd_per_credit(values: &Values, vendor: &str) -> Option<f64> {
     let price = account(values, vendor, "plan_price_usd");
     let plan = account(values, vendor, "plan_credits");
     (price > 0.0 && plan > 0.0).then(|| price / plan)
-}
-
-/// A day of the calendar, `YYYY-MM-DD`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Day {
-    pub y: i32,
-    pub m: u32,
-    pub d: u32,
-}
-
-impl Day {
-    pub fn parse(s: &str) -> Option<Day> {
-        let mut it = s.get(..10)?.split('-');
-        let (y, m, d) = (it.next()?.parse().ok()?, it.next()?.parse().ok()?, it.next()?.parse().ok()?);
-        ((1..=12).contains(&m) && (1..=31).contains(&d)).then_some(Day { y, m, d })
-    }
-
-    pub fn iso(self) -> String {
-        format!("{:04}-{:02}-{:02}", self.y, self.m, self.d)
-    }
-}
-
-/// The first day of the cycle that holds `today`, when the plan renews on `day` (1 to 28, so
-/// every month has it).
-pub fn cycle_start(today: Day, day: u32) -> Day {
-    let day = day.clamp(1, 28);
-    if today.d >= day {
-        Day { d: day, ..today }
-    } else if today.m == 1 {
-        Day { y: today.y - 1, m: 12, d: day }
-    } else {
-        Day { m: today.m - 1, d: day, ..today }
-    }
-}
-
-/// The day the cycle that began on `start` renews.
-pub fn next_cycle(start: Day) -> Day {
-    if start.m == 12 {
-        Day { y: start.y + 1, m: 1, ..start }
-    } else {
-        Day { m: start.m + 1, ..start }
-    }
 }
 
 /// One vendor's cycle: its plan, what was used, what is left, and the use in its own amounts.
@@ -253,7 +212,7 @@ pub fn cycles(c: &Catalog, values: &Values, today: Day, calls: &[DatedUse<'_>], 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{catalog, defaults};
+    use crate::voice::{catalog, defaults};
     use serde_json::json;
 
     fn d(s: &str) -> Day {
@@ -282,19 +241,6 @@ mod tests {
         let new = call_use(&json!({"voice_use": {"hearing": {"vendor": "cartesia", "amount": 2.0}}})).unwrap();
         assert_eq!(credits(catalog(), &new)["cartesia"], 6.0);
         assert!(call_use(&json!({"kind": "call_end"})).is_none());
-    }
-
-    #[test]
-    fn the_cycle() {
-        for (today, day, start, renews) in [
-            ("2026-11-13", 1, "2026-11-01", "2026-12-01"),
-            ("2026-11-13", 20, "2026-10-20", "2026-11-20"),
-            ("2026-01-05", 20, "2025-12-20", "2026-01-20"),
-            ("2026-12-20", 20, "2026-12-20", "2027-01-20"),
-        ] {
-            let s = cycle_start(d(today), day);
-            assert_eq!((s.iso(), next_cycle(s).iso()), (start.to_string(), renews.to_string()));
-        }
     }
 
     #[test]

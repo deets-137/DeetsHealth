@@ -3,9 +3,6 @@ a spoken line, and the 911 line that no barge-in cuts (voice.py, resources.py, s
 
 from __future__ import annotations
 
-from datetime import date
-
-import pytest
 from pipecat.frames.frames import (
     BotStartedSpeakingFrame,
     LLMMessagesAppendFrame,
@@ -18,13 +15,12 @@ from pipecat.processors.frame_processor import FrameDirection
 
 from deets_agent import config
 from deets_agent.flow import CallFlow, emergency_frame, emergency_line
-from deets_agent.resources import cycle_start, next_cycle
 from deets_agent.screen import CallerScreen
 from deets_agent.voice import VoiceMeter
 
 
 def test_the_meter_keeps_raw_use_only():
-    """Credits are the voice crate's (cost.rs; its tests): the meter counts amounts by vendor."""
+    """Credits are the vendors crate's (cost.rs; its tests): the meter counts amounts by vendor."""
     m = VoiceMeter(chosen={"hearing": "cartesia", "speaking": "cartesia"})
     m.heard_s, m.spoken_chars = 12.34, 350
     assert m.use() == {"hearing": {"vendor": "cartesia", "amount": 12.3}, "speaking": {"vendor": "cartesia", "amount": 350}}
@@ -37,20 +33,6 @@ def test_the_limits():
     assert "no speech" in m.over_limit(m.started + config.VOICE_IDLE_S)
     m.last_speech = m.started + config.VOICE_MAX_S - 1
     assert "limit" in m.over_limit(m.started + config.VOICE_MAX_S)
-
-
-@pytest.mark.parametrize(
-    ("today", "day", "start", "renews"),
-    [
-        (date(2026, 11, 13), 1, date(2026, 11, 1), date(2026, 12, 1)),
-        (date(2026, 11, 13), 20, date(2026, 10, 20), date(2026, 11, 20)),
-        (date(2026, 1, 5), 20, date(2025, 12, 20), date(2026, 1, 20)),
-        (date(2026, 12, 20), 20, date(2026, 12, 20), date(2027, 1, 20)),
-    ],
-)
-def test_the_credit_cycle(today, day, start, renews):
-    assert cycle_start(today, day) == start
-    assert next_cycle(start) == renews
 
 
 def test_the_911_line_cannot_be_interrupted():

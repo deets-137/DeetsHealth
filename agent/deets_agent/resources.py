@@ -1,9 +1,9 @@
-"""The Resources tab's numbers (CHAT.md §17): the voice's raw use from the dev call records, for
-ehr to price (`voice_records`, `call_use`); and Claude's dollars this cycle for Config ›
-Anthropic (`anthropic_cycle`).
+"""The Resources tab's numbers (CHAT.md §17): the voice's and the model's raw use from the dev call
+records (`voice_records`, `model_records`, `call_use`), for ehr to price with the vendors crate
+(`PriceVoiceUse`, `PriceModelUse`; VOICE-VENDORS.md §9, §10). Nothing is priced here.
 
 The voice is never priced here: each record's `call_end` holds its raw use (`voice_use`, or the
-older `cartesia`), and ehr turns it into credits and each vendor's cycle with the voice crate
+older `cartesia`), and ehr turns it into credits and each vendor's cycle with the vendors crate
 (`PriceVoiceUse`; VOICE-VENDORS.md §9). No vendor has an API that reports usage (CARTESIA.md
 §4), so the count is a floor; the vendor's dashboard is the full count. The page says so.
 
@@ -18,24 +18,11 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from deets_agent import config
+from deets_agent import models
 
 # A record's name holds its start time: test_20261113-142233.jsonl since schema 14, and
 # 20261113-142233-test.jsonl before it (call_record.py).
 _STAMP = re.compile(r"^(?:[a-z]+_)?(\d{8})-")
-
-
-def cycle_start(today: date, day: int) -> date:
-    """The first day of the credit cycle that holds `today`, when credits renew on `day`."""
-    if today.day >= day:
-        return today.replace(day=day)
-    month, year = (today.month - 1, today.year) if today.month > 1 else (12, today.year - 1)
-    return date(year, month, day)
-
-
-def next_cycle(start: date) -> date:
-    month, year = (start.month + 1, start.year) if start.month < 12 else (1, start.year + 1)
-    return date(year, month, start.day)
 
 
 def voice_part(end: dict[str, Any]) -> dict[str, Any] | None:
@@ -80,38 +67,48 @@ def voice_records(folder: Path, since: date | None = None) -> list[dict[str, Any
     return out
 
 
-def _cost(path: Path) -> float | None:
-    """The `cost_usd` on a record's `call_end`: what its live Claude requests cost, or None
-    (still open, or no end)."""
+def model_part(start: dict[str, Any], end: dict[str, Any]) -> dict[str, Any]:
+    """The model's use on a record, for `PriceModelUse`: `{usd}` when the record holds its dollars
+    (priced by ehr when it closed, or by the code before 2026-11-23), else `{use}`, its tokens
+    with the model, the cache's life and the place, for ehr to price now."""
+    if isinstance(end.get("cost_usd"), (int, float)):
+        return {"usd": float(end["cost_usd"])}
+    llm = start.get("llm") if isinstance(start.get("llm"), dict) else {}
+    return {
+        "use": models.use(
+            str(start.get("model") or llm.get("model") or ""),
+            str(llm.get("cache_ttl") or "5m"),
+            str(start.get("inference_geo") or ""),
+            end.get("tokens") if isinstance(end.get("tokens"), dict) else {},
+        )
+    }
+
+
+def _model(path: Path) -> dict[str, Any] | None:
+    """The model's use on a record (`model_part`), or None (still open, or no end)."""
+    start: dict[str, Any] = {}
     try:
         with path.open(encoding="utf-8") as f:
             for raw in f:
-                if '"call_end"' not in raw:
-                    continue
-                event = json.loads(raw)
-                if event.get("kind") == "call_end" and isinstance(event.get("cost_usd"), (int, float)):
-                    return float(event["cost_usd"])
+                if '"call_start"' in raw and not start:
+                    event = json.loads(raw)
+                    if event.get("kind") == "call_start":
+                        start = event
+                elif '"call_end"' in raw:
+                    event = json.loads(raw)
+                    if event.get("kind") == "call_end":
+                        return model_part(start, event)
     except (OSError, ValueError):
         return None
     return None
 
 
-def anthropic_cycle(
-    folder: Path,
-    today: date | None = None,
-    live: float | None = None,
-    budget: float = config.BUDGET_USD,
-    offset: float = 0.0,
-    day: int = 1,
-) -> dict[str, Any]:
-    """This cycle's Claude spend in dollars (Config › Anthropic, CONSOLE.md §8): the `cost_usd` of
-    every record in `folder` since the cycle began, plus the live call's so far. Like Cartesia's
-    count, a floor: it cannot see requests outside these records (the Console's workbench,
-    another machine). The Claude Console's usage page is the full count."""
-    today = today or date.today()
-    start = cycle_start(today, day)
-    spent = 0.0
-    calls = 0
+def model_records(folder: Path) -> list[dict[str, Any]]:
+    """Every ended call's model use in `folder`, for `PriceModelUse`: `{id, day, usd | use}`.
+    ehr sums this cycle's (the budget's cycle, model/cost.rs). Like the voice's count, a floor: it
+    cannot see requests outside these records; the Claude Console's usage page is the full
+    count. The id is the record's name; counts, dollars and dates only."""
+    out: list[dict[str, Any]] = []
     for path in sorted(folder.glob("*.jsonl")):
         m = _STAMP.match(path.name)
         if not m:
@@ -120,25 +117,10 @@ def anthropic_cycle(
             when = datetime.strptime(m.group(1), "%Y%m%d").date()
         except ValueError:
             continue
-        if when < start:
-            continue
-        cost = _cost(path)
-        if cost is None:
-            continue
-        calls += 1
-        spent += cost
-    if live is not None:
-        spent += live
-    return {
-        "budget": budget,
-        "offset": offset,
-        "spent": round(spent, 4),
-        "left": round(budget - offset - spent, 4),
-        "calls": calls,
-        "cycle_start": start.isoformat(),
-        "renews": next_cycle(start).isoformat(),
-        "live": live,
-    }
+        part = _model(path)
+        if part is not None:
+            out.append({"id": path.stem, "day": when.isoformat(), **part})
+    return out
 
 
 def call_use(events: list[dict[str, Any]]) -> dict[str, Any]:

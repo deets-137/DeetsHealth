@@ -123,11 +123,17 @@ interface (VOICE-AGENT.md §7.2).
 The list, and the issues found that day, is [PRE-LIVE-VERIFICATIONS.md](PRE-LIVE-VERIFICATIONS.md):
 every row is run before going live. MIT license since 2026-11-22 (`LICENSE`).
 
+**Built 2026-11-23, desk test open: the model in the vendors crate** (architecture/VOICE-VENDORS.md
+§10; his "A: one vendors crate"). The `voice` crate is now `vendors/`, with a `model` side: the
+model catalog (`catalog/model/anthropic.json`) makes the `llm` settings and rules in `ehr`, and
+`model/cost.rs` prices every Claude call (`PriceModelUse`, `GetModelCatalog`). Python prices
+nothing. Desk test: VOICE-VENDORS.md §10.5. Not committed until he says so.
+
 **Built 2026-11-23, desk test open: voice vendors, Config › Voice** (architecture/VOICE-VENDORS.md
-§8; his V-1 A, V-2 A, V-3 A). A new crate, `voice/`, holds the catalog of voice vendors; `ehr`
+§8; his V-1 A, V-2 A, V-3 A). A new crate, `vendors/` (it was `voice/` until the model joined it), holds the catalog of voice vendors; `ehr`
 serves it (`GetVoiceCatalog`); the agent's voice code is a package with an adapter per vendor;
 Config › Cartesia is now Config › Voice, with a Vendor row per direction. Cartesia is still the
-only vendor. **Step 4 too (§9):** the voice's cost is the crate's (`voice/src/cost.rs`): ehr
+only vendor. **Step 4 too (§9):** the voice's cost is the crate's (`vendors/src/voice/cost.rs`): ehr
 prices each call (`calls.voice_credits`, migration 0015), Analytics' sums and the agent's
 Resources tab (`PriceVoiceUse`); Python only counts. Not built: ElevenLabs (step 6). Desk
 tests: CONSOLE.md §7.5a, VOICE-VENDORS.md §9.4. **Restart `npm run dev`**: ehr and the agent's
@@ -177,7 +183,7 @@ it when the agent's words are next worked on; the test says so when it passes ag
 §7.8; his fork A). His desk test, §7.8 (restart `npm run dev`). No real read of Cartesia's list
 has run: Claude's shell may not use the key. Signs the API's shape was guessed wrong: a count of
 exactly 100 (paging stopped), or every shortlist name greyed (the English filter). Seven of the
-nine shortlist names match by name until their ids are pinned in `voice/catalog/cartesia.json`.
+nine shortlist names match by name until their ids are pinned in `vendors/catalog/voice/cartesia.json`.
 Next: his words for the Voice list row's help (`HELP.voiceCheck`, a draft); Listen's fork
 (§7.6).
 

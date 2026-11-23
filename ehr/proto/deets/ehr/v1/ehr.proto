@@ -82,14 +82,22 @@ service Ehr {
   // Saves a whole set as a new version and makes it the active one. INVALID_ARGUMENT names the
   // setting that does not fit (settings.rs): its name, never its value.
   rpc SaveSettings(SaveSettingsRequest) returns (SaveSettingsReply);
-  // The voice catalog (VOICE-VENDORS.md §2.1; the `deetshealth-voice` crate): every voice vendor,
+  // The voice catalog (VOICE-VENDORS.md §2.1; the `deetshealth-vendors` crate): every voice vendor,
   // each direction it offers, its levers, ranges, defaults and rates, as JSON. The settings
   // service `voice` is made from it. No field is protected data; it needs no store.
   rpc GetVoiceCatalog(GetVoiceCatalogRequest) returns (GetVoiceCatalogReply);
-  // The voice's cost (the voice crate's cost.rs; VOICE-VENDORS.md §9): each call's credits by
+  // The voice's cost (the vendors crate's cost.rs; VOICE-VENDORS.md §9): each call's credits by
   // vendor, and each chosen vendor's cycle (plan, use, left, renewal), from the calls' raw use
   // and the voice settings the request gives. JSON in and out; counts and dates only. No store.
   rpc PriceVoiceUse(PriceVoiceUseRequest) returns (PriceVoiceUseReply);
+  // The model catalog (VOICE-VENDORS.md §10; the vendors crate's model module): each model
+  // vendor, its models and prices, efforts, thinking rules, the `llm` settings' levers, as JSON.
+  // The settings service `llm` is made from it. No field is protected data; no store.
+  rpc GetModelCatalog(GetModelCatalogRequest) returns (GetModelCatalogReply);
+  // The model's cost (model/cost.rs): each call's dollars, the live calls', a list of uses (a
+  // quote), and the budget's cycle, from tokens, days and the `llm` settings the request gives.
+  // JSON in and out; counts, dollars and dates only. No store.
+  rpc PriceModelUse(PriceModelUseRequest) returns (PriceModelUseReply);
   // The people who may sign in to the console (docs/ops/DEMO.md §3.5; users.rs): the store is the
   // record, and the agent keeps Cloudflare's Access group in step. FAILED_PRECONDITION without a
   // store. Everyone on the list now, the owner first.
@@ -438,6 +446,24 @@ message SaveSettingsReply {
 
 message GetVoiceCatalogRequest {}
 
+message GetModelCatalogRequest {}
+
+message GetModelCatalogReply {
+  // The catalog as JSON: {"vendors": [...], "defaults": {...}} (vendors/src/model/mod.rs).
+  string catalog = 1;
+}
+
+message PriceModelUseRequest {
+  // {"today": "YYYY-MM-DD", "settings": {llm settings}, "calls": [{"id", "day", "usd" | "use"}],
+  // "live": [use], "uses": [use]}; a use is {"model", "cache_ttl", "geo", "usage"}.
+  string request = 1;
+}
+
+message PriceModelUseReply {
+  // {"calls": {"<id>": usd}, "live": [usd], "uses": [usd], "cycle": Cycle} (model/cost.rs).
+  string reply = 1;
+}
+
 message PriceVoiceUseRequest {
   // {"today": "YYYY-MM-DD", "settings": {voice settings}, "calls": [{"id", "day", "use"}],
   // "live": [use]}. `use` is a `call_end` event or its `voice_use` / `cartesia` part.
@@ -446,12 +472,12 @@ message PriceVoiceUseRequest {
 
 message PriceVoiceUseReply {
   // {"calls": {"<id>": {"<vendor>": credits}}, "live": [{"<vendor>": credits}], "cycles": [Cycle]}
-  // (voice/src/cost.rs › Cycle).
+  // (vendors/src/voice/cost.rs › Cycle).
   string reply = 1;
 }
 
 message GetVoiceCatalogReply {
-  // The catalog as JSON: {"vendors": [...], "shared": [...]} (voice/src/lib.rs › Catalog).
+  // The catalog as JSON: {"vendors": [...], "shared": [...]} (vendors/src/voice/mod.rs › Catalog).
   string catalog = 1;
 }
 
@@ -628,7 +654,7 @@ message CostlyCall {
   string outcome = 5;
 }
 
-// The voice's cost of some calls (the voice crate's cost.rs; VOICE-VENDORS.md §9): credits by
+// The voice's cost of some calls (the vendors crate's cost.rs; VOICE-VENDORS.md §9): credits by
 // vendor id, and in dollars at the active plans' prices. `priced`: every vendor with credits has
 // a price, so `usd` is the whole voice. Counts only.
 message VoiceCost {

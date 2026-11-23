@@ -1,7 +1,7 @@
 //! The settings store (CONSOLE.md §7.3): versions of each service's settings in Postgres,
 //! insert-only (`migrations/0002_settings.sql`).
 //!
-//! - **One list of every setting** per service ([`LLM`], [`voice_list`]): its name and what it may hold. Every
+//! - **One list of every setting** per service ([`llm_list`], [`voice_list`]): its name and what it may hold. Every
 //!   save is checked against it here, so no value outside a range or of the wrong kind is ever
 //!   stored. The agent's `config.py` holds the same ranges for the Config page; a change to one
 //!   is a change to both (CONSOLE.md §7.3).
@@ -60,55 +60,45 @@ const fn s(key: &'static str, kind: Kind) -> Setting {
     Setting { key, kind }
 }
 
-/// The voice service (VOICE-VENDORS.md §2.3): every setting the voice catalog makes (the
-/// `deetshealth-voice` crate): the vendor of each direction, the shared levers, and each vendor's
-/// levers under its id. The ranges are each vendor's, from its catalog file. Built once; the
-/// catalog is compiled in, so the list lives as long as the program.
-pub fn voice_list() -> &'static [Setting] {
-    static LIST: OnceLock<&'static [Setting]> = OnceLock::new();
-    LIST.get_or_init(|| {
-        let leak = |s: String| -> &'static str { Box::leak(s.into_boxed_str()) };
-        let list: Vec<Setting> = deetshealth_voice::settings(deetshealth_voice::catalog())
-            .into_iter()
-            .map(|(key, kind)| {
-                use deetshealth_voice::Kind as V;
-                let kind = match kind {
-                    V::Number { min, max, nullable, .. } => Kind::Number { min, max, nullable },
-                    V::Whole { min, max } => Kind::Whole { min, max },
-                    V::Bool => Kind::Bool,
-                    V::Word { words, nullable } => {
-                        let words: Vec<&'static str> = words.into_iter().map(leak).collect();
-                        Kind::Word { words: Box::leak(words.into_boxed_slice()), nullable }
-                    }
-                    V::Voice => Kind::Voice,
-                    V::Table { columns, rows, chars } => Kind::Table { columns, rows, chars },
-                };
-                Setting { key: leak(key), kind }
-            })
-            .collect();
-        Box::leak(list.into_boxed_slice())
-    })
+/// A catalog's settings as a list that lives as long as the program (the catalogs are compiled
+/// in, so each list is built once).
+fn leaked(settings: Vec<(String, deetshealth_vendors::Kind)>) -> &'static [Setting] {
+    let leak = |s: String| -> &'static str { Box::leak(s.into_boxed_str()) };
+    let list: Vec<Setting> = settings
+        .into_iter()
+        .map(|(key, kind)| {
+            use deetshealth_vendors::Kind as V;
+            let kind = match kind {
+                V::Number { min, max, nullable, .. } => Kind::Number { min, max, nullable },
+                V::Whole { min, max } => Kind::Whole { min, max },
+                V::Bool => Kind::Bool,
+                V::Word { words, nullable } => {
+                    let words: Vec<&'static str> = words.into_iter().map(leak).collect();
+                    Kind::Word { words: Box::leak(words.into_boxed_slice()), nullable }
+                }
+                V::Voice => Kind::Voice,
+                V::Table { columns, rows, chars } => Kind::Table { columns, rows, chars },
+            };
+            Setting { key: leak(key), kind }
+        })
+        .collect();
+    Box::leak(list.into_boxed_slice())
 }
 
-/// The models the page offers (ANTHROPIC.md §3): the 5.5 family only, pinned by name.
-pub const MODELS: &[&str] = &["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"];
-pub const EFFORTS: &[&str] = &["low", "medium", "high", "xhigh", "max"];
+/// The voice service (VOICE-VENDORS.md §2.3): every setting the voice catalog makes (the
+/// `deetshealth-vendors` crate): the vendor of each direction, the shared levers, and each
+/// vendor's levers under its id. The ranges are each vendor's, from its catalog file.
+pub fn voice_list() -> &'static [Setting] {
+    static LIST: OnceLock<&'static [Setting]> = OnceLock::new();
+    LIST.get_or_init(|| leaked(deetshealth_vendors::voice::settings(deetshealth_vendors::voice::catalog())))
+}
 
-/// The language model: Anthropic (ANTHROPIC.md §4; CONSOLE.md §8). The agent's `config.py`
-/// holds the same list for the page.
-pub const LLM: &[Setting] = &[
-    s("model", Kind::Word { words: MODELS, nullable: false }),
-    s("effort", Kind::Word { words: EFFORTS, nullable: false }),
-    // "on" is adaptive thinking; "off" is `disabled` on Haiku, `between_tools` on Sonnet
-    // (checked with the model and effort in `coherent`).
-    s("thinking", Kind::Word { words: &["on", "off"], nullable: false }),
-    s("max_tokens", Kind::Whole { min: 256, max: 16_000 }),
-    s("retry_max_tokens", Kind::Whole { min: 256, max: 32_000 }),
-    s("cache_ttl", Kind::Word { words: &["5m", "1h"], nullable: false }),
-    s("budget_usd", Kind::Whole { min: 0, max: 1_000_000 }),
-    s("offset_usd", Kind::Number { min: 0.0, max: 1_000_000.0, nullable: false }),
-    s("cycle_day", Kind::Whole { min: 1, max: 28 }),
-];
+/// The language model (VOICE-VENDORS.md §10; CONSOLE.md §8): every `llm` setting the model
+/// catalog makes: the model and the effort from the vendor's lists, then its levers.
+pub fn llm_list() -> &'static [Setting] {
+    static LIST: OnceLock<&'static [Setting]> = OnceLock::new();
+    LIST.get_or_init(|| leaked(deetshealth_vendors::model::settings(deetshealth_vendors::model::catalog())))
+}
 
 const fn p(key: &'static str, placeholders: &'static [&'static str]) -> Setting {
     Setting { key, kind: Kind::Prose { placeholders } }
@@ -333,7 +323,7 @@ const VARIABLES_FILE: &str = include_str!("../../agent/prompts/VARIABLES.md");
 pub fn service(name: &str) -> Option<(&'static str, &'static [Setting], &'static str)> {
     match name {
         "voice" => Some(("voice", voice_list(), "settings_voice")),
-        "llm" => Some(("llm", LLM, "settings_llm")),
+        "llm" => Some(("llm", llm_list(), "settings_llm")),
         "prompt" => Some(("prompt", PROMPT, "settings_prompt")),
         "system" => Some(("system", SYSTEM, "settings_system")),
         "hospital" => Some(("hospital", HOSPITAL, "settings_hospital")),
@@ -571,9 +561,9 @@ fn prose_problem(placeholders_wanted: &[&str], value: &Value) -> Option<&'static
     None
 }
 
-/// The rules between settings of one checked set, after `check`. The llm service: thinking is
-/// off only where the model allows it (Haiku and Sonnet, at effort high or below; Opus never),
-/// and the retry cap is at least the first cap. The error names a setting, never a value.
+/// The rules between settings of one checked set, after `check`. The llm service: the model
+/// catalog's (`model::rules`: thinking off only where the model and the effort allow it; the
+/// retry cap at least the first cap). The error names a setting, never a value.
 pub fn coherent(service: &str, values: &[(&'static str, Value)]) -> Result<(), String> {
     if service == "hospital" {
         return crate::hospital::Hospital::from_pairs(values.iter().map(|(k, v)| (*k, v))).map(|_| ());
@@ -581,21 +571,7 @@ pub fn coherent(service: &str, values: &[(&'static str, Value)]) -> Result<(), S
     if service != "llm" {
         return Ok(());
     }
-    let get = |k: &str| values.iter().find(|(key, _)| *key == k).map(|(_, v)| v);
-    let word = |k: &str| get(k).and_then(Value::as_str).unwrap_or("");
-    if word("thinking") == "off" {
-        if word("model") == "claude-opus-5-5" {
-            return Err("thinking: Opus 5.5 cannot turn thinking off".to_string());
-        }
-        if !matches!(word("effort"), "low" | "medium" | "high") {
-            return Err("thinking: off needs effort high or below".to_string());
-        }
-    }
-    let n = |k: &str| get(k).and_then(Value::as_i64).unwrap_or(0);
-    if n("retry_max_tokens") < n("max_tokens") {
-        return Err("retry_max_tokens: below max_tokens".to_string());
-    }
-    Ok(())
+    deetshealth_vendors::model::rules(deetshealth_vendors::model::catalog(), values)
 }
 
 /// The longest short string a setting holds (a voice name or id).
@@ -774,7 +750,7 @@ pub async fn get(pool: &PgPool, service: &str, table: &'static str, id: i64) -> 
     // A voice version saved before the catalog, or before a vendor joined it, reads in today's
     // shape (VOICE-VENDORS.md §2.3).
     if service == "voice" {
-        deetshealth_voice::upgrade(deetshealth_voice::catalog(), &mut values);
+        deetshealth_vendors::voice::upgrade(deetshealth_vendors::voice::catalog(), &mut values);
     }
     Ok(Some((v, values)))
 }
@@ -851,7 +827,7 @@ pub async fn save(
     // The audit row names only what changed, not the keys an old voice version had renamed.
     let mut before_values = before_values;
     if service == "voice" {
-        deetshealth_voice::upgrade(deetshealth_voice::catalog(), &mut before_values);
+        deetshealth_vendors::voice::upgrade(deetshealth_vendors::voice::catalog(), &mut before_values);
     }
     let has_default: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM setting_versions WHERE service = $1 AND seq = 0)")
         .bind(service)
@@ -917,7 +893,7 @@ mod tests {
 
     /// A whole voice set: the catalog's first values, with a few changed.
     fn full() -> Vec<(String, String)> {
-        let mut out: Vec<(String, String)> = deetshealth_voice::defaults(deetshealth_voice::catalog())
+        let mut out: Vec<(String, String)> = deetshealth_vendors::voice::defaults(deetshealth_vendors::voice::catalog())
             .into_iter()
             .map(|(k, v)| (k, v.to_string()))
             .collect();
@@ -982,14 +958,14 @@ mod tests {
 
     #[test]
     fn the_llm_rules() {
-        let ok = |set: Vec<(String, String)>| coherent("llm", &check(LLM, &set).unwrap());
+        let ok = |set: Vec<(String, String)>| coherent("llm", &check(llm_list(), &set).unwrap());
         assert!(ok(llm("claude-haiku-5-5", "low", "on", 1200, 2400)).is_ok());
         assert!(ok(llm("claude-haiku-5-5", "high", "off", 1200, 2400)).is_ok());
         assert!(ok(llm("claude-sonnet-5-5", "medium", "off", 1200, 1200)).is_ok());
         assert_eq!(ok(llm("claude-opus-5-5", "low", "off", 1200, 2400)).unwrap_err(), "thinking: Opus 5.5 cannot turn thinking off");
         assert_eq!(ok(llm("claude-sonnet-5-5", "xhigh", "off", 1200, 2400)).unwrap_err(), "thinking: off needs effort high or below");
         assert_eq!(ok(llm("claude-haiku-5-5", "low", "on", 2400, 1200)).unwrap_err(), "retry_max_tokens: below max_tokens");
-        assert!(check(LLM, &llm("claude-haiku-4-5", "low", "on", 1200, 2400)).unwrap_err().starts_with("model:"));
+        assert!(check(llm_list(), &llm("claude-haiku-4-5", "low", "on", 1200, 2400)).unwrap_err().starts_with("model:"));
     }
 
     #[test]

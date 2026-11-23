@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from starlette.testclient import TestClient
 
-from deets_agent import config
+from deets_agent import models
 from deets_agent.dev_server import (
     MAX_LABEL,
     MAX_LIVE_CALLS,
@@ -29,7 +29,7 @@ from deets_agent.prompts import FILE_WORDS
 TOKEN = "t" * 40
 ORIGIN = "http://localhost:1420"
 OK = {TOKEN_HEADER: TOKEN, "origin": ORIGIN}
-LLM = {**config.llm_defaults()}
+LLM = {**models.defaults()}
 
 
 class UpEhr:

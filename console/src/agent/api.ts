@@ -115,7 +115,7 @@ export const health = () =>
 export const callQuery = (ehr: EhrSource, label: string, tag: string): string =>
   new URLSearchParams({ ehr, ...(label ? { label } : {}), tag }).toString();
 
-/** One voice vendor's cycle (voice/src/cost.rs › Cycle; CHAT.md §17), priced by ehr from this
+/** One voice vendor's cycle (vendors/src/voice/cost.rs › Cycle; CHAT.md §17), priced by ehr from this
  * machine's call records and live calls: a floor, not the vendor's own count. `left` may go below
  * zero. `amounts`: each direction's raw use (seconds heard, characters spoken). */
 export type VendorCycle = {
@@ -143,7 +143,8 @@ export type CallUse = { seat: "text" | "voice"; usd: number; credits: Record<str
 export type Resources = {
   vendors: VendorCycle[];
   limits: { idle_s: number; max_s: number };
-  anthropic: AnthropicCycle;
+  /** Claude's spend this cycle, from ehr (model/cost.rs); null while ehr is not up. */
+  anthropic: AnthropicCycle | null;
   call: CallUse | null;
   voice: boolean;
 };
@@ -155,7 +156,7 @@ export const resources = (call: string | null) =>
 /** A lever's range and the vendor's default, as the sliders take it. */
 export type Range = { min: number; max: number; step: number; default: number };
 
-/** One lever of the voice catalog (voice/src/lib.rs › Lever; VOICE-VENDORS.md §2.1): its key,
+/** One lever of the voice catalog (vendors/src/voice/mod.rs › Lever; VOICE-VENDORS.md §2.1): its key,
  * what it holds, and the vendor's own default. */
 export type CatalogLever = {
   key: string;
@@ -300,7 +301,8 @@ export type AnthropicSettings = {
   cache_write: Record<string, number>;
   inference_geo: string;
   geo_price: number;
-  usage: AnthropicCycle;
+  /** This cycle's spend, from ehr (model/cost.rs); null while ehr is not up. */
+  usage: AnthropicCycle | null;
 };
 /** `version`: 0 or none for the active one. */
 export const anthropicSettings = (version = 0) =>
@@ -784,7 +786,7 @@ export type StatTotals = {
   wait_p90_ms: number;
   replayed_calls: number;
 };
-/** The voice's cost of some calls, priced by ehr with the voice crate (VOICE-VENDORS.md §9):
+/** The voice's cost of some calls, priced by ehr with the vendors crate (VOICE-VENDORS.md §9):
  * credits by vendor id, dollars at the active plans' prices, and `priced` (every vendor with
  * credits has a price, so `usd` is the whole voice). */
 export type VoiceCost = { credits: { vendor: string; credits: number }[]; usd: number; priced: boolean };

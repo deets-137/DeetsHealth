@@ -11,7 +11,7 @@ the same three events (start, words changed, end).
 
 **The meter** counts what the vendors bill, as raw amounts only: Pipecat's usage metrics give
 the seconds of audio sent to hearing (silence included) and the characters sent to speaking, the
-same for every vendor. It never prices them: ehr does, with the voice crate's cost.rs
+same for every vendor. It never prices them: ehr does, with the vendors crate's cost.rs
 (`PriceVoiceUse`; VOICE-VENDORS.md §9), and the record keeps the raw use (`voice_use`). It also
 keeps the time of the caller's last speech, for the idle limit. The vendor's dashboard is the
 full count (CARTESIA.md §4).
@@ -78,7 +78,7 @@ class VoiceMeter(FrameProcessor):
         self._line_started = False
 
     def use(self) -> dict[str, dict[str, Any]]:
-        """The call's raw use so far, as the record's `voice_use` holds it (the voice crate's
+        """The call's raw use so far, as the record's `voice_use` holds it (the vendors crate's
         `cost::CallUse`): each direction's vendor and amount."""
         return {
             "hearing": {"vendor": self.vendors["hearing"], "amount": round(self.heard_s, 1)},

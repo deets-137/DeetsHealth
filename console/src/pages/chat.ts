@@ -1822,10 +1822,10 @@ function agentFacts(llm: CallEvent[]): string | undefined {
  * voice vendor in use (VOICE-VENDORS.md §9; one column today, Cartesia), in three blocks split by
  * lines: what is left this cycle (a bar and "N of M left"), the shown call's use (Claude in
  * cents, the vendor in its credits), and the cycle's facts. Then the notes. The voice's numbers
- * come priced by ehr (the voice crate's cost.rs). Counts and dates only, never a value from a
+ * come priced by ehr (the vendors crate's cost.rs). Counts and dates only, never a value from a
  * call. */
 function resourceRows(
-  a: AnthropicCycle,
+  a: AnthropicCycle | null,
   vendors: VendorCycle[],
   limits: { idle_s: number; max_s: number },
   call: CallUse | null,
@@ -1883,15 +1883,18 @@ function resourceRows(
   const amount = (x: VendorCycle["amounts"][number]) =>
     `${x.product} ${x.per === "second" ? minutes(x.amount) : `${n(x.amount)} ${x.amount === 1 ? x.per : `${x.per}s`}`}`;
 
-  const aBudget = a.budget - a.offset;
+  // Claude's spend comes from ehr (model/cost.rs): none while ehr is not up.
+  const aBudget = a ? a.budget - a.offset : 0;
   const top = [
-    cell(
-      "anthropic",
-      false,
-      text("h2", "res-head", "Anthropic"),
-      meter("Claude dollars left this cycle", a.left, aBudget),
-      text("p", "res-left", `${usd(Math.max(0, a.left))} of ${usd(aBudget)} left`),
-    ),
+    a
+      ? cell(
+          "anthropic",
+          false,
+          text("h2", "res-head", "Anthropic"),
+          meter("Claude dollars left this cycle", a.left, aBudget),
+          text("p", "res-left", `${usd(Math.max(0, a.left))} of ${usd(aBudget)} left`),
+        )
+      : cell("anthropic", false, text("h2", "res-head", "Anthropic"), text("p", "res-left", "Not counted: ehr is not up")),
     ...voiceCells(
       (v) => {
         const plan = v.plan - v.offset;
@@ -1931,8 +1934,7 @@ function resourceRows(
     cell(
       "anthropic",
       false,
-      text("p", "res-fact", plural(a.calls, "call this cycle", "calls this cycle")),
-      text("p", "res-fact", `Renews ${day(a.renews)}`),
+      ...(a ? [text("p", "res-fact", plural(a.calls, "call this cycle", "calls this cycle")), text("p", "res-fact", `Renews ${day(a.renews)}`)] : []),
     ),
     ...voiceCells(
       (v) => [

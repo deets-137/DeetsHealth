@@ -129,6 +129,9 @@ pub const RPC_LEVERS: &[(&str, Need)] = &[
     ("GetVoiceCatalog", Need::System),
     // Counts and dates in, counts and dates out: the agent prices its own records and live calls.
     ("PriceVoiceUse", Need::System),
+    // The same for the model: its catalog, and dollars and dates from tokens and days.
+    ("GetModelCatalog", Need::System),
+    ("PriceModelUse", Need::System),
     ("ListUsers", Need::LeverOrSystem(Lever::People, Level::View)),
     ("AddUser", Need::Lever(Lever::People, Level::Edit)),
     ("RemoveUser", Need::Lever(Lever::People, Level::Edit)),
@@ -241,10 +244,10 @@ impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
     }
 
     /// The active voice settings by key (the catalog's first values when there is no store or
-    /// no version), as the voice crate's cost.rs reads them.
-    async fn active_voice(&self) -> deetshealth_voice::cost::Values {
-        let c = deetshealth_voice::catalog();
-        let mut out: deetshealth_voice::cost::Values = deetshealth_voice::defaults(c).into_iter().collect();
+    /// no version), as the vendors crate's cost.rs reads them.
+    async fn active_voice(&self) -> deetshealth_vendors::voice::cost::Values {
+        let c = deetshealth_vendors::voice::catalog();
+        let mut out: deetshealth_vendors::voice::cost::Values = deetshealth_vendors::voice::defaults(c).into_iter().collect();
         if let Some(store) = self.store.as_ref() {
             if let Ok(Some((_, values))) = settings::get(store.pool(), "voice", "settings_voice", 0).await {
                 for (k, v) in values {
@@ -1273,12 +1276,12 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         } else {
             None
         };
-        // The voice in dollars at the active plans' prices (the voice crate's cost.rs).
+        // The voice in dollars at the active plans' prices (the vendors crate's cost.rs).
         let voice = self.active_voice().await;
-        let prices: stats::Prices = deetshealth_voice::catalog()
+        let prices: stats::Prices = deetshealth_vendors::voice::catalog()
             .vendors
             .iter()
-            .filter_map(|v| deetshealth_voice::cost::usd_per_credit(&voice, &v.id).map(|p| (v.id.clone(), p)))
+            .filter_map(|v| deetshealth_vendors::voice::cost::usd_per_credit(&voice, &v.id).map(|p| (v.id.clone(), p)))
             .collect();
         let prev = prev.map(|rows| stats::totals(&rows, &prices));
         Ok(Response::new(edge::stats_out(stats::aggregate(&rows, &tools, &prices), prev)))
@@ -1354,7 +1357,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         &self,
         req: Request<pb::PriceVoiceUseRequest>,
     ) -> Result<Response<pb::PriceVoiceUseReply>, Status> {
-        use deetshealth_voice::cost;
+        use deetshealth_vendors::voice::cost;
         self.gate("PriceVoiceUse", req.metadata(), None).await?;
         let body: Value = serde_json::from_str(&req.get_ref().request).map_err(|_| Status::invalid_argument("request: not JSON"))?;
         let today = body
@@ -1372,7 +1375,7 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         if calls.len() > 100_000 || live.len() > 100 {
             return Err(Status::invalid_argument("calls: too many"));
         }
-        let c = deetshealth_voice::catalog();
+        let c = deetshealth_vendors::voice::catalog();
         // Each filed call: its id (a record's name, never a value of the call), its day, its use.
         let mut used: Vec<(String, cost::Day, cost::CallUse)> = vec![];
         for call in &calls {
@@ -1399,12 +1402,68 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         Ok(Response::new(pb::PriceVoiceUseReply { reply: reply.to_string() }))
     }
 
+    async fn get_model_catalog(
+        &self,
+        req: Request<pb::GetModelCatalogRequest>,
+    ) -> Result<Response<pb::GetModelCatalogReply>, Status> {
+        self.gate("GetModelCatalog", req.metadata(), None).await?;
+        Ok(Response::new(pb::GetModelCatalogReply { catalog: deetshealth_vendors::model::catalog_json().to_string() }))
+    }
+
+    async fn price_model_use(
+        &self,
+        req: Request<pb::PriceModelUseRequest>,
+    ) -> Result<Response<pb::PriceModelUseReply>, Status> {
+        use deetshealth_vendors::{cycle::Day, model::cost};
+        self.gate("PriceModelUse", req.metadata(), None).await?;
+        let body: Value = serde_json::from_str(&req.get_ref().request).map_err(|_| Status::invalid_argument("request: not JSON"))?;
+        let today = body
+            .get("today")
+            .and_then(Value::as_str)
+            .and_then(Day::parse)
+            .ok_or_else(|| Status::invalid_argument("today: a date (YYYY-MM-DD)"))?;
+        let settings = body.get("settings").and_then(Value::as_object).cloned().unwrap_or_default();
+        let list = |k: &str| body.get(k).and_then(Value::as_array).cloned().unwrap_or_default();
+        let (calls, live, uses) = (list("calls"), list("live"), list("uses"));
+        if calls.len() > 100_000 || live.len() > 100 || uses.len() > 10_000 {
+            return Err(Status::invalid_argument("calls: too many"));
+        }
+        let c = deetshealth_vendors::model::catalog();
+        let price = |v: &Value| cost::use_from(v).map_or(0.0, |u| cost::usd(c, &u));
+        // Each filed call: its id (a record's name), its day, and its dollars as the record holds
+        // them (priced by this crate when it closed), or its use to price now.
+        let mut priced: Vec<(String, Day, f64)> = vec![];
+        for call in &calls {
+            let id = call.get("id").and_then(Value::as_str).unwrap_or("");
+            if id.is_empty() || id.len() > 128 {
+                return Err(Status::invalid_argument("calls: each needs an id"));
+            }
+            let day = call
+                .get("day")
+                .and_then(Value::as_str)
+                .and_then(Day::parse)
+                .ok_or_else(|| Status::invalid_argument("calls: each needs a day (YYYY-MM-DD)"))?;
+            let usd = call.get("usd").and_then(Value::as_f64).unwrap_or_else(|| call.get("use").map_or(0.0, price));
+            priced.push((id.to_string(), day, usd));
+        }
+        let live_usd: Vec<f64> = live.iter().map(price).collect();
+        let live_sum = (!live_usd.is_empty()).then(|| live_usd.iter().sum());
+        let dated: Vec<(Day, f64)> = priced.iter().map(|(_, d, x)| (*d, *x)).collect();
+        let reply = serde_json::json!({
+            "calls": priced.iter().map(|(id, _, x)| (id.clone(), serde_json::json!(x))).collect::<serde_json::Map<_, _>>(),
+            "live": live_usd,
+            "uses": uses.iter().map(price).collect::<Vec<_>>(),
+            "cycle": cost::cycle(&settings, today, &dated, live_sum),
+        });
+        Ok(Response::new(pb::PriceModelUseReply { reply: reply.to_string() }))
+    }
+
     async fn get_voice_catalog(
         &self,
         req: Request<pb::GetVoiceCatalogRequest>,
     ) -> Result<Response<pb::GetVoiceCatalogReply>, Status> {
         self.gate("GetVoiceCatalog", req.metadata(), None).await?;
-        Ok(Response::new(pb::GetVoiceCatalogReply { catalog: deetshealth_voice::catalog_json().to_string() }))
+        Ok(Response::new(pb::GetVoiceCatalogReply { catalog: deetshealth_vendors::voice::catalog_json().to_string() }))
     }
 
     async fn save_settings(&self, req: Request<pb::SaveSettingsRequest>) -> Result<Response<pb::SaveSettingsReply>, Status> {

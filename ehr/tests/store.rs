@@ -96,7 +96,7 @@ async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
     assert_eq!(settings::get(pool, "voice", "settings_voice", 0).await.unwrap(), None, "no version yet");
     // A whole voice set (VOICE-VENDORS.md §2.3): the catalog's first values, with Sonic's speed.
     let set = |speed: serde_json::Value| -> Vec<(&'static str, serde_json::Value)> {
-        let first = deetshealth_voice::defaults(deetshealth_voice::catalog());
+        let first = deetshealth_vendors::voice::defaults(deetshealth_vendors::voice::catalog());
         settings::voice_list()
             .iter()
             .map(|s| {

@@ -49,6 +49,10 @@
 //! - Prints the voice catalog as JSON, the same as the `GetVoiceCatalog` RPC (VOICE-VENDORS.md
 //!   §2.1): for the agent's tests and its dev server before ehr is up. No value is protected.
 //!
+//!     ehr model-catalog
+//!
+//! - Prints the model catalog as JSON, the same as `GetModelCatalog` (VOICE-VENDORS.md §10).
+//!
 //!     ehr epic-sandbox
 //!
 //! - Prints the Chat page's Epic list as JSON (epic_ehr.rs `sandbox_list`): Epic's public test
@@ -646,8 +650,12 @@ async fn run() -> Result<(), String> {
     if first.peek().map(String::as_str) == Some("epic-check") {
         return epic_check().await;
     }
+    if first.peek().map(String::as_str) == Some("model-catalog") {
+        println!("{}", deetshealth_vendors::model::catalog_json());
+        return Ok(());
+    }
     if first.peek().map(String::as_str) == Some("voice-catalog") {
-        println!("{}", deetshealth_voice::catalog_json());
+        println!("{}", deetshealth_vendors::voice::catalog_json());
         return Ok(());
     }
     if first.peek().map(String::as_str) == Some("epic-sandbox") {

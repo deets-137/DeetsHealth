@@ -511,7 +511,7 @@ dependencies = [
  "aws-lc-rs",
  "base64 0.23.1",
  "deetshealth-core",
- "deetshealth-voice",
+ "deetshealth-vendors",
  "getrandom 0.4.3",
  "jiff",
  "prost",
@@ -535,7 +535,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "deetshealth-voice"
+name = "deetshealth-vendors"
 version = "0.1.0"
 dependencies = [
  "serde",

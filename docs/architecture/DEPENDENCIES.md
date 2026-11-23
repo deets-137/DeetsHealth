@@ -22,7 +22,7 @@ Terms:
 - **Range**: what the manifest allows. A refresh inside the range is safe; a bold version is
   outside it.
 
-## 1. Rust (`core/`, `ehr/`, `voice/`)
+## 1. Rust (`core/`, `ehr/`, `vendors/`)
 
 | Crate | Author / source | Used in | Range | Current | Latest |
 |---|---|---|---|---|---|
@@ -45,8 +45,8 @@ Terms:
 | sqlx | its principal authors (was LaunchBadge; moving to `transact-rs`) | ehr | 0.9 | 0.9.0 | 0.9.0 |
 | getrandom | rust-random project | ehr | 0.4 | 0.4.3 | 0.4.3 |
 | base64 | Marshall Pierce | ehr | 0.23 | 0.23.1 | 0.23.1 |
-| serde | David Tolnay | core, ehr, voice | 1 | 1.0.229 | 1.0.229 |
-| serde_json | David Tolnay | core, ehr, voice (also ehr's build: the protoc pin) | 1 | 1.0.154 | 1.0.154 |
+| serde | David Tolnay | core, ehr, vendors | 1 | 1.0.229 | 1.0.229 |
+| serde_json | David Tolnay | core, ehr, vendors (also ehr's build: the protoc pin) | 1 | 1.0.154 | 1.0.154 |
 | zeroize | RustCrypto | core, ehr | 1 | 1.9.1 | 1.9.1 |
 | subtle | dalek-cryptography | core | 2 | 2.6.1 | 2.6.1 |
 | futures-util | rust-lang (futures-rs) | core | 0.3 | 0.3.34 | 0.3.34 |

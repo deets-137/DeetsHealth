@@ -1,7 +1,7 @@
 // Config › Voice (VOICE-VENDORS.md §2.5, the owner's V-3 A; CONSOLE.md §7): one page for the
 // voice. Two cards side by side, Hearing and Speaking, each with its Vendor first; the vendor's
 // own levers below it. Every vendor, model, range, default, rate and recommended voice comes
-// from the voice catalog (the `deetshealth-voice` crate, through ehr); none is written here.
+// from the voice catalog (the `deetshealth-vendors` crate, through ehr); none is written here.
 // Only Cartesia is in the catalog so far, so its rows are the only vendor rows built.
 //
 // The top row: Read | Edit (Read greys every control; Edit opens them), then the versions (the

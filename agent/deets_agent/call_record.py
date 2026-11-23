@@ -19,7 +19,7 @@ Each line is one event: `t_ms` (from the call's start; to a tenth of a milliseco
   Start and `started_by` (`owner` or `guest`; schema 11); at the end, the totals and the estimated cost, and for a
   voice call `voice_use`: each direction's vendor and its raw amount, the seconds heard and the
   characters spoken (schema 16; before it, `cartesia`: Ink's seconds, Sonic's characters and
-  their credits, schema 7). ehr works out the credits (the voice crate's cost.rs).
+  their credits, schema 7). ehr works out the credits (the vendors crate's cost.rs).
 - `caller`, `agent` — what each side said. `first_ms` on `agent` (schema 4): when the line's
   first frame passed, on the call's clock; the event's own `t_ms` comes after the harness's
   turn grace (`TURN_GRACE_S` in call.py).
@@ -62,7 +62,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from deets_agent import config
+from deets_agent import config, models
 
 CALLS = config.AGENT / "calls"
 
@@ -120,28 +120,14 @@ def shape_digest(events: list[dict[str, Any]]) -> str:
     return hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
-def cost_usd(tokens: dict[str, int], model: str, cache_ttl: str = "5m", geo: bool = True) -> float:
-    """Dollars for these tokens on `model` (config.LLM_MODELS: per 1M tokens, ANTHROPIC.md §3).
-    A cache write costs 1.25× the input price for a 5-minute cache, 2× for 1 hour; a cache read
-    is the model's own read price; US-only inference is 1.1× on all of it. An estimate for the
-    record, not a bill."""
-    price_in, price_out, price_read = config.LLM_MODELS.get(model, {}).get("price", (0.0, 0.0, 0.0))
-    dollars = (
-        tokens.get("input_tokens", 0) * price_in
-        + tokens.get("cache_creation_input_tokens", 0) * price_in * config.CACHE_WRITE.get(cache_ttl, 1.25)
-        + tokens.get("cache_read_input_tokens", 0) * price_read
-        + tokens.get("output_tokens", 0) * price_out
-    )
-    return dollars / 1_000_000 * (config.GEO_PRICE if geo else 1.0)
-
-
-def replay_cost(path: Path, model: str = config.MODEL) -> float:
-    """What one recorded reply in tests/replays/ cost, from its usage events (cost_usd).
-    0 when the file is missing or unreadable."""
+def replay_use(path: Path, model: str | None = None) -> dict[str, Any] | None:
+    """What one recorded reply in tests/replays/ used, as `PriceModelUse` takes it (ehr prices
+    it; VOICE-VENDORS.md §10): its model (the catalog's default when none is given) and its
+    usage events' tokens. None when the file is missing or unreadable."""
     try:
         body = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return 0.0
+        return None
     usage: dict[str, int] = {}
     events = body.get("events") or [{"message": body.get("message") or {}}]
     for e in events:
@@ -149,7 +135,8 @@ def replay_cost(path: Path, model: str = config.MODEL) -> float:
         for name in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
             if isinstance(u.get(name), int):
                 usage[name] = u[name]
-    return cost_usd(usage, model)
+    first = models.defaults()
+    return models.use(model or first["model"], str(first["cache_ttl"]), "", usage)
 
 
 def _ms(seconds: float) -> float:
@@ -248,7 +235,7 @@ class CallRecord:
         §3.6). Never a guest's email: these files are committed."""
         if source not in ORIGINS:
             raise ValueError("source: not an origin")
-        llm = {**config.llm_defaults(), **(llm or {}), "model": model}
+        llm = {**models.defaults(), **(llm or {}), "model": model}
         folder.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         # The file's name is the call's id in the catalog (catalog.py) and the store: its origin
@@ -265,8 +252,8 @@ class CallRecord:
         self._start = time.perf_counter()
         self._model = model
         self.cache_ttl = str(llm["cache_ttl"])
-        # Every live request is sent US-only (llm.py), billed at 1.1×.
-        self.geo = True
+        # Where every live request runs (llm.py; the catalog's `inference_geo`), for the price.
+        self.geo = models.inference_geo()
         self._tool_start: dict[str, float] = {}
         # What the last request to Claude held, so the next one records only what is new.
         self._sent_system: Any = None
@@ -289,7 +276,7 @@ class CallRecord:
             mode=mode,
             model=model,
             llm={k: llm[k] for k in ("effort", "thinking", "max_tokens", "retry_max_tokens", "cache_ttl")},
-            inference_geo=config.INFERENCE_GEO,
+            inference_geo=self.geo,
             prompt_version=prompt_version,
             system_version=system_version,
             started=datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -408,24 +395,30 @@ class CallRecord:
 
     # ---- the end ----
 
-    def cost(self) -> float:
-        return cost_usd(self.tokens, self._model, self.cache_ttl, self.geo)
+    def use(self) -> dict[str, Any]:
+        """The model's use so far, as `PriceModelUse` takes it: ehr prices it (the vendors
+        crate's model/cost.rs). The record never prices itself."""
+        return models.use(self._model, self.cache_ttl, self.geo, self.tokens)
 
     def summary(self) -> str:
         r = self.requests
         return (
             f"{self.turns} caller turns - Claude requests: {r['live']} live, {r['replayed']} replayed, "
-            f"{r['failed']} failed - {self.tokens['output_tokens']} tokens out - about ${self.cost():.4f}"
+            f"{r['failed']} failed - {self.tokens['output_tokens']} tokens out"
         )
 
-    def close(self, reason: str, voice_use: dict[str, Any] | None = None) -> None:
+    def close(self, reason: str, voice_use: dict[str, Any] | None = None, cost_usd: float | None = None) -> None:
         """`voice_use`: a voice call's raw use by direction (voice/__init__.py
-        `VoiceMeter.use`); ehr prices it."""
+        `VoiceMeter.use`); ehr prices it. `cost_usd`: the model's dollars as ehr priced them
+        (`PriceModelUse`) when the call ended; without it, ehr prices the tokens when it files
+        the record."""
         if self._file.closed:
             return
         fields: dict[str, Any] = {}
+        if cost_usd is not None:
+            fields["cost_usd"] = round(cost_usd, 6)
         if voice_use is not None:
             fields["voice_use"] = voice_use
         self.event("call_end", reason=reason, turns=self.turns, requests=self.requests,
-                   tokens=self.tokens, cost_usd=round(self.cost(), 6), **fields)
+                   tokens=self.tokens, **fields)
         self._file.close()

@@ -700,7 +700,7 @@ who holds the Cartesia contract:
 
 ### 7.5a Desk test: Config › Voice (2026-11-23)
 **First:** stop the dev server (Ctrl+C) and start it again with `npm run dev`. It builds the new
-`ehr` (with the `voice` crate) and the agent's Python changed.
+`ehr` (with the `vendors` crate) and the agent's Python changed.
 
 1. Config's third item reads **Voice**, not Cartesia. Open it: the version dropdown still lists
    your old saves, newest first, and "Default" last.
@@ -724,7 +724,7 @@ who holds the Cartesia contract:
 
 - **Why:** the menu was a list copied by hand from Cartesia's "Choosing a voice" guide. Emma left
   Cartesia on 2026-11-16 and the page could not tell. Cartesia's API has no "recommended for
-  agents" mark, so the shortlist's names stay in the catalog (`voice/catalog/cartesia.json`, `speaking.voices`); the API checks them.
+  agents" mark, so the shortlist's names stay in the catalog (`vendors/catalog/voice/cartesia.json`, `speaking.voices`); the API checks them.
 - **The list:** the dev server reads Cartesia's List Voices (`voice_catalog.py`;
   `GET /agent/cartesia/voices`, DEV-API.md §2) for English voices, every page, with no credits.
   It holds the list for `TTL_S` and reads one at a time. Left out: archived voices, voices our
@@ -775,7 +775,7 @@ who holds the Cartesia contract:
 Signs that Cartesia's answer is not the shape its docs give (no real read has run yet): the
 count is exactly 100 (paging stopped after one page), or every shortlist name is greyed (the
 English filter matched nothing). Skylar and Daniel match by the ids in Cartesia's docs; the
-other seven match by name until their ids are pinned in `voice/catalog/cartesia.json`.
+other seven match by name until their ids are pinned in `vendors/catalog/voice/cartesia.json`.
 
 ### 7.7 The owner's screenshots (2026-11-13), in the order of his notes
 Kept so the reason for each change stays with it. Each one is what he saw before the change.

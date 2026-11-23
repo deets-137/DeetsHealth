@@ -41,7 +41,7 @@ from loguru import logger
 from pipecat.services.anthropic.llm import AnthropicLLMService
 from pydantic import TypeAdapter
 
-from deets_agent import config
+from deets_agent import config, models
 
 _EVENT = TypeAdapter(RawMessageStreamEvent)
 
@@ -343,7 +343,7 @@ class _Messages:
         # (_CutOffGuard): speaks the holding line and marks the call for review (call.py).
         self.on_cut_off = None
         # The cap for that one retry: the active setting on a test call (build_llm).
-        self.retry_max_tokens = config.RETRY_MAX_TOKENS
+        self.retry_max_tokens = int(models.defaults()["retry_max_tokens"])
 
     def _failed(self, e: BaseException, trace) -> None:
         if trace is not None:
@@ -389,7 +389,7 @@ class _Messages:
         try:
             # US-only inference (ANTHROPIC.md §2) on every live request. Added after the key: where
             # the model runs does not change the reply, so the recorded replies stay valid.
-            reply = await self._real.messages.create(**params, inference_geo=config.INFERENCE_GEO)
+            reply = await self._real.messages.create(**params, inference_geo=models.inference_geo())
         except Exception as e:
             self._failed(e, trace)
             raise
@@ -416,11 +416,11 @@ class GaClient:
 
 def thinking_config(values: dict[str, Any]) -> AnthropicLLMService.ThinkingConfig | None:
     """None for "on" (the model's adaptive thinking, sent as no thinking field, as before
-    2026-11-13); for "off", the model's own way to turn it off (config.LLM_MODELS). ehr refused
+    2026-11-13); for "off", the model's own way to turn it off (the model catalog). ehr refused
     "off" where the model has none (settings.rs › coherent)."""
     if values.get("thinking") != "off":
         return None
-    off = config.LLM_MODELS.get(values.get("model", ""), {}).get("thinking_off")
+    off = models.thinking_off(values.get("model", ""))
     return AnthropicLLMService.ThinkingConfig(type=off) if off else None
 
 
@@ -430,7 +430,7 @@ def build_llm(mode: Mode, replays: Path = config.REPLAYS, values: dict[str, Any]
     key = config.anthropic_key()
     if mode is not Mode.REPLAY and key is None:
         raise RuntimeError("ANTHROPIC_API_KEY is not set in the repo's .env")
-    v = {**config.llm_defaults(), **(values or {})}
+    v = {**models.defaults(), **(values or {})}
     client = GaClient(mode, replays, key)
     client.messages.retry_max_tokens = int(v["retry_max_tokens"])
     settings: dict[str, Any] = {

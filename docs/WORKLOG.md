@@ -28,6 +28,12 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   crate as a Python module; his answer "through ehr is fine". Built (VOICE-VENDORS.md §9):
   `voice/src/cost.rs`, migration 0015 (`voice_credits`), `PriceVoiceUse`, record schema 16
   (`voice_use`), the sums' `voice`, Resources and Analytics › Cost per vendor.
+- Committed as `d0224f0` (his "Commit please"; not pushed).
+- His next ask: model vendors as functions too ("anthropic for now, and openai if we do it
+  later"). The fork of the crate's shape: his "A: one vendors crate". Built (VOICE-VENDORS.md
+  §10): `voice/` renamed `vendors/`; `cycle.rs` shared; the model catalog and `model/cost.rs`;
+  `llm_list` and the llm rules from the catalog; `GetModelCatalog`, `PriceModelUse`,
+  `ehr model-catalog`; `models.py`; the record keeps raw use and ehr prices it.
 - No screenshots this sitting.
 
 ## 2026-11-22 (Windows, night) — Analytics: the other five views

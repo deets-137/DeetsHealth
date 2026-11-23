@@ -108,10 +108,10 @@ from pipecat.transports.smallwebrtc.connection import SmallWebRTCConnection
 from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketParams, FastAPIWebsocketTransport
 
-from deets_agent import config, prompts, redact
+from deets_agent import config, models, prompts, redact
 from deets_agent.access import AccessGate, AccessSettings
 from deets_agent.call import CallFailed, TypedCall
-from deets_agent.call_record import CALLS, CallRecord, replay_cost, shape_digest
+from deets_agent.call_record import CALLS, CallRecord, replay_use, shape_digest
 from deets_agent.catalog import (
     DIMENSIONS,
     OUTCOMES,
@@ -127,7 +127,7 @@ from deets_agent.fake_twilio import FakeTwilio
 from deets_agent.flow import tool_scope, tool_steps
 from deets_agent.identity import LEVELS, LEVERS, Identity, IdentityDown, Principal
 from deets_agent.llm import Mode, build_llm
-from deets_agent.resources import anthropic_cycle, call_use, voice_records
+from deets_agent.resources import call_use, model_records, voice_records
 from deets_agent.rtvi_json import RtviJsonSerializer
 from deets_agent.security_headers import MAX_REPORT_BYTES, SecurityHeaders
 from deets_agent.turn import TurnError, TurnSettings, for_aiortc, ice_servers
@@ -445,6 +445,7 @@ def build_app(state: State) -> FastAPI:
             state.ehr = await EhrClient.connect(target, config.CERTS)
             # The voice catalog from ehr itself (VOICE-VENDORS.md §2.1; the owner's V-1 A).
             await vendors.load(state.ehr)
+            await models.load(state.ehr)
             # The agent on its own, no person behind it (ehr audits it as the system).
             with as_system():
                 # A hand edit to the prompt file becomes a new version (PROMPT-EDITOR.md §6.2).
@@ -762,21 +763,14 @@ def build_app(state: State) -> FastAPI:
     @app.get("/agent/resources")
     async def resources(call: str | None = None):
         """Each chosen voice vendor's cycle (plan, use, left, renewal), priced by ehr with the
-        voice crate from the records and the live voice calls (VOICE-VENDORS.md §9); Claude's
+        vendors crate from the records and the live voice calls (VOICE-VENDORS.md §9); Claude's
         dollars this cycle against the active budget; and, with `call`, that one call's use so
         far: Claude's dollars and the voice's credits by vendor (CHAT.md §17). Counts only.
         `vendors` is empty while ehr is not up."""
         values = await active_voice_settings(state)
         live = [c.voice.meter.use() for c in state.lives.values() if c.voice is not None]
         priced = await price_voice(state, values, voice_records(state.calls), live)
-        llm = await active_settings(state, "llm")
-        claude = anthropic_cycle(
-            state.calls,
-            live=sum(c.record.cost() for c in state.lives.values()) if state.lives else None,
-            budget=float(llm["budget_usd"]),
-            offset=float(llm["offset_usd"]),
-            day=int(llm["cycle_day"]),
-        )
+        claude = await model_cycle(state)
         return {
             "vendors": priced["cycles"] if priced else [],
             "limits": {"idle_s": int(values["idle_s"]), "max_s": int(values["max_s"])},
@@ -1300,7 +1294,7 @@ def build_app(state: State) -> FastAPI:
         """Analytics' sums (ANALYTICS.md §3.2): Home, Outcome, Cost, Speed and Flags for the
         synthetic calls of the last `days` days (0: today; none: all) that pass the filter bar's
         filters, through ehr's `CallStats`; with `days`, `prev` holds the totals of the same
-        length before. Each sum's `voice` is priced by ehr (the voice crate's cost.rs): credits by
+        length before. Each sum's `voice` is priced by ehr (the vendors crate's cost.rs): credits by
         vendor, dollars at the active plans' prices, and `priced`; `vendor_names` names each
         vendor id. Names, counts, times and dollars only. 400 for a filter
         out of its words; 409 without a store."""
@@ -1335,7 +1329,7 @@ def build_app(state: State) -> FastAPI:
             if e.kind is ErrorKind.FORBIDDEN:
                 raise HTTPException(403, "Analytics View is needed") from None
             raise HTTPException(502, "ehr could not sum the calls") from None
-        # The voice comes priced from ehr (the voice crate's cost.rs); the page names each vendor.
+        # The voice comes priced from ehr (the vendors crate's cost.rs); the page names each vendor.
         names = {v["id"]: v["name"] for v in vendors.current()["vendors"]}
         return {**sums, "class": "synthetic", "range_days": days, "vendor_names": names}
 
@@ -1582,7 +1576,7 @@ class DemoPrefix:
 # variables' Default is the variables file (SYSTEM-PAGE.md §3.4).
 DEFAULTS = {
     "voice": lambda: vendors.defaults(),
-    "llm": config.llm_defaults,
+    "llm": lambda: models.defaults(),
     "prompt": prompts.load,
     "system": lambda: {"variables": prompts.variables_to_store(prompts.load_variables())},
     "hospital": config.hospital_defaults,
@@ -1850,14 +1844,14 @@ async def estimate_record(state: State) -> None:
         run["state"] = "failed"
 
 
-async def _measure_costs() -> None:
+async def _measure_costs(state: State) -> None:
     """After a passing Record and test: each kept script's cost, from the replies it reads (a
-    dry run that logs its request keys), for the next quote."""
+    dry run that logs its request keys), for the next quote. ehr prices them."""
     costs: dict[str, float] = {}
     for script in sorted(SCRIPTS.glob("*.txt")):
         ok, keys = await _dry(script)
         if ok:
-            costs[script.stem] = round(sum(replay_cost(config.REPLAYS / f"{k}.json") for k in set(keys)), 4)
+            costs[script.stem] = round(await price_uses(state, [replay_use(config.REPLAYS / f"{k}.json") for k in set(keys)]), 4)
     RECORDED_COSTS.write_text(json.dumps(costs, indent=1, sort_keys=True) + "\n", encoding="utf-8")
 
 
@@ -2043,7 +2037,7 @@ async def record_and_test(state: State) -> None:
                 "reply_keys": [k for k in kept.get("keys", []) if isinstance(k, str)], **numbers,
             })
         run["spent_usd"] = round(
-            sum(replay_cost(p) for p in config.REPLAYS.glob("*.json") if p.stat().st_mtime >= started), 4
+            await price_uses(state, [replay_use(p) for p in config.REPLAYS.glob("*.json") if p.stat().st_mtime >= started]), 4
         )
         passed = run["tests"] and all(s["ok"] for s in run["scripts"])
         await file_test_run(state, run, folder, {
@@ -2055,7 +2049,7 @@ async def record_and_test(state: State) -> None:
             "system_version": "file",
             "hospital_version": hospital or "",
             "llm_version": "",
-            "model": config.MODEL,
+            "model": models.defaults()["model"],
             "git_commit": _git_commit(),
             "tests_passed": bool(run["tests"]),
             "cost_usd": run["spent_usd"],
@@ -2063,7 +2057,7 @@ async def record_and_test(state: State) -> None:
         })
     if passed and prompts.file_digest() == words:
         RECORDED_STAMP.write_text(words + "\n", encoding="utf-8")
-        await _measure_costs()
+        await _measure_costs(state)
     state.estimate = None
     run["state"] = "passed" if passed else "failed"
 
@@ -2088,7 +2082,7 @@ async def active_settings(state: State, service: str) -> dict[str, Any]:
 async def price_voice(
     state: State, values: dict[str, Any], calls: list[dict[str, Any]], live: list[dict[str, Any]]
 ) -> dict[str, Any] | None:
-    """The voice's cost from ehr (`PriceVoiceUse`, the voice crate's cost.rs): each call's
+    """The voice's cost from ehr (`PriceVoiceUse`, the vendors crate's cost.rs): each call's
     credits by vendor, the live calls', each chosen vendor's cycle. None while ehr is not up or
     does not answer. Python never prices the voice itself (VOICE-VENDORS.md §9)."""
     if state.ehr is None:
@@ -2112,7 +2106,8 @@ async def call_now(state: State, call: str | None, values: dict[str, Any]) -> di
         if lc.voice is not None:
             priced = await price_voice(state, values, [], [lc.voice.meter.use()])
             credits = priced["live"][0] if priced else None
-        return {"seat": lc.seat, "usd": round(lc.record.cost(), 6), "credits": credits, "live": True}
+        usd = await price_uses(state, [lc.record.use()])
+        return {"seat": lc.seat, "usd": round(usd, 6), "credits": credits, "live": True}
     events = state.catalog.events(call)
     if events is None:
         return None
@@ -2219,35 +2214,60 @@ async def anthropic_view(state: State, version: int) -> dict[str, Any]:
     rules and prices, this cycle's spend, and the fixed facts. Never the key: only whether it is
     set."""
     view = await settings_view(state, "llm", version)
-    active = view["active"]
-    live = sum(c.record.cost() for c in state.lives.values()) if state.lives else None
+    # Every model fact from the model catalog (VOICE-VENDORS.md §10), in the page's shape.
+    v = models.vendor()
+    ranges = {l["key"]: {"min": l["min"], "max": l["max"]} for l in v["levers"] if l["key"] in ("max_tokens", "retry_max_tokens")}
     view.update(
         key=state.has_key,
         models=[
             {
-                "id": mid,
+                "id": m["id"],
                 "name": m["name"],
                 "effort_default": m["effort_default"],
-                "thinking_off": m["thinking_off"] is not None,
-                "price": dict(zip(("input", "output", "cache_read"), m["price"])),
+                "thinking_off": m.get("thinking_off") is not None,
+                "price": dict(m["prices"]),
             }
-            for mid, m in config.LLM_MODELS.items()
+            for m in v["models"]
         ],
-        efforts=list(config.EFFORTS),
-        thinking_off_efforts=list(config.THINKING_OFF_EFFORTS),
-        ranges=config.LLM_RANGES,
-        cache_write=config.CACHE_WRITE,
-        inference_geo=config.INFERENCE_GEO,
-        geo_price=config.GEO_PRICE,
-        usage=anthropic_cycle(
-            state.calls,
-            live=live,
-            budget=float(active["budget_usd"]),
-            offset=float(active["offset_usd"]),
-            day=int(active["cycle_day"]),
-        ),
+        efforts=list(v["efforts"]),
+        thinking_off_efforts=list(v["thinking_off_efforts"]),
+        ranges=ranges,
+        cache_write=dict(v["cache_write"]),
+        inference_geo=v["inference_geo"],
+        geo_price=v["geo_price"][v["inference_geo"]],
+        usage=await model_cycle(state, view["active"]),
     )
     return view
+
+
+async def price_model(state: State, request: dict[str, Any]) -> dict[str, Any] | None:
+    """The model's cost from ehr (`PriceModelUse`, the vendors crate's model/cost.rs). None while
+    ehr is not up or does not answer. Python never prices the model itself."""
+    if state.ehr is None:
+        return None
+    try:
+        return await state.ehr.price_model_use({"today": date.today().isoformat(), "settings": {}, **request})
+    except EhrError:
+        return None
+
+
+async def price_uses(state: State, uses: list[dict[str, Any] | None]) -> float:
+    """The dollars of some uses (a quote, a live call), priced by ehr; 0 while ehr is not up."""
+    given = [u for u in uses if u is not None]
+    if not given:
+        return 0.0
+    priced = await price_model(state, {"uses": given})
+    return float(sum(priced["uses"])) if priced else 0.0
+
+
+async def model_cycle(state: State, llm: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    """This cycle's Claude spend (Config › Anthropic, CONSOLE.md §8; the Resources tab): the
+    records' dollars and the live calls', against the active budget, worked out by ehr (the
+    budget's cycle, model/cost.rs). None while ehr is not up."""
+    llm = llm if llm is not None else await active_settings(state, "llm")
+    live = [c.record.use() for c in state.lives.values()]
+    priced = await price_model(state, {"settings": llm, "calls": model_records(state.calls), "live": live})
+    return priced["cycle"] if priced else None
 
 
 def _version_row(v: SettingVersion) -> dict[str, Any]:
@@ -2478,7 +2498,13 @@ async def _run_call(
         record.event("error", type=type(e).__name__, message=str(e))
     finally:
         prompts.reset(token)
-        record.close(reason, voice_use=voice.meter.use() if voice is not None else None)
+        # The model's dollars as ehr prices them now; without ehr, ehr prices the tokens later.
+        priced = await price_model(state, {"uses": [record.use()]})
+        record.close(
+            reason,
+            voice_use=voice.meter.use() if voice is not None else None,
+            cost_usd=float(priced["uses"][0]) if priced else None,
+        )
         redact.set_dev_tap(None)
         await _file(state.ehr, record)
         state.lives.pop(record.call_id, None)

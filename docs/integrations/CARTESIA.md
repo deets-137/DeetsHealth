@@ -55,10 +55,10 @@ updated: 2026-11-16
   emotive ones. Its list for agents: Skylar, Gemma, Jacqueline, Emma, Lauren, Daniel, Archie,
   Parker, Jameson, Corey. The guide says nothing about 8 kHz phone audio: listen on a phone.
   **Emma is gone (2026-11-16):** Cartesia's voice list has no voice of that name, and its old id
-  answers 404 (`voice_not_found`); it left the console's list (the catalog, `voice/catalog/cartesia.json`). The
+  answers 404 (`voice_not_found`); it left the console's list (the catalog, `vendors/catalog/voice/cartesia.json`). The
   other nine answer. A voice call now checks the active voice before it starts.
   **Checked live (2026-11-16):** Cartesia's API has no "recommended for agents" mark, so the
-  shortlist's names stay in the catalog (`voice/catalog/cartesia.json`). Config › Voice checks each against
+  shortlist's names stay in the catalog (`vendors/catalog/voice/cartesia.json`). Config › Voice checks each against
   Cartesia's List Voices (`voice_catalog.py`; no credits; English only; owned and cloned voices
   left out) and takes the ids from it. More voices… shows every English voice in a table
   (CONSOLE.md §7.8). The guide's list itself can still change: read it again now and then.
