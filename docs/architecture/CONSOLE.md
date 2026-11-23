@@ -439,7 +439,7 @@ wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
    it stays.
 
 ## 7. Config › Voice (was Config › Cartesia)
-> **Part:** built · 2026-11-23 · desk test open — **Config › Cartesia is now Config › Voice**
+> **Part:** built · 2026-11-23 · desk test passed 2026-11-23 — **Config › Cartesia is now Config › Voice**
 > (VOICE-VENDORS.md, the owner's V-3 A: one page for the voice). The page is `pages/voice.ts`;
 > its data is `GET`/`POST /agent/voice/settings` and `GET /agent/voice/voices` (DEV-API.md §2).
 > What changed: a **Vendor** row first in each of the two cards, now titled **Speaking (Sonic)**

@@ -1,7 +1,7 @@
 ---
 status: built
-desk_test: open
-sources: [vendors/src/lib.rs, vendors/src/cycle.rs, vendors/src/model/mod.rs, vendors/src/model/cost.rs, vendors/catalog/model/anthropic.json, agent/deets_agent/models.py, agent/deets_agent/call_record.py, vendors/src/voice/mod.rs, vendors/src/voice/cost.rs, ehr/migrations/0015_voice_credits.sql, vendors/catalog/voice/cartesia.json, vendors/catalog/voice/shared.json, agent/deets_agent/voice/__init__.py, agent/deets_agent/voice/vendors.py, agent/deets_agent/voice/cartesia.py, ehr/src/main.rs, ehr/src/service.rs, ehr/proto/deets/ehr/v1/ehr.proto, console/src/agent/api.ts, agent/deets_agent/config.py, agent/deets_agent/call.py, agent/deets_agent/resources.py, agent/deets_agent/voice_catalog.py, agent/deets_agent/dev_server.py, ehr/src/settings.rs, ehr/src/store.rs, ehr/src/stats.rs, ehr/migrations/0014_call_stages.sql, console/src/pages/voice.ts, Cargo.toml, docs/integrations/CARTESIA.md, docs/architecture/VOICE-AGENT.md, docs/architecture/CONSOLE.md]
+desk_test: passed 2026-11-23
+sources: [docs/architecture/images/analytics-cost-nan-2026-11-23.png, docs/architecture/images/config-cartesia-refused-2026-11-23.png, docs/architecture/images/chat-resources-refused-2026-11-23.png, vendors/src/lib.rs, vendors/src/cycle.rs, vendors/src/model/mod.rs, vendors/src/model/cost.rs, vendors/catalog/model/anthropic.json, agent/deets_agent/models.py, agent/deets_agent/call_record.py, vendors/src/voice/mod.rs, vendors/src/voice/cost.rs, ehr/migrations/0015_voice_credits.sql, vendors/catalog/voice/cartesia.json, vendors/catalog/voice/shared.json, agent/deets_agent/voice/__init__.py, agent/deets_agent/voice/vendors.py, agent/deets_agent/voice/cartesia.py, ehr/src/main.rs, ehr/src/service.rs, ehr/proto/deets/ehr/v1/ehr.proto, console/src/agent/api.ts, agent/deets_agent/config.py, agent/deets_agent/call.py, agent/deets_agent/resources.py, agent/deets_agent/voice_catalog.py, agent/deets_agent/dev_server.py, ehr/src/settings.rs, ehr/src/store.rs, ehr/src/stats.rs, ehr/migrations/0014_call_stages.sql, console/src/pages/voice.ts, Cargo.toml, docs/integrations/CARTESIA.md, docs/architecture/VOICE-AGENT.md, docs/architecture/CONSOLE.md]
 updated: 2026-11-23
 ---
 # DeetsHealth — Voice vendors: the `vendors` crate and a vendor for each direction
@@ -12,7 +12,7 @@ updated: 2026-11-23
 > (`ehr` serves the catalog), **V-2 A** (one voice version holds every vendor), **V-3 A** (one
 > page, Config › Voice).
 >
-> **Part:** built · 2026-11-23 · desk test open (CONSOLE.md §7.5a, §9.4 and §10.5 below). Steps 1
+> **Part:** built · 2026-11-23 · desk test passed 2026-11-23 (CONSOLE.md §7.5a, §9.4 and §10.5 below; §10.6). Steps 1
 > to 5 of §7 are built, and the model side (§10); step 6 (ElevenLabs) is not. **Read §8, §9 and
 > §10 first**: where they and the design differ, they are the code. The crate is `vendors/` now
 > (§10.1); where the text says `voice/` for the crate, read `vendors/`.
@@ -228,7 +228,7 @@ Each step compiles and passes `npm run check` on its own.
    voice list. Then the owner's listening test (F5 C).
 
 ## 8. As built (2026-11-23)
-> **Part:** built · 2026-11-23 · desk test open (CONSOLE.md §7.5a). Steps 1, 2, 3 and 5. The
+> **Part:** built · 2026-11-23 · desk test passed 2026-11-23 (CONSOLE.md §7.5a). Steps 1, 2, 3 and 5. The
 > behaviour of a call is unchanged: Cartesia is the only vendor in the catalog.
 
 **The crate** (`voice/` then, now `vendors/`, `deetshealth-vendors`, a workspace member; `npm run check` runs its tests
@@ -286,7 +286,7 @@ settings travel with each save.
 go-ahead and ElevenLabs' prices (§6).
 
 ## 9. As built: the voice's cost in the crate (2026-11-23, step 4)
-> **Part:** built · 2026-11-23 · desk test open (§9.4). The owner: "Build step 4, pull out the
+> **Part:** built · 2026-11-23 · desk test passed 2026-11-23 (§9.4). The owner: "Build step 4, pull out the
 > hard coded pieces and set it in the voice/ crate as functions that can be pulled upon"; then,
 > on how the agent reaches them, "through ehr is fine". Python never prices the voice now.
 
@@ -349,7 +349,7 @@ Resources' bar, as before.
 
 
 ## 10. As built: the model vendors in the crate (2026-11-23)
-> **Part:** built · 2026-11-23 · desk test open (§10.5). The owner, on the voice's cost functions:
+> **Part:** built · 2026-11-23 · desk test passed 2026-11-23 (§10.5, §10.6). The owner, on the voice's cost functions:
 > "can we integrate model vendors as available function calls as well (anthropic for now, and
 > openai if we do it later)?" Then, to the fork of the crate's shape: "A: one vendors crate".
 
@@ -411,3 +411,26 @@ agent's Python changed.
 3. Make a short call on Chat. Resources › Anthropic counts up while it runs; after it ends, the
    call's cents stay and "calls this cycle" is one higher.
 4. Analytics › Cost: Claude's dollars per day are as before, and the new call is in them.
+
+### 10.6 The owner's desk test (2026-11-23)
+He: "tested and voice call worked like a charm, noticed these slight discrepencies / issues
+though". All three screens are the console's code from before these commits, still loaded in the
+browser: the nav reads Config › Cartesia and the Cost tile reads Cartesia, both gone from the
+source; the built demo (`console/dist-demo`, rebuilt 13:19) holds the new code. The old page asks
+for `/agent/cartesia` (gone: "refused"), reads `r.cartesia` on Resources ("refused"), and reads
+`usd_per_credit` and `cartesia_credits` on Cost (gone: `$NaN`). A reload of the page (Ctrl+Shift+R)
+loads the new code. After the reload he wrote: "Fixed, mark desk tests as complete and working".
+
+**A real bug, from his terminal the same day:** every Resources poll during a voice call raised
+`IndexError` in `dev_server.py › call_now`. The dev server sent a live meter's use bare
+(`{hearing, speaking}`); the crate reads a `call_end`'s shape (`{voice_use: …}`), so `ehr` dropped
+every live call, and the cycle left out live voice use too. Fixed in `price_voice`, which now sends
+each live use as `{voice_use: …}`; `call_now` no longer indexes an empty list. The test
+`test_a_live_meter_is_priced_through_the_dev_servers_own_path` sends a real meter through that
+path.
+
+![The owner's screenshot, 2026-11-23: Analytics › Cost shows $NaN in Total, Per call, Per booking and the Cartesia tile, from a page loaded before the change](images/analytics-cost-nan-2026-11-23.png)
+
+![The owner's screenshot, 2026-11-23: Config › Cartesia, still in the nav, shows "The agent's dev server refused"](images/config-cartesia-refused-2026-11-23.png)
+
+![The owner's screenshot, 2026-11-23: a booked text call on Chat (sandbox patient); Resources shows "The agent's dev server refused"](images/chat-resources-refused-2026-11-23.png)

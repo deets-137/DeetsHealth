@@ -113,6 +113,21 @@ def test_the_resources_gather_raw_use_and_leave_pricing_to_ehr(client, tmp_path)
     assert r["vendors"] == [] and r["limits"] == {"idle_s": 60, "max_s": 360}
 
 
+async def test_a_live_meter_is_priced_through_the_dev_servers_own_path(ehr):
+    """The Resources tab's path: a live meter's `use()` as the dev server sends it (2026-11-23:
+    sent bare, ehr dropped it, and `call_now` raised IndexError on every poll)."""
+    from types import SimpleNamespace
+
+    from deets_agent.dev_server import price_voice
+    from deets_agent.voice import VoiceMeter, vendors
+
+    meter = VoiceMeter(chosen={"hearing": "cartesia", "speaking": "cartesia"})
+    meter.heard_s, meter.spoken_chars = 10.0, 40
+    got = await price_voice(SimpleNamespace(ehr=ehr), vendors.defaults(), [], [meter.use()])
+    assert got["live"] == [{"cartesia": 70}], "Ink 10 s at 3, Sonic 40 characters at 1"
+    assert got["cycles"][0]["live"] == 70
+
+
 async def test_ehr_prices_old_and_new_records_and_each_vendors_cycle(ehr):
     from datetime import date
 

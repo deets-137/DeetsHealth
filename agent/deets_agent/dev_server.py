@@ -2087,7 +2087,14 @@ async def price_voice(
     does not answer. Python never prices the voice itself (VOICE-VENDORS.md §9)."""
     if state.ehr is None:
         return None
-    request = {"today": date.today().isoformat(), "settings": values, "calls": calls, "live": live}
+    # A live meter's use (`VoiceMeter.use`) goes as a record's `call_end` holds it, `voice_use`,
+    # the shape the crate reads (cost::call_use); sent bare, ehr would drop it.
+    request = {
+        "today": date.today().isoformat(),
+        "settings": values,
+        "calls": calls,
+        "live": [{"voice_use": u} for u in live],
+    }
     try:
         return await state.ehr.price_voice_use(request)
     except EhrError:
@@ -2105,7 +2112,7 @@ async def call_now(state: State, call: str | None, values: dict[str, Any]) -> di
         credits = None
         if lc.voice is not None:
             priced = await price_voice(state, values, [], [lc.voice.meter.use()])
-            credits = priced["live"][0] if priced else None
+            credits = priced["live"][0] if priced and priced["live"] else None
         usd = await price_uses(state, [lc.record.use()])
         return {"seat": lc.seat, "usd": round(usd, 6), "credits": credits, "live": True}
     events = state.catalog.events(call)

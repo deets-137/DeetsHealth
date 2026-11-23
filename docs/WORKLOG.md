@@ -34,7 +34,16 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   §10): `voice/` renamed `vendors/`; `cycle.rs` shared; the model catalog and `model/cost.rs`;
   `llm_list` and the llm rules from the catalog; `GetModelCatalog`, `PriceModelUse`,
   `ehr model-catalog`; `models.py`; the record keeps raw use and ehr prices it.
-- No screenshots this sitting.
+- Committed as `14a2058` (his "Commit the working tree changes").
+- His desk test: the voice call worked; three screens wrong ($NaN on Cost, "refused" on Config ›
+  Cartesia and Resources). Cause: the console's old code still loaded in the browser
+  (VOICE-VENDORS.md §10.6). Screenshots saved: `analytics-cost-nan-2026-11-23.png`,
+  `config-cartesia-refused-2026-11-23.png`, `chat-resources-refused-2026-11-23.png`.
+- After a reload: "Fixed, mark desk tests as complete and working". Marked passed
+  (VOICE-VENDORS.md, CONSOLE.md §7, HANDOFF.md).
+- His terminal: `IndexError` in `call_now` on every Resources poll in a voice call. The live
+  meter's use went to ehr bare and was dropped; now sent as `{voice_use: …}`, with a test
+  (VOICE-VENDORS.md §10.6).
 
 ## 2026-11-22 (Windows, night) — Analytics: the other five views
 - Committed Logs as `23aef48` (his "looks good"; not pushed). His words: "let's build out the

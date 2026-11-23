@@ -123,13 +123,14 @@ interface (VOICE-AGENT.md §7.2).
 The list, and the issues found that day, is [PRE-LIVE-VERIFICATIONS.md](PRE-LIVE-VERIFICATIONS.md):
 every row is run before going live. MIT license since 2026-11-22 (`LICENSE`).
 
-**Built 2026-11-23, desk test open: the model in the vendors crate** (architecture/VOICE-VENDORS.md
+**Built 2026-11-23, desk test passed 2026-11-23: the model in the vendors crate** (architecture/VOICE-VENDORS.md
 §10; his "A: one vendors crate"). The `voice` crate is now `vendors/`, with a `model` side: the
 model catalog (`catalog/model/anthropic.json`) makes the `llm` settings and rules in `ehr`, and
 `model/cost.rs` prices every Claude call (`PriceModelUse`, `GetModelCatalog`). Python prices
-nothing. Desk test: VOICE-VENDORS.md §10.5. Not committed until he says so.
+nothing. Desk test: VOICE-VENDORS.md §10.5; passed on his word ("Fixed, mark desk tests as
+complete and working"). Committed as `14a2058`; the live-meter fix (§10.6) after it.
 
-**Built 2026-11-23, desk test open: voice vendors, Config › Voice** (architecture/VOICE-VENDORS.md
+**Built 2026-11-23, desk test passed 2026-11-23: voice vendors, Config › Voice** (architecture/VOICE-VENDORS.md
 §8; his V-1 A, V-2 A, V-3 A). A new crate, `vendors/` (it was `voice/` until the model joined it), holds the catalog of voice vendors; `ehr`
 serves it (`GetVoiceCatalog`); the agent's voice code is a package with an adapter per vendor;
 Config › Cartesia is now Config › Voice, with a Vendor row per direction. Cartesia is still the
