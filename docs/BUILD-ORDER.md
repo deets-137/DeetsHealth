@@ -2,11 +2,17 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-11-12
+updated: 2026-11-22
 ---
 # DeetsHealth — Build order
 
-> The path from where we stand to the first hospital. The paper work and the text run are done.
+> **Since 2026-11-22 the finish line is a portfolio piece** (DESIGN.md §0): a no-code agent
+> harness that a healthcare professional sets up in the console, a public repo a reviewer can
+> read and run, and a captured demo on Deets.Solutions. §3.4 (going live with a hospital) is set
+> aside as the later path. The tracks below still hold; within them, work that shows in the
+> demo or that a non-coder needs to set the agent up comes first.
+>
+> Until 2026-11-22: the path from where we stand to the first hospital. The paper work and the text run are done.
 > Three tracks remain: the console, the chart and the store, and the phone and the voice. The
 > console starts, and each next step follows from what the console needs. Then going live. The
 > state of the whole project is [HANDOFF.md](HANDOFF.md); the record of each sitting is
@@ -106,6 +112,9 @@ medicine?" from Epic's sandbox, through recorded replies.
 and books one.
 
 ### 3.4 Going live
+> **Part:** parked · 2026-11-22 — set aside by the new aim (DESIGN.md §0); the later path if the
+> harness goes to a real clinic.
+
 The deploy interface and A2, one deploy per hospital in our cloud (VOICE-AGENT.md §7.2). The
 production key set on AWS (EPIC.md §2.3). Signed BAAs with every vendor (VOICE-AGENT.md §8.2).
 The paperwork in [architecture/SECURITY.md](architecture/SECURITY.md) §6. The first hospital.

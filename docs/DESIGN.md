@@ -2,11 +2,12 @@
 status: project
 desk_test: none
 sources: []
-updated: 2026-11-13
+updated: 2026-11-22
 ---
 # DeetsHealth — Design Doc
 
-> The product intent and the v1 scope of the hospital phone agent (2026-10-19). The research
+> The product intent (§0: a no-code agent harness for healthcare professionals, since
+> 2026-11-22) and the v1 scope of its first agent, the phone agent (2026-10-19). The research
 > and the reason for each decision are [architecture/VOICE-AGENT.md](architecture/VOICE-AGENT.md);
 > the move from the patient app is [CONVERSION.md](CONVERSION.md); the state of play is
 > [HANDOFF.md](HANDOFF.md). The patient app's design is
@@ -17,11 +18,36 @@ updated: 2026-11-13
 
 ## 0. What it is
 
-A phone agent that a hospital runs for its patients. A patient calls the hospital's number;
-the agent books, moves and cancels visits, and answers direct questions from the patient's
-chart. We build and maintain the stack; each hospital sets it up and runs it for its own
-patients. The repo keeps the name DeetsHealth, and may hold other health products later (the
-owner, 2026-10-19).
+> **Part:** project · 2026-11-22 — the aim changed. Where a later section names "the first
+> hospital", a BAA as the next step or one deploy per hospital, read it as the later path, not
+> the goal now.
+
+**The aim (the owner, 2026-11-22):** "a portfolio piece / plug-and-play no-code agent harness
+designed for healthcare professionals".
+- **A harness, not one agent.** A healthcare professional (a clinic manager, a nurse lead, a
+  scheduler) sets up and runs a patient-facing agent in the console, with no code: its words
+  (Config › Agent), the clinic's lists and hours (Config › Hospital), the rules (Booking rules),
+  the voice and the model (Config › Cartesia, Config › Anthropic), who may do what (roles), and
+  what happened (Chat, Analytics, Audit Logs).
+- **Plug and play.** Point it at an EHR source (the Local sandbox, Epic's sandbox, then other
+  FHIR EHRs) and it runs. The hospital's facts come from its EHR where they can (Import from
+  Epic), not from typing.
+- **The first agent is the phone agent.** A patient calls; the agent books visits and answers
+  direct questions from the chart, after two factors. It is the proof that the harness works.
+- **A portfolio piece.** A reviewer reads the public repo and the docs, and watches a captured
+  demo on Deets.Solutions (WORKLOG 2026-11-21). So the demo, the first run on a new machine and
+  the docs a stranger reads first are product work, not chores.
+- **What does not change:** the privacy rules (SECURITY.md; synthetic data only, the wall), the
+  patient first, and the process (the owner decides every fork).
+- **Set aside, not dropped:** a real hospital, signed BAAs and the per-hospital deploy (§1's
+  Customer, Wedge and Deploy rows; BUILD-ORDER.md §3.4). They stay the path if the harness
+  goes to a real clinic.
+
+Until 2026-11-22 (the owner, 2026-10-19): a phone agent that a hospital runs for its patients.
+A patient calls the hospital's number; the agent books, moves and cancels visits, and answers
+direct questions from the patient's chart. We build and maintain the stack; each hospital sets
+it up and runs it for its own patients. The repo keeps the name DeetsHealth, and may hold other
+health products later.
 
 **Two surfaces:**
 - **The call** — the patient's side. A phone call, so it is the same on every phone. The agent
@@ -30,8 +56,9 @@ owner, 2026-10-19).
   watch its calls and read what it did. It is built from the patient app's UI toolkit
   (tokens, themes, skins, primitives, the card engine).
 
-**Who it is for, in order:** the patient on the phone first (LESSONS.md §5.1), the hospital's
-staff second, us third.
+**Who it is for, in order:** the patient on the phone first (LESSONS.md §5.1), the
+healthcare professional who sets the agent up in the console second (no code, no help from
+us), us third.
 
 ---
 
@@ -39,9 +66,9 @@ staff second, us third.
 
 | Area | Decision |
 |---|---|
-| Product | A hospital-run phone agent: scheduling and chart questions (VOICE-AGENT.md §2) |
-| Customer | The hospital (a covered entity); we are its business associate, under a BAA |
-| Wedge | Hospitals not on Epic, and a better call than the rest; every EHR from the start, Epic's adapter first because the code exists (VOICE-AGENT.md §7) |
+| Product | A no-code agent harness for healthcare professionals, shown as a portfolio piece; its first agent is the phone agent: scheduling and chart questions (VOICE-AGENT.md §2). Was a hospital-run phone agent until 2026-11-22 (§0) |
+| Customer | Set aside 2026-11-22 (§0). The later path: the hospital (a covered entity); we are its business associate, under a BAA |
+| Wedge | Set aside 2026-11-22 (§0). The later path: hospitals not on Epic, and a better call than the rest; every EHR from the start, Epic's adapter first because the code exists (VOICE-AGENT.md §7) |
 | Calls | Inbound first; outbound (reminders, confirmations) later |
 | Chart answers | Visits, medicines, refill state and results; results with guards (VOICE-AGENT.md §7.1) |
 | EHR access | FHIR R4 reads through the kept core; booking through one interface with an adapter per EHR; SMART Backend Services sign-in (a system, not a patient) |
@@ -51,7 +78,7 @@ staff second, us third.
 | Call loop | Pipecat with Pipecat Flows, run by us, open to heavy tuning (VOICE-AGENT.md §8.6) |
 | Store | Postgres, one per hospital, every protected field sealed under the hospital's own key (VOICE-AGENT.md §8.7) |
 | Call audio | Not stored by default; on by rule or by a hospital admin (VOICE-AGENT.md §8.7) |
-| Deploy | A separate deploy per hospital in our cloud (A2), behind an interface so a hospital's own cloud account (B) can follow |
+| Deploy | Now: the demo over the tunnel ([DEMO.md](ops/DEMO.md)). The later path, set aside 2026-11-22: a separate deploy per hospital in our cloud (A2), behind an interface so a hospital's own cloud account (B) can follow |
 | Cloud | AWS `us-east-1`, next to Twilio's US1 media edge ([CLOUD.md](integrations/CLOUD.md)) |
 | The record | Never stored: held in memory for one call only |
 | Testing | Local first: the SMART and Epic sandboxes through record and replay, a fake scheduler, the call layers of VOICE-AGENT.md §9 |

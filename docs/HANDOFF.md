@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-16
+updated: 2026-11-22
 ---
 # DeetsHealth — Handoff
 
@@ -10,6 +10,10 @@ updated: 2026-11-16
 > play, gotchas, decisions, file map. Corrected in place. The record of each sitting is
 > [WORKLOG.md](WORKLOG.md). The product is [DESIGN.md](DESIGN.md). The patient app's handoff
 > is [archive/PATIENT-APP-HANDOFF.md](archive/PATIENT-APP-HANDOFF.md).
+
+**The aim since 2026-11-22:** a portfolio piece, a plug-and-play no-code agent harness for
+healthcare professionals; the phone agent is its first agent (DESIGN.md §0, BUILD-ORDER.md).
+"The first hospital" below is the later path.
 
 ## Run it
 **The console with the agent** ([architecture/CHAT.md](architecture/CHAT.md) §6): `npm run dev`

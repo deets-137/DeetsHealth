@@ -8,6 +8,54 @@ updated: 2026-11-19
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-22 (Windows) — Claude runs the booking desk tests; a new aim
+- His words: "remember we're now aiming for a portfolio piece / plug-and-play no-code agent
+  harness designed for healthcare professionals". DESIGN.md and BUILD-ORDER.md still say a
+  phone agent for a hospital; their rewrite is his fork.
+- Pushed `a3685aa` (the 2026-11-21 doc changes).
+- The first test call failed with Claude's `AuthenticationError`; he made a new Anthropic key.
+  The dev server keeps the key it read at start (`load_dotenv(override=False)`), so a new key
+  needs a restart of `npm run dev`.
+- Ran three typed Test calls on Local in his Chrome (about 15¢), against BOOKING-RULES.md
+  §5.1 to §5.4. The active hospital version holds the Places imported from Epic, so several
+  results differ from the steps, which were written for the Default.
+  - **Bug: a place's full name can never be picked.** `Shielded::names_terms`
+    (`core/src/shielded.rs`) keeps every term whose words are all in what was said, so "EMC
+    Cardiology Procedures" also matches "EMC Cardiology" and "Cardiology". The agent asks
+    "which one" again after each answer: in `place_info` and in a booking (Verona, cardiology).
+  - Pass: before verification, a place's address, phone and hours (EMH X-Ray Imaging, after a
+    which question); Main Street closed on Saturday; Chicago unknown; cardiology not at Main
+    Street; Verona cardiology offers its three departments; Priya at "the family medicine
+    clinic" gets Dr. Moreno's Nov 4 time only; at Main Street Dr. Lin's Nov 2 time is marked
+    sooner, with another clinician; chest tightness gets the 911 line, then the call goes on.
+  - Differ (from the import, not checked in code): Main Street Clinic has no address or phone,
+    so "Where do I go?" after a booking has none and offers staff; Jordan is asked where (no
+    usual place named); EMH X-Ray's hours are Monday to Friday 8 to 5; "a heart doctor" is not
+    a kind of care the lists know.
+  - Fail, cause not found: Priya (no visits) booked Dr. Lin's slot read back as "an office
+    visit", not "a new patient visit" (§5.1 step 4).
+  - Polish: the options go on counting across searches (the second list starts at Option 2);
+    an hours question gets "I don't have the address … I don't have a phone number" first.
+- Not run: anything in Epic mode, voice, the Places page (Import and Save change the hospital
+  version), and the Config › Hospital edits.
+- His words: "Fix it, let's also update our docs to re-align the goal. Then flip the repo
+  public if there's no secrets please."
+- **Fixed: the most specific name wins.** `names_terms` now leaves out a full match whose words
+  all sit inside another full match. Tests: `names_terms_prefers_a_full_match…` (four new
+  checks); `ehr`'s 155 tests pass. Desk test: restart `npm run dev` (a new `ehr`); Chat, Local,
+  Test: "What's the phone number for EMC Cardiology Procedures?" answers for that place; as
+  Jordan, "Verona, cardiology", then "EMC Cardiology": that place's times. Not fixed: "cardiology
+  procedures" (no "EMC") still names only "Cardiology", as before.
+- **The docs re-aligned to the new aim:** DESIGN.md §0 (the aim, what holds, what is set aside)
+  and §1's Product, Customer, Wedge and Deploy rows; BUILD-ORDER.md's header and §3.4 (parked);
+  LESSONS.md §1; HANDOFF.md's header; README.md; CLAUDE.md's opening. Decided inside his ask:
+  the hospital path (BAAs, per-hospital deploy, the first hospital) is marked "set aside, the
+  later path", not deleted; the README leads with the harness, then the phone agent.
+- **The secrets scan before going public:** 3,623 file versions on every branch and tag, for
+  keys, tokens, private keys, Twilio SIDs, JWTs, passwords in URLs and e-mail addresses: none.
+  The phone numbers are Epic's sandbox patients'; the fixtures are synthetic; his name shows as
+  the author and in local paths. His e-mail is in the commit metadata (125 commits).
+
 ## 2026-11-21 (Windows) — state of the repo; three desk tests passed
 - His words: "cloudflare access is good to go, demo tunnel as well. console on a phone also
   good to go".

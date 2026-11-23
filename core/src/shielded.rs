@@ -184,7 +184,11 @@ impl Shielded<String> {
         };
         let full = pick(&|t| t.iter().all(|w| said.contains(w)));
         if !full.is_empty() {
-            return full;
+            // The most specific name wins: a full match whose words all sit inside another full
+            // match is left out, so "EMC Cardiology Procedures" names that one place, not also
+            // "EMC Cardiology" and "Cardiology" (found in a desk test, 2026-11-22).
+            let inside = |a: &[String], b: &[String]| a.len() < b.len() && a.iter().all(|w| b.contains(w));
+            return full.iter().copied().filter(|&i| !full.iter().any(|&j| inside(&terms[i], &terms[j]))).collect();
         }
         pick(&|t| said.iter().all(|w| t.contains(w)))
     }
@@ -296,6 +300,11 @@ mod tests {
         let n = |s: &str| Shielded::new(s.to_string());
         let places = ["EMC Cardiology", "EMC Cardiology Procedures", "Main Street Clinic"];
         assert_eq!(n("EMC cardiology").names_terms(&places), [0], "a full match only");
+        let three = ["EMC Cardiology", "EMC Cardiology Procedures", "Cardiology"];
+        assert_eq!(n("EMC Cardiology Procedures").names_terms(&three), [1], "the most specific full match");
+        assert_eq!(n("EMC cardiology").names_terms(&three), [0], "not the shorter name inside it");
+        assert_eq!(n("cardiology").names_terms(&three), [2]);
+        assert_eq!(n("cardiology at Main Street").names_terms(&["Cardiology", "Main Street Clinic"]), [0, 1], "two names, neither inside the other");
         assert_eq!(n("the cardiology clinic").names_terms(&places), [0, 1], "a word in both");
         assert_eq!(n("main street").names_terms(&places), [2]);
         assert_eq!(n("my heart doctor").names_terms(&["heart doctor", "skin doctor"]), [0]);

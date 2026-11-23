@@ -1,8 +1,11 @@
 # DeetsHealth — project guide for Claude
 
-A phone agent that a hospital runs for its patients: it books visits and answers direct
-questions from the chart (Twilio, Cartesia, Pipecat, the Anthropic API, FHIR; a Rust core; a
-web console). Being converted from a patient health-record viewer for Windows
+**The aim since 2026-11-22 (the owner): a portfolio piece, a plug-and-play no-code agent
+harness for healthcare professionals** (`docs/DESIGN.md` §0). Its first agent is a phone agent
+for a clinic's patients: it books visits and answers direct questions from the chart (Twilio,
+Cartesia, Pipecat, the Anthropic API, FHIR; a Rust core; a web console where a non-coder sets it
+up). Weigh each recommendation by what a healthcare professional can set up without code and
+how it shows to a reviewer; the privacy rules below do not change. Being converted from a patient health-record viewer for Windows
 (`docs/CONVERSION.md`). **DeetsMusic is the model for the dev process and the docs** (the owner,
 2026-10-19): where this file has no rule, follow `../DeetsMusic/CLAUDE.md`.
 

@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-10-13
+updated: 2026-11-22
 ---
 # LESSONS — what the owner tends to want in DeetsHealth
 
@@ -29,6 +29,11 @@ local only. Never copy it into this repo, a commit or a doc.
 4. **Before you show a fork, run the fork test (§5).** Show only the forks that pass it.
 
 ## 1. The mission
+**The aim since 2026-11-22** (the owner): "a portfolio piece / plug-and-play no-code agent
+harness designed for healthcare professionals" (DESIGN.md §0). So when two options are both
+good for the patient: recommend the one a healthcare professional can set up with no code and
+no help, and the one that shows well to a reviewer of the repo and the demo.
+
 We are good stewards of our users and of the health systems we read from. A user's record is
 the most private data they have; treat it that way in every line of code.
 

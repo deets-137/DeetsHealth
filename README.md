@@ -1,12 +1,18 @@
 # DeetsHealth
 
-A phone agent that a hospital runs for its patients. A patient calls the hospital's number. The
-agent books visits and answers direct questions from the patient's chart, after it verifies
-the caller with two factors. Staff use a web console to watch, review and configure it.
+A plug-and-play, no-code agent harness for healthcare professionals. A clinic manager or a
+nurse lead sets up a patient-facing agent in a web console: its words, the clinic's lists and
+hours, the booking rules, the voice, the model and who on staff may do what. Then they watch
+every call, review it and score it. No code.
 
-**Status: project, before v1.** Synthetic callers and sandbox patients only. No real record and
-no real call until every vendor's BAA is signed and the owner approves (SECURITY.md §5). Nothing
-ships yet. The plan and its phases are [docs/BUILD-ORDER.md](docs/BUILD-ORDER.md).
+The first agent is a phone agent. A patient calls the clinic's number. The agent books visits
+and answers direct questions from the patient's chart, after it verifies the caller with two
+factors. The model never chooses a patient: every tool is bound to the verified patient in Rust.
+
+**Status: a portfolio piece, before v1.** Synthetic callers and sandbox patients only (Epic's
+public sandbox and a local one). No real record and no real call. Going live with a real clinic
+would need every vendor's BAA signed first (SECURITY.md §5). The aim is
+[docs/DESIGN.md](docs/DESIGN.md) §0; the plan is [docs/BUILD-ORDER.md](docs/BUILD-ORDER.md).
 
 The repo was a patient health-record viewer for Windows until 2026-10-19. That app's code is in
 `archive/` and on the branch `archive/patient-app`; the move is
