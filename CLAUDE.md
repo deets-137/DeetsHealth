@@ -324,8 +324,10 @@ See HANDOFF.md › Run it. Nothing runs end to end yet; the checks do.
     hand-off. `npm run check` names any stray folder in `target/`.
 
 ## Repo
-The remote is `origin`: the **private** GitHub repo `deets-137/DeetsHealth` (since
-2026-10-13). Keep it private. The old iOS app (Oura) that had this name is now
+The remote is `origin`: the **public** GitHub repo `deets-137/DeetsHealth` (public since
+2026-11-22, on the owner's word after a scan of the whole history for secrets; private
+before). Everything pushed is public: never commit a key, a token, a real record or a local-only
+file (TASTE.md). The old iOS app (Oura) that had this name is now
 `deets-137/DeetsHealthiOS`.
 Commit and push only when the user asks. Never add another remote and never force-push.
 Co-author trailer — name the model that did the work

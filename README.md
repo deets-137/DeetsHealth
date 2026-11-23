@@ -64,7 +64,8 @@ the model's tools, Twilio, the JWKS worker), is
 [docs/architecture/DEV-API.md](docs/architecture/DEV-API.md).
 
 ## Repo
-The private GitHub repo `deets-137/DeetsHealth`. Keep it private.
+The public GitHub repo `deets-137/DeetsHealth` (public since 2026-11-22). Synthetic data only:
+never commit a key, a token or a real record.
 
 ## Start here
 [docs/HANDOFF.md](docs/HANDOFF.md), then [docs/DESIGN.md](docs/DESIGN.md).
