@@ -1,5 +1,7 @@
-"""Cartesia's voice list, held by the dev server for Config › Cartesia (CARTESIA.md §3; the
+"""Each voice vendor's voice list, held by the dev server for Config › Voice (CARTESIA.md §3; the
 owner, 2026-11-16: fork A, the shortlist checked live and every English voice in a table).
+`VoiceCatalog` is Cartesia's; `ElevenLabsVoices` is ElevenLabs' (VOICE-VENDORS.md §11), the
+same shape out. `CATALOGS` gives each vendor's class by its id.
 
 `GET /voices` (docs.cartesia.ai › Voices › List) costs no credits. The list is read at most once
 every `TTL_S`, one read at a time; the page never waits on Cartesia for its settings, only for
@@ -134,3 +136,97 @@ def _shape(v: Any) -> dict[str, Any] | None:
         "accent": native or (locales[0] if locales else None),
         "locales": locales,
     }
+
+
+# ElevenLabs (api.elevenlabs.io › Voices › List, v2; read 2026-11-23). No credits.
+ELEVENLABS_URL = "https://api.elevenlabs.io/v2/voices"
+# ElevenLabs' own made voices only: a voice from its library needs a paid plan through the API,
+# and a cloned voice is outside zero retention (no voice cloning, as with Cartesia).
+ELEVENLABS_KINDS = ("premade",)
+ELEVENLABS_GENDER = {"female": "feminine", "male": "masculine", "neutral": "gender_neutral"}
+
+
+class ElevenLabsVoices(VoiceCatalog):
+    """ElevenLabs' English voices, in the shape `VoiceCatalog` gives (the page reads both)."""
+
+    async def _read(self) -> None:
+        self._tried = time.monotonic()
+        headers = {"xi-api-key": self._key or ""}
+        out: list[dict[str, Any]] = []
+        token: str | None = None
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as s:
+                for _ in range(MAX_PAGES):
+                    params = {"page_size": str(PAGE)}
+                    if token:
+                        params["next_page_token"] = token
+                    async with s.get(ELEVENLABS_URL, params=params, headers=headers) as r:
+                        if r.status != 200:
+                            self._fault = f"ElevenLabs answered {r.status}"
+                            return
+                        body = await r.json()
+                    page = body.get("voices") or []
+                    out.extend(v for v in (_shape_elevenlabs(x) for x in page) if v is not None)
+                    token = body.get("next_page_token")
+                    if not body.get("has_more") or not page or not token:
+                        break
+        except (aiohttp.ClientError, TimeoutError):
+            self._fault = "ElevenLabs did not answer"
+            return
+        except ValueError:
+            self._fault = "ElevenLabs' answer was not JSON"
+            return
+        if not out:
+            self._fault = "ElevenLabs listed no English voices"
+            return
+        seen: dict[str, dict[str, Any]] = {}
+        for v in out:
+            seen.setdefault(v["id"], v)
+        self._voices = sorted(seen.values(), key=lambda v: (v["name"].lower(), v["id"]))
+        self._at = time.time()
+        self._fault = None
+
+
+def _shape_elevenlabs(v: Any) -> dict[str, Any] | None:
+    """One ElevenLabs voice as the page shows it, or None: not a voice, not one of ElevenLabs'
+    own made voices, or not English. Its name "Sarah - Mature, Reassuring" becomes the name
+    "Sarah" and the tagline "Mature, Reassuring"."""
+    if not isinstance(v, dict) or not isinstance(v.get("voice_id"), str) or not isinstance(v.get("name"), str):
+        return None
+    if v.get("category") not in ELEVENLABS_KINDS:
+        return None
+    labels = v.get("labels") if isinstance(v.get("labels"), dict) else {}
+    langs = [x for x in v.get("verified_languages") or [] if isinstance(x, dict)]
+    locales = sorted({x["locale"] for x in langs if isinstance(x.get("locale"), str)})
+    if langs and not any(x.get("language") == "en" for x in langs):
+        return None
+    name, _, tagline = v["name"].partition(" - ")
+    accent = labels.get("accent")
+    return {
+        "id": v["voice_id"],
+        "name": _text(name, 80),
+        "tagline": _text(tagline, 64),
+        "description": _text(v.get("description") or labels.get("description")),
+        "gender": ELEVENLABS_GENDER.get(labels.get("gender")),
+        "accent": _text(accent, 40) or None,
+        "locales": locales,
+    }
+
+
+async def elevenlabs_voice_missing(key: str, voice_id: str) -> str | None:
+    """Why ElevenLabs cannot speak the voice, or None: Get Voice answers 400 or 404 for a voice
+    the account no longer has. Any other answer, or none, lets the call start. No credits."""
+    try:
+        async with (
+            aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as s,
+            s.get(f"https://api.elevenlabs.io/v1/voices/{voice_id}", headers={"xi-api-key": key}) as r,
+        ):
+            if r.status in (400, 404):
+                return "ElevenLabs no longer has the active voice: choose another on Config › Voice"
+    except (aiohttp.ClientError, TimeoutError):
+        return None
+    return None
+
+
+# Each vendor's voice list, by its catalog id.
+CATALOGS: dict[str, type[VoiceCatalog]] = {"cartesia": VoiceCatalog, "elevenlabs": ElevenLabsVoices}

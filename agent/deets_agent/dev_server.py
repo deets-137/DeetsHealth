@@ -14,7 +14,7 @@ which proxies `/agent/*` here and adds the token. The page never holds the token
   and ranges, from ehr), which vendors' keys are set; a save makes a new active version for the
   next call. Never a key.
 - `GET  /agent/voice/voices?vendor=&fresh=` — a vendor's English voices for the Voice menu and
-  its table (voice_catalog.py, Cartesia's): held 10 minutes; no credits.
+  its table (voice_catalog.py: Cartesia's and ElevenLabs'): held 10 minutes; no credits.
 - `GET  /agent/anthropic`, `POST /agent/anthropic` — Config › Anthropic (CONSOLE.md §8): the
   llm settings' versions, each model's rules and prices, this cycle's spend; a save makes a new
   active version for the next test call. Never the key.
@@ -132,8 +132,10 @@ from deets_agent.rtvi_json import RtviJsonSerializer
 from deets_agent.security_headers import MAX_REPORT_BYTES, SecurityHeaders
 from deets_agent.turn import TurnError, TurnSettings, for_aiortc, ice_servers
 from deets_agent.voice import Voice, vendors
+from deets_agent.voice import elevenlabs as voice_elevenlabs
+from deets_agent.voice_catalog import CATALOGS as VOICE_CATALOGS
 from deets_agent.voice_catalog import VERSION as CARTESIA_VOICES_VERSION
-from deets_agent.voice_catalog import VoiceCatalog
+from deets_agent.voice_catalog import VoiceCatalog, elevenlabs_voice_missing
 
 TOKEN_HEADER = "x-deets-token"
 # Who a request is, for the Chat rail and the record (State.admit): the owner, through the
@@ -942,6 +944,13 @@ def build_app(state: State) -> FastAPI:
         missing_keys = vendors.keys_missing(values)
         if refused is None and missing_keys:
             refused = f"a voice call needs {' and '.join(missing_keys)} in .env"
+        # ElevenLabs with zero retention off takes synthetic calls only (VOICE-VENDORS.md §4,
+        # item 5): checked before the call opens, so no record is left half open.
+        if refused is None and "elevenlabs" in (vendors.chosen(values, "hearing"), vendors.chosen(values, "speaking")):
+            try:
+                voice_elevenlabs.check_retention(values, "synthetic")
+            except voice_elevenlabs.RetentionRefused as e:
+                refused = str(e)
         if refused is not None:
             raise HTTPException(409, refused)
         body = await request.body()
@@ -962,6 +971,13 @@ def build_app(state: State) -> FastAPI:
             missing = await _voice_missing(key, voice_id) if key else None
             if missing is not None:
                 raise HTTPException(409, missing)
+        elif vendors.chosen(values, "speaking") == "elevenlabs":
+            key = vendors.key("elevenlabs")
+            voice_id = (values.get("elevenlabs.voice") or {}).get("id") or vendors.defaults()["elevenlabs.voice"]["id"]
+            ok = isinstance(voice_id, str) and re.fullmatch(r"[A-Za-z0-9]{8,64}", voice_id)
+            missing = await elevenlabs_voice_missing(key, voice_id) if key and ok else None
+            if missing is not None:
+                raise HTTPException(409, missing)
         # On this PC both ends are local: host candidates only, no STUN or TURN server. A guest
         # is on another network: STUN and TURN, with this end's own credentials (DEMO.md §3.7).
         servers = await _ice_for(state, request.state.who)
@@ -980,7 +996,9 @@ def build_app(state: State) -> FastAPI:
         live = _open_record(
             state, ehr, "voice", llm, words, request.state.who, _label(label), _tag(tag)
         )
-        live.voice = Voice(values)
+        # Every call this dev server opens is synthetic (call_record.py); ElevenLabs' retention
+        # rule reads the class (VOICE-VENDORS.md §4, item 5).
+        live.voice = Voice(values, data_class="synthetic")
         task = asyncio.create_task(_run_call(state, transport, live, llm, words))
         state.tasks.add(task)
         task.add_done_callback(state.tasks.discard)
@@ -2282,12 +2300,13 @@ def _version_row(v: SettingVersion) -> dict[str, Any]:
 
 
 def voice_list_of(state: State, vendor: str) -> VoiceCatalog:
-    """A vendor's voice list, held 10 minutes (voice_catalog.py). Cartesia's is the only one
-    built; any other vendor is a 404 until its list is."""
-    if vendor != "cartesia":
+    """A vendor's voice list, held 10 minutes (voice_catalog.py): Cartesia's and ElevenLabs'. Any
+    other vendor is a 404 until its list is built."""
+    kind = VOICE_CATALOGS.get(vendor)
+    if kind is None:
         raise HTTPException(404, "no voice list for that vendor")
     if vendor not in state.voices:
-        state.voices[vendor] = VoiceCatalog(vendors.key(vendor))
+        state.voices[vendor] = kind(vendors.key(vendor))
     return state.voices[vendor]
 
 
@@ -2338,7 +2357,31 @@ async def resolve_voice(state: State, values: dict[str, Any]) -> dict[str, Any]:
         name = held["name"]
     elif key is not None and await _voice_missing(key, vid):
         raise VoiceNotFound("cartesia.voice: Cartesia no longer has that voice")
-    return {**values, "cartesia.voice": {"name": name, "id": vid}}
+    values = {**values, "cartesia.voice": {"name": name, "id": vid}}
+    return await _resolve_elevenlabs_voice(state, values)
+
+
+async def _resolve_elevenlabs_voice(state: State, values: dict[str, Any]) -> dict[str, Any]:
+    """ElevenLabs' voice before a save: its id is the voice (from the page's list, or the
+    catalog's shortlist by name). Checked with ElevenLabs only while ElevenLabs speaks: no other
+    save waits on it. No credits."""
+    voice = values.get("elevenlabs.voice")
+    if voice is None:
+        return values
+    if not isinstance(voice, dict) or not isinstance(voice.get("name"), str):
+        raise VoiceNotFound("elevenlabs.voice: a name")
+    name = voice["name"].strip()
+    vid = voice.get("id") or {x["name"]: x.get("id") for x in vendors.vendor("elevenlabs")["speaking"]["voices"]}.get(name)
+    if not isinstance(vid, str) or not re.fullmatch(r"[A-Za-z0-9]{8,64}", vid):
+        raise VoiceNotFound("elevenlabs.voice: not an ElevenLabs voice id")
+    held = voice_list_of(state, "elevenlabs").find(vid)
+    if held is not None:
+        name = held["name"]
+    elif vendors.chosen(values, "speaking") == "elevenlabs":
+        key = vendors.key("elevenlabs")
+        if key is not None and await elevenlabs_voice_missing(key, vid):
+            raise VoiceNotFound("elevenlabs.voice: ElevenLabs no longer has that voice")
+    return {**values, "elevenlabs.voice": {"name": name, "id": vid}}
 
 
 async def _find_voice_id(key: str, name: str) -> str:

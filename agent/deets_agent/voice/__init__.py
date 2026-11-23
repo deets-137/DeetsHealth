@@ -1,13 +1,15 @@
 """The voice ends of a call (VOICE-VENDORS.md): a vendor hears the caller, a vendor speaks the
 agent. Each direction's vendor is a setting (`hearing.vendor`, `speaking.vendor`); each vendor
-has an adapter here (`cartesia.py`). Today the catalog has one vendor, Cartesia: Ink hears,
-Sonic speaks.
+has an adapter here: `cartesia.py` (Ink hears, Sonic speaks; the default of both) and
+`elevenlabs.py` (Scribe hears, Flash speaks).
 
     seat in ─► hearing ─► screen ─► user ─► Claude ─► turns ─► speaking ─► meter ─► seat out ─► assistant
 
 **Turns.** A hearing vendor with its own turns (Ink) says when the caller starts and stops; its
-start interrupts the agent (barge-in). The idle limit and the Timeline's `heard` stage come from
-the same three events (start, words changed, end).
+start interrupts the agent (barge-in). A vendor without (Scribe) hears only: the user aggregator
+runs Pipecat's voice detector and Smart Turn (the adapter's `user_params`), and `HeardWords` sits
+after the service. The idle limit and the Timeline's `heard` stage come from the same three
+events (start, words changed, end), whoever gives them.
 
 **The meter** counts what the vendors bill, as raw amounts only: Pipecat's usage metrics give
 the seconds of audio sent to hearing (silence included) and the characters sent to speaking, the
@@ -35,7 +37,9 @@ from typing import Any
 from pipecat.frames.frames import (
     BotStartedSpeakingFrame,
     Frame,
+    InterimTranscriptionFrame,
     MetricsFrame,
+    TranscriptionFrame,
     TTSAudioRawFrame,
     TTSStartedFrame,
 )
@@ -43,10 +47,25 @@ from pipecat.metrics.metrics import STTUsageMetricsData, TTSUsageMetricsData
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 from deets_agent import config
-from deets_agent.voice import cartesia, vendors
+from deets_agent.voice import cartesia, elevenlabs, vendors
 
 # Each vendor's adapter, by its catalog id (VOICE-VENDORS.md §2.2).
-ADAPTERS = {cartesia.ID: cartesia}
+ADAPTERS = {cartesia.ID: cartesia, elevenlabs.ID: elevenlabs}
+
+
+class HeardWords(FrameProcessor):
+    """For a hearing vendor without its own turns (Scribe): sits right after it and says when its
+    words for the current turn change (an interim or a final line). Never reads the words."""
+
+    def __init__(self, changed) -> None:
+        super().__init__()
+        self._changed = changed
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection) -> None:
+        await super().process_frame(frame, direction)
+        if direction == FrameDirection.DOWNSTREAM and isinstance(frame, (InterimTranscriptionFrame, TranscriptionFrame)):
+            self._changed()
+        await self.push_frame(frame, direction)
 
 
 class VoiceMeter(FrameProcessor):
@@ -129,18 +148,37 @@ class Voice:
     """The voice parts of one call: the hearing service, the speaking service and the meter,
     each built by the chosen vendor's adapter."""
 
-    def __init__(self, values: dict[str, Any] | None = None, catalog: dict[str, Any] | None = None) -> None:
-        """`values`: the active voice settings (VOICE-VENDORS.md §2.3); the defaults when none."""
+    def __init__(
+        self, values: dict[str, Any] | None = None, catalog: dict[str, Any] | None = None, *, data_class: str
+    ) -> None:
+        """`values`: the active voice settings (VOICE-VENDORS.md §2.3); the defaults when none.
+        `data_class`: the call's class (`synthetic` for every call today; call_record.py), which
+        a vendor's retention rule reads (ElevenLabs, §4, item 5). No default, so no call skips it."""
         c = catalog or vendors.current()
         v = values or vendors.defaults(c)
         hear_id, speak_id = vendors.chosen(v, "hearing"), vendors.chosen(v, "speaking")
         missing = vendors.keys_missing(v, c)
         if missing:
             raise VoiceKeyMissing(f"add {' and '.join(missing)} to .env")
+        if elevenlabs.ID in (hear_id, speak_id):
+            elevenlabs.check_retention(v, data_class)
         hear, speak = ADAPTERS[hear_id], ADAPTERS[speak_id]
         self.vendors = {"hearing": hear_id, "speaking": speak_id}
+        # Each direction's product and vendor, for a failure's reason ("Scribe", "ElevenLabs").
+        self.names = {
+            d: (vendors.vendor(vid, c)[d]["product"], vendors.vendor(vid, c)["name"]) for d, vid in self.vendors.items()
+        }
         self.stt = hear.build_stt(vendors.key(hear_id, c), v, c)
         self.tts = speak.build_tts(vendors.key(speak_id, c), v, c)
+        # A hearing vendor with its own turns (Ink) gives the three turn events itself. Without
+        # (Scribe), the user aggregator's voice detector and Smart Turn decide the turns:
+        # `user_params` holds them for call.py, `attach` takes the start and end from the
+        # aggregator, and `HeardWords` after the service says when the words change.
+        self.own_turns = bool(hear.OWN_TURNS)
+        self.user_params = None if self.own_turns else hear.user_params(v, c)
+        self.hearing: list[FrameProcessor] = [self.stt]
+        if not self.own_turns:
+            self.hearing.append(HeardWords(self._words_changed))
         self.meter = VoiceMeter(
             int(v.get("idle_s") or config.VOICE_IDLE_S),
             int(v.get("max_s") or config.VOICE_MAX_S),
@@ -151,22 +189,36 @@ class Voice:
         # caller stopped speaking, since a turn's end waits for its own silence after it.
         self._last_words: float | None = None
 
-        @self.stt.event_handler("on_turn_start")
-        async def _start(service, *args):
-            self.meter.heard()
-            self._last_words = time.perf_counter()
+        if self.own_turns:
+            self.stt.add_event_handler("on_turn_start", self._turn_started)
+            self.stt.add_event_handler("on_turn_update", self._turn_updated)
+            self.stt.add_event_handler("on_turn_end", self._turn_ended)
 
-        @self.stt.event_handler("on_turn_update")
-        async def _update(service, *args):
-            self._last_words = time.perf_counter()
+    def attach(self, user_aggregator) -> None:
+        """For a hearing vendor without its own turns: take the caller's turn start and end from
+        the user aggregator (call.py calls this once it has built the aggregators)."""
+        if self.own_turns:
+            return
+        user_aggregator.add_event_handler("on_user_turn_started", self._turn_started)
+        user_aggregator.add_event_handler("on_user_turn_stopped", self._turn_ended)
 
-        @self.stt.event_handler("on_turn_end")
-        async def _end(service, *args):
-            self.meter.heard()
-            if self._record is not None:
-                fields = {"last_words_ms": self._record.clock(self._last_words)} if self._last_words else {}
-                self._record.event("voice", stage="heard", **fields)
-            self._last_words = None
+    def _words_changed(self) -> None:
+        self._last_words = time.perf_counter()
+
+    # The three turn events (start, words changed, end), whoever gives them.
+    async def _turn_started(self, *_args) -> None:
+        self.meter.heard()
+        self._last_words = time.perf_counter()
+
+    async def _turn_updated(self, *_args) -> None:
+        self._words_changed()
+
+    async def _turn_ended(self, *_args) -> None:
+        self.meter.heard()
+        if self._record is not None:
+            fields = {"last_words_ms": self._record.clock(self._last_words)} if self._last_words else {}
+            self._record.event("voice", stage="heard", **fields)
+        self._last_words = None
 
     @property
     def record(self):

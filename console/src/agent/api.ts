@@ -222,9 +222,10 @@ export type VoiceSettings = {
 export const voiceSettings = (version = 0) =>
   get<VoiceSettings>(version ? `/agent/voice/settings?version=${version}` : "/agent/voice/settings");
 
-/** One of Cartesia's English voices (agent/deets_agent/voice_catalog.py): public catalog facts
- * only. `accent`: the voice's own locale ("en-US"); `locales`: every accent it speaks. */
-export type CartesiaVoice = {
+/** One of a vendor's English voices (agent/deets_agent/voice_catalog.py; Cartesia's and
+ * ElevenLabs' in one shape): public catalog facts only. `accent`: the voice's own accent
+ * (Cartesia: "en-US"; ElevenLabs: "american"); `locales`: every accent it speaks. */
+export type VendorVoice = {
   id: string;
   name: string;
   tagline: string;
@@ -233,13 +234,13 @@ export type CartesiaVoice = {
   accent: string | null;
   locales: string[];
 };
-/** Cartesia's voice list as the dev server holds it (10 minutes). `checked_at`: the last good
- * read, or null. `fault`: why the last read failed (Cartesia's status), or null. */
-export type CartesiaVoices = { key: boolean; checked_at: string | null; fault: string | null; ttl_s: number; voices: CartesiaVoice[] };
-/** A vendor's voice list (Cartesia's only so far). `fresh`: read it again now (Refresh), when
+/** A vendor's voice list as the dev server holds it (10 minutes). `checked_at`: the last good
+ * read, or null. `fault`: why the last read failed (the vendor's status), or null. */
+export type VendorVoices = { key: boolean; checked_at: string | null; fault: string | null; ttl_s: number; voices: VendorVoice[] };
+/** A vendor's voice list (Cartesia's, ElevenLabs'). `fresh`: read it again now (Refresh), when
  * the held list is older than 15 s. */
 export const voiceVoices = (vendor = "cartesia", fresh = false) =>
-  get<CartesiaVoices>(`/agent/voice/voices?${new URLSearchParams({ vendor, ...(fresh ? { fresh: "true" } : {}) })}`);
+  get<VendorVoices>(`/agent/voice/voices?${new URLSearchParams({ vendor, ...(fresh ? { fresh: "true" } : {}) })}`);
 
 /** Save the whole set as a new, active version (CONSOLE.md §7.3). A refusal's reason names a
  * setting, never a value, so the page may show it. */

@@ -1,7 +1,7 @@
 ---
 status: built
-desk_test: passed 2026-11-23
-sources: [docs/architecture/images/analytics-cost-nan-2026-11-23.png, docs/architecture/images/config-cartesia-refused-2026-11-23.png, docs/architecture/images/chat-resources-refused-2026-11-23.png, vendors/src/lib.rs, vendors/src/cycle.rs, vendors/src/model/mod.rs, vendors/src/model/cost.rs, vendors/catalog/model/anthropic.json, agent/deets_agent/models.py, agent/deets_agent/call_record.py, vendors/src/voice/mod.rs, vendors/src/voice/cost.rs, ehr/migrations/0015_voice_credits.sql, vendors/catalog/voice/cartesia.json, vendors/catalog/voice/shared.json, agent/deets_agent/voice/__init__.py, agent/deets_agent/voice/vendors.py, agent/deets_agent/voice/cartesia.py, ehr/src/main.rs, ehr/src/service.rs, ehr/proto/deets/ehr/v1/ehr.proto, console/src/agent/api.ts, agent/deets_agent/config.py, agent/deets_agent/call.py, agent/deets_agent/resources.py, agent/deets_agent/voice_catalog.py, agent/deets_agent/dev_server.py, ehr/src/settings.rs, ehr/src/store.rs, ehr/src/stats.rs, ehr/migrations/0014_call_stages.sql, console/src/pages/voice.ts, Cargo.toml, docs/integrations/CARTESIA.md, docs/architecture/VOICE-AGENT.md, docs/architecture/CONSOLE.md]
+desk_test: open
+sources: [vendors/catalog/voice/elevenlabs.json, agent/deets_agent/voice/elevenlabs.py, console/src/agent/stores.ts, console/src/styles/config.css, docs/integrations/ELEVENLABS.md, docs/architecture/images/analytics-cost-nan-2026-11-23.png, docs/architecture/images/config-cartesia-refused-2026-11-23.png, docs/architecture/images/chat-resources-refused-2026-11-23.png, vendors/src/lib.rs, vendors/src/cycle.rs, vendors/src/model/mod.rs, vendors/src/model/cost.rs, vendors/catalog/model/anthropic.json, agent/deets_agent/models.py, agent/deets_agent/call_record.py, vendors/src/voice/mod.rs, vendors/src/voice/cost.rs, ehr/migrations/0015_voice_credits.sql, vendors/catalog/voice/cartesia.json, vendors/catalog/voice/shared.json, agent/deets_agent/voice/__init__.py, agent/deets_agent/voice/vendors.py, agent/deets_agent/voice/cartesia.py, ehr/src/main.rs, ehr/src/service.rs, ehr/proto/deets/ehr/v1/ehr.proto, console/src/agent/api.ts, agent/deets_agent/config.py, agent/deets_agent/call.py, agent/deets_agent/resources.py, agent/deets_agent/voice_catalog.py, agent/deets_agent/dev_server.py, ehr/src/settings.rs, ehr/src/store.rs, ehr/src/stats.rs, ehr/migrations/0014_call_stages.sql, console/src/pages/voice.ts, Cargo.toml, docs/integrations/CARTESIA.md, docs/architecture/VOICE-AGENT.md, docs/architecture/CONSOLE.md]
 updated: 2026-11-23
 ---
 # DeetsHealth — Voice vendors: the `vendors` crate and a vendor for each direction
@@ -13,8 +13,10 @@ updated: 2026-11-23
 > page, Config › Voice).
 >
 > **Part:** built · 2026-11-23 · desk test passed 2026-11-23 (CONSOLE.md §7.5a, §9.4 and §10.5 below; §10.6). Steps 1
-> to 5 of §7 are built, and the model side (§10); step 6 (ElevenLabs) is not. **Read §8, §9 and
-> §10 first**: where they and the design differ, they are the code. The crate is `vendors/` now
+> to 5 of §7 are built, and the model side (§10).
+>
+> **Part:** built · 2026-11-23 · desk test open (§11.6). Step 6, ElevenLabs (§11). **Read §8 to
+> §11 first**: where they and the design differ, they are the code. The crate is `vendors/` now
 > (§10.1); where the text says `voice/` for the crate, read `vendors/`.
 
 **Terms.**
@@ -187,8 +189,14 @@ The crate is Rust. The adapters and the page need the same list of levers and ra
    Not yet measured on our calls (§6).
 4. **Cost in one shape** (`voice_use`, `voice_usd`). A column per vendor would need a migration
    for each vendor added.
-5. **ElevenLabs zero retention is always on** (`enable_logging=False`). Security first; it may
-   need the Enterprise plan (§6).
+5. **ElevenLabs zero retention is on by default** (`enable_logging=False`). Security first; it may
+   need the Enterprise plan (§6). **Changed 2026-11-23 (the owner's B):** if the account refuses
+   zero retention below Enterprise, it may be turned off, for synthetic calls only; the code
+   refuses ElevenLabs with zero retention off on any call that is not synthetic. The owner: "B
+   is fine, consider this is now a portfolio piece and the console framework is the highlight
+   of the project, we're not using anything other than sandbox/local data". **Then, from the
+   test (§11.7):** the free plan does not refuse the flag; it accepts it and keeps the request. So
+   the code refuses ElevenLabs on any call that is not synthetic, with the switch On or Off.
 6. **Pronunciations through Pipecat's IPA transform**, one table for both vendors. ElevenLabs
    reads them only on its phoneme models; the page says so when the chosen model cannot.
 7. **Keys stay in `.env`**, never in the console (CONSOLE.md §7.4).
@@ -211,8 +219,12 @@ checked when built.
 - ElevenLabs' prices for Scribe realtime and Flash, and its free plan's limit, before the first
   test call (quote before spend: the $100 a month ceiling is Anthropic's; ElevenLabs needs its
   own).
-- Whether `enable_logging=False` is refused on a plan below Enterprise.
-- Whether Scribe realtime has a zero-retention switch; Pipecat 1.16 sends none.
+- ~~Whether `enable_logging=False` is refused on a plan below Enterprise.~~ Not refused, and not
+  honored: the free plan keeps the request (§11.7).
+- Scribe realtime's rate in credits (§11.1: 5.5 a second, unconfirmed).
+- ~~Whether Scribe realtime has a zero-retention switch.~~ It has: Pipecat 1.16's
+  `ElevenLabsRealtimeSTTService` takes `enable_logging` (default `False`); its TTS takes it too
+  (default `None`, so the adapter must send `False`). Read 2026-11-23.
 - Smart Turn's added wait on this PC and in A2, measured on the Timeline.
 - Whether Ink's `turn.start` barge-in and Silero's barge-in feel the same to a caller.
 
@@ -282,8 +294,8 @@ settings travel with each save.
   with one key row per vendor in use; the Vendor rows' help words (drafts).
 - A vendor with no rows built shows "<name>: its rows are not built yet" (none today).
 
-**Not built:** step 4 was built the same day (§9). Step 6 (ElevenLabs) waits for the owner's
-go-ahead and ElevenLabs' prices (§6).
+**Not built:** step 4 was built the same day (§9). Step 6 (ElevenLabs) was built the same day
+too (§11).
 
 ## 9. As built: the voice's cost in the crate (2026-11-23, step 4)
 > **Part:** built · 2026-11-23 · desk test passed 2026-11-23 (§9.4). The owner: "Build step 4, pull out the
@@ -434,3 +446,127 @@ path.
 ![The owner's screenshot, 2026-11-23: Config › Cartesia, still in the nav, shows "The agent's dev server refused"](images/config-cartesia-refused-2026-11-23.png)
 
 ![The owner's screenshot, 2026-11-23: a booked text call on Chat (sandbox patient); Resources shows "The agent's dev server refused"](images/chat-resources-refused-2026-11-23.png)
+
+## 11. As built: ElevenLabs (2026-11-23, step 6)
+> **Part:** built · 2026-11-23 · desk test open (§11.6). The owner: "Let's chat setting up Eleven
+> Labs as a voice vendor"; to the zero-retention fork, "B is fine" (§4, item 5); then "Go ahead and
+> build it, i'm on the elevenlabs free plan and do not want to spend any money for this
+> exercise". The account and its key came first, through ElevenLabs' CLI
+> (`onboard connect --env-path .env`; integrations/ELEVENLABS.md §2).
+
+### 11.1 The catalog (`vendors/catalog/voice/elevenlabs.json`)
+- **Hearing: Scribe**, `scribe_v2_realtime`, `own_turns: false`. Its levers are Pipecat's, since
+  Scribe has no turns: `vad_confidence` (0.3–0.9, 0.7), `vad_start_secs` (0.1–0.5, 0.2),
+  `turn_stop_secs` (Smart Turn's longest wait, 1–8, 3). Rate: 5.5 credits a second, **not
+  confirmed**: a secondary source's 330 credits a minute. Check it on the account's usage page
+  after the first call and correct the file.
+- **Speaking: Flash**, `eleven_flash_v2_5`. Levers: the voice, speed (0.7–1.2), stability,
+  similarity, style, speaker boost, number reading (`auto`, `on`, `off`). Rate: 0.5 credits a
+  character, read from the account's model list (`character_cost_multiplier`).
+- The shortlist: eight of ElevenLabs' own voices, each with its id from the account's list
+  (Sarah first, a draft until the owner picks by ear).
+- **The account:** the four levers cost.rs reads (`plan_credits` 10,000, the free plan), and
+  `zero_retention` (on). Cartesia stays first in `VENDOR_FILES`, so it stays the default of both
+  directions; a version saved before today reads ElevenLabs' settings at their first values.
+
+### 11.2 The adapter (`agent/deets_agent/voice/elevenlabs.py`)
+- `build_stt`: `ElevenLabsRealtimeSTTService` in manual commit mode, with the shared keyterms.
+- `build_tts`: `ElevenLabsTTSService` with the voice and its levers.
+- Both send `enable_logging=False` while `zero_retention` is on. The TTS's own default is `None`
+  (ElevenLabs decides), so the adapter always sends the value.
+- `user_params`: the user aggregator's `SileroVADAnalyzer` and the turn strategies: a start from
+  the voice detector or a first word; Smart Turn v3 (local, on the CPU) for the end. With
+  barge-in off, no start strategy interrupts. The detector's stop delay stays Pipecat's 0.2 s,
+  which Smart Turn expects.
+- `check_retention`: a call that is not synthetic is refused, with zero retention On or Off
+  (§11.7; at first, only with it Off)
+  (`RetentionRefused`). `Voice` now takes `data_class` with no default, so no new caller skips
+  it; the dev server passes `synthetic`.
+
+### 11.3 The call (`voice/__init__.py`, `call.py`)
+- `Voice.own_turns` comes from the adapter. With own turns (Ink) nothing changes: the three turn
+  events come from the service.
+- Without them (Scribe), the events come from elsewhere:
+  - `call.py` passes `voice.user_params` to `LLMContextAggregatorPair`.
+  - `Voice.attach` takes the turn's start and end from the aggregator's `on_user_turn_started`
+    and `on_user_turn_stopped`.
+  - `HeardWords`, right after Scribe in the pipeline, marks when the words change (it never
+    reads them).
+  - The idle limit and the Timeline's `heard` stage work the same way for both vendors.
+- Scribe's commit goes on Pipecat's `VADUserStoppedSpeakingFrame`: the aggregator sends it
+  upstream through the screen to Scribe.
+- **A voice service that fails ends the call at once** (`call.py › voice_failure`). Pipecat may
+  mark the service unusable (Sonic, before), or the vendor may refuse with an error that names
+  auth, quota, an invalid request, the subscription or retention. Scribe sends these as ordinary
+  errors, so without this the call would run silent to the idle limit and bill Scribe all the
+  while. The reason names the product, the vendor and the vendor's first line ("Scribe
+  (ElevenLabs) failed: …"), with the `voice_failed` review flag as before. A refusal of
+  zero retention before a call (`RetentionRefused`) is a 409 from the voice route.
+- **The 911 line** is uninterruptible on its frame (`interruptible = False`), so a start from
+  the voice detector cannot cut it either.
+- **No new dependency:** Pipecat's `elevenlabs` and `silero` extras add no package, and Smart
+  Turn's model ships in Pipecat's wheel. DEPENDENCIES.md is unchanged.
+
+### 11.4 The voice list and the dev server
+- `voice_catalog.py › ElevenLabsVoices` reads `GET /v2/voices` (no credits) and gives the same
+  shape as Cartesia's list. It keeps ElevenLabs' own made voices only (`premade`): a library
+  voice needs a paid plan through the API, and cloning is outside zero retention. "Sarah -
+  Mature, Reassuring" becomes the name and the tagline.
+- `CATALOGS` maps each vendor to its list, so `/agent/voice/voices?vendor=elevenlabs` works.
+- A save checks ElevenLabs' voice id (letters and digits only). While ElevenLabs speaks, the save
+  also asks ElevenLabs whether the voice still exists. A voice call asks the same before it
+  starts, as for Cartesia.
+- First read, 2026-11-23: 21 English voices; all eight on the shortlist found.
+
+### 11.5 Config › Voice (`console/src/pages/voice.ts`)
+- The page draws what every vendor has once, for whichever vendor is chosen:
+  - the voice menu and its check, Refresh, and the table of every voice (`vendorVoices`, a
+    keyed store by vendor, `leaves`);
+  - a Usage card for each vendor chosen, the second under the first (`config.css`: the layouts
+    `voice-2u` and `voice-list-2u`);
+  - a key row and a rates row for each vendor chosen.
+- **Speaking (Flash):** Vendor; Model; Voice; Voice list; Speed; Stability; Similarity; Style;
+  Speaker boost; Number reading; Pronunciations. The Pronunciations help says that Flash v2.5
+  reads no phoneme tags.
+- **Hearing (Scribe):** Vendor; Model; Turns (shown only: "Pipecat: voice detector and Smart
+  Turn"); Speech sureness; Start of a turn (s); Longest wait (s); Barge-in; Keyterms.
+- **Keys and facts:** a new row, "ElevenLabs zero retention" (Off | On), shown while ElevenLabs is
+  chosen.
+- **Decided inside his choices** (for his review): every row name and help text above
+  (drafts); the shortlist and Sarah as the draft voice; zero retention as an account lever shown
+  in Keys and facts; Scribe's rate (§11.1); `premade` voices only; the two-usage-card layout.
+
+### 11.6 Desk test (open)
+His free plan has 10,000 credits a month and cannot go over, so a test spends no money. One
+3-minute call is about 1,700 credits (Scribe about 990, if §11.1's rate holds; Flash about 750
+for 1,500 characters), so the plan allows about five such calls a month. Before the test, on
+Config › Voice › Usage (ElevenLabs), set Cycle day to 24: the plan renews on 2026-12-24.
+1. Restart `npm run dev` (ehr and the agent changed), then reload the console.
+2. Config › Voice, Edit. Set Speaking › Vendor to ElevenLabs. The card shows Flash's rows. The
+   voice list says "Checked … 21 English voices". More voices opens ElevenLabs' table.
+3. Set Hearing › Vendor to ElevenLabs: Scribe's rows, with Turns shown.
+4. Save. Usage (ElevenLabs) and the ElevenLabs key row show; Keys and facts shows zero retention
+   On.
+5. A short voice call on Chat (sandbox patient), at most a minute. The agent greets in the chosen
+   voice. Pause mid-sentence ("my date of birth is …"): the agent should wait. Speak over it: it
+   stops (barge-in).
+6. After the call, compare the credits on ElevenLabs' usage page with Usage (ElevenLabs).
+   Correct Scribe's rate in the catalog if they differ.
+7. ~~If the call fails because the account refuses zero retention, set it Off.~~ It does not
+   refuse (§11.7): leave zero retention On.
+8. Set both vendors back to Cartesia and save: the Cartesia rows return unchanged.
+
+### 11.7 Zero retention on the free plan: accepted, not honored (tested 2026-11-23)
+The owner said yes to one short test ("Yes, test it").
+- **Flash:** one request, "Hi.", with `enable_logging=false`. ElevenLabs answered 200 and used 1
+  credit. The request then **showed in the account's speech history**. The free plan accepts the
+  flag and keeps the request anyway; it does not refuse.
+- **Scribe:** a socket opened with `enable_logging=false` and no audio sent. ElevenLabs answered
+  `session_started`, so it does not refuse either. Its retention cannot be seen from outside;
+  take it as kept, like Flash.
+- **So the guard is stricter than §4, item 5 says** (not a new fork: SECURITY.md §5 already
+  keeps protected data from a vendor without a BAA). `check_retention` refuses ElevenLabs on
+  every call that is not synthetic, with the switch On or Off. The switch stays, On by default,
+  for an Enterprise plan later. Its help on Config › Voice says that this plan ignores it.
+- The test's "Hi." is in the account's history (synthetic). It can be deleted on ElevenLabs'
+  History page.

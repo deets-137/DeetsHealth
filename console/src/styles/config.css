@@ -190,6 +190,15 @@
   grid-template-areas: "voice" "voices" "hearing" "guard" "usage" "facts";
 }
 
+/* Config › Voice with a different vendor in each direction: a Usage card for each
+   (VOICE-VENDORS.md §11), the second under the first. */
+.cfg-body[data-layout="voice-2u"] {
+  grid-template-areas: "voice" "hearing" "guard" "usage" "usage2" "facts";
+}
+.cfg-body[data-layout="voice-list-2u"] {
+  grid-template-areas: "voice" "voices" "hearing" "guard" "usage" "usage2" "facts";
+}
+
 /* Config › Anthropic (CONSOLE.md §8): Model, Reply and cache, Usage, Key and facts. */
 .cfg-body[data-layout="anthropic"] {
   grid-template-areas: "model" "reply" "usage" "facts";
@@ -208,6 +217,7 @@
 .cfg-card[data-card="hearing"] { grid-area: hearing; }
 .cfg-card[data-card="guard"] { grid-area: guard; }
 .cfg-card[data-card="usage"] { grid-area: usage; }
+.cfg-card[data-card="usage2"] { grid-area: usage2; }
 .cfg-card[data-card="facts"] { grid-area: facts; }
 .cfg-card[data-card="model"] { grid-area: model; }
 .cfg-card[data-card="reply"] { grid-area: reply; }
@@ -231,6 +241,23 @@
       "voice guard"
       "voices voices"
       "usage facts";
+  }
+
+  .cfg-body[data-layout="voice-2u"] {
+    grid-template-areas:
+      "voice hearing"
+      "voice guard"
+      "usage facts"
+      "usage2 facts";
+  }
+
+  .cfg-body[data-layout="voice-list-2u"] {
+    grid-template-areas:
+      "voice hearing"
+      "voice guard"
+      "voices voices"
+      "usage facts"
+      "usage2 facts";
   }
 
   .cfg-body[data-layout="anthropic"] {

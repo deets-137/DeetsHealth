@@ -21,7 +21,10 @@ use serde_json::Value;
 
 /// The vendors, in the order the console lists them. The first is the default of each direction
 /// it offers.
-pub const VENDOR_FILES: &[&str] = &[include_str!("../../catalog/voice/cartesia.json")];
+pub const VENDOR_FILES: &[&str] = &[
+    include_str!("../../catalog/voice/cartesia.json"),
+    include_str!("../../catalog/voice/elevenlabs.json"),
+];
 /// The levers every vendor shares.
 const SHARED_FILE: &str = include_str!("../../catalog/voice/shared.json");
 
@@ -303,6 +306,19 @@ mod tests {
         let c = catalog();
         assert_eq!(c.vendors[0].id, "cartesia");
         assert!(catalog_json().contains("\"ink-2\""));
+    }
+
+    #[test]
+    fn elevenlabs_offers_both_directions_without_own_turns() {
+        let c = catalog();
+        let e = c.vendor("elevenlabs").expect("ElevenLabs in the catalog");
+        assert!(!e.hearing.as_ref().unwrap().own_turns, "Scribe: Pipecat decides the turns");
+        assert_eq!(e.speaking.as_ref().unwrap().model, "eleven_flash_v2_5");
+        // Cartesia stays the first vendor, so the default of each direction.
+        let d: serde_json::Map<String, Value> = defaults(c).into_iter().collect();
+        assert_eq!(d["hearing.vendor"], "cartesia");
+        assert_eq!(d["speaking.vendor"], "cartesia");
+        assert_eq!(d["elevenlabs.zero_retention"], true, "zero retention on by default (§4, item 5)");
     }
 
     #[test]

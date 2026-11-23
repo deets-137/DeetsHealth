@@ -450,6 +450,15 @@ wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
 > same. Where the text below says `cartesia.ts`, `/agent/cartesia` or `config.py`'s constants, read
 > `voice.ts`, `/agent/voice/settings` and the catalog. Desk test: §7.5a.
 >
+> **Part:** built · 2026-11-23 · desk test open — **ElevenLabs on the page** (VOICE-VENDORS.md
+> §11.5). With ElevenLabs chosen, the cards are **Speaking (Flash)** and **Hearing (Scribe)**, each
+> with its own rows. The voice menu, its check and the table of every voice are drawn the same
+> way for either vendor (the store `vendorVoices`, by vendor). There is a **Usage** card for each
+> vendor chosen. **Keys and facts** has a rates row for each vendor chosen, and **ElevenLabs zero
+> retention** (Off | On). Changed for Cartesia too: the rows are now named "Rates (Cartesia)" and
+> "Cartesia API version"; the Pronunciations, Keyterms, Silence and Model help no longer name
+> one vendor. Desk test: VOICE-VENDORS.md §11.6.
+>
 > **Part:** built · 2026-11-13 · desk test closed 2026-11-22 — the owner, 2026-11-13: "a subpage under config
 > dedicated to Cartesia settings and items … At the top of the subpage, let's do a tabbar of
 > 'Read' and 'Edit' … On read mode, everything can be grayed out." Then the versions and the
@@ -730,7 +739,8 @@ who holds the Cartesia contract:
   It holds the list for `TTL_S` and reads one at a time. Left out: archived voices, voices our
   organization owns, and pro clones (no cloning, CARTESIA.md §1). A failed read keeps the list
   it held, and says why with Cartesia's status.
-- **Its own store** (`stores.ts › cartesiaVoices`, `leaves: true`): the settings never wait on
+- **Its own store** (`stores.ts › vendorVoices`, keyed by vendor since 2026-11-23, `leaves: true`;
+  ElevenLabs' list too, VOICE-VENDORS.md §11.4): the settings never wait on
   Cartesia. When the list lands, the cards draw again and the draft stays.
 - **The Voice menu:** each shortlist name, matched by name in the list. A name Cartesia no
   longer has reads "Name: not in Cartesia's list" and cannot be chosen. A name with several

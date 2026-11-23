@@ -1,0 +1,51 @@
+{
+  "id": "elevenlabs",
+  "name": "ElevenLabs",
+  "key_env": "ELEVENLABS_API_KEY",
+  "baa": "Enterprise plan, with Zero Retention Mode",
+  "hearing": {
+    "product": "Scribe",
+    "model": "scribe_v2_realtime",
+    "own_turns": false,
+    "rate": { "unit": "credits", "per": "second", "amount": 5.5 },
+    "levers": [
+      { "key": "vad_confidence", "kind": "number", "min": 0.3, "max": 0.9, "step": 0.05, "default": 0.7, "nullable": true },
+      { "key": "vad_start_secs", "kind": "number", "min": 0.1, "max": 0.5, "step": 0.05, "default": 0.2, "nullable": true },
+      { "key": "turn_stop_secs", "kind": "number", "min": 1.0, "max": 8.0, "step": 0.5, "default": 3.0, "nullable": true }
+    ]
+  },
+  "speaking": {
+    "product": "Flash",
+    "model": "eleven_flash_v2_5",
+    "rate": { "unit": "credits", "per": "character", "amount": 0.5 },
+    "levers": [
+      { "key": "voice", "kind": "voice", "default": { "name": "Sarah", "id": "EXAVITQu4vr4xnSDxMaL" } },
+      { "key": "speed", "kind": "number", "min": 0.7, "max": 1.2, "step": 0.05, "default": 1.0, "nullable": true },
+      { "key": "stability", "kind": "number", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.5, "nullable": true },
+      { "key": "similarity", "kind": "number", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.75, "nullable": true },
+      { "key": "style", "kind": "number", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.0, "nullable": true },
+      { "key": "speaker_boost", "kind": "bool", "default": true },
+      { "key": "normalization", "kind": "word", "words": ["auto", "on", "off"], "default": "auto" }
+    ],
+    "voices": [
+      { "name": "Sarah", "id": "EXAVITQu4vr4xnSDxMaL" },
+      { "name": "Matilda", "id": "XrExE9yKIg1WjnnlVkGX" },
+      { "name": "Alice", "id": "Xb7hH8MSUJpSbSDYk0k2" },
+      { "name": "Bella", "id": "hpp4J3VqNfWAUOO0d1Us" },
+      { "name": "River", "id": "SAz9YHcvj6GT2YYXdXww" },
+      { "name": "Eric", "id": "cjVigY5qzO86Huf0OWal" },
+      { "name": "Chris", "id": "iP95p4xoKVk53GoZ742B" },
+      { "name": "Will", "id": "bIHbv24MWmeRgasZH58o" }
+    ]
+  },
+  "account": {
+    "unit": "credits",
+    "levers": [
+      { "key": "plan_credits", "kind": "whole", "min": 0, "max": 1000000000, "default": 10000 },
+      { "key": "plan_price_usd", "kind": "number", "min": 0, "max": 100000, "default": 0 },
+      { "key": "offset", "kind": "whole", "min": 0, "max": 1000000000, "default": 0 },
+      { "key": "cycle_day", "kind": "whole", "min": 1, "max": 28, "default": 1 },
+      { "key": "zero_retention", "kind": "bool", "default": true }
+    ]
+  }
+}

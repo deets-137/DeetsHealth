@@ -142,7 +142,7 @@ number of requests to Epic does not grow.
 | Config › Voice, Anthropic, System, Hospital | `settings.<section>` keyed by version; its Save is the write | `config-kit.ts` loads once |
 | Config › Agent | `settings.agent` keyed by version; the Test status is a poll on it while a run is `running` | `agent.ts` `follow()` |
 | Config › Voice's credits | `resources` keyed `null` | read once |
-| Config › Voice's voice list | `cartesia.voices` (`leaves`: it reaches Cartesia); Refresh is its write | as built 2026-11-16 (CONSOLE.md §7.8) |
+| Config › Voice's voice lists | `voices`, keyed by vendor (`cartesia`, `elevenlabs`; `leaves`: each reaches its vendor); Refresh is its write | as built 2026-11-16, by vendor 2026-11-23 (CONSOLE.md §7.8; VOICE-VENDORS.md §11.4) |
 | The nav and every page's access | `me` (`focus`), read by `access.ts` only; a grant, revoke or roles save reads it again (`accessChanged`) | as built 2026-11-18 (docs/architecture/ACCESS-ROLES.md §6, Hand-over 3) |
 | Security › Roles | `roles` keyed by version; Save is its write | as built 2026-11-18 |
 | Audit Logs | `audit` keyed `all` (the newest 100 rows); older pages and Check chain by `once` (`audit`, `audit.verify`) | as built 2026-11-18 |

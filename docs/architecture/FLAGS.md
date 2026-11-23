@@ -141,7 +141,9 @@ raises it; the model never does. It carries a reason, never a value.
   `MAX_TOKENS`, `RETRY_MAX_TOKENS` (`agent/deets_agent/config.py`).
 - **`voice_failed`** (2026-11-16): Sonic was marked unusable during a voice call (the voice of
   the call of 2026-11-15, 22:38, was gone from Cartesia), so the caller heard nothing. The call
-  ends at once. Code: `serve` in `TypedCall` (`agent/deets_agent/call.py`).
+  ends at once. Code: `serve` in `TypedCall` (`agent/deets_agent/call.py`). Since 2026-11-23 the
+  hearing service raises it too, and so does a vendor's refusal (auth, quota, retention), not only
+  an unusable service (`voice_failure`; VOICE-VENDORS.md §11.3).
 - **Where it goes:** a `review_flag` event in the call record, and a `review_<reason>` label in
   the catalog. In production, a review queue that only roles with transcript access can open,
   each view audited (SECURITY.md §4.10).

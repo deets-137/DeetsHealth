@@ -63,9 +63,42 @@ class CallFailed(Exception):
     the full error is in the dev call record."""
 
 
-VOICE_FAILED = object()
-"""Sonic can no longer speak (Pipecat marks it unusable): a voice call ends at once, since the
-caller hears nothing (the call of 2026-11-15, 22:38)."""
+class VoiceFailed:
+    """A voice service can no longer do its job, so a voice call ends at once: the caller hears
+    nothing, or is not heard (the call of 2026-11-15, 22:38). `why` names the product and the
+    vendor's own first words, never a value from the call."""
+
+    def __init__(self, why: str) -> None:
+        self.why = why
+
+
+# Words in a voice service's error that mean the vendor refused the request: an error with one
+# ends the call, rather than letting it run silent to the idle limit. ElevenLabs' Scribe sends
+# these as ordinary errors (Pipecat 1.16, `ElevenLabsRealtimeSTTService`), and a refused zero
+# retention would be one (VOICE-VENDORS.md §11.6).
+REFUSAL_WORDS = (
+    "auth",
+    "unauthorized",
+    "quota",
+    "invalid_request",
+    "unaccepted_terms",
+    "subscription",
+    "enterprise",
+    "logging",
+    "retention",
+    "401",
+    "402",
+    "403",
+)
+
+
+def voice_failure(product: str, vendor: str, error: str, unusable: bool) -> VoiceFailed | None:
+    """Whether a voice service's error ends the call: Pipecat marked the service unusable, or the
+    vendor refused. The reason quotes the vendor's first line, cut short."""
+    said = " ".join(str(error).split())[:160]
+    if unusable or any(w in said.lower() for w in REFUSAL_WORDS):
+        return VoiceFailed(f"{product} ({vendor}) failed: {said or 'no message'}")
+    return None
 
 
 _MONTHS_DAYS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
@@ -326,14 +359,18 @@ class TypedCall:
         # The dev call record (call_record.py): the typed harness passes one; tests do not.
         self.record = record
         context = LLMContext()
-        self._aggregators = LLMContextAggregatorPair(context)
+        # A hearing vendor without its own turns (Scribe) needs the aggregator's voice detector
+        # and Smart Turn (voice/elevenlabs.py); Ink brings its own, so none is passed then.
+        user_params = voice.user_params if voice is not None else None
+        self._aggregators = LLMContextAggregatorPair(context, user_params=user_params)
         middle = [self._screen, self._aggregators.user(), llm, self._collector, self._aggregators.assistant()]
         self.voice = voice
         if voice is not None:
-            # The turn collector reads the model's text before Sonic takes it; the assistant
+            voice.attach(self._aggregators.user())
+            # The turn collector reads the model's text before the voice takes it; the assistant
             # aggregator comes after the seat, so it keeps only the words the caller heard.
             middle = [
-                voice.stt,
+                *voice.hearing,
                 self._screen,
                 self._aggregators.user(),
                 llm,
@@ -465,13 +502,23 @@ class TypedCall:
             idled.append(True)
 
         if self.voice is not None:
-            tts = self.voice.tts
+            # Each voice service, by the product and vendor its error names.
+            ends = {
+                id(self.voice.stt): self.voice.names["hearing"],
+                id(self.voice.tts): self.voice.names["speaking"],
+            }
 
             @self._worker.event_handler("on_pipeline_error")
             async def _on_error(worker, frame):
-                # Sonic marked unusable: every line from here on is silent, so the call ends.
-                if getattr(frame, "processor", None) is tts and not getattr(tts, "is_usable", True):
-                    self._collector.turns.put_nowait(VOICE_FAILED)
+                # A voice service marked unusable, or refused by its vendor: the caller hears
+                # nothing or is not heard, so the call ends now with the vendor's own words.
+                service = getattr(frame, "processor", None)
+                names = ends.get(id(service))
+                if names is None:
+                    return
+                failed = voice_failure(*names, getattr(frame, "error", ""), not getattr(service, "is_usable", True))
+                if failed is not None:
+                    self._collector.turns.put_nowait(failed)
 
         await self.flow.start()
         await self._runner.add_workers(self._worker)
@@ -499,8 +546,8 @@ class TypedCall:
                 if isinstance(turn, CallFailed):
                     reason = f"Claude's request failed ({turn})"
                     break
-                if turn is VOICE_FAILED:
-                    reason = "the voice failed: Sonic could not speak"
+                if isinstance(turn, VoiceFailed):
+                    reason = f"the voice failed: {turn.why}"
                     self.review_flags.append("voice_failed")
                     if self.record is not None:
                         self.record.event("review_flag", reason="voice_failed", final=True)

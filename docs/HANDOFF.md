@@ -136,9 +136,18 @@ serves it (`GetVoiceCatalog`); the agent's voice code is a package with an adapt
 Config › Cartesia is now Config › Voice, with a Vendor row per direction. Cartesia is still the
 only vendor. **Step 4 too (§9):** the voice's cost is the crate's (`vendors/src/voice/cost.rs`): ehr
 prices each call (`calls.voice_credits`, migration 0015), Analytics' sums and the agent's
-Resources tab (`PriceVoiceUse`); Python only counts. Not built: ElevenLabs (step 6). Desk
-tests: CONSOLE.md §7.5a, VOICE-VENDORS.md §9.4. **Restart `npm run dev`**: ehr and the agent's
-Python changed.
+Resources tab (`PriceVoiceUse`); Python only counts. Desk tests: CONSOLE.md §7.5a,
+VOICE-VENDORS.md §9.4.
+
+**Built 2026-11-23, desk test open: ElevenLabs, the second voice vendor** (VOICE-VENDORS.md §11;
+integrations/ELEVENLABS.md). Scribe hears and Flash speaks, each a choice on Config › Voice. Pipecat's
+voice detector and Smart Turn decide the turns when Scribe hears. Zero retention is On by
+default, but the free plan accepts the flag and keeps requests anyway (tested, §11.7), so
+ElevenLabs takes synthetic calls only, On or Off. A free account (10,000 credits, never billed);
+its key in `.env`. Scribe's rate is unconfirmed (§11.1). Desk test: VOICE-VENDORS.md §11.6.
+**Restart `npm run dev`**: ehr (the catalog) and the agent's Python changed. A vendor's refusal
+(auth, quota) ends the call at once with its own words (`call.py › voice_failure`). Not
+committed.
 
 **Built 2026-11-22, desk test open: Chat › Timeline, Rules › Booking, Org Chart gone** (the
 owner's forks that day). The Timeline tab is a waterfall per turn against the 800 ms target,

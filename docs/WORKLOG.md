@@ -8,6 +8,46 @@ updated: 2026-11-19
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-23 (Windows) — ElevenLabs, the second voice vendor
+- His words: "Add ElevenLabs to my project: run `npx -y @elevenlabs/cli@latest onboard init` and
+  follow what it prints", then "Let's chat setting up Eleven Labs as a voice vendor".
+  - Ran `onboard init`.
+  - Kept the parts of its steps that fit: the sign-in, the key in `.env` (not `.env.local`, which
+    the agent does not read), and no code before the key.
+  - Left out the parts that did not fit: the JavaScript SDK and ElevenLabs' agent platform. We
+    use Pipecat's ElevenLabs services.
+- One fork: what if ElevenLabs refuses zero retention below Enterprise. His answer: "B is fine,
+  consider this is now a portfolio piece and the console framework is the highlight of the
+  project, we're not using anything other than sandbox/local data". Recorded in
+  VOICE-VENDORS.md §4, item 5.
+- He signed in (`onboard connect --env-path .env`). The project's deny rule kept me from copying
+  `.env`, so he backs it up to Deets' Secrets himself. That folder's README now names
+  ElevenLabs.
+- His go-ahead: "Go ahead and build it, i'm on the elevenlabs free plan and do not want to spend
+  any money for this exercise".
+  - The plan, read from the account: 10,000 credits, renews 2026-12-24. It cannot go over its
+    limit, so it is never billed.
+  - Flash costs 0.5 credits a character. Scribe's rate is not confirmed.
+- Built step 6 (VOICE-VENDORS.md §11):
+  - the catalog file `elevenlabs.json`;
+  - the adapter `voice/elevenlabs.py`;
+  - Pipecat's voice detector and Smart Turn when Scribe hears (`call.py`, `Voice.attach`,
+    `HeardWords`);
+  - the retention guard (`Voice` takes `data_class`);
+  - ElevenLabs' voice list (`ElevenLabsVoices`);
+  - Config › Voice per vendor (the `vendorVoices` store, a Usage card per vendor, Flash's and
+    Scribe's rows, the zero-retention row);
+  - `integrations/ELEVENLABS.md`;
+  - `.env.example`.
+- `npm run check`: all 11 steps pass. The one live read cost no credits: ElevenLabs' voice
+  list, 21 English voices, all eight on the shortlist found. No speech was made: his test call is
+  the first (§11.6).
+- His "Yes, test it": one Flash request ("Hi.", 1 credit) and one Scribe socket (no audio), both
+  sent with zero retention on. Both were accepted, and the Flash request showed in the account's
+  history: the free plan ignores the flag. The guard now refuses ElevenLabs on every call that is
+  not synthetic, On or Off (VOICE-VENDORS.md §11.7).
+- No screenshots this sitting.
+
 ## 2026-11-23 (Windows) — Voice vendors: the design
 - His words: "how plug and play is the voice side of things? can we use eleven labs?" Answer
   from the code: not plug-and-play; Cartesia is bound in `voice.py`, `config.py`,

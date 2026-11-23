@@ -113,7 +113,8 @@ Streams (Twilio's pricing page).
 Also offers a BAA and a zero-retention mode on its Enterprise plan. Its agent platform, in
 HIPAA mode, limits the language model to its allowlist and turns off MCP tools, so we would
 use only its speech APIs. Kept as the fallback if a listening test finds Sonic's voice clearly
-worse (VOICE-AGENT.md §7, F5 C).
+worse (VOICE-AGENT.md §7, F5 C). **Built 2026-11-23** as the second voice vendor, a choice on
+Config › Voice: integrations/ELEVENLABS.md, VOICE-VENDORS.md §11.
 
 ## 7. To find out
 - Enterprise pricing for a first, small hospital.

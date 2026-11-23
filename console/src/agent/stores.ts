@@ -26,9 +26,13 @@ export const systemSettings = keyed("settings.system", (v: number) => api.system
 export const hospitalSettings = keyed("settings.hospital", (v: number) => api.hospitalSettings(v));
 export const promptSettings = keyed("settings.agent", (v: number) => api.promptSettings(v));
 
-/** Config › Voice's voice list (Cartesia's). It leaves this machine (Cartesia): never on focus,
- * never holds the first-load wave. Refresh is a write whose answer is the new list. */
-export const cartesiaVoices = store("cartesia.voices", () => api.voiceVoices("cartesia"), { leaves: true });
+/** Config › Voice's voice lists, by vendor (Cartesia's, ElevenLabs'). Each leaves this machine
+ * (the vendor): never on focus, never holds the first-load wave. Refresh is a write whose answer
+ * is the new list. */
+export const vendorVoices = keyed("voices", (vendor: string) => api.voiceVoices(vendor), {
+  words: ["cartesia", "elevenlabs"],
+  options: () => ({ leaves: true }),
+});
 
 /** Analytics › Logs (ANALYTICS.md §3.1), by the filter bar's range, a fixed word. The dev server
  * counts the days on its own clock at each read, so "7d" stays the last seven days. */
