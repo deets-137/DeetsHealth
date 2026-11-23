@@ -88,7 +88,7 @@ batches, the same evening).
   View: kinds, sources and counts.
 - **No fork (one option each):** the sums are worked out in ehr (`CallStats`), never from Logs'
   2000 rows; the charts are drawn by our own code (HTML, not SVG as said in the chat) in the theme's roles, no chart library; Cost counts
-  Cartesia too, in dollars once Config › Cartesia has the plan's price per credit, in credits
+  Cartesia too, in dollars once Config › Voice has the plan's price per credit, in credits
   until then (never a guessed price); Speed splits each wait by stage, kept in the store as
   numbers; each executive number shows its change against the period before; each number names
   how many calls it rests on.
@@ -264,7 +264,7 @@ batches, the same evening).
    has a change line ("▲ … vs the 7 days before"). *Calls per day* shows a column per day.
 2. Click *Booked*: Outcome opens. Click a column's green part: Logs opens with Outcome Booked,
    and the filter bar on every view shows Booked. Set Outcome back to Any.
-3. **Cost**: *Cartesia* says to set the plan's price. In Config › Cartesia, Edit, set *Plan
+3. **Cost**: *Cartesia* says to set the plan's price. In Config › Voice, Edit, set *Plan
    price* (Free: 0; a paid plan: its price), Save. Back on Cost: Cartesia in dollars, and
    *Dollars per day* stacks Claude and Cartesia.
 4. **Speed**: the three tiles, *The spread of waits* with the 800 ms line, *Where the wait goes*.

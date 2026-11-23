@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: passed 2026-11-11
-sources: [docs/architecture/images/hospital-places-cards-dark-2026-11-15.png, docs/architecture/images/hospital-places-cards-charcoal-2026-11-15.png, console/src/styles/people.css, console/src/styles/palette.css, console/security-headers.json, agent/deets_agent/security_headers.py, scripts/html-sinks.mjs, docs/architecture/images/chat-compact-toggles-2026-11-14.png, docs/architecture/images/nav-compact-layout-2026-11-14.png, console/src/picker.ts, console/src/pages/page.ts, console/src/styles/subnav.css, console/src/styles/chat.css, docs/architecture/images/config-agent-test-button-2026-11-14.png, console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/cartesia.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
+sources: [docs/architecture/images/hospital-places-cards-dark-2026-11-15.png, docs/architecture/images/hospital-places-cards-charcoal-2026-11-15.png, console/src/styles/people.css, console/src/styles/palette.css, console/security-headers.json, agent/deets_agent/security_headers.py, scripts/html-sinks.mjs, docs/architecture/images/chat-compact-toggles-2026-11-14.png, docs/architecture/images/nav-compact-layout-2026-11-14.png, console/src/picker.ts, console/src/pages/page.ts, console/src/styles/subnav.css, console/src/styles/chat.css, docs/architecture/images/config-agent-test-button-2026-11-14.png, console/src/pages/roles.ts, console/src/styles/roles.css, console/src/pages/rules.ts, docs/architecture/images/security-roles-split-2026-11-14.png, docs/architecture/images/security-roles-panel-name-2026-11-14.png, console/src/pages/agent.ts, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, ehr/migrations/0006_settings_system.sql, ehr/migrations/0005_settings_prompt.sql, console/src/pages/voice.ts, console/src/pages/anthropic.ts, console/src/pages/config-kit.ts, ehr/migrations/0004_settings_llm.sql, docs/architecture/images/config-cartesia-2026-11-13.png, docs/architecture/images/config-advanced-2026-11-13.png, docs/architecture/images/config-credits-size-2026-11-13.png, docs/architecture/images/config-glow-2026-11-13.png, docs/architecture/images/config-info-align-2026-11-13.png, docs/architecture/images/config-info-pin-2026-11-13.png, docs/architecture/images/config-list-ask-2026-11-13.png, docs/architecture/images/config-offset-ask-2026-11-13.png, docs/architecture/images/config-rates-2026-11-13.png, docs/architecture/images/config-scrollbar-2026-11-13.png, docs/architecture/images/config-slider-ask-2026-11-13.png, docs/architecture/images/config-slider-centre-2026-11-13.png, docs/architecture/images/config-slider-line-2026-11-13.png, docs/architecture/images/config-status-line-2026-11-13.png, docs/architecture/images/config-title-bar-2026-11-13.png, docs/architecture/images/config-wide-rows-2026-11-13.png, ehr/src/settings.rs, ehr/migrations/0002_settings.sql, console/src/styles/config.css, scripts/icons.py, console/index.html, console/src/main.ts, console/src/nav.ts, console/src/theme.ts, console/src/pages/chat.ts, console/src/pages/settings.ts, console/src/pages/teams.ts, console/src/pages/config.ts, console/src/pages/audit.ts, console/src/pages/security.ts, console/src/pages/subnav.ts, console/src/styles/app.css, console/src/styles/skin.css, console/src/styles/themes.css, console/public/manifest.webmanifest, console/vite.config.ts, console/src/tokens.ts, docs/architecture/images/console-settings-note-2026-11-11.png, docs/architecture/images/console-rail-sketch-2026-11-11.png]
 updated: 2026-11-22
 ---
 # DeetsHealth — The console
@@ -438,7 +438,18 @@ wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
    pill, the theme menu and the help card all have 16 px corners, as the panels do. Decide if
    it stays.
 
-## 7. Config › Cartesia
+## 7. Config › Voice (was Config › Cartesia)
+> **Part:** built · 2026-11-23 · desk test open — **Config › Cartesia is now Config › Voice**
+> (VOICE-VENDORS.md, the owner's V-3 A: one page for the voice). The page is `pages/voice.ts`;
+> its data is `GET`/`POST /agent/voice/settings` and `GET /agent/voice/voices` (DEV-API.md §2).
+> What changed: a **Vendor** row first in each of the two cards, now titled **Speaking (Sonic)**
+> and **Hearing (Ink)**; every model, range, default, rate, turn profile and recommended voice
+> comes from the voice catalog (ehr's `GetVoiceCatalog`), not from `config.py`; **Keys and
+> facts** has one key row per vendor in use; Usage is titled **Usage (Cartesia)**. The settings'
+> keys carry the vendor (`cartesia.speed`; VOICE-VENDORS.md §2.3). Everything else below is the
+> same. Where the text below says `cartesia.ts`, `/agent/cartesia` or `config.py`'s constants, read
+> `voice.ts`, `/agent/voice/settings` and the catalog. Desk test: §7.5a.
+>
 > **Part:** built · 2026-11-13 · desk test closed 2026-11-22 — the owner, 2026-11-13: "a subpage under config
 > dedicated to Cartesia settings and items … At the top of the subpage, let's do a tabbar of
 > 'Read' and 'Edit' … On read mode, everything can be grayed out." Then the versions and the
@@ -589,17 +600,17 @@ version Active](images/config-cartesia-2026-11-13.png)
   newest row; the value live at any moment is in the version of the last activation before it.
 - **Insert-only:** a trigger on all three tables refuses every UPDATE, DELETE and TRUNCATE
   (`ehr/migrations/0002_settings.sql`). The history can only grow.
-- **Checked in Rust:** `ehr/src/settings.rs › VOICE` lists every setting and what it may hold
+- **Checked in Rust:** `ehr/src/settings.rs › voice_list()` (since 2026-11-23, built from the voice catalog, VOICE-VENDORS.md §8; before, the `VOICE` list) lists every setting and what it may hold
   (each range is Cartesia's; the same as `config.py`'s for the page). `ehr` refuses a set with a
   setting missing, given twice, unknown, out of range or the wrong kind, and names the setting,
-  never its value. A test (`test_the_voice_defaults_name_every_setting_ehr_checks`) fails if
+  never its value. Since 2026-11-23 there is one list, so that test is gone; `test_ehr_serves_the_catalog_the_binary_prints` checks the adapters against the catalog. Before, a test failed if
   the agent's defaults and `VOICE` list different settings.
 - **The path:** the page → the dev server (`GET`/`POST /agent/cartesia`, DEV-API.md §2) →
   `ehr`'s `ListSettingVersions`, `GetSettings`, `SaveSettings` (EHR-SERVICE.md §3) → Postgres. The
   console never opens the database (DATABASE.md §1).
 - **The agent reads the active version** when a voice call starts (`dev_server.py ›
   active_voice_settings`), so a save applies to the next call, never the one in progress. Every
-  lever is applied (`voice.py › build_stt`, `build_tts`, `VoiceMeter`) except the
+  lever is applied (`voice/cartesia.py › build_stt`, `build_tts`; `voice/__init__.py › VoiceMeter`) except the
   pronunciations: they are stored, and need a Cartesia pronunciation dictionary before Sonic can
   use them (§7.6). The Resources tab and Credits left take the plan's credits, the offset and the
   cycle day from it. Without Postgres, or before a save, the code's defaults apply.
@@ -687,13 +698,33 @@ who holds the Cartesia contract:
    by side, the test-call guard under Hearing, then Usage and Key and facts. Narrow it: one
    column. No field or slider stretches past its column.
 
+### 7.5a Desk test: Config › Voice (2026-11-23)
+**First:** stop the dev server (Ctrl+C) and start it again with `npm run dev`. It builds the new
+`ehr` (with the `voice` crate) and the agent's Python changed.
+
+1. Config's third item reads **Voice**, not Cartesia. Open it: the version dropdown still lists
+   your old saves, newest first, and "Default" last.
+2. The two top cards are **Speaking (Sonic)** and **Hearing (Ink)**. The first row of each is
+   **Vendor**, set to Cartesia (the only vendor in the catalog today; the menu has one entry).
+3. Choose an old version (one saved before today): it shows your values as you saved them
+   (your voice, Offset, Plan price). Nothing reads as a default that you had set.
+4. Press Edit, change Speed, press Save. The page goes to Read on the new Active version, Speed
+   as set. Make a short voice call on Chat: it speaks in that voice and speed.
+5. Speed's slider has its line at 1.00; the turn profile still moves the four turn sliders;
+   Credits left still counts down from Plan credits less Offset.
+6. **Keys and facts** has one row, "Cartesia API key: Set" (with your key in `.env`), the API
+   version, and "Ink: 3 credits per second | Sonic: 1 credit per character".
+7. Audit Logs: the save's row names only `cartesia.speed`, not every setting.
+8. Optional: rename `CARTESIA_API_KEY` in `.env` and restart. Chat's voice call refuses with "a
+   voice call needs CARTESIA_API_KEY in .env". Put it back.
+
 ### 7.8 The voice list, checked live (as built, 2026-11-16)
 > **Part:** built · 2026-11-16 · desk test closed 2026-11-22. The owner's fork A (2026-11-16): the shortlist
 > checked live, plus every English voice in a table to search and choose from.
 
 - **Why:** the menu was a list copied by hand from Cartesia's "Choosing a voice" guide. Emma left
   Cartesia on 2026-11-16 and the page could not tell. Cartesia's API has no "recommended for
-  agents" mark, so the shortlist's names stay in `config.RECOMMENDED_VOICES`; the API checks them.
+  agents" mark, so the shortlist's names stay in the catalog (`voice/catalog/cartesia.json`, `speaking.voices`); the API checks them.
 - **The list:** the dev server reads Cartesia's List Voices (`voice_catalog.py`;
   `GET /agent/cartesia/voices`, DEV-API.md §2) for English voices, every page, with no credits.
   It holds the list for `TTL_S` and reads one at a time. Left out: archived voices, voices our
@@ -744,7 +775,7 @@ who holds the Cartesia contract:
 Signs that Cartesia's answer is not the shape its docs give (no real read has run yet): the
 count is exactly 100 (paging stopped after one page), or every shortlist name is greyed (the
 English filter matched nothing). Skylar and Daniel match by the ids in Cartesia's docs; the
-other seven match by name until their ids are pinned in `config.RECOMMENDED_VOICES`.
+other seven match by name until their ids are pinned in `voice/catalog/cartesia.json`.
 
 ### 7.7 The owner's screenshots (2026-11-13), in the order of his notes
 Kept so the reason for each change stays with it. Each one is what he saw before the change.

@@ -1,5 +1,5 @@
 # The Cargo workspace (CORE-CRATE.md §3): the core crate. The Tauri host is in archive/src-tauri
 # since the conversion (docs/CONVERSION.md) and is no longer built.
 [workspace]
-members = ["core", "ehr"]
+members = ["core", "ehr", "voice"]
 resolver = "2"

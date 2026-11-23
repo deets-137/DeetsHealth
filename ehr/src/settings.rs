@@ -1,7 +1,7 @@
 //! The settings store (CONSOLE.md §7.3): versions of each service's settings in Postgres,
 //! insert-only (`migrations/0002_settings.sql`).
 //!
-//! - **One list of every setting** per service ([`VOICE`]): its name and what it may hold. Every
+//! - **One list of every setting** per service ([`LLM`], [`voice_list`]): its name and what it may hold. Every
 //!   save is checked against it here, so no value outside a range or of the wrong kind is ever
 //!   stored. The agent's `config.py` holds the same ranges for the Config page; a change to one
 //!   is a change to both (CONSOLE.md §7.3).
@@ -11,6 +11,7 @@
 //!   data, but the rule is the same everywhere.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
 
 use serde_json::Value;
 use sqlx::{PgPool, Row};
@@ -59,32 +60,35 @@ const fn s(key: &'static str, kind: Kind) -> Setting {
     Setting { key, kind }
 }
 
-/// The voice service: Cartesia (CARTESIA.md §9). The ranges are Cartesia's.
-pub const VOICE: &[Setting] = &[
-    s("voice", Kind::Voice),
-    s("speed", Kind::Number { min: 0.6, max: 1.5, nullable: true }),
-    s("volume", Kind::Number { min: 0.5, max: 2.0, nullable: true }),
-    s("emotion", Kind::Word { words: &["neutral", "calm", "content", "sad", "angry"], nullable: true }),
-    s("normalization", Kind::Word { words: &["auto", "off"], nullable: false }),
-    // Each cell is a short string; 200 rows at most.
-    s("pronunciations", Kind::Table { columns: 2, rows: 200, chars: 200 * 2 * SHORT }),
-    s("turn_start_threshold", Kind::Number { min: 0.5, max: 0.9, nullable: true }),
-    s("turn_eager_end_threshold", Kind::Number { min: 0.3, max: 0.8, nullable: true }),
-    s("turn_end_threshold", Kind::Number { min: 0.05, max: 0.5, nullable: true }),
-    s("turn_end_timeout_ms", Kind::Number { min: 640.0, max: 11200.0, nullable: true }),
-    s("eager_end_of_turn", Kind::Bool),
-    s("barge_in", Kind::Bool),
-    // Cartesia: up to 100 keyterms, 1,200 characters in all (checked below).
-    s("keyterms", Kind::Table { columns: 1, rows: 100, chars: 1200 }),
-    s("idle_s", Kind::Whole { min: 10, max: 600 }),
-    s("max_s", Kind::Whole { min: 60, max: 3600 }),
-    s("plan_credits", Kind::Whole { min: 0, max: 1_000_000_000 }),
-    // What the plan costs a month in dollars (Analytics › Cost: Cartesia's credits as dollars);
-    // 0 is not set, and Cost then shows credits (ANALYTICS.md §3.2).
-    s("plan_price_usd", Kind::Number { min: 0.0, max: 100_000.0, nullable: false }),
-    s("offset", Kind::Whole { min: 0, max: 1_000_000_000 }),
-    s("cycle_day", Kind::Whole { min: 1, max: 28 }),
-];
+/// The voice service (VOICE-VENDORS.md §2.3): every setting the voice catalog makes (the
+/// `deetshealth-voice` crate): the vendor of each direction, the shared levers, and each vendor's
+/// levers under its id. The ranges are each vendor's, from its catalog file. Built once; the
+/// catalog is compiled in, so the list lives as long as the program.
+pub fn voice_list() -> &'static [Setting] {
+    static LIST: OnceLock<&'static [Setting]> = OnceLock::new();
+    LIST.get_or_init(|| {
+        let leak = |s: String| -> &'static str { Box::leak(s.into_boxed_str()) };
+        let list: Vec<Setting> = deetshealth_voice::settings(deetshealth_voice::catalog())
+            .into_iter()
+            .map(|(key, kind)| {
+                use deetshealth_voice::Kind as V;
+                let kind = match kind {
+                    V::Number { min, max, nullable, .. } => Kind::Number { min, max, nullable },
+                    V::Whole { min, max } => Kind::Whole { min, max },
+                    V::Bool => Kind::Bool,
+                    V::Word { words, nullable } => {
+                        let words: Vec<&'static str> = words.into_iter().map(leak).collect();
+                        Kind::Word { words: Box::leak(words.into_boxed_slice()), nullable }
+                    }
+                    V::Voice => Kind::Voice,
+                    V::Table { columns, rows, chars } => Kind::Table { columns, rows, chars },
+                };
+                Setting { key: leak(key), kind }
+            })
+            .collect();
+        Box::leak(list.into_boxed_slice())
+    })
+}
 
 /// The models the page offers (ANTHROPIC.md §3): the 5.5 family only, pinned by name.
 pub const MODELS: &[&str] = &["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"];
@@ -328,7 +332,7 @@ const VARIABLES_FILE: &str = include_str!("../../agent/prompts/VARIABLES.md");
 /// request, so no request text reaches the SQL.
 pub fn service(name: &str) -> Option<(&'static str, &'static [Setting], &'static str)> {
     match name {
-        "voice" => Some(("voice", VOICE, "settings_voice")),
+        "voice" => Some(("voice", voice_list(), "settings_voice")),
         "llm" => Some(("llm", LLM, "settings_llm")),
         "prompt" => Some(("prompt", PROMPT, "settings_prompt")),
         "system" => Some(("system", SYSTEM, "settings_system")),
@@ -646,7 +650,7 @@ pub fn check(list: &[Setting], values: &[(String, String)]) -> Result<Vec<(&'sta
     let mut out = Vec::with_capacity(list.len());
     for (key, _) in values {
         if !list.iter().any(|s| s.key == key) {
-            return Err(format!("{}: not a setting of this service", if key.len() <= SHORT && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') { key.as_str() } else { "a setting" }));
+            return Err(format!("{}: not a setting of this service", if key.len() <= SHORT && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.') { key.as_str() } else { "a setting" }));
         }
     }
     for setting in list {
@@ -767,6 +771,11 @@ pub async fn get(pool: &PgPool, service: &str, table: &'static str, id: i64) -> 
     if service == "hospital" {
         crate::hospital::upgrade(&mut values);
     }
+    // A voice version saved before the catalog, or before a vendor joined it, reads in today's
+    // shape (VOICE-VENDORS.md §2.3).
+    if service == "voice" {
+        deetshealth_voice::upgrade(deetshealth_voice::catalog(), &mut values);
+    }
     Ok(Some((v, values)))
 }
 
@@ -839,6 +848,11 @@ pub async fn save(
             .collect(),
         None => vec![],
     };
+    // The audit row names only what changed, not the keys an old voice version had renamed.
+    let mut before_values = before_values;
+    if service == "voice" {
+        deetshealth_voice::upgrade(deetshealth_voice::catalog(), &mut before_values);
+    }
     let has_default: bool = sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM setting_versions WHERE service = $1 AND seq = 0)")
         .bind(service)
         .fetch_one(&mut *tx)
@@ -901,58 +915,54 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// A whole voice set: the catalog's first values, with a few changed.
     fn full() -> Vec<(String, String)> {
-        let v = |k: &str, x: Value| (k.to_string(), x.to_string());
-        vec![
-            v("voice", json!({"name": "Skylar", "id": "db6b0ed5-d5d3-463d-ae85-518a07d3c2b4"})),
-            v("speed", json!(null)),
-            v("volume", json!(1.2)),
-            v("emotion", json!("calm")),
-            v("normalization", json!("auto")),
-            v("pronunciations", json!([["Lisinopril", "lie-SIN-oh-pril"]])),
-            v("turn_start_threshold", json!(0.7)),
-            v("turn_eager_end_threshold", json!(null)),
-            v("turn_end_threshold", json!(0.4)),
-            v("turn_end_timeout_ms", json!(4500)),
-            v("eager_end_of_turn", json!(false)),
-            v("barge_in", json!(true)),
-            v("keyterms", json!([["Main Street Clinic"]])),
-            v("idle_s", json!(60)),
-            v("max_s", json!(360)),
-            v("plan_credits", json!(20000)),
-            v("plan_price_usd", json!(0)),
-            v("offset", json!(270)),
-            v("cycle_day", json!(12)),
-        ]
+        let mut out: Vec<(String, String)> = deetshealth_voice::defaults(deetshealth_voice::catalog())
+            .into_iter()
+            .map(|(k, v)| (k, v.to_string()))
+            .collect();
+        let mut set = |k: &str, x: Value| out.iter_mut().find(|(key, _)| key == k).unwrap().1 = x.to_string();
+        set("cartesia.volume", json!(1.2));
+        set("cartesia.emotion", json!("calm"));
+        set("pronunciations", json!([["Lisinopril", "lie-SIN-oh-pril"]]));
+        set("cartesia.turn_end_timeout_ms", json!(4500));
+        set("keyterms", json!([["Main Street Clinic"]]));
+        set("cartesia.offset", json!(270));
+        set("cartesia.cycle_day", json!(12));
+        out
     }
 
     #[test]
     fn a_whole_set_passes() {
-        assert_eq!(check(VOICE, &full()).unwrap().len(), VOICE.len());
+        assert_eq!(check(voice_list(), &full()).unwrap().len(), voice_list().len());
     }
 
     #[test]
     fn each_refusal_names_the_setting() {
-        let mut set = full();
-        set.pop();
-        assert_eq!(check(VOICE, &set).unwrap_err(), "cycle_day: missing");
+        let list = voice_list();
+        let at = |set: &[(String, String)], k: &str| set.iter().position(|(key, _)| key == k).unwrap();
 
         let mut set = full();
-        set.push(("speed".into(), "1.0".into()));
-        assert_eq!(check(VOICE, &set).unwrap_err(), "speed: given twice");
+        set.remove(at(&set, "cartesia.cycle_day"));
+        assert_eq!(check(list, &set).unwrap_err(), "cartesia.cycle_day: missing");
+
+        let mut set = full();
+        set.push(("cartesia.speed".into(), "1.0".into()));
+        assert_eq!(check(list, &set).unwrap_err(), "cartesia.speed: given twice");
 
         let mut set = full();
         set.push(("colour".into(), "1".into()));
-        assert_eq!(check(VOICE, &set).unwrap_err(), "colour: not a setting of this service");
+        assert_eq!(check(list, &set).unwrap_err(), "colour: not a setting of this service");
 
         let mut set = full();
-        set[1].1 = "1.6".into(); // speed above 1.5
-        assert_eq!(check(VOICE, &set).unwrap_err(), "speed: out of range or the wrong kind");
+        let i = at(&set, "cartesia.speed");
+        set[i].1 = "1.6".into(); // speed above 1.5
+        assert_eq!(check(list, &set).unwrap_err(), "cartesia.speed: out of range or the wrong kind");
 
         let mut set = full();
-        let at = set.iter().position(|(k, _)| k == "cycle_day").unwrap();
-        set[at].1 = "29".into(); // cycle_day above 28
-        assert!(check(VOICE, &set).unwrap_err().starts_with("cycle_day:"));
+        let i = at(&set, "hearing.vendor");
+        set[i].1 = "\"nobody\"".into(); // not a vendor that hears
+        assert_eq!(check(list, &set).unwrap_err(), "hearing.vendor: out of range or the wrong kind");
     }
 
     fn llm(model: &str, effort: &str, thinking: &str, max: i64, retry: i64) -> Vec<(String, String)> {

@@ -6,6 +6,7 @@
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+use serde_json::Value;
 use tonic::{Request, Response, Status};
 
 use crate::{
@@ -124,6 +125,10 @@ pub const RPC_LEVERS: &[(&str, Need)] = &[
     ("ListSettingVersions", Need::Settings(Level::View)),
     ("GetSettings", Need::Settings(Level::View)),
     ("SaveSettings", Need::Settings(Level::Edit)),
+    // The catalog is the code's own data, the same for everyone: no person, no store.
+    ("GetVoiceCatalog", Need::System),
+    // Counts and dates in, counts and dates out: the agent prices its own records and live calls.
+    ("PriceVoiceUse", Need::System),
     ("ListUsers", Need::LeverOrSystem(Lever::People, Level::View)),
     ("AddUser", Need::Lever(Lever::People, Level::Edit)),
     ("RemoveUser", Need::Lever(Lever::People, Level::Edit)),
@@ -233,6 +238,23 @@ impl<S: Scheduler, P: Patients, C: Codes> EhrService<S, P, C> {
 
     fn settings_store(&self) -> Result<&Arc<Store>, Status> {
         self.store.as_ref().ok_or_else(|| Status::failed_precondition("ehr runs without a store"))
+    }
+
+    /// The active voice settings by key (the catalog's first values when there is no store or
+    /// no version), as the voice crate's cost.rs reads them.
+    async fn active_voice(&self) -> deetshealth_voice::cost::Values {
+        let c = deetshealth_voice::catalog();
+        let mut out: deetshealth_voice::cost::Values = deetshealth_voice::defaults(c).into_iter().collect();
+        if let Some(store) = self.store.as_ref() {
+            if let Ok(Some((_, values))) = settings::get(store.pool(), "voice", "settings_voice", 0).await {
+                for (k, v) in values {
+                    if let Ok(v) = serde_json::from_str::<Value>(&v) {
+                        out.insert(k, v);
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// Writes a refusal's audit row on its own and returns `status`. A failed write is noted
@@ -1247,11 +1269,19 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
         let rows = store.stats_rows(&r.since, &r.until, &filter).await.map_err(failed)?;
         let tools = store.stats_tools(&r.since, &r.until, &filter).await.map_err(failed)?;
         let prev = if r.has_prev {
-            Some(stats::totals(&store.stats_rows(&r.prev_since, &r.prev_until, &filter).await.map_err(failed)?))
+            Some(store.stats_rows(&r.prev_since, &r.prev_until, &filter).await.map_err(failed)?)
         } else {
             None
         };
-        Ok(Response::new(edge::stats_out(stats::aggregate(&rows, &tools), prev)))
+        // The voice in dollars at the active plans' prices (the voice crate's cost.rs).
+        let voice = self.active_voice().await;
+        let prices: stats::Prices = deetshealth_voice::catalog()
+            .vendors
+            .iter()
+            .filter_map(|v| deetshealth_voice::cost::usd_per_credit(&voice, &v.id).map(|p| (v.id.clone(), p)))
+            .collect();
+        let prev = prev.map(|rows| stats::totals(&rows, &prices));
+        Ok(Response::new(edge::stats_out(stats::aggregate(&rows, &tools, &prices), prev)))
     }
 
     async fn read_flags(&self, req: Request<pb::ReadFlagsRequest>) -> Result<Response<pb::ReadFlagsReply>, Status> {
@@ -1318,6 +1348,63 @@ impl<S: Scheduler, P: Patients, C: Codes> Ehr for EhrService<S, P, C> {
             },
         };
         Ok(Response::new(reply))
+    }
+
+    async fn price_voice_use(
+        &self,
+        req: Request<pb::PriceVoiceUseRequest>,
+    ) -> Result<Response<pb::PriceVoiceUseReply>, Status> {
+        use deetshealth_voice::cost;
+        self.gate("PriceVoiceUse", req.metadata(), None).await?;
+        let body: Value = serde_json::from_str(&req.get_ref().request).map_err(|_| Status::invalid_argument("request: not JSON"))?;
+        let today = body
+            .get("today")
+            .and_then(Value::as_str)
+            .and_then(cost::Day::parse)
+            .ok_or_else(|| Status::invalid_argument("today: a date (YYYY-MM-DD)"))?;
+        let settings: cost::Values = body
+            .get("settings")
+            .and_then(Value::as_object)
+            .cloned()
+            .ok_or_else(|| Status::invalid_argument("settings: the voice settings"))?;
+        let list = |k: &str| body.get(k).and_then(Value::as_array).cloned().unwrap_or_default();
+        let (calls, live) = (list("calls"), list("live"));
+        if calls.len() > 100_000 || live.len() > 100 {
+            return Err(Status::invalid_argument("calls: too many"));
+        }
+        let c = deetshealth_voice::catalog();
+        // Each filed call: its id (a record's name, never a value of the call), its day, its use.
+        let mut used: Vec<(String, cost::Day, cost::CallUse)> = vec![];
+        for call in &calls {
+            let id = call.get("id").and_then(Value::as_str).unwrap_or("");
+            if id.is_empty() || id.len() > 128 {
+                return Err(Status::invalid_argument("calls: each needs an id"));
+            }
+            let day = call
+                .get("day")
+                .and_then(Value::as_str)
+                .and_then(cost::Day::parse)
+                .ok_or_else(|| Status::invalid_argument("calls: each needs a day (YYYY-MM-DD)"))?;
+            if let Some(u) = call.get("use").and_then(cost::call_use) {
+                used.push((id.to_string(), day, u));
+            }
+        }
+        let live: Vec<cost::CallUse> = live.iter().filter_map(cost::call_use).collect();
+        let dated: Vec<cost::DatedUse<'_>> = used.iter().map(|(_, day, u)| cost::DatedUse { day: *day, used: u }).collect();
+        let reply = serde_json::json!({
+            "calls": used.iter().map(|(id, _, u)| (id.clone(), serde_json::json!(cost::credits(c, u)))).collect::<serde_json::Map<_, _>>(),
+            "live": live.iter().map(|u| cost::credits(c, u)).collect::<Vec<_>>(),
+            "cycles": cost::cycles(c, &settings, today, &dated, &live),
+        });
+        Ok(Response::new(pb::PriceVoiceUseReply { reply: reply.to_string() }))
+    }
+
+    async fn get_voice_catalog(
+        &self,
+        req: Request<pb::GetVoiceCatalogRequest>,
+    ) -> Result<Response<pb::GetVoiceCatalogReply>, Status> {
+        self.gate("GetVoiceCatalog", req.metadata(), None).await?;
+        Ok(Response::new(pb::GetVoiceCatalogReply { catalog: deetshealth_voice::catalog_json().to_string() }))
     }
 
     async fn save_settings(&self, req: Request<pb::SaveSettingsRequest>) -> Result<Response<pb::SaveSettingsReply>, Status> {

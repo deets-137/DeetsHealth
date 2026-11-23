@@ -94,23 +94,16 @@ async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
     // and the active one; the history is insert-only.
     let pool = store.pool();
     assert_eq!(settings::get(pool, "voice", "settings_voice", 0).await.unwrap(), None, "no version yet");
+    // A whole voice set (VOICE-VENDORS.md §2.3): the catalog's first values, with Sonic's speed.
     let set = |speed: serde_json::Value| -> Vec<(&'static str, serde_json::Value)> {
-        settings::VOICE
+        let first = deetshealth_voice::defaults(deetshealth_voice::catalog());
+        settings::voice_list()
             .iter()
             .map(|s| {
-                let v = match s.key {
-                    "voice" => json!({"name": "Skylar", "id": "db6b0ed5-d5d3-463d-ae85-518a07d3c2b4"}),
-                    "speed" => speed.clone(),
-                    "normalization" => json!("auto"),
-                    "pronunciations" | "keyterms" => json!([]),
-                    "eager_end_of_turn" => json!(false),
-                    "barge_in" => json!(true),
-                    "idle_s" => json!(60),
-                    "max_s" => json!(360),
-                    "plan_credits" => json!(20000),
-                    "offset" => json!(270),
-                    "cycle_day" => json!(12),
-                    _ => json!(null),
+                let v = if s.key == "cartesia.speed" {
+                    speed.clone()
+                } else {
+                    first.iter().find(|(k, _)| k == s.key).map(|(_, v)| v.clone()).unwrap()
                 };
                 (s.key, v)
             })
@@ -132,7 +125,7 @@ async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
     .fetch_one(pool)
     .await
     .unwrap();
-    assert_eq!(row, ("system".to_string(), vec!["speed".to_string()], Some(first.id), Some(second.id)));
+    assert_eq!(row, ("system".to_string(), vec!["cartesia.speed".to_string()], Some(first.id), Some(second.id)));
     assert_eq!((first.seq, second.seq, second.active), (1, 2, true));
     assert_eq!(first.day, second.day);
     let versions = settings::versions(pool, "voice").await.unwrap();
@@ -143,12 +136,53 @@ async fn a_record_is_filed_once_sealed_and_again_when_it_changes() {
     );
     let (active, values) = settings::get(pool, "voice", "settings_voice", 0).await.unwrap().unwrap();
     assert_eq!(active.id, second.id);
-    assert!(values.contains(&("speed".to_string(), "1.2".to_string())));
-    assert_eq!(values.len(), settings::VOICE.len());
+    assert!(values.contains(&("cartesia.speed".to_string(), "1.2".to_string())));
+    assert_eq!(values.len(), settings::voice_list().len());
     let (old, values) = settings::get(pool, "voice", "settings_voice", first.id).await.unwrap().unwrap();
-    assert!(!old.active && values.contains(&("speed".to_string(), "null".to_string())));
+    assert!(!old.active && values.contains(&("cartesia.speed".to_string(), "null".to_string())));
+
+    // A version saved before the voice catalog (VOICE-VENDORS.md §8): bare Cartesia keys, no
+    // plan price, as the owner's dev store holds them. It reads in today's shape, passes the
+    // check whole, and the save after it names only what changed.
+    let before_catalog: Vec<(&str, serde_json::Value)> = vec![
+        ("voice", json!({"name": "Daniel", "id": "47c38ca4-5f35-497b-b1a3-415245fb35e1"})),
+        ("speed", json!(1.1)),
+        ("volume", json!(null)),
+        ("emotion", json!(null)),
+        ("normalization", json!("auto")),
+        ("pronunciations", json!([])),
+        ("turn_start_threshold", json!(null)),
+        ("turn_eager_end_threshold", json!(null)),
+        ("turn_end_threshold", json!(null)),
+        ("turn_end_timeout_ms", json!(null)),
+        ("eager_end_of_turn", json!(false)),
+        ("barge_in", json!(true)),
+        ("keyterms", json!([])),
+        ("idle_s", json!(60)),
+        ("max_s", json!(360)),
+        ("plan_credits", json!(20000)),
+        ("offset", json!(270)),
+        ("cycle_day", json!(12)),
+    ];
+    settings::save(pool, "voice", "settings_voice", &before_catalog, "dev", false, None).await.unwrap();
+    let (_, read) = settings::get(pool, "voice", "settings_voice", 0).await.unwrap().unwrap();
+    let checked = settings::check(settings::voice_list(), &read).expect("an old version passes the check whole");
+    let get = |k: &str| checked.iter().find(|(key, _)| *key == k).map(|(_, v)| v.clone());
+    assert_eq!(get("cartesia.speed"), Some(json!(1.1)));
+    assert_eq!(get("cartesia.voice").unwrap()["name"], "Daniel");
+    assert_eq!(get("hearing.vendor"), Some(json!("cartesia")));
+    assert_eq!(get("cartesia.plan_price_usd"), Some(json!(0)), "a setting it lacked takes its first value");
+    let next: Vec<(&str, serde_json::Value)> =
+        checked.iter().map(|(k, v)| (*k, if *k == "cartesia.offset" { json!(300) } else { v.clone() })).collect();
+    settings::save(pool, "voice", "settings_voice", &next, "dev", false, None).await.unwrap();
+    let fields: Vec<String> =
+        sqlx::query_scalar("SELECT fields FROM staff_audit WHERE action = 'settings.save' ORDER BY seq DESC LIMIT 1")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+    assert_eq!(fields, vec!["cartesia.offset".to_string()]);
     for sql in [
-        "UPDATE settings_voice SET value = '1.5' WHERE key = 'speed'",
+        "UPDATE settings_voice SET value = '1.5' WHERE key = 'cartesia.speed'",
         "DELETE FROM setting_activations",
         "UPDATE setting_versions SET seq = 9",
         "TRUNCATE settings_voice",

@@ -17,7 +17,9 @@ Each line is one event: `t_ms` (from the call's start; to a tenth of a milliseco
   schema 7), the mode, the model, its `llm` settings and `inference_geo` (schema 8), its
   `prompt_version` (schema 9), its `system_version` (schema 10), the `label` typed beside
   Start and `started_by` (`owner` or `guest`; schema 11); at the end, the totals and the estimated cost, and for a
-  voice call `cartesia`: Ink's seconds, Sonic's characters and their credits (schema 7).
+  voice call `voice_use`: each direction's vendor and its raw amount, the seconds heard and the
+  characters spoken (schema 16; before it, `cartesia`: Ink's seconds, Sonic's characters and
+  their credits, schema 7). ehr works out the credits (the voice crate's cost.rs).
 - `caller`, `agent` — what each side said. `first_ms` on `agent` (schema 4): when the line's
   first frame passed, on the call's clock; the event's own `t_ms` comes after the harness's
   turn grace (`TURN_GRACE_S` in call.py).
@@ -90,8 +92,10 @@ CALLS = config.AGENT / "calls"
 # id starts with its origin (`test_20261115-201500`; DATABASE.md §7.5).
 # 15: since 2026-11-22: `voice` events on a voice call (Ink's final line, Sonic's first audio,
 # the seat speaking), for the Chat page's Timeline.
-# The catalog reads all fifteen.
-SCHEMA_VERSION = 15
+# 16: since 2026-11-23: `voice_use` on a voice call's `call_end`, raw counts by direction and
+# vendor (VOICE-VENDORS.md §9), in place of `cartesia`. ehr prices both shapes.
+# The catalog reads all sixteen.
+SCHEMA_VERSION = 16
 
 # Who starts a call (DATABASE.md §7.1); a call id starts with its origin and `_`.
 ORIGINS = ("typed", "test", "kept", "live")
@@ -414,13 +418,14 @@ class CallRecord:
             f"{r['failed']} failed - {self.tokens['output_tokens']} tokens out - about ${self.cost():.4f}"
         )
 
-    def close(self, reason: str, cartesia: dict[str, Any] | None = None) -> None:
-        """`cartesia`: a voice call's use of Ink and Sonic (voice.py `VoiceMeter.totals`)."""
+    def close(self, reason: str, voice_use: dict[str, Any] | None = None) -> None:
+        """`voice_use`: a voice call's raw use by direction (voice/__init__.py
+        `VoiceMeter.use`); ehr prices it."""
         if self._file.closed:
             return
         fields: dict[str, Any] = {}
-        if cartesia is not None:
-            fields["cartesia"] = cartesia
+        if voice_use is not None:
+            fields["voice_use"] = voice_use
         self.event("call_end", reason=reason, turns=self.turns, requests=self.requests,
                    tokens=self.tokens, cost_usd=round(self.cost(), 6), **fields)
         self._file.close()

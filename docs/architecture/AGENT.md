@@ -282,13 +282,13 @@ for something the agent cannot do: the offer of a person, a "no", and the call g
   code, and the caller hears the same words either way.
 - **A dead voice ends a voice call** (2026-11-16). A voice call first asks Cartesia whether the
   active voice still exists (`dev_server.py › _voice_missing`; a 404 refuses the call with a
-  message for Config › Cartesia). When Sonic is marked unusable mid-call, the call ends at once
+  message for Config › Voice). When Sonic is marked unusable mid-call, the call ends at once
   with the reason "the voice failed" and a `voice_failed` review flag (`call.py`, FLAGS.md §8).
   In the dev seat no person can take the call; a real call's transfer comes with Twilio.
 - **The end's reason names Pipecat's idle limit** (2026-11-16): a call the idle limit cancels is
   filed as "no activity on the call", not "the caller hung up".
 - **The call timeline is the Chat page's Timeline tab** (built 2026-11-22, CHAT.md §18), from
-  the record's events; a voice call's stages are `voice` events since schema 15 (`voice.py`).
+  the record's events; a voice call's stages are `voice` events since schema 15 (`voice/__init__.py`).
   No trace across the services yet (DEBUGGING.md §1).
 - **Simulated callers** (layer 4) are not built; they come with the chart track
   (BUILD-ORDER.md §3.2).

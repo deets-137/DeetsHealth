@@ -6,13 +6,15 @@ hybrid). Dev only, synthetic callers only, on 127.0.0.1.
 `npm run dev` (scripts/dev.mjs) starts it on a free port with a fresh token, then starts Vite,
 which proxies `/agent/*` here and adds the token. The page never holds the token.
 
-- `GET  /agent/health` — whether the Anthropic key is set, and the Cartesia key (`voice`). Test
-  calls are always live: no replay cache (replay is Demo's alone). Without a key there is no
-  test call; without the Cartesia key, no voice call.
-- `GET  /agent/cartesia` — the Cartesia levers as set now, with their ranges, for the Config
-  page (read only; never the key, only whether it is set).
-- `GET  /agent/cartesia/voices?fresh=` — Cartesia's English voices for the Voice menu and its
-  table (voice_catalog.py): held 10 minutes; no credits.
+- `GET  /agent/health` — whether the Anthropic key is set, and the keys of the voice vendors
+  chosen now (`voice`). Test calls are always live: no replay cache (replay is Demo's alone).
+  Without a key there is no test call; without the voice vendors' keys, no voice call.
+- `GET  /agent/voice/settings`, `POST /agent/voice/settings` — Config › Voice
+  (VOICE-VENDORS.md): the voice settings' versions, the voice catalog (each vendor, its levers
+  and ranges, from ehr), which vendors' keys are set; a save makes a new active version for the
+  next call. Never a key.
+- `GET  /agent/voice/voices?vendor=&fresh=` — a vendor's English voices for the Voice menu and
+  its table (voice_catalog.py, Cartesia's): held 10 minutes; no credits.
 - `GET  /agent/anthropic`, `POST /agent/anthropic` — Config › Anthropic (CONSOLE.md §8): the
   llm settings' versions, each model's rules and prices, this cycle's spend; a save makes a new
   active version for the next test call. Never the key.
@@ -125,11 +127,11 @@ from deets_agent.fake_twilio import FakeTwilio
 from deets_agent.flow import tool_scope, tool_steps
 from deets_agent.identity import LEVELS, LEVERS, Identity, IdentityDown, Principal
 from deets_agent.llm import Mode, build_llm
-from deets_agent.resources import anthropic_cycle, call_use, cartesia_cycle
+from deets_agent.resources import anthropic_cycle, call_use, voice_records
 from deets_agent.rtvi_json import RtviJsonSerializer
 from deets_agent.security_headers import MAX_REPORT_BYTES, SecurityHeaders
 from deets_agent.turn import TurnError, TurnSettings, for_aiortc, ice_servers
-from deets_agent.voice import Voice
+from deets_agent.voice import Voice, vendors
 from deets_agent.voice_catalog import VERSION as CARTESIA_VOICES_VERSION
 from deets_agent.voice_catalog import VoiceCatalog
 
@@ -153,9 +155,9 @@ ROUTE_NEEDS: dict[tuple[str, str], tuple[str, str] | str | None] = {
     ("GET", "/demo"): ANY,
     ("GET", "/demo/{path:path}"): ANY,
     ("POST", "/2010-04-01/Accounts/{account}/Messages.json"): TWILIO,
-    ("GET", "/agent/cartesia"): ("vendors", "view"),
-    ("GET", "/agent/cartesia/voices"): ("vendors", "view"),
-    ("POST", "/agent/cartesia"): ("vendors", "edit"),
+    ("GET", "/agent/voice/settings"): ("vendors", "view"),
+    ("GET", "/agent/voice/voices"): ("vendors", "view"),
+    ("POST", "/agent/voice/settings"): ("vendors", "edit"),
     ("GET", "/agent/anthropic"): ("vendors", "view"),
     ("POST", "/agent/anthropic"): ("vendors", "edit"),
     ("GET", "/agent/prompt"): ("agent", "view"),
@@ -318,11 +320,13 @@ class State:
         self.twilio = FakeTwilio(port)
         self.calls = calls
         self.catalog = Catalog(calls).build()
-        # Voice (CHAT.md §17): the Cartesia key's presence. Each live voice call's parts are on
-        # its own `LiveCall`.
-        self.has_voice = config.cartesia_key() is not None
-        # Cartesia's English voices for Config › Cartesia, held 10 minutes (voice_catalog.py).
-        self.voices = VoiceCatalog(config.cartesia_key())
+        # Voice (CHAT.md §17; VOICE-VENDORS.md): whether the chosen vendors' keys are set is read
+        # per request (`voice_keys_missing`). Each live voice call's parts are on its own
+        # `LiveCall`. Each vendor's English voices for Config › Voice, held 10 minutes
+        # (voice_catalog.py; Cartesia's only so far), made on first ask.
+        self.voices: dict[str, VoiceCatalog] = {}
+        # The voice settings last read (`active_voice_settings`): which vendors' keys health checks.
+        self.voice_values: dict[str, Any] | None = None
         # The settings services whose Default version is known to exist (ensure_default).
         self.seeded: set[str] = set()
         self.ehr: EhrClient | None = None
@@ -439,6 +443,8 @@ def build_app(state: State) -> FastAPI:
         # With Epic's sandbox as a second source when its dev files are here (CHAT.md §13).
         async with running_ehr(env={**state.twilio.ehr_env(), **epic_env()}, store=True) as target:
             state.ehr = await EhrClient.connect(target, config.CERTS)
+            # The voice catalog from ehr itself (VOICE-VENDORS.md §2.1; the owner's V-1 A).
+            await vendors.load(state.ehr)
             # The agent on its own, no person behind it (ehr audits it as the system).
             with as_system():
                 # A hand edit to the prompt file becomes a new version (PROMPT-EDITOR.md §6.2).
@@ -530,30 +536,32 @@ def build_app(state: State) -> FastAPI:
             "live": newest,
             "calls": len(state.lives),
             "epic": state.epic,
-            "voice": state.has_voice,
+            # From the voice settings last read (a call, the page, a save), so the poll asks ehr
+            # nothing; the defaults before any read.
+            "voice": not vendors.keys_missing(state.voice_values or vendors.defaults()),
         }
 
-    @app.get("/agent/cartesia")
-    async def cartesia_settings(version: int = 0):
-        """The voice settings (CONSOLE.md §7): the saved versions, one version's values (the
-        active one when `version` is 0) and the active one's, each lever's range. Never the key:
-        only whether it is set."""
+    @app.get("/agent/voice/settings")
+    async def voice_settings(version: int = 0):
+        """The voice settings (VOICE-VENDORS.md; CONSOLE.md §7): the saved versions, one
+        version's values (the active one when `version` is 0) and the active one's, the catalog.
+        Never a key: only whether each vendor's is set."""
         if version < 0:
             raise HTTPException(400, "version: not a version")
         try:
-            return await cartesia_view(state, version)
+            return await voice_view(state, version)
         except LookupError:
             raise HTTPException(404, "no such version") from None
 
-    @app.get("/agent/cartesia/voices")
-    async def cartesia_voices(fresh: bool = False):
-        """Cartesia's English voices (voice_catalog.py; CONSOLE.md §7): held 10 minutes, read
+    @app.get("/agent/voice/voices")
+    async def voice_list(vendor: str = "cartesia", fresh: bool = False):
+        """A vendor's English voices (voice_catalog.py; CONSOLE.md §7.8): held 10 minutes, read
         again with `fresh` (Refresh) when older than 15 s. No credits. Never the key: only
-        whether it is set. `fault` names Cartesia's status, never a value."""
-        return await state.voices.view(fresh)
+        whether it is set. `fault` names the vendor's status, never a value."""
+        return await voice_list_of(state, vendor).view(fresh)
 
-    @app.post("/agent/cartesia")
-    async def save_cartesia(request: Request):
+    @app.post("/agent/voice/settings")
+    async def save_voice(request: Request):
         """Save the whole set as a new version; it becomes the active one and the next call runs
         with it (CONSOLE.md §7.3). 400 names the setting that does not fit; 409 without a store."""
         try:
@@ -570,7 +578,7 @@ def build_app(state: State) -> FastAPI:
         except VoiceNotFound as e:
             raise HTTPException(400, str(e)) from None
         await save_settings(state, "voice", values)
-        return await cartesia_view(state, 0)
+        return await voice_view(state, 0)
 
     @app.get("/agent/prompt")
     async def prompt_settings(version: int = 0):
@@ -753,25 +761,14 @@ def build_app(state: State) -> FastAPI:
 
     @app.get("/agent/resources")
     async def resources(call: str | None = None):
-        """Cartesia's credits this cycle, from the records and the live voice calls (summed when
-        several run at once), less the active settings' offset; Claude's dollars this cycle
-        against the active budget; and, with `call`, that one call's use so far: Claude's
-        dollars and Cartesia's credits (CHAT.md §17). Counts only."""
-        live: dict[str, Any] | None = None
-        for c in state.lives.values():
-            if c.voice is None:
-                continue
-            now = {**c.voice.meter.totals(), "seconds": round(c.voice.meter.elapsed())}
-            live = now if live is None else {k: live.get(k, 0) + v for k, v in now.items()}
+        """Each chosen voice vendor's cycle (plan, use, left, renewal), priced by ehr with the
+        voice crate from the records and the live voice calls (VOICE-VENDORS.md §9); Claude's
+        dollars this cycle against the active budget; and, with `call`, that one call's use so
+        far: Claude's dollars and the voice's credits by vendor (CHAT.md §17). Counts only.
+        `vendors` is empty while ehr is not up."""
         values = await active_voice_settings(state)
-        cycle = cartesia_cycle(
-            state.calls,
-            live=live,
-            plan=int(values["plan_credits"]),
-            offset=int(values["offset"]),
-            day=int(values["cycle_day"]),
-            limits=(int(values["idle_s"]), int(values["max_s"])),
-        )
+        live = [c.voice.meter.use() for c in state.lives.values() if c.voice is not None]
+        priced = await price_voice(state, values, voice_records(state.calls), live)
         llm = await active_settings(state, "llm")
         claude = anthropic_cycle(
             state.calls,
@@ -780,7 +777,13 @@ def build_app(state: State) -> FastAPI:
             offset=float(llm["offset_usd"]),
             day=int(llm["cycle_day"]),
         )
-        return {"cartesia": cycle, "anthropic": claude, "call": call_now(state, call), "voice": state.has_voice}
+        return {
+            "vendors": priced["cycles"] if priced else [],
+            "limits": {"idle_s": int(values["idle_s"]), "max_s": int(values["max_s"])},
+            "anthropic": claude,
+            "call": await call_now(state, call, values),
+            "voice": not vendors.keys_missing(values),
+        }
 
     @app.get("/agent/sandbox")
     async def sandbox(ehr: str = "local"):
@@ -939,8 +942,12 @@ def build_app(state: State) -> FastAPI:
         RTVI on its data channel (typed lines too). The browser sends its offer with every ICE
         candidate in it, so there is no trickle route. `label` and `tag` as on `/agent/call`."""
         refused = _refuse_call(state, ehr)
-        if refused is None and not state.has_voice:
-            refused = "a voice call needs a Cartesia key in .env"
+        # The active voice settings (VOICE-VENDORS.md §2.3), read once: the whole call runs with
+        # them. Each chosen vendor needs its key.
+        values = await active_voice_settings(state)
+        missing_keys = vendors.keys_missing(values)
+        if refused is None and missing_keys:
+            refused = f"a voice call needs {' and '.join(missing_keys)} in .env"
         if refused is not None:
             raise HTTPException(409, refused)
         body = await request.body()
@@ -952,17 +959,15 @@ def build_app(state: State) -> FastAPI:
             raise HTTPException(400, "not JSON") from None
         if not (isinstance(offer, dict) and offer.get("type") == "offer" and isinstance(offer.get("sdp"), str)):
             raise HTTPException(400, "an SDP offer: {type: offer, sdp}")
-        key = config.cartesia_key()
-        if key is None:
-            raise HTTPException(409, "a voice call needs a Cartesia key in .env")
-        # The active voice settings (CONSOLE.md §7), read once: the whole call runs with them.
-        values = await active_voice_settings(state)
         # A voice Cartesia no longer has makes every line silent (the call of 2026-11-15, 22:38:
         # "Emma" was gone, and the caller heard nothing for a minute). Ask before the call
         # starts; no credits.
-        missing = await _voice_missing(key, (values.get("voice") or {}).get("id") or config.voice_id())
-        if missing is not None:
-            raise HTTPException(409, missing)
+        if vendors.chosen(values, "speaking") == "cartesia":
+            key = vendors.key("cartesia")
+            voice_id = (values.get("cartesia.voice") or {}).get("id") or vendors.defaults()["cartesia.voice"]["id"]
+            missing = await _voice_missing(key, voice_id) if key else None
+            if missing is not None:
+                raise HTTPException(409, missing)
         # On this PC both ends are local: host candidates only, no STUN or TURN server. A guest
         # is on another network: STUN and TURN, with this end's own credentials (DEMO.md §3.7).
         servers = await _ice_for(state, request.state.who)
@@ -981,7 +986,7 @@ def build_app(state: State) -> FastAPI:
         live = _open_record(
             state, ehr, "voice", llm, words, request.state.who, _label(label), _tag(tag)
         )
-        live.voice = Voice(key, values)
+        live.voice = Voice(values)
         task = asyncio.create_task(_run_call(state, transport, live, llm, words))
         state.tasks.add(task)
         task.add_done_callback(state.tasks.discard)
@@ -1295,8 +1300,9 @@ def build_app(state: State) -> FastAPI:
         """Analytics' sums (ANALYTICS.md §3.2): Home, Outcome, Cost, Speed and Flags for the
         synthetic calls of the last `days` days (0: today; none: all) that pass the filter bar's
         filters, through ehr's `CallStats`; with `days`, `prev` holds the totals of the same
-        length before. `usd_per_credit`: the active Cartesia plan's price over its credits, or
-        null when the price is not set. Names, counts, times and dollars only. 400 for a filter
+        length before. Each sum's `voice` is priced by ehr (the voice crate's cost.rs): credits by
+        vendor, dollars at the active plans' prices, and `priced`; `vendor_names` names each
+        vendor id. Names, counts, times and dollars only. 400 for a filter
         out of its words; 409 without a store."""
         if days is not None and not 0 <= days <= 3650:
             raise HTTPException(400, "days: 0 to 3650")
@@ -1329,9 +1335,9 @@ def build_app(state: State) -> FastAPI:
             if e.kind is ErrorKind.FORBIDDEN:
                 raise HTTPException(403, "Analytics View is needed") from None
             raise HTTPException(502, "ehr could not sum the calls") from None
-        voice = await active_voice_settings(state)
-        price, plan = float(voice.get("plan_price_usd") or 0), int(voice.get("plan_credits") or 0)
-        return {**sums, "class": "synthetic", "range_days": days, "usd_per_credit": price / plan if price > 0 and plan > 0 else None}
+        # The voice comes priced from ehr (the voice crate's cost.rs); the page names each vendor.
+        names = {v["id"]: v["name"] for v in vendors.current()["vendors"]}
+        return {**sums, "class": "synthetic", "range_days": days, "vendor_names": names}
 
     @app.get("/agent/flags/{call_id}")
     async def flag_words(call_id: str):
@@ -1575,7 +1581,7 @@ class DemoPrefix:
 # The prompt's Default is the prompt file as it is when the store first sees it; the System
 # variables' Default is the variables file (SYSTEM-PAGE.md §3.4).
 DEFAULTS = {
-    "voice": config.voice_defaults,
+    "voice": lambda: vendors.defaults(),
     "llm": config.llm_defaults,
     "prompt": prompts.load,
     "system": lambda: {"variables": prompts.variables_to_store(prompts.load_variables())},
@@ -2079,25 +2085,51 @@ async def active_settings(state: State, service: str) -> dict[str, Any]:
     return values
 
 
-def call_now(state: State, call: str | None) -> dict[str, Any] | None:
+async def price_voice(
+    state: State, values: dict[str, Any], calls: list[dict[str, Any]], live: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """The voice's cost from ehr (`PriceVoiceUse`, the voice crate's cost.rs): each call's
+    credits by vendor, the live calls', each chosen vendor's cycle. None while ehr is not up or
+    does not answer. Python never prices the voice itself (VOICE-VENDORS.md §9)."""
+    if state.ehr is None:
+        return None
+    request = {"today": date.today().isoformat(), "settings": values, "calls": calls, "live": live}
+    try:
+        return await state.ehr.price_voice_use(request)
+    except EhrError:
+        return None
+
+
+async def call_now(state: State, call: str | None, values: dict[str, Any]) -> dict[str, Any] | None:
     """One call's use for the Resources tab: a live call's running totals, else its record's
-    (the catalog checks the id). None when there is no such call."""
+    (the catalog checks the id), with the voice's credits by vendor (`credits`; None for a text
+    call or while ehr is not up). None when there is no such call."""
     if not call:
         return None
     lc = state.lives.get(call)
     if lc is not None:
-        return {
-            "seat": lc.seat,
-            "usd": round(lc.record.cost(), 6),
-            "credits": int(lc.voice.meter.totals().get("credits") or 0) if lc.voice is not None else None,
-            "live": True,
-        }
+        credits = None
+        if lc.voice is not None:
+            priced = await price_voice(state, values, [], [lc.voice.meter.use()])
+            credits = priced["live"][0] if priced else None
+        return {"seat": lc.seat, "usd": round(lc.record.cost(), 6), "credits": credits, "live": True}
     events = state.catalog.events(call)
-    return call_use(events) if events is not None else None
+    if events is None:
+        return None
+    use = call_use(events)
+    part = use.pop("use")
+    credits = None
+    if part is not None:
+        # The day only places a call in a cycle; one call's credits do not depend on it.
+        priced = await price_voice(state, values, [{"id": call, "day": date.today().isoformat(), "use": part}], [])
+        credits = priced["calls"].get(call) if priced else None
+    return {**use, "credits": credits}
 
 
 async def active_voice_settings(state: State) -> dict[str, Any]:
-    return await active_settings(state, "voice")
+    """The active voice settings, kept on the state for `/agent/health`."""
+    state.voice_values = await active_settings(state, "voice")
+    return state.voice_values
 
 
 async def ensure_default(state: State, service: str = "voice") -> None:
@@ -2222,28 +2254,30 @@ def _version_row(v: SettingVersion) -> dict[str, Any]:
     return {"id": v.id, "label": v.label, "active": v.active, "created_at": v.created_at, "created_by": v.created_by}
 
 
-async def cartesia_view(state: State, version: int) -> dict[str, Any]:
-    """The Config page's Cartesia view (CONSOLE.md §7): the saved versions, newest first; one
-    version's values (the active one when `version` is 0); the active version's values, so the
-    page can mark what an older version changed; and each lever's range. Raises LookupError for
-    a version that does not exist."""
+def voice_list_of(state: State, vendor: str) -> VoiceCatalog:
+    """A vendor's voice list, held 10 minutes (voice_catalog.py). Cartesia's is the only one
+    built; any other vendor is a 404 until its list is."""
+    if vendor != "cartesia":
+        raise HTTPException(404, "no voice list for that vendor")
+    if vendor not in state.voices:
+        state.voices[vendor] = VoiceCatalog(vendors.key(vendor))
+    return state.voices[vendor]
+
+
+async def voice_view(state: State, version: int) -> dict[str, Any]:
+    """Config › Voice (VOICE-VENDORS.md §2.5): the saved versions, newest first; one version's
+    values (the active one when `version` is 0); the active version's values, so the page can
+    mark what an older version changed; the catalog (each vendor, its directions, levers, ranges,
+    rates, voices); whether each vendor's key is set; each vendor's API version. Raises
+    LookupError for a version that does not exist."""
     view = await settings_view(state, "voice", version)
+    state.voice_values = view["active"]
+    catalog = vendors.current()
     return {
-        "key": state.has_voice,
         **view,
-        "api_version": CARTESIA_API_VERSION,
-        "tts": {
-            "model": config.TTS_MODEL,
-            "voices": [{"name": n, "id": i} for n, i in config.RECOMMENDED_VOICES],
-            "emotions": list(config.SONIC_EMOTIONS),
-            "ranges": config.SONIC_LEVERS,
-        },
-        "stt": {
-            "model": config.STT_MODEL,
-            "profiles": config.TURN_PROFILES,
-            "ranges": config.INK_TURN_LEVERS,
-        },
-        "rates": {"ink_per_s": config.INK_CREDITS_PER_S, "sonic_per_char": config.SONIC_CREDITS_PER_CHAR},
+        "catalog": {"vendors": catalog["vendors"], "shared": catalog["shared"]},
+        "keys": {v["id"]: vendors.key(v["id"], catalog) is not None for v in catalog["vendors"]},
+        "api_versions": {"cartesia": CARTESIA_API_VERSION},
     }
 
 
@@ -2252,31 +2286,32 @@ class VoiceNotFound(Exception):
 
 
 async def resolve_voice(state: State, values: dict[str, Any]) -> dict[str, Any]:
-    """Give the voice its Cartesia id before a save, and check it. The id is the voice: a name
-    can belong to several voices. The page sends the id from Cartesia's list (voice_catalog.py);
-    with none, a voice from Cartesia's docs has one (config.RECOMMENDED_VOICES), and any other is
-    found by name. An id the held list does not have is asked of Cartesia's Get Voice. No credits;
-    the name never leaves this machine except to Cartesia."""
-    voice = values.get("voice")
+    """Give Cartesia's voice its id before a save, and check it. The id is the voice: a name can
+    belong to several voices. The page sends the id from Cartesia's list (voice_catalog.py); with
+    none, a voice from Cartesia's docs has one (the catalog's recommended voices), and any other
+    is found by name. An id the held list does not have is asked of Cartesia's Get Voice. No
+    credits; the name never leaves this machine except to Cartesia."""
+    voice = values.get("cartesia.voice")
     if not isinstance(voice, dict) or not isinstance(voice.get("name"), str):
-        raise VoiceNotFound("voice: a name")
+        raise VoiceNotFound("cartesia.voice: a name")
     name = voice["name"].strip()
     vid = voice.get("id")
     if vid is not None and (not isinstance(vid, str) or not re.fullmatch(r"[0-9a-fA-F-]{8,64}", vid)):
-        raise VoiceNotFound("voice: not a Cartesia voice id")
-    key = config.cartesia_key()
+        raise VoiceNotFound("cartesia.voice: not a Cartesia voice id")
+    key = vendors.key("cartesia")
     if not vid:
-        vid = dict(config.RECOMMENDED_VOICES).get(name)
+        docs = {x["name"]: x.get("id") for x in vendors.vendor("cartesia")["speaking"]["voices"]}
+        vid = docs.get(name)
     if not vid:
         if key is None:
-            raise VoiceNotFound("voice: finding its id needs the Cartesia key in .env")
+            raise VoiceNotFound("cartesia.voice: finding its id needs the Cartesia key in .env")
         vid = await _find_voice_id(key, name)
-    held = state.voices.find(vid)
+    held = voice_list_of(state, "cartesia").find(vid)
     if held is not None:
         name = held["name"]
     elif key is not None and await _voice_missing(key, vid):
-        raise VoiceNotFound("voice: Cartesia no longer has that voice")
-    return {**values, "voice": {"name": name, "id": vid}}
+        raise VoiceNotFound("cartesia.voice: Cartesia no longer has that voice")
+    return {**values, "cartesia.voice": {"name": name, "id": vid}}
 
 
 async def _find_voice_id(key: str, name: str) -> str:
@@ -2314,7 +2349,7 @@ async def _voice_missing(key: str, voice_id: str) -> str | None:
             s.get(f"https://api.cartesia.ai/voices/{voice_id}", headers=headers) as r,
         ):
             if r.status == 404:
-                return "Cartesia no longer has the active voice: choose another on Config › Cartesia"
+                return "Cartesia no longer has the active voice: choose another on Config › Voice"
     except (aiohttp.ClientError, TimeoutError):
         return None
     return None
@@ -2443,7 +2478,7 @@ async def _run_call(
         record.event("error", type=type(e).__name__, message=str(e))
     finally:
         prompts.reset(token)
-        record.close(reason, cartesia=voice.meter.totals() if voice is not None else None)
+        record.close(reason, voice_use=voice.meter.use() if voice is not None else None)
         redact.set_dev_tap(None)
         await _file(state.ehr, record)
         state.lives.pop(record.call_id, None)

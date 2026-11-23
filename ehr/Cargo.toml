@@ -14,6 +14,9 @@ publish = false
 # ehr never uses core's `Net`, and that feature would link OpenSSL on Linux. One TLS stack here,
 # rustls on AWS-LC (DEPENDENCIES.md §5, item 6).
 deetshealth-core = { path = "../core", default-features = false }
+# The voice catalog: each voice vendor's levers, which make the `voice` settings
+# (docs/architecture/VOICE-VENDORS.md).
+deetshealth-voice = { path = "../voice" }
 # The gRPC server and the generated code. `tls-connect-info` lets tonic serve our own TLS
 # streams; tonic builds no TLS config of its own (transport.rs does).
 tonic = { version = "0.14", default-features = false, features = ["codegen", "router", "transport", "tls-connect-info"] }

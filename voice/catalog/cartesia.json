@@ -1,0 +1,56 @@
+{
+  "id": "cartesia",
+  "name": "Cartesia",
+  "key_env": "CARTESIA_API_KEY",
+  "baa": "Enterprise plan, with zero data retention",
+  "hearing": {
+    "product": "Ink",
+    "model": "ink-2",
+    "own_turns": true,
+    "rate": { "unit": "credits", "per": "second", "amount": 3 },
+    "levers": [
+      { "key": "turn_start_threshold", "kind": "number", "min": 0.5, "max": 0.9, "step": 0.05, "default": 0.8, "nullable": true },
+      { "key": "turn_eager_end_threshold", "kind": "number", "min": 0.3, "max": 0.8, "step": 0.05, "default": 0.6, "nullable": true },
+      { "key": "turn_end_threshold", "kind": "number", "min": 0.05, "max": 0.5, "step": 0.05, "default": 0.3, "nullable": true },
+      { "key": "turn_end_timeout_ms", "kind": "number", "min": 640, "max": 11200, "step": 80, "default": 5600, "nullable": true },
+      { "key": "eager_end_of_turn", "kind": "bool", "default": false }
+    ],
+    "profiles": {
+      "balanced": { "turn_start_threshold": 0.8, "turn_eager_end_threshold": 0.6, "turn_end_threshold": 0.3, "turn_end_timeout_ms": 5600 },
+      "responsive": { "turn_start_threshold": 0.7, "turn_eager_end_threshold": 0.6, "turn_end_threshold": 0.4, "turn_end_timeout_ms": 4500 },
+      "patient": { "turn_start_threshold": 0.8, "turn_eager_end_threshold": 0.3, "turn_end_threshold": 0.1, "turn_end_timeout_ms": 8000 }
+    }
+  },
+  "speaking": {
+    "product": "Sonic",
+    "model": "sonic-3.6",
+    "rate": { "unit": "credits", "per": "character", "amount": 1 },
+    "levers": [
+      { "key": "voice", "kind": "voice", "default": { "name": "Skylar", "id": "db6b0ed5-d5d3-463d-ae85-518a07d3c2b4" } },
+      { "key": "speed", "kind": "number", "min": 0.6, "max": 1.5, "step": 0.05, "default": 1.0, "nullable": true },
+      { "key": "volume", "kind": "number", "min": 0.5, "max": 2.0, "step": 0.05, "default": 1.0, "nullable": true },
+      { "key": "emotion", "kind": "word", "words": ["neutral", "calm", "content", "sad", "angry"], "nullable": true },
+      { "key": "normalization", "kind": "word", "words": ["auto", "off"], "default": "auto" }
+    ],
+    "voices": [
+      { "name": "Skylar", "id": "db6b0ed5-d5d3-463d-ae85-518a07d3c2b4" },
+      { "name": "Gemma" },
+      { "name": "Jacqueline" },
+      { "name": "Lauren" },
+      { "name": "Daniel", "id": "47c38ca4-5f35-497b-b1a3-415245fb35e1" },
+      { "name": "Archie" },
+      { "name": "Parker" },
+      { "name": "Jameson" },
+      { "name": "Corey" }
+    ]
+  },
+  "account": {
+    "unit": "credits",
+    "levers": [
+      { "key": "plan_credits", "kind": "whole", "min": 0, "max": 1000000000, "default": 20000 },
+      { "key": "plan_price_usd", "kind": "number", "min": 0, "max": 100000, "default": 0 },
+      { "key": "offset", "kind": "whole", "min": 0, "max": 1000000000, "default": 0 },
+      { "key": "cycle_day", "kind": "whole", "min": 1, "max": 28, "default": 1 }
+    ]
+  }
+}

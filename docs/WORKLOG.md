@@ -8,6 +8,28 @@ updated: 2026-11-19
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-23 (Windows) — Voice vendors: the design
+- His words: "how plug and play is the voice side of things? can we use eleven labs?" Answer
+  from the code: not plug-and-play; Cartesia is bound in `voice.py`, `config.py`,
+  `settings.rs › VOICE`, the store's `cartesia_credits`, the dev API and Config › Cartesia.
+- Then: "Yup, let's design the crate for it". Wrote `architecture/VOICE-VENDORS.md` (designed):
+  the `voice` crate (the catalog and the checks), a Python adapter per vendor, a vendor for each
+  direction, the store's `voice_use`, the build in six steps. Three forks open: how the catalog
+  reaches the agent (V-1), how a version holds two vendors (V-2), one Config › Voice page (V-3).
+- His answer: "Yes, all three" (V-1 A: ehr serves the catalog; V-2 A: one version holds every
+  vendor; V-3 A: one page, Config › Voice).
+- Built steps 1, 2, 3 and 5 (VOICE-VENDORS.md §8): the `voice` crate with Cartesia's catalog,
+  `GetVoiceCatalog` and `ehr voice-catalog`, old voice versions read in the new shape, the agent's
+  `voice/` package (vendors, the Cartesia adapter), the routes `/agent/voice/settings` and
+  `/agent/voice/voices`, Config › Voice. Not built: step 4 (cost shape), step 6 (ElevenLabs).
+- Fixed the clippy lint at `ehr/src/stats.rs:370` (his "fix it").
+- Step 4, his words: "pull out the hard coded pieces and set it in the voice/ crate as functions
+  that can be pulled upon". Asked how the agent reaches them: through ehr (recommended) or the
+  crate as a Python module; his answer "through ehr is fine". Built (VOICE-VENDORS.md §9):
+  `voice/src/cost.rs`, migration 0015 (`voice_credits`), `PriceVoiceUse`, record schema 16
+  (`voice_use`), the sums' `voice`, Resources and Analytics › Cost per vendor.
+- No screenshots this sitting.
+
 ## 2026-11-22 (Windows, night) — Analytics: the other five views
 - Committed Logs as `23aef48` (his "looks good"; not pushed). His words: "let's build out the
   other pages".

@@ -20,15 +20,15 @@ export const audit = keyed("audit", (rows: "all" | "changes") => api.audit(0, ro
 
 /** Config's sections, by version (0: the active one). A version is a number the store made,
  * not protected data, but the ledger leaves it out all the same. */
-export const cartesiaSettings = keyed("settings.cartesia", (v: number) => api.cartesiaSettings(v));
+export const voiceSettings = keyed("settings.voice", (v: number) => api.voiceSettings(v));
 export const anthropicSettings = keyed("settings.anthropic", (v: number) => api.anthropicSettings(v));
 export const systemSettings = keyed("settings.system", (v: number) => api.systemSettings(v));
 export const hospitalSettings = keyed("settings.hospital", (v: number) => api.hospitalSettings(v));
 export const promptSettings = keyed("settings.agent", (v: number) => api.promptSettings(v));
 
-/** Config › Cartesia's voice list. It leaves this machine (Cartesia): never on focus, never
- * holds the first-load wave. Refresh is a write whose answer is the new list. */
-export const cartesiaVoices = store("cartesia.voices", () => api.cartesiaVoices(), { leaves: true });
+/** Config › Voice's voice list (Cartesia's). It leaves this machine (Cartesia): never on focus,
+ * never holds the first-load wave. Refresh is a write whose answer is the new list. */
+export const cartesiaVoices = store("cartesia.voices", () => api.voiceVoices("cartesia"), { leaves: true });
 
 /** Analytics › Logs (ANALYTICS.md §3.1), by the filter bar's range, a fixed word. The dev server
  * counts the days on its own clock at each read, so "7d" stays the last seven days. */

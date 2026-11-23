@@ -136,108 +136,16 @@ def anthropic_key() -> str | None:
     return key or None
 
 
-# ---- voice: Cartesia Ink in, Sonic out (integrations/CARTESIA.md §9 lists every lever) ----
-
-# Pinned by name: Cartesia lists no dated snapshots (CARTESIA.md §3). Never `sonic-latest`.
-STT_MODEL = "ink-2"
-TTS_MODEL = "sonic-3.6"
-# Skylar, from Cartesia's list of stable voices for agents (CARTESIA.md §3): a draft until the
-# owner picks one by ear. CARTESIA_VOICE_ID in .env overrides it.
-DEFAULT_VOICE_ID = "db6b0ed5-d5d3-463d-ae85-518a07d3c2b4"
-
-# What Cartesia charges (docs.cartesia.ai/pricing, read 2026-11-12): Ink-2, 3 credits per second
-# of audio streamed, silence included; Sonic, about 1 credit per character.
-INK_CREDITS_PER_S = 3
-SONIC_CREDITS_PER_CHAR = 1
+# ---- voice (VOICE-VENDORS.md) ----
+# Each vendor's models, levers, ranges, rates and recommended voices are in the voice catalog
+# (the `deetshealth-voice` crate, voice/catalog/*.json), which ehr serves: voice/vendors.py
+# reads it. Nothing of a vendor's is copied here.
 
 # The limits of a voice test call (the owner, 2026-11-13: 60 s and 6 min). A dev guard for the
 # Free plan's credits, not a caller's experience: the call ends with no spoken line. What a
 # real call does is a hospital setting (FUTURE-SETTINGS.md §12).
 VOICE_IDLE_S = 60
 VOICE_MAX_S = 6 * 60
-
-# The Free plan's credits per month (cartesia.ai/pricing). CARTESIA_PLAN_CREDITS in .env sets
-# another plan's; CARTESIA_CYCLE_DAY the day of the month the credits renew (the day the
-# account was opened).
-FREE_PLAN_CREDITS = 20_000
-
-
-# The voices Cartesia recommends for agents (its "Choosing a voice" guide, read 2026-11-12): the
-# top of the Config page's Voice menu. Cartesia's API has no "recommended" mark, so these names
-# stay here; the page checks each against Cartesia's live list (voice_catalog.py) and takes its
-# id from there. An id here is a fallback where Cartesia's docs print one (no key, no list).
-RECOMMENDED_VOICES: tuple[tuple[str, str | None], ...] = (
-    ("Skylar", DEFAULT_VOICE_ID),
-    ("Gemma", None),
-    ("Jacqueline", None),
-    # "Emma" left the list on 2026-11-16: Cartesia has no voice of that name now.
-    ("Lauren", None),
-    ("Daniel", "47c38ca4-5f35-497b-b1a3-415245fb35e1"),
-    ("Archie", None),
-    ("Parker", None),
-    ("Jameson", None),
-    ("Corey", None),
-)
-
-# Each lever's range and Cartesia's default (CARTESIA.md §9), for the Config page. None as a
-# current value means "Cartesia's default": we send nothing for it.
-INK_TURN_LEVERS = {
-    "turn_start_threshold": {"min": 0.5, "max": 0.9, "step": 0.05, "default": 0.8},
-    "turn_eager_end_threshold": {"min": 0.3, "max": 0.8, "step": 0.05, "default": 0.6},
-    "turn_end_threshold": {"min": 0.05, "max": 0.5, "step": 0.05, "default": 0.3},
-    "turn_end_timeout_ms": {"min": 640, "max": 11200, "step": 80, "default": 5600},
-}
-SONIC_LEVERS = {
-    "speed": {"min": 0.6, "max": 1.5, "step": 0.05, "default": 1.0},
-    "volume": {"min": 0.5, "max": 2.0, "step": 0.05, "default": 1.0},
-}
-SONIC_EMOTIONS = ("neutral", "calm", "content", "sad", "angry")
-# Cartesia's starting sets of the four turn settings (docs.cartesia.ai › STT › Turns, read
-# 2026-11-13). Not an API parameter: a profile is these four values. Balanced is the default.
-TURN_PROFILES = {
-    "balanced": {"turn_start_threshold": 0.8, "turn_eager_end_threshold": 0.6, "turn_end_threshold": 0.3, "turn_end_timeout_ms": 5600},
-    "responsive": {"turn_start_threshold": 0.7, "turn_eager_end_threshold": 0.6, "turn_end_threshold": 0.4, "turn_end_timeout_ms": 4500},
-    "patient": {"turn_start_threshold": 0.8, "turn_eager_end_threshold": 0.3, "turn_end_threshold": 0.1, "turn_end_timeout_ms": 8000},
-}
-
-
-def voice_defaults() -> dict:
-    """Every voice setting at its default: what a call runs with before any version is saved,
-    and the set the Config page starts from. The same names as ehr's settings.rs › VOICE.
-    None is the provider's default."""
-    vid = voice_id()
-    name = next((n for n, i in RECOMMENDED_VOICES if i == vid), vid)
-    return {
-        "voice": {"name": name, "id": vid},
-        "speed": None,
-        "volume": None,
-        "emotion": None,
-        "normalization": "auto",
-        "pronunciations": [],
-        **{k: None for k in INK_TURN_LEVERS},
-        "eager_end_of_turn": False,
-        "barge_in": True,
-        "keyterms": [],
-        "idle_s": VOICE_IDLE_S,
-        "max_s": VOICE_MAX_S,
-        "plan_credits": plan_credits(),
-        # The plan's price a month in dollars; 0 is not set (Analytics › Cost shows credits).
-        "plan_price_usd": 0,
-        "offset": 0,
-        "cycle_day": cycle_day(),
-    }
-
-
-def cartesia_key() -> str | None:
-    """The Cartesia key from the git-ignored .env. Never printed, never logged."""
-    load_dotenv(REPO / ".env", override=False)
-    key = os.environ.get("CARTESIA_API_KEY", "").strip()
-    return key or None
-
-
-def voice_id() -> str:
-    load_dotenv(REPO / ".env", override=False)
-    return os.environ.get("CARTESIA_VOICE_ID", "").strip() or DEFAULT_VOICE_ID
 
 
 def _env_int(name: str, default: int, low: int, high: int) -> int:
@@ -248,11 +156,3 @@ def _env_int(name: str, default: int, low: int, high: int) -> int:
         return default
     return value if low <= value <= high else default
 
-
-def plan_credits() -> int:
-    return _env_int("CARTESIA_PLAN_CREDITS", FREE_PLAN_CREDITS, 1, 1_000_000_000)
-
-
-def cycle_day() -> int:
-    """The day of the month Cartesia's credits renew. 28 at most, so every month has it."""
-    return _env_int("CARTESIA_CYCLE_DAY", 1, 1, 28)

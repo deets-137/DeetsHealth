@@ -23,7 +23,7 @@ import {
   type CallRow,
   type AnthropicCycle,
   type CallUse,
-  type CartesiaCycle,
+  type VendorCycle,
   type EhrSource,
   type Rating,
   type Sandbox,
@@ -953,7 +953,7 @@ export function chatPage(): Page {
         },
       );
 
-      // ---- the Resources tab (CHAT.md §17): Claude's dollars and Cartesia's credits left this
+      // ---- the Resources tab (CHAT.md §17): Claude's dollars and each voice vendor's credits left this
       // cycle, and the use of the call this page shows: Testing's own call (kept after it ends,
       // till the next Start), the call PHI watches, the call Demo played. Read when the page
       // opens, when the shown call changes, after each call, and every few seconds while any
@@ -971,7 +971,7 @@ export function chatPage(): Page {
       let stopPoll = () => {};
       const drawUse = (s: State<Use>) => {
         const r = s.value;
-        if (r) resourcesBox.replaceChildren(...resourceRows(r.anthropic, r.cartesia, r.call, r.voice));
+        if (r) resourcesBox.replaceChildren(...resourceRows(r.anthropic, r.vendors, r.limits, r.call, r.voice));
         else if (s.status === "down") resourcesBox.replaceChildren(note("The agent's dev server is not running"));
         else if (s.status === "refused") resourcesBox.replaceChildren(note("The agent's dev server refused"));
       };
@@ -1818,13 +1818,16 @@ function agentFacts(llm: CallEvent[]): string | undefined {
   return typeof ms === "number" ? `text ${(ms / 1000).toFixed(1)} s` : undefined;
 }
 
-/** The Resources tab (CHAT.md §17; the owner, 2026-11-14): two columns, Anthropic | Cartesia,
- * in three blocks split by lines: what is left this cycle (a bar and "N of M left"), the shown
- * call's use (Claude in cents, Cartesia in credits), and the cycle's facts. Then the notes.
- * Counts and dates only, never a value from a call. */
+/** The Resources tab (CHAT.md §17; the owner, 2026-11-14): Anthropic, then one column for each
+ * voice vendor in use (VOICE-VENDORS.md §9; one column today, Cartesia), in three blocks split by
+ * lines: what is left this cycle (a bar and "N of M left"), the shown call's use (Claude in
+ * cents, the vendor in its credits), and the cycle's facts. Then the notes. The voice's numbers
+ * come priced by ehr (the voice crate's cost.rs). Counts and dates only, never a value from a
+ * call. */
 function resourceRows(
   a: AnthropicCycle,
-  c: CartesiaCycle,
+  vendors: VendorCycle[],
+  limits: { idle_s: number; max_s: number },
   call: CallUse | null,
   keyed: boolean,
 ): HTMLElement[] {
@@ -1865,68 +1868,86 @@ function resourceRows(
     m.append(fill);
     return m;
   };
-  const cell = (side: "anthropic" | "cartesia", ...parts: HTMLElement[]) => {
+  // The voice's columns: each vendor's, or one that says the voice is not counted yet.
+  const cols = Math.max(1, vendors.length);
+  const cell = (side: "anthropic" | "voice", last: boolean, ...parts: HTMLElement[]) => {
     const e = document.createElement("div");
     e.className = `res-cell res-${side}`;
+    e.classList.toggle("res-end", last);
     e.append(...parts);
     return e;
   };
+  const voiceCells = (draw: (v: VendorCycle) => HTMLElement[], none: () => HTMLElement[]) =>
+    vendors.length ? vendors.map((v, i) => cell("voice", i === vendors.length - 1, ...draw(v))) : [cell("voice", true, ...none())];
+  // One direction's raw use: "Ink 4:12", "Sonic 3,210 characters".
+  const amount = (x: VendorCycle["amounts"][number]) =>
+    `${x.product} ${x.per === "second" ? minutes(x.amount) : `${n(x.amount)} ${x.amount === 1 ? x.per : `${x.per}s`}`}`;
 
   const aBudget = a.budget - a.offset;
-  const cPlan = c.plan - c.offset;
   const top = [
     cell(
       "anthropic",
+      false,
       text("h2", "res-head", "Anthropic"),
       meter("Claude dollars left this cycle", a.left, aBudget),
       text("p", "res-left", `${usd(Math.max(0, a.left))} of ${usd(aBudget)} left`),
     ),
-    cell(
-      "cartesia",
-      text("h2", "res-head", "Cartesia"),
-      meter("Cartesia credits left this cycle", c.left, cPlan),
-      text("p", "res-left", `${n(c.left)} of ${n(cPlan)} left`),
+    ...voiceCells(
+      (v) => {
+        const plan = v.plan - v.offset;
+        return [
+          text("h2", "res-head", v.name),
+          meter(`${v.name} ${v.unit} left this cycle`, v.left, plan),
+          text("p", "res-left", `${n(Math.max(0, v.left))} of ${n(plan)} left`),
+        ];
+      },
+      () => [text("h2", "res-head", "Voice"), text("p", "res-left", "Not counted: ehr is not up")],
     ),
   ];
 
   const callHead = call?.live ? "This call so far" : "This call";
   const middle = [
-    cell(
-      "anthropic",
-      text("p", "res-term", callHead),
-      text("p", "res-value", call ? cents(call.usd) : "No call yet"),
-    ),
-    cell(
-      "cartesia",
-      text("p", "res-term", callHead),
-      text(
-        "p",
-        "res-value",
-        !call ? "No call yet" : call.credits === null ? "Text call" : `${n(call.credits)} credits`,
-      ),
+    cell("anthropic", false, text("p", "res-term", callHead), text("p", "res-value", call ? cents(call.usd) : "No call yet")),
+    ...voiceCells(
+      (v) => [
+        text("p", "res-term", callHead),
+        text(
+          "p",
+          "res-value",
+          !call
+            ? "No call yet"
+            : call.seat === "text"
+              ? "Text call"
+              : call.credits === null
+                ? "Not counted"
+                : `${n(call.credits[v.vendor] ?? 0)} ${v.unit}`,
+        ),
+      ],
+      () => [text("p", "res-term", callHead), text("p", "res-value", call?.seat === "text" ? "Text call" : "Not counted")],
     ),
   ];
 
   const bottom = [
     cell(
       "anthropic",
+      false,
       text("p", "res-fact", plural(a.calls, "call this cycle", "calls this cycle")),
       text("p", "res-fact", `Renews ${day(a.renews)}`),
     ),
-    cell(
-      "cartesia",
-      text("p", "res-fact", plural(c.calls, "voice call this cycle", "voice calls this cycle")),
-      text(
-        "p",
-        "res-fact",
-        `Ink ${minutes(c.ink_s)} · Sonic ${n(c.sonic_chars)} ${c.sonic_chars === 1 ? "character" : "characters"}`,
-      ),
-      text("p", "res-fact", `Renews ${day(c.renews)}`),
+    ...voiceCells(
+      (v) => [
+        text("p", "res-fact", plural(v.calls, "voice call this cycle", "voice calls this cycle")),
+        text("p", "res-fact", v.amounts.map(amount).join(" · ")),
+        text("p", "res-fact", `Renews ${day(v.renews)}`),
+      ],
+      () => [],
     ),
   ];
 
   const grid = document.createElement("div");
   grid.className = "res-grid";
+  // A count, not a size: one column for Anthropic and one for each voice vendor.
+  grid.style.setProperty("--res-cols", String(1 + cols));
   for (const [i, block] of [top, middle, bottom].entries()) {
     for (const e of block) {
       e.classList.toggle("res-after-line", i > 0);
@@ -1934,13 +1955,13 @@ function resourceRows(
     }
   }
 
-  const limits = keyed
-    ? `A voice test call ends after ${c.limits.idle_s} s with no speech, or at ${minutes(c.limits.max_s)}.`
-    : "No Cartesia key in .env: voice calls are off.";
+  const guard = keyed
+    ? `A voice test call ends after ${limits.idle_s} s with no speech, or at ${minutes(limits.max_s)}.`
+    : "A voice vendor's key is not in .env: voice calls are off (Config › Voice names it).";
   const notes = text(
     "p",
     "res-note",
-    `${limits} Counted from this machine's call records; not read from Anthropic or Cartesia. Their dashboards have the full count.`,
+    `${guard} Counted from this machine's call records; not read from Anthropic or the voice vendors. Their dashboards have the full count.`,
   );
   return [grid, notes];
 }

@@ -13,7 +13,9 @@ import {
   allDays,
   allUsd,
   bars,
-  cartesiaUsd,
+  voiceCredits,
+  voiceText,
+  voiceUsd,
   change,
   columns,
   count,
@@ -60,7 +62,7 @@ export function homeView(): View {
     const s = d.stats;
     const [t, p] = [s.totals, s.prev];
     const booked = t.outcomes[0];
-    const usd = allUsd(s, t);
+    const usd = allUsd(t);
     const flaggedShare = share(t.flagged_calls, t.calls);
     return [
       tiles([
@@ -75,8 +77,8 @@ export function homeView(): View {
         {
           label: "Cost per call",
           value: dollars(usd / t.calls),
-          sub: s.usd_per_credit === null ? "Claude only: no Cartesia price set" : "Claude and Cartesia",
-          delta: change(d.f, usd / t.calls, p && p.calls ? allUsd(s, p) / p.calls : null, false, "dollars"),
+          sub: t.voice.priced ? "Claude and the voice" : "Claude only: a voice plan has no price set",
+          delta: change(d.f, usd / t.calls, p && p.calls ? allUsd(p) / p.calls : null, false, "dollars"),
           open: () => goView(d.view, "cost"),
         },
         {
@@ -144,47 +146,47 @@ export function costView(): View {
   return statsView("cost", "Cost", (d) => {
     const s = d.stats;
     const [t, p] = [s.totals, s.prev];
-    const priced = s.usd_per_credit !== null;
-    const usd = allUsd(s, t);
+    const priced = t.voice.priced;
+    const usd = allUsd(t);
     const booked = t.outcomes[0];
     const claude = { name: "Claude", cls: "ch-claude" };
-    const cartesia = { name: "Cartesia", cls: "ch-cartesia" };
+    const voice = { name: "Voice", cls: "ch-voice" };
     const days = allDays(
-      s.days.map((x) => ({ day: x.day, parts: priced ? [x.cost_usd, cartesiaUsd(s, x.cartesia_credits) ?? 0] : [x.cost_usd] })),
+      s.days.map((x) => ({ day: x.day, parts: priced ? [x.cost_usd, voiceUsd(x.voice) ?? 0] : [x.cost_usd] })),
       rangeStart(d.f),
       (day) => ({ day, parts: priced ? [0, 0] : [0] }),
     );
-    const cartesiaText = priced ? dollars(cartesiaUsd(s, t.cartesia_credits) ?? 0) : `${Math.round(t.cartesia_credits).toLocaleString()} credits`;
+    const voiceWords = voiceText(s, t.voice, dollars);
     return [
       tiles([
         {
           label: "Total",
           value: dollars(usd),
-          sub: `Claude ${dollars(t.cost_usd)} · Cartesia ${cartesiaText}`,
-          delta: change(d.f, usd, p ? allUsd(s, p) : null, false, "dollars"),
+          sub: `Claude ${dollars(t.cost_usd)} · Voice ${voiceWords}`,
+          delta: change(d.f, usd, p ? allUsd(p) : null, false, "dollars"),
         },
         {
           label: "Per call",
           value: dollars(usd / t.calls),
           sub: `over ${count(t.calls, "call")}`,
-          delta: change(d.f, usd / t.calls, p && p.calls ? allUsd(s, p) / p.calls : null, false, "dollars"),
+          delta: change(d.f, usd / t.calls, p && p.calls ? allUsd(p) / p.calls : null, false, "dollars"),
         },
         {
           label: "Per booking",
           value: booked ? dollars(usd / booked) : "—",
           sub: `over ${count(booked, "booking")}`,
-          delta: booked ? change(d.f, usd / booked, p && p.outcomes[0] ? allUsd(s, p) / p.outcomes[0] : null, false, "dollars") : null,
+          delta: booked ? change(d.f, usd / booked, p && p.outcomes[0] ? allUsd(p) / p.outcomes[0] : null, false, "dollars") : null,
         },
         {
-          label: "Cartesia",
-          value: cartesiaText,
-          sub: priced ? `${Math.round(t.cartesia_credits).toLocaleString()} credits` : "Set the plan's price in Config › Cartesia for dollars",
+          label: "Voice",
+          value: voiceWords,
+          sub: priced ? voiceCredits(s, t.voice) : "Set each plan's price in Config › Voice for dollars",
         },
       ]),
       section(
         "Dollars per day",
-        priced ? "Claude and Cartesia, each day." : "Claude only: Cartesia shows in dollars once Config › Cartesia has the plan's price.",
-        columns("Dollars per day", days, priced ? [claude, cartesia] : [claude], dollars),
+        priced ? "Claude and the voice, each day." : "Claude only: the voice shows in dollars once each plan has its price in Config › Voice.",
+        columns("Dollars per day", days, priced ? [claude, voice] : [claude], dollars),
       ),
       section(
         "By model",
@@ -195,13 +197,13 @@ export function costView(): View {
         "The most costly calls",
         "A row opens the call in Logs.",
         list(
-          ["Started", "Outcome", "Claude", "Cartesia"],
+          ["Started", "Outcome", "Claude", "Voice"],
           s.costliest.map((c) => ({
             cells: [
               c.started ? c.started.replace("T", " ").slice(5, 16) : c.id,
               outcomeWords(c.outcome),
               dollars(c.cost_usd),
-              priced ? dollars(cartesiaUsd(s, c.cartesia_credits) ?? 0) : `${Math.round(c.cartesia_credits)} credits`,
+              voiceText(s, c.voice, dollars),
             ],
             open: () => findInLogs(d.view, c.id),
           })),

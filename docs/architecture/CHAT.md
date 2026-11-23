@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: closed 2026-11-22
-sources: [console/src/pages/timeline.ts, docs/architecture/images/chat-panel-no-collapse-2026-11-14.png, docs/architecture/images/chat-panel-overlap-2026-11-14.png, console/src/pages/panel-grow.ts, docs/architecture/images/chat-panel-handle-2026-11-14.png, console/src/tokens.ts, docs/architecture/images/chat-resources-tab-2026-11-14.png, agent/deets_agent/resources.py, docs/architecture/images/chat-title-box-move-2026-11-14.png, docs/architecture/images/chat-harness-failed-ehrerror-2026-11-14.webp, ehr/src/epic_ehr.rs, agent/deets_agent/ehr_process.py, console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/voice.py, agent/deets_agent/resources.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
+sources: [console/src/pages/timeline.ts, docs/architecture/images/chat-panel-no-collapse-2026-11-14.png, docs/architecture/images/chat-panel-overlap-2026-11-14.png, console/src/pages/panel-grow.ts, docs/architecture/images/chat-panel-handle-2026-11-14.png, console/src/tokens.ts, docs/architecture/images/chat-resources-tab-2026-11-14.png, agent/deets_agent/resources.py, docs/architecture/images/chat-title-box-move-2026-11-14.png, docs/architecture/images/chat-harness-failed-ehrerror-2026-11-14.webp, ehr/src/epic_ehr.rs, agent/deets_agent/ehr_process.py, console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/voice/__init__.py, agent/deets_agent/resources.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
 updated: 2026-11-22
 ---
 # DeetsHealth — The Chat page
@@ -1090,7 +1090,7 @@ tab, after Tools and Timeline):
   blocks split by lines across both:
   1. **What is left this cycle:** the heading, a bar that fills with the share left (accent),
      and "$98.40 of $100 left" / "20,000 of 20,000 left". The budget and the plan are less the
-     active offset (Config › Anthropic, Config › Cartesia).
+     active offset (Config › Anthropic, Config › Voice).
   2. **This call** ("This call so far" while it runs): Claude's cost in cents (for example
      "3.2¢") and Cartesia's credits ("1,750 credits", or "Text call" for a typed call). "No call
      yet" when the page shows none.
@@ -1116,17 +1116,17 @@ tab, after Tools and Timeline):
   into one.
 - **Where the numbers come from:** Cartesia has no API that reports usage, so the dev server
   counts (`resources.py`): each voice call's record carries its `cartesia` totals on `call_end`
-  (record schema 7), summed for the cycle, plus the live call's meter (`voice.py › VoiceMeter`,
+  (record schema 7), summed for the cycle, plus the live call's meter (`voice/__init__.py › VoiceMeter`,
   from Pipecat's usage metrics: Ink's seconds of audio, silence included, and Sonic's
   characters). The plan's credits, the manual offset and the day the credits renew come from
-  the active voice settings (Config › Cartesia, CONSOLE.md §7); before any save, from
+  the active voice settings (Config › Voice, CONSOLE.md §7); before any save, from
   `CARTESIA_PLAN_CREDITS` and `CARTESIA_CYCLE_DAY` in `.env` (20,000 and the 1st by default),
   with no offset. Credits left is the plan less the offset less the use. Counts and dates only:
   no value from a call.
 
 **Tokens and files:** `--pair-part` (64 px), `--meter-height` (8 px) in `skin.css`; the
 accent, `--glass-fill-strong`, `--line`, `--text-2`, `--text-3` roles. `chat.ts`, `chat.css`,
-`transport.ts › VoiceSeat`, `api.ts › resources, voiceOffer`; the agent's `voice.py`,
+`transport.ts › VoiceSeat`, `api.ts › resources, voiceOffer`; the agent's `voice/` package,
 `resources.py`, `dev_server.py › voice, resources`, `call.py › TypedCall` (the voice pipeline
 and `_watch_limits`), `screen.py` (a spoken line), `flow.py › emergency_frame`.
 
@@ -1200,7 +1200,7 @@ Steps (`CallView`), live during a call and in full for a Demo replay.
 - **Epic's requests** come at the call's end (CloseCall's ledger), so they join their turns
   then. Their times are on ehr's clock, which starts at OpenCall, a few ms after the call.
 
-**The new events** (`agent/deets_agent/voice.py`, `call_record.py`, schema 15): `voice` with a
+**The new events** (`agent/deets_agent/voice/__init__.py`, `call_record.py`, schema 15): `voice` with a
 `stage`: `heard` (Ink's `turn.end`, with `last_words_ms`), `sonic_audio` (Sonic's first audio
 for a line, `VoiceMeter`) and `speaking` (the seat's `BotStartedSpeakingFrame`, on its way back
 up). Times only, never words or audio. A record before schema 15 shows what it has: a voice

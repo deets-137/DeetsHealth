@@ -177,13 +177,22 @@ pub fn logged_call_out(c: crate::store::LoggedCall) -> pb::LoggedCall {
 }
 
 /// Analytics' sums to the wire (CallStats): names, counts, times and dollars.
+/// The voice's cost as the wire carries it.
+fn voice_out(v: crate::stats::VoiceCost) -> pb::VoiceCost {
+    pb::VoiceCost {
+        credits: v.credits.into_iter().map(|(vendor, credits)| pb::VendorCredits { vendor, credits }).collect(),
+        usd: v.usd,
+        priced: v.priced,
+    }
+}
+
 pub fn stats_out(s: crate::stats::Stats, prev: Option<crate::stats::Totals>) -> pb::CallStatsReply {
     use crate::stats::{Totals, WAIT_BUCKET_MS};
     let totals = |t: Totals| pb::StatTotals {
         calls: t.calls,
         outcomes: t.outcomes.to_vec(),
         cost_usd: t.cost_usd,
-        cartesia_credits: t.cartesia_credits,
+        voice: Some(voice_out(t.voice)),
         flagged_calls: t.flagged_calls,
         staff_flags: t.staff_flags,
         review_flags: t.review_flags,
@@ -205,7 +214,7 @@ pub fn stats_out(s: crate::stats::Stats, prev: Option<crate::stats::Totals>) -> 
                 calls: d.calls,
                 outcomes: d.outcomes.to_vec(),
                 cost_usd: d.cost_usd,
-                cartesia_credits: d.cartesia_credits,
+                voice: Some(voice_out(d.voice)),
                 staff_flags: d.staff_flags,
                 review_flags: d.review_flags,
             })
@@ -216,7 +225,7 @@ pub fn stats_out(s: crate::stats::Stats, prev: Option<crate::stats::Totals>) -> 
         costliest: s
             .costliest
             .into_iter()
-            .map(|c| pb::CostlyCall { id: c.id, started: c.started, cost_usd: c.cost_usd, cartesia_credits: c.cartesia_credits, outcome: c.outcome })
+            .map(|c| pb::CostlyCall { id: c.id, started: c.started, cost_usd: c.cost_usd, voice: Some(voice_out(c.voice)), outcome: c.outcome })
             .collect(),
         wait_bucket_ms: WAIT_BUCKET_MS,
         wait_hist: s.wait_hist,

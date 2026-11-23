@@ -529,6 +529,23 @@ class EhrClient:
             out.append(line)
         return out
 
+    # ---- the voice catalog (VOICE-VENDORS.md §2.1) ----
+
+    async def voice_catalog(self) -> dict[str, Any]:
+        """The voice catalog: every vendor, its levers and rates, and every voice setting's first
+        value (`defaults`). The code's own data; no store needed."""
+        reply = await self._stub.GetVoiceCatalog(pb.GetVoiceCatalogRequest(), timeout=DEADLINE_S, metadata=_meta())
+        return json.loads(reply.catalog)
+
+    async def price_voice_use(self, request: dict[str, Any]) -> dict[str, Any]:
+        """The voice's cost from the voice crate (VOICE-VENDORS.md §9): each call's credits by
+        vendor, the live calls' credits, each chosen vendor's cycle. `request`: `today`,
+        `settings`, `calls` (`{id, day, use}`), `live` (uses). Counts and dates only."""
+        reply = await self._stub.PriceVoiceUse(
+            pb.PriceVoiceUseRequest(request=json.dumps(request)), timeout=DEADLINE_S, metadata=_meta()
+        )
+        return json.loads(reply.reply)
+
     # ---- the settings store (CONSOLE.md §7.3) ----
 
     async def list_setting_versions(self, service: str) -> list[SettingVersion] | None:

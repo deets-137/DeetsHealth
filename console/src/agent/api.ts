@@ -106,7 +106,7 @@ async function get<T>(path: string): Promise<T> {
 }
 
 /** `epic`: whether the dev server gave ehr Epic's sandbox (CHAT.md §13). `voice`: whether
- * the Cartesia key is in .env (CHAT.md §17). */
+ * the chosen voice vendors' keys are in .env (CHAT.md §17; VOICE-VENDORS.md). */
 export const health = () =>
   get<{ key: boolean; live: string | null; calls: number; epic: boolean; voice: boolean }>("/agent/health");
 
@@ -115,95 +115,111 @@ export const health = () =>
 export const callQuery = (ehr: EhrSource, label: string, tag: string): string =>
   new URLSearchParams({ ehr, ...(label ? { label } : {}), tag }).toString();
 
-/** A voice call's use of Cartesia so far (agent/deets_agent/voice.py › VoiceMeter). */
-export type CartesiaUse = { ink_s: number; sonic_chars: number; credits: number; seconds?: number };
-
-/** Cartesia's credits this cycle (agent/deets_agent/resources.py; CHAT.md §17). Counted from
- * this machine's voice calls only: a floor, not Cartesia's own count. */
-export type CartesiaCycle = {
+/** One voice vendor's cycle (voice/src/cost.rs › Cycle; CHAT.md §17), priced by ehr from this
+ * machine's call records and live calls: a floor, not the vendor's own count. `left` may go below
+ * zero. `amounts`: each direction's raw use (seconds heard, characters spoken). */
+export type VendorCycle = {
+  vendor: string;
+  name: string;
+  unit: string;
   plan: number;
   /** The active settings' manual offset: credits used outside these calls. */
   offset: number;
   used: number;
   left: number;
   calls: number;
-  ink_s: number;
-  sonic_chars: number;
+  amounts: { direction: string; product: string; per: string; amount: number }[];
   cycle_start: string;
   renews: string;
-  live: CartesiaUse | null;
-  rates: { ink_per_s: number; sonic_per_char: number };
-  limits: { idle_s: number; max_s: number };
+  usd_per_credit: number | null;
+  live: number;
 };
-/** One call's use for the Resources tab: Claude's dollars and, for a voice call, Cartesia's
- * credits; a live call's running totals, else its record's (CHAT.md §17). */
-export type CallUse = { seat: "text" | "voice"; usd: number; credits: number | null; live: boolean };
-/** The Resources tab's numbers. `call`: the call the page shows, if any. */
+/** One call's use for the Resources tab: Claude's dollars and, for a voice call, the voice's
+ * credits by vendor (null for a text call, or while ehr is not up); a live call's running
+ * totals, else its record's (CHAT.md §17). */
+export type CallUse = { seat: "text" | "voice"; usd: number; credits: Record<string, number> | null; live: boolean };
+/** The Resources tab's numbers. `vendors`: each chosen voice vendor's cycle (empty while ehr is
+ * not up). `call`: the call the page shows, if any. */
+export type Resources = {
+  vendors: VendorCycle[];
+  limits: { idle_s: number; max_s: number };
+  anthropic: AnthropicCycle;
+  call: CallUse | null;
+  voice: boolean;
+};
 export const resources = (call: string | null) =>
-  get<{ cartesia: CartesiaCycle; anthropic: AnthropicCycle; call: CallUse | null; voice: boolean }>(
+  get<Resources>(
     `/agent/resources${call ? `?${new URLSearchParams({ call })}` : ""}`,
   );
 
-/** A lever's range and Cartesia's default (agent/deets_agent/config.py). */
+/** A lever's range and the vendor's default, as the sliders take it. */
 export type Range = { min: number; max: number; step: number; default: number };
 
-/** Every voice setting (CONSOLE.md §7.3): the same names as ehr's settings.rs › VOICE and the
- * agent's config.voice_defaults. A null number or word is "Cartesia's default". */
-export type VoiceValues = {
-  voice: { name: string; id: string | null };
-  speed: number | null;
-  volume: number | null;
-  emotion: string | null;
-  normalization: string;
-  pronunciations: string[][]; // [word, say it like]
-  turn_start_threshold: number | null;
-  turn_eager_end_threshold: number | null;
-  turn_end_threshold: number | null;
-  turn_end_timeout_ms: number | null;
-  eager_end_of_turn: boolean;
-  barge_in: boolean;
-  keyterms: string[][]; // [word or phrase]
-  idle_s: number;
-  max_s: number;
-  plan_credits: number;
-  /** The plan's price a month in dollars; 0 is not set. */
-  plan_price_usd: number;
-  offset: number;
-  cycle_day: number;
+/** One lever of the voice catalog (voice/src/lib.rs › Lever; VOICE-VENDORS.md §2.1): its key,
+ * what it holds, and the vendor's own default. */
+export type CatalogLever = {
+  key: string;
+  kind: "number" | "whole" | "bool" | "word" | "voice" | "table";
+  min?: number;
+  max?: number;
+  step?: number;
+  nullable?: boolean;
+  words?: string[];
+  columns?: number;
+  rows?: number;
+  chars?: number;
+  default?: unknown;
 };
+/** What a vendor offers in one direction (hearing or speaking). */
+export type CatalogDirection = {
+  product: string;
+  model: string;
+  own_turns: boolean;
+  rate: { unit: string; per: string; amount: number };
+  levers: CatalogLever[];
+  /** Hearing: named sets of turn levers; not an API parameter (CARTESIA.md §9). */
+  profiles?: Record<string, Record<string, number>>;
+  /** Speaking: the vendor's recommended voices; an id where its docs print one. */
+  voices?: { name: string; id?: string }[];
+};
+/** One voice vendor of the catalog. */
+export type CatalogVendor = {
+  id: string;
+  name: string;
+  /** The name of its key in .env (never the key). */
+  key_env: string;
+  baa: string;
+  hearing?: CatalogDirection;
+  speaking?: CatalogDirection;
+  account: { unit: string; levers: CatalogLever[] };
+};
+export type VoiceCatalog = { vendors: CatalogVendor[]; shared: CatalogLever[] };
+
+/** Every voice setting (VOICE-VENDORS.md §2.3): `hearing.vendor` and `speaking.vendor`, the
+ * shared levers bare (`barge_in`), and each vendor's levers under its id (`cartesia.speed`). The
+ * same keys as ehr's settings.rs › voice_list. A null number or word is "the vendor's default". */
+export type VoiceValues = { "hearing.vendor": string; "speaking.vendor": string; [key: string]: unknown };
 
 /** One saved version: its label is "MM-DD | n" (the owner's words). */
 export type SettingVersion = { id: number; label: string; active: boolean; created_at: string; created_by: string };
 
-/** Config › Cartesia (CONSOLE.md §7): the saved versions, newest first; the values of the version
- * asked for (the active one by default); the active values, to mark what an older version
- * changed; each lever's range. `store`: false when ehr runs without Postgres (no versions, the
- * defaults shown, no saving). Never the key: only whether it is set. */
-export type CartesiaSettings = {
-  key: boolean;
+/** Config › Voice (VOICE-VENDORS.md §2.5; CONSOLE.md §7): the saved versions, newest first; the
+ * values of the version asked for (the active one by default); the active values, to mark what an
+ * older version changed; the voice catalog. `store`: false when ehr runs without Postgres (no
+ * versions, the defaults shown, no saving). Never a key: only whether each vendor's is set. */
+export type VoiceSettings = {
   store: boolean;
   versions: SettingVersion[];
   version: SettingVersion | null;
   values: VoiceValues;
   active: VoiceValues;
-  api_version: string;
-  tts: {
-    model: string;
-    voices: { name: string; id: string | null }[];
-    emotions: string[];
-    ranges: Record<"speed" | "volume", Range>;
-  };
-  stt: {
-    model: string;
-    /** Cartesia's named sets of the four turn values; not an API parameter (CARTESIA.md §9). */
-    profiles: Record<string, Record<string, number>>;
-    ranges: Record<string, Range>;
-  };
-  rates: { ink_per_s: number; sonic_per_char: number };
+  catalog: VoiceCatalog;
+  keys: Record<string, boolean>;
+  api_versions: Record<string, string>;
 };
 /** `version`: 0 or none for the active one. */
-export const cartesiaSettings = (version = 0) =>
-  get<CartesiaSettings>(version ? `/agent/cartesia?version=${version}` : "/agent/cartesia");
+export const voiceSettings = (version = 0) =>
+  get<VoiceSettings>(version ? `/agent/voice/settings?version=${version}` : "/agent/voice/settings");
 
 /** One of Cartesia's English voices (agent/deets_agent/voice_catalog.py): public catalog facts
  * only. `accent`: the voice's own locale ("en-US"); `locales`: every accent it speaks. */
@@ -219,13 +235,14 @@ export type CartesiaVoice = {
 /** Cartesia's voice list as the dev server holds it (10 minutes). `checked_at`: the last good
  * read, or null. `fault`: why the last read failed (Cartesia's status), or null. */
 export type CartesiaVoices = { key: boolean; checked_at: string | null; fault: string | null; ttl_s: number; voices: CartesiaVoice[] };
-/** `fresh`: read Cartesia again now (Refresh), when the held list is older than 15 s. */
-export const cartesiaVoices = (fresh = false) =>
-  get<CartesiaVoices>(fresh ? "/agent/cartesia/voices?fresh=true" : "/agent/cartesia/voices");
+/** A vendor's voice list (Cartesia's only so far). `fresh`: read it again now (Refresh), when
+ * the held list is older than 15 s. */
+export const voiceVoices = (vendor = "cartesia", fresh = false) =>
+  get<CartesiaVoices>(`/agent/voice/voices?${new URLSearchParams({ vendor, ...(fresh ? { fresh: "true" } : {}) })}`);
 
 /** Save the whole set as a new, active version (CONSOLE.md §7.3). A refusal's reason names a
  * setting, never a value, so the page may show it. */
-export const saveCartesia = (values: VoiceValues) => saveSettings<CartesiaSettings>("/agent/cartesia", values);
+export const saveVoice = (values: VoiceValues) => saveSettings<VoiceSettings>("/agent/voice/settings", values);
 
 /** Every llm setting (CONSOLE.md §8): the same names as ehr's settings.rs › LLM and the agent's
  * config.llm_defaults. */
@@ -757,7 +774,7 @@ export type StatTotals = {
   calls: number;
   outcomes: number[];
   cost_usd: number;
-  cartesia_credits: number;
+  voice: VoiceCost;
   flagged_calls: number;
   staff_flags: number;
   review_flags: number;
@@ -767,14 +784,18 @@ export type StatTotals = {
   wait_p90_ms: number;
   replayed_calls: number;
 };
+/** The voice's cost of some calls, priced by ehr with the voice crate (VOICE-VENDORS.md §9):
+ * credits by vendor id, dollars at the active plans' prices, and `priced` (every vendor with
+ * credits has a price, so `usd` is the whole voice). */
+export type VoiceCost = { credits: { vendor: string; credits: number }[]; usd: number; priced: boolean };
 export type Stats = {
   totals: StatTotals;
   prev: StatTotals | null;
-  days: { day: string; calls: number; outcomes: number[]; cost_usd: number; cartesia_credits: number; staff_flags: number; review_flags: number }[];
+  days: { day: string; calls: number; outcomes: number[]; cost_usd: number; voice: VoiceCost; staff_flags: number; review_flags: number }[];
   reached: { name: string; count: number }[];
   end_reasons: { name: string; count: number }[];
   models: { model: string; calls: number; cost_usd: number }[];
-  costliest: { id: string; started: string; cost_usd: number; cartesia_credits: number; outcome: string }[];
+  costliest: { id: string; started: string; cost_usd: number; voice: VoiceCost; outcome: string }[];
   wait_bucket_ms: number;
   wait_hist: number[];
   stages: { turns: number; ink_ms: number; claude_ms: number; tools_ms: number; ehr_ms: number; voice_ms: number; other_ms: number } | null;
@@ -786,8 +807,8 @@ export type Stats = {
   class: "synthetic";
   /** The range asked for, in days (null: all). */
   range_days: number | null;
-  /** The active Cartesia plan's price over its credits; null when the price is not set. */
-  usd_per_credit: number | null;
+  /** Each voice vendor's name, by its catalog id. */
+  vendor_names: Record<string, string>;
 };
 /** The sums for the last `days` days (null: all) and the filter bar's other filters. */
 export const stats = (days: number | null, filters: Record<string, string>) =>

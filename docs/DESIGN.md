@@ -27,7 +27,7 @@ designed for healthcare professionals".
 - **A harness, not one agent.** A healthcare professional (a clinic manager, a nurse lead, a
   scheduler) sets up and runs a patient-facing agent in the console, with no code: its words
   (Config › Agent), the clinic's lists and hours (Config › Hospital), the rules (Booking rules),
-  the voice and the model (Config › Cartesia, Config › Anthropic), who may do what (roles), and
+  the voice and the model (Config › Voice, Config › Anthropic), who may do what (roles), and
   what happened (Chat, Analytics, Audit Logs).
 - **Plug and play.** Point it at an EHR source (the Local sandbox, Epic's sandbox, then other
   FHIR EHRs) and it runs. The hospital's facts come from its EHR where they can (Import from

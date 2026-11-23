@@ -2,9 +2,9 @@
 // the versions, the status, Discard | Save), the rows (an "i" that opens the setting's help,
 // its name, its control), the controls (a fixed value, a select, a slider with a line at the
 // default, a number box, Off | On, a table), the cards, and an older version's glow. Each
-// provider's view (cartesia.ts, anthropic.ts) gives its own values, help words and cards.
+// provider's view (voice.ts, anthropic.ts) gives its own values, help words and cards.
 //
-// Moved from cartesia.ts on 2026-11-13 without a change of behavior, so Config › Cartesia and
+// Moved from cartesia.ts (now voice.ts) on 2026-11-13 without a change of behavior, so Config › Cartesia and
 // Config › Anthropic work the same way.
 import type { Range, SettingVersion } from "../agent/api";
 import type { Store } from "../agent/store";

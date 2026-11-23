@@ -378,8 +378,8 @@ tenant first.
 | `POST /agent/annotations` | Testing Edit |
 | `GET /agent/prompt`, `GET /agent/system` | Agent View |
 | `POST /agent/prompt`, `POST /agent/system`, `POST /agent/prompt/estimate`, `POST /agent/prompt/record` | Agent Edit |
-| `GET /agent/cartesia`, `GET /agent/anthropic` | Vendors View |
-| `POST /agent/cartesia`, `POST /agent/anthropic` | Vendors Edit |
+| `GET /agent/voice/settings`, `GET /agent/voice/voices`, `GET /agent/anthropic` | Vendors View |
+| `POST /agent/voice/settings`, `POST /agent/anthropic` | Vendors Edit |
 | `GET /agent/resources`, `GET /agent/latency`, `GET /agent/logs` and `GET /agent/stats` (their RPCs `ListCalls`, `CallStats`) | Analytics View |
 | `GET /agent/flags/{id}` (its RPC `ReadFlags`, which writes `flag.view`) | PHI View |
 | `GET /agent/people`, `GET /agent/people/{id}/photo` | People View |
@@ -558,7 +558,7 @@ to `Identity` (one cache, by user id). `set_guests` and `forget` follow.
 - New `test_identity.py`: the launch source; the Access source with the fakes; the cache
   and `forget`; an unknown email → None.
 - New `test_levers.py`: every route has a lever or `NO_LEVER` (the start check); a Junior
-  Analyst gets 403 on `POST /agent/cartesia`; a user with no role gets only `/agent/me`; the
+  Analyst gets 403 on `POST /agent/voice/settings`; a user with no role gets only `/agent/me`; the
   watch closes after a revoke.
 - Update `test_demo_door.py`, `test_people.py`, `test_access.py`, `test_dev_server.py`: their
   fakes now answer `Levels`, and `who` is a `Principal`.

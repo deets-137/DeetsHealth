@@ -477,7 +477,7 @@ button.ch-list-row {
   background: var(--text-2);
 }
 
-.ch-cartesia,
+/* The voice: its stage on Speed, and its cost on Cost (any vendor). */
 .ch-voice {
   background: var(--shape-2);
 }

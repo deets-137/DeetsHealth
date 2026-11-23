@@ -2,7 +2,7 @@
 // the filter bar, a body drawn from the `stats` store), the headline tiles with their change, and
 // the charts. Every chart is drawn by this code in HTML, in the theme's roles (styles/analytics
 // .css): no chart library. A chart names counts, times and dollars only; its hints too.
-import type { Stats } from "../agent/api";
+import type { Stats, VoiceCost } from "../agent/api";
 import { stats, statsKey } from "../agent/stores";
 import { filterBar, filters, onFilters, setFilters, TURN_TARGET_MS, type Filters } from "./analytics-filter";
 import { el } from "./page";
@@ -37,10 +37,21 @@ const PREV_WORDS: Record<string, string> = {
   "90d": "the 90 days before",
 };
 
-/** A call's Cartesia cost in dollars, or null when the plan's price is not set. */
-export const cartesiaUsd = (s: Stats, credits: number) => (s.usd_per_credit === null ? null : credits * s.usd_per_credit);
-/** Claude's dollars and, when the price is set, Cartesia's. */
-export const allUsd = (s: Stats, t: { cost_usd: number; cartesia_credits: number }) => t.cost_usd + (cartesiaUsd(s, t.cartesia_credits) ?? 0);
+/** The voice's dollars (priced by ehr with the voice crate), or null while a vendor with credits
+ * has no plan price. */
+export const voiceUsd = (v: VoiceCost) => (v.priced ? v.usd : null);
+/** Claude's dollars and, when every vendor is priced, the voice's. */
+export const allUsd = (t: { cost_usd: number; voice: VoiceCost }) => t.cost_usd + (voiceUsd(t.voice) ?? 0);
+/** The voice's credits as words, vendor by vendor: "Cartesia 812 credits". */
+export const voiceCredits = (s: Stats, v: VoiceCost) =>
+  v.credits.length
+    ? v.credits.map((c) => `${s.vendor_names[c.vendor] ?? c.vendor} ${Math.round(c.credits).toLocaleString()} credits`).join(" · ")
+    : "0 credits";
+/** The voice in dollars when priced, else in credits. */
+export const voiceText = (s: Stats, v: VoiceCost, dollars: (x: number) => string) => {
+  const usd = voiceUsd(v);
+  return usd === null ? voiceCredits(s, v) : dollars(usd);
+};
 
 // ---- the frame
 

@@ -123,6 +123,16 @@ interface (VOICE-AGENT.md §7.2).
 The list, and the issues found that day, is [PRE-LIVE-VERIFICATIONS.md](PRE-LIVE-VERIFICATIONS.md):
 every row is run before going live. MIT license since 2026-11-22 (`LICENSE`).
 
+**Built 2026-11-23, desk test open: voice vendors, Config › Voice** (architecture/VOICE-VENDORS.md
+§8; his V-1 A, V-2 A, V-3 A). A new crate, `voice/`, holds the catalog of voice vendors; `ehr`
+serves it (`GetVoiceCatalog`); the agent's voice code is a package with an adapter per vendor;
+Config › Cartesia is now Config › Voice, with a Vendor row per direction. Cartesia is still the
+only vendor. **Step 4 too (§9):** the voice's cost is the crate's (`voice/src/cost.rs`): ehr
+prices each call (`calls.voice_credits`, migration 0015), Analytics' sums and the agent's
+Resources tab (`PriceVoiceUse`); Python only counts. Not built: ElevenLabs (step 6). Desk
+tests: CONSOLE.md §7.5a, VOICE-VENDORS.md §9.4. **Restart `npm run dev`**: ehr and the agent's
+Python changed.
+
 **Built 2026-11-22, desk test open: Chat › Timeline, Rules › Booking, Org Chart gone** (the
 owner's forks that day). The Timeline tab is a waterfall per turn against the 800 ms target,
 with voice stages recorded as new `voice` events (schema 15): CHAT.md §18, its desk test there.
@@ -167,12 +177,12 @@ it when the agent's words are next worked on; the test says so when it passes ag
 §7.8; his fork A). His desk test, §7.8 (restart `npm run dev`). No real read of Cartesia's list
 has run: Claude's shell may not use the key. Signs the API's shape was guessed wrong: a count of
 exactly 100 (paging stopped), or every shortlist name greyed (the English filter). Seven of the
-nine shortlist names match by name until their ids are pinned in `config.RECOMMENDED_VOICES`.
+nine shortlist names match by name until their ids are pinned in `voice/catalog/cartesia.json`.
 Next: his words for the Voice list row's help (`HELP.voiceCheck`, a draft); Listen's fork
 (§7.6).
 
 **The calls of 2026-11-15, 22:30 to 22:38: fixes built 2026-11-16, committed in 88a2e2e** (WORKLOG of
-that day). **His step first:** choose a new voice on Config › Cartesia: the active version names
+that day). **His step first:** choose a new voice on Config › Voice: the active version names
 "Emma", whom Cartesia no longer has, so a voice call now refuses to start. Fixed: the voice check
 and the dead-voice end (AGENT.md, FLAGS.md §8), spelled names (AGENT.md), in person or online
 kept on every returned time (EHR-SERVICE.md; the Epic sandbox now has no in-person times), the
@@ -299,7 +309,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   areas, the on-screen keyboard, a run on a real phone.
 - **Built, not yet run: voice on the Chat page** (2026-11-13; the owner's forks 1B with a tab
   bar, and 2A). Testing's **Text | Voice** bar (Text each time); a voice call through the laptop
-  microphone, Ink in and Sonic out (`voice.py`; our own WebRTC seat, no remote code); barge-in,
+  microphone, Ink in and Sonic out (`voice/`; our own WebRTC seat, no remote code); barge-in,
   and the 911 line that plays to its end; a voice test call ends at 60 s of silence or 6 min;
   the bottom panel's **Resources** tab counts Cartesia credits this cycle. CHAT.md §17, every
   lever in CARTESIA.md §9, the real-call design in FUTURE-SETTINGS.md §12. **His step first:** a
@@ -311,7 +321,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   older version read only with its changed values glowing; every Cartesia lever with an "i" for
   help; Credits left with a manual offset; the key's status. The store: `0002_settings.sql`
   (versions, `settings_voice`, activations; insert-only), `ehr/src/settings.rs` (every setting
-  checked), three RPCs, `GET`/`POST /agent/cartesia`. Voice calls run with the active version.
+  checked), three RPCs, `GET`/`POST /agent/cartesia` (since 2026-11-23 `/agent/voice/settings`, Config › Voice). Voice calls run with the active version.
   **Restart `npm run dev` first** (new `ehr`, the migration). Open: pronunciations need a
   Cartesia dictionary; Make active; Listen (CONSOLE.md §7.6).
 - **Built, desk test closed 2026-11-22: Config › System, the variables and the tools** (2026-11-14; the

@@ -1,7 +1,7 @@
 ---
 status: project
 desk_test: closed 2026-11-22
-sources: [agent/deets_agent/voice.py, agent/deets_agent/voice_catalog.py, agent/deets_agent/config.py, agent/deets_agent/resources.py, agent/deets_agent/flow.py]
+sources: [agent/deets_agent/voice/__init__.py, agent/deets_agent/voice_catalog.py, agent/deets_agent/config.py, agent/deets_agent/resources.py, agent/deets_agent/flow.py]
 updated: 2026-11-16
 ---
 # Cartesia — speech in (Ink) and speech out (Sonic)
@@ -55,10 +55,10 @@ updated: 2026-11-16
   emotive ones. Its list for agents: Skylar, Gemma, Jacqueline, Emma, Lauren, Daniel, Archie,
   Parker, Jameson, Corey. The guide says nothing about 8 kHz phone audio: listen on a phone.
   **Emma is gone (2026-11-16):** Cartesia's voice list has no voice of that name, and its old id
-  answers 404 (`voice_not_found`); it left the console's list (`config.RECOMMENDED_VOICES`). The
+  answers 404 (`voice_not_found`); it left the console's list (the catalog, `voice/catalog/cartesia.json`). The
   other nine answer. A voice call now checks the active voice before it starts.
   **Checked live (2026-11-16):** Cartesia's API has no "recommended for agents" mark, so the
-  shortlist's names stay in `config.RECOMMENDED_VOICES`. Config › Cartesia checks each against
+  shortlist's names stay in the catalog (`voice/catalog/cartesia.json`). Config › Voice checks each against
   Cartesia's List Voices (`voice_catalog.py`; no credits; English only; owned and cloned voices
   left out) and takes the ids from it. More voices… shows every English voice in a table
   (CONSOLE.md §7.8). The guide's list itself can still change: read it again now and then.
@@ -142,7 +142,7 @@ worse (VOICE-AGENT.md §7, F5 C).
 > reconsider decisions". Pipecat 1.16. Where a cell says *default*, we leave Cartesia's or
 > Pipecat's own value; to change it, set it in the code named.
 
-**Ink, speech in** (`voice.py › build_stt`, `CartesiaTurnsSTTService`)
+**Ink, speech in** (`voice/cartesia.py › build_stt`, `CartesiaTurnsSTTService`)
 | Lever | What it does | Range | Ours | Why |
 |---|---|---|---|---|
 | Endpoint | Turns endpoint (Ink finds the end of a turn) or plain (we find it, with a local voice detector) | turns, plain | turns | F5; the same price; no local model to tune |
@@ -158,7 +158,7 @@ worse (VOICE-AGENT.md §7, F5 C).
 | Input audio | Encoding and rate sent to Ink | Pipecat fixes `pcm_s16le` | 16 kHz, the pipeline's input rate | Twilio's 8 kHz comes later (§3) |
 | `watchdog_min_timeout` | When the microphone stops mid-turn, Pipecat sends silence after this long so Ink can end the turn | seconds | default 0.5 | — |
 
-**Sonic, speech out** (`voice.py › build_tts`, `CartesiaTTSService`)
+**Sonic, speech out** (`voice/cartesia.py › build_tts`, `CartesiaTTSService`)
 | Lever | What it does | Range | Ours | Why |
 |---|---|---|---|---|
 | Model | The voice engine | `sonic-3.6`, `3.5`, `3`, `sonic-latest` | `sonic-3.6` (`config.TTS_MODEL`) | Newest; case-insensitive dictionary; never `latest` |

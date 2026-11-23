@@ -178,7 +178,7 @@ def test_the_sums_take_the_filters_and_the_range_before(tmp_path):
     state, c = make(tmp_path)
     r = c.get("/agent/stats?days=6&outcome=booked&version=prompt:11-21 | 3&flagged=true", headers=ANALYST)
     assert r.status_code == 200
-    assert r.json()["totals"] == {"calls": 1} and r.json()["usd_per_credit"] is None
+    assert r.json()["totals"] == {"calls": 1} and r.json()["vendor_names"]["cartesia"] == "Cartesia"
     today = date.today()
     since = (today - timedelta(days=6)).isoformat()
     prev = ((today - timedelta(days=13)).isoformat(), since)

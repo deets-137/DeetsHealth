@@ -20,14 +20,15 @@ from deets_agent import config
 from deets_agent.flow import CallFlow, emergency_frame, emergency_line
 from deets_agent.resources import cycle_start, next_cycle
 from deets_agent.screen import CallerScreen
-from deets_agent.voice import VoiceMeter, credits
+from deets_agent.voice import VoiceMeter
 
 
-def test_credits_follow_cartesias_rates():
-    assert credits(0, 0) == 0
-    assert credits(60, 0) == 180  # Ink: 3 a second, silence included
-    assert credits(0, 750) == 750  # Sonic: 1 a character
-    assert credits(0.1, 0) == 1  # rounded up
+def test_the_meter_keeps_raw_use_only():
+    """Credits are the voice crate's (cost.rs; its tests): the meter counts amounts by vendor."""
+    m = VoiceMeter(chosen={"hearing": "cartesia", "speaking": "cartesia"})
+    m.heard_s, m.spoken_chars = 12.34, 350
+    assert m.use() == {"hearing": {"vendor": "cartesia", "amount": 12.3}, "speaking": {"vendor": "cartesia", "amount": 350}}
+    assert not hasattr(m, "credits")
 
 
 def test_the_limits():

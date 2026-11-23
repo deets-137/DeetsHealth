@@ -197,8 +197,9 @@ pub struct Summary {
     /// The requests to Claude answered live and from the replay cache (`call_end.requests`).
     pub requests_live: i32,
     pub requests_replayed: i32,
-    /// Ink's and Sonic's credits (`call_end.cartesia.credits`; migration 0014).
-    pub cartesia_credits: f64,
+    /// The voice's credits by vendor (`call_end.voice_use`, or the older `cartesia`; the voice
+    /// crate's `cost::credits`; migration 0015).
+    pub voice_credits: std::collections::BTreeMap<String, f64>,
     /// Each answered turn's stages, as `Stages::to_json` (migration 0014).
     pub turn_stages: Vec<Value>,
 }
@@ -497,7 +498,9 @@ pub fn summarize(events: &[Value]) -> Summary {
                     s.requests_live = n("live");
                     s.requests_replayed = n("replayed");
                 }
-                s.cartesia_credits = e.get("cartesia").and_then(|c| c.get("credits")).and_then(Value::as_f64).unwrap_or(0.0);
+                s.voice_credits = deetshealth_voice::cost::call_use(e)
+                    .map(|u| deetshealth_voice::cost::credits(deetshealth_voice::catalog(), &u))
+                    .unwrap_or_default();
             }
             _ => {}
         }
@@ -1026,12 +1029,12 @@ impl ClassStore {
         sqlx::query(
             "INSERT INTO calls (id, schema_version, started, origin, data_class, mode, model, prompt_version, system_version, hospital_version, scenario, outcome, end_reason,
                 reached, turns, tool_calls, duration_ms, tokens_in, tokens_out, cost_usd, record_sha256, seat, ehr, turn_waits_ms,
-                requests_live, requests_replayed, cartesia_credits, turn_stages)
-             VALUES ($1, $2, $3::timestamp, $4, $21, $5, $6, $18, $19, $20, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $22, $23, $24, $25, $26, $27, $28::jsonb)
+                requests_live, requests_replayed, voice_credits, turn_stages)
+             VALUES ($1, $2, $3::timestamp, $4, $21, $5, $6, $18, $19, $20, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $22, $23, $24, $25, $26, $27::jsonb, $28::jsonb)
              ON CONFLICT (id) DO UPDATE SET schema_version = EXCLUDED.schema_version, started = EXCLUDED.started,
                 seat = EXCLUDED.seat, ehr = EXCLUDED.ehr, turn_waits_ms = EXCLUDED.turn_waits_ms,
                 requests_live = EXCLUDED.requests_live, requests_replayed = EXCLUDED.requests_replayed,
-                cartesia_credits = EXCLUDED.cartesia_credits, turn_stages = EXCLUDED.turn_stages,
+                voice_credits = EXCLUDED.voice_credits, turn_stages = EXCLUDED.turn_stages,
                 origin = EXCLUDED.origin, mode = EXCLUDED.mode, model = EXCLUDED.model, prompt_version = EXCLUDED.prompt_version, system_version = EXCLUDED.system_version, hospital_version = EXCLUDED.hospital_version, scenario = EXCLUDED.scenario,
                 outcome = EXCLUDED.outcome, end_reason = EXCLUDED.end_reason, reached = EXCLUDED.reached,
                 turns = EXCLUDED.turns, tool_calls = EXCLUDED.tool_calls, duration_ms = EXCLUDED.duration_ms,
@@ -1064,7 +1067,7 @@ impl ClassStore {
         .bind(&s.turn_waits_ms)
         .bind(s.requests_live)
         .bind(s.requests_replayed)
-        .bind(s.cartesia_credits)
+        .bind(serde_json::to_string(&s.voice_credits).unwrap_or_else(|_| "{}".into()))
         .bind(Value::Array(s.turn_stages.clone()).to_string())
         .execute(&mut *tx)
         .await
@@ -1272,7 +1275,7 @@ impl ClassStore {
             sqlx::query(concat!(
                 "SELECT c.id, COALESCE(to_char(c.started, 'YYYY-MM-DD\"T\"HH24:MI:SS'), '') AS started_text, c.model,
                     c.prompt_version, c.system_version, c.hospital_version, c.outcome, c.end_reason, c.reached, c.cost_usd,
-                    c.cartesia_credits, c.turn_waits_ms, c.turn_stages::text AS stages_text, c.requests_replayed,
+                    c.voice_credits::text AS voice_credits_text, c.turn_waits_ms, c.turn_stages::text AS stages_text, c.requests_replayed,
                     COALESCE((SELECT array_agg(f.kind ORDER BY f.seq) FROM staff_flags f WHERE f.call_id = c.id), '{}') AS flag_kinds,
                     COALESCE((SELECT array_agg(f.source ORDER BY f.seq) FROM staff_flags f WHERE f.call_id = c.id), '{}') AS flag_sources,
                     COALESCE((SELECT array_agg(f.unverified ORDER BY f.seq) FROM staff_flags f WHERE f.call_id = c.id), '{}') AS flag_unverified,
@@ -1306,7 +1309,7 @@ impl ClassStore {
                     end_reason: r.get("end_reason"),
                     reached: r.get("reached"),
                     cost_usd: r.get("cost_usd"),
-                    cartesia_credits: r.get("cartesia_credits"),
+                    voice_credits: serde_json::from_str(&r.get::<String, _>("voice_credits_text")).unwrap_or_default(),
                     turn_waits_ms: r.get("turn_waits_ms"),
                     turn_stages: stages.as_array().map(|a| a.iter().map(Stages::from_json).collect()).unwrap_or_default(),
                     requests_replayed: r.get("requests_replayed"),

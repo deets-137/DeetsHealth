@@ -61,7 +61,7 @@ def annotating(tmp_path: Path, store: StoreStub) -> TestClient:
 
 @pytest.mark.parametrize(
     "path",
-    ["/agent/health", "/agent/catalog", "/agent/sandbox", "/agent/latency", "/agent/calls/a", "/agent/resources", "/agent/cartesia"],
+    ["/agent/health", "/agent/catalog", "/agent/sandbox", "/agent/latency", "/agent/calls/a", "/agent/resources", "/agent/voice/settings"],
 )
 def test_the_wall_refuses_without_the_token_or_from_another_origin(client, path):
     assert client.get(path).status_code == 403
@@ -91,19 +91,52 @@ def test_the_voice_seat_has_the_wall_and_waits_for_ehr(client):
     assert r.status_code == 409 and r.json()["detail"] == "ehr is not up yet"
 
 
-def test_the_resources_count_this_cycles_voice_calls(client, tmp_path):
+def test_the_resources_gather_raw_use_and_leave_pricing_to_ehr(client, tmp_path):
+    """The dev server never prices the voice (VOICE-VENDORS.md §9): it gathers each record's raw
+    use, and ehr prices it. Without ehr, no vendor cycles."""
+    from datetime import date
+
+    from deets_agent.resources import voice_records
+
     voice = [
         {"t_ms": 0, "kind": "call_start", "schema_version": 7, "seat": "voice"},
         {"t_ms": 9, "kind": "call_end", "reason": "x", "cartesia": {"ink_s": 100.0, "sonic_chars": 500, "credits": 800}},
     ]
+    stamp = date.today().strftime("%Y%m%d")
+    lines = "\n".join(json.dumps(e) for e in voice) + "\n"
+    (tmp_path / f"{stamp}-120000-test.jsonl").write_text(lines, encoding="utf-8")
+    (tmp_path / "19990101-120000-test.jsonl").write_text(lines, encoding="utf-8")
+    got = voice_records(tmp_path)
+    assert [g["day"] for g in got] == ["1999-01-01", date.today().isoformat()]
+    assert got[1]["use"] == {"cartesia": {"ink_s": 100.0, "sonic_chars": 500, "credits": 800}}
+    r = client.get("/agent/resources", headers=OK).json()
+    assert r["vendors"] == [] and r["limits"] == {"idle_s": 60, "max_s": 360}
+
+
+async def test_ehr_prices_old_and_new_records_and_each_vendors_cycle(ehr):
     from datetime import date
 
-    stamp = date.today().strftime("%Y%m%d")
-    (tmp_path / f"{stamp}-120000-test.jsonl").write_text("\n".join(json.dumps(e) for e in voice) + "\n", encoding="utf-8")
-    (tmp_path / "19990101-120000-test.jsonl").write_text("\n".join(json.dumps(e) for e in voice) + "\n", encoding="utf-8")
-    c = client.get("/agent/resources", headers=OK).json()["cartesia"]
-    assert (c["used"], c["calls"], c["ink_s"], c["sonic_chars"]) == (800, 1, 100.0, 500)
-    assert c["left"] == c["plan"] - 800 and c["live"] is None
+    from deets_agent.voice import vendors
+
+    today = date.today().isoformat()
+    values = vendors.defaults()
+    values["cartesia.offset"] = 270
+    request = {
+        "today": today,
+        "settings": values,
+        "calls": [
+            {"id": "old", "day": today, "use": {"cartesia": {"ink_s": 100.0, "sonic_chars": 500, "credits": 800}}},
+            {"id": "new", "day": today, "use": {"voice_use": {"hearing": {"vendor": "cartesia", "amount": 60}}}},
+            {"id": "long_ago", "day": "1999-01-01", "use": {"voice_use": {"speaking": {"vendor": "cartesia", "amount": 9}}}},
+        ],
+        "live": [{"voice_use": {"speaking": {"vendor": "cartesia", "amount": 30}}}],
+    }
+    got = await ehr.price_voice_use(request)
+    assert got["calls"]["old"] == {"cartesia": 800} and got["calls"]["new"] == {"cartesia": 180}
+    assert got["live"] == [{"cartesia": 30}]
+    (cycle,) = got["cycles"]
+    assert (cycle["vendor"], cycle["used"], cycle["calls"], cycle["live"]) == ("cartesia", 1010, 2, 30)
+    assert cycle["left"] == cycle["plan"] - 270 - 1010
 
 
 def test_the_resources_give_claudes_dollars_and_one_calls_use(tmp_path):
@@ -127,45 +160,53 @@ def test_the_resources_give_claudes_dollars_and_one_calls_use(tmp_path):
     assert (a["calls"], a["spent"]) == (2, 0.042) and a["left"] == round(a["budget"] - a["offset"] - 0.042, 4)
     assert r["call"] is None
     one = client.get(f"/agent/resources?call={stamp}-120000-test", headers=OK).json()["call"]
-    assert one == {"seat": "voice", "usd": 0.032, "credits": 1750, "live": False}
+    # No ehr here: the voice call's credits wait for ehr to price them.
+    assert one == {"seat": "voice", "usd": 0.032, "credits": None, "live": False}
     typed = client.get(f"/agent/resources?call={stamp}-130000-test", headers=OK).json()["call"]
     assert typed == {"seat": "text", "usd": 0.01, "credits": None, "live": False}
     assert client.get("/agent/resources?call=../secret", headers=OK).json()["call"] is None
 
 
-def test_the_cartesia_view_shows_the_levers_and_never_the_key(client):
-    c = client.get("/agent/cartesia", headers=OK).json()
-    assert c["tts"]["model"] == "sonic-3.6" and c["stt"]["model"] == "ink-2"
+def test_the_voice_view_shows_the_catalog_and_never_a_key(client):
+    c = client.get("/agent/voice/settings", headers=OK).json()
+    cartesia = next(v for v in c["catalog"]["vendors"] if v["id"] == "cartesia")
+    assert cartesia["speaking"]["model"] == "sonic-3.6" and cartesia["hearing"]["model"] == "ink-2"
     # No ehr here: no store, no versions, the defaults shown and active.
     assert (c["store"], c["versions"], c["version"]) == (False, [], None)
     v = c["values"]
-    assert v["eager_end_of_turn"] is False and v["barge_in"] is True
-    assert (v["idle_s"], v["max_s"], v["offset"]) == (60, 360, 0)
+    assert (v["hearing.vendor"], v["speaking.vendor"]) == ("cartesia", "cartesia")
+    assert v["cartesia.eager_end_of_turn"] is False and v["barge_in"] is True
+    assert (v["idle_s"], v["max_s"], v["cartesia.offset"]) == (60, 360, 0)
     assert c["active"] == v
-    assert isinstance(c["key"], bool)
-    from deets_agent import config
+    assert isinstance(c["keys"]["cartesia"], bool)
+    from deets_agent.voice import vendors
 
-    secret = config.cartesia_key()
+    secret = vendors.key("cartesia")
     assert secret is None or secret not in json.dumps(c)
 
 
 def test_a_save_waits_for_ehr_and_needs_values(client):
-    assert client.post("/agent/cartesia", json={"values": {}}).status_code == 403
-    assert client.post("/agent/cartesia", headers=OK, json={"x": 1}).status_code == 400
-    r = client.post("/agent/cartesia", headers=OK, json={"values": {"speed": 1.0}})
+    assert client.post("/agent/voice/settings", json={"values": {}}).status_code == 403
+    assert client.post("/agent/voice/settings", headers=OK, json={"x": 1}).status_code == 400
+    r = client.post("/agent/voice/settings", headers=OK, json={"values": {"cartesia.speed": 1.0}})
     assert r.status_code == 409 and r.json()["detail"] == "ehr is not up yet"
 
 
-def test_the_voice_defaults_name_every_setting_ehr_checks():
-    """The agent's defaults and ehr's settings.rs › VOICE list the same settings."""
-    import re
+def test_only_a_built_voice_list_is_served(client):
+    assert client.get("/agent/voice/voices?vendor=nobody", headers=OK).status_code == 404
 
-    from deets_agent import config
 
-    rust = (config.REPO / "ehr" / "src" / "settings.rs").read_text(encoding="utf-8")
-    block = rust.split("pub const VOICE: &[Setting] = &[", 1)[1].split("];", 1)[0]
-    keys = re.findall(r's\("([a-z_]+)"', block)
-    assert sorted(keys) == sorted(config.voice_defaults())
+async def test_ehr_serves_the_catalog_the_binary_prints(ehr):
+    """V-1 A (VOICE-VENDORS.md §3): one catalog. The RPC and `ehr voice-catalog` agree, and every
+    setting the catalog makes has a first value the adapters can read."""
+    from deets_agent.voice import ADAPTERS, vendors
+
+    served = await ehr.voice_catalog()
+    assert served == vendors.current()
+    for vid, adapter in ADAPTERS.items():
+        vendor = vendors.vendor(vid, served)
+        listed = {lever["key"] for d in ("hearing", "speaking") for lever in (vendor.get(d) or {}).get("levers", [])}
+        assert listed == adapter.MAPPED, "each adapter maps every lever its catalog file lists"
 
 
 def test_the_llm_defaults_name_every_setting_ehr_checks():

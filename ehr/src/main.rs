@@ -44,6 +44,11 @@
 //!   (`generalPractitioner`) that is ours and on their visits, and whether `$find` takes and
 //!   honors `specialties`. Prints statuses, counts and forms; books nothing.
 //!
+//!     ehr voice-catalog
+//!
+//! - Prints the voice catalog as JSON, the same as the `GetVoiceCatalog` RPC (VOICE-VENDORS.md
+//!   §2.1): for the agent's tests and its dev server before ehr is up. No value is protected.
+//!
 //!     ehr epic-sandbox
 //!
 //! - Prints the Chat page's Epic list as JSON (epic_ehr.rs `sandbox_list`): Epic's public test
@@ -640,6 +645,10 @@ async fn run() -> Result<(), String> {
     }
     if first.peek().map(String::as_str) == Some("epic-check") {
         return epic_check().await;
+    }
+    if first.peek().map(String::as_str) == Some("voice-catalog") {
+        println!("{}", deetshealth_voice::catalog_json());
+        return Ok(());
     }
     if first.peek().map(String::as_str) == Some("epic-sandbox") {
         let epic = epic_ehr::connect_sandbox(&PathBuf::from(EPIC_CLIENT), &PathBuf::from(EPIC_KEY)).await?;

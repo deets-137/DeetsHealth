@@ -734,7 +734,8 @@
 
 .res-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  /* --res-cols: Anthropic and each voice vendor (chat.ts › resourceRows sets the count). */
+  grid-template-columns: repeat(var(--res-cols, 2), minmax(0, 1fr));
 }
 
 .res-cell {
@@ -747,10 +748,14 @@
 
 .res-anthropic {
   padding-left: 0;
+}
+
+/* A line between columns; the last column has none and no right padding. */
+.res-cell:not(.res-end) {
   border-right: var(--edge) solid var(--line);
 }
 
-.res-cartesia {
+.res-end {
   padding-right: 0;
 }
 
@@ -758,7 +763,7 @@
   border-top: var(--edge) solid var(--line);
 }
 
-.res-grid > .res-cell:nth-child(-n + 2) {
+.res-grid > .res-cell:not(.res-after-line) {
   padding-top: 0;
 }
 

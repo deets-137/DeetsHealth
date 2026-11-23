@@ -1,7 +1,7 @@
 ---
 status: built
 desk_test: closed 2026-11-22
-sources: [docs/architecture/images/hospital-places-table-misaligned-2026-11-15.png, docs/architecture/images/hospital-places-search-box-2026-11-15.png, ../DeetsMusic/docs/architecture/LIBRARY-VIRTUALIZATION.md, console/src/pages/list-window.ts, console/src/styles/config.css, console/src/pages/data-table.ts, console/src/styles/data-table.css, console/src/pages/hospital.ts, console/src/pages/system.ts, console/src/pages/config-kit.ts, console/src/pages/cartesia.ts, console/src/pages/auth.ts, console/src/pages/roles.ts, console/src/styles/skin.css]
+sources: [docs/architecture/images/hospital-places-table-misaligned-2026-11-15.png, docs/architecture/images/hospital-places-search-box-2026-11-15.png, ../DeetsMusic/docs/architecture/LIBRARY-VIRTUALIZATION.md, console/src/pages/list-window.ts, console/src/styles/config.css, console/src/pages/data-table.ts, console/src/styles/data-table.css, console/src/pages/hospital.ts, console/src/pages/system.ts, console/src/pages/config-kit.ts, console/src/pages/voice.ts, console/src/pages/auth.ts, console/src/pages/roles.ts, console/src/styles/skin.css]
 updated: 2026-11-16
 ---
 # DeetsHealth — The console's one table

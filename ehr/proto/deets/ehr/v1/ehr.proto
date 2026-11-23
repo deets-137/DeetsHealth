@@ -82,6 +82,14 @@ service Ehr {
   // Saves a whole set as a new version and makes it the active one. INVALID_ARGUMENT names the
   // setting that does not fit (settings.rs): its name, never its value.
   rpc SaveSettings(SaveSettingsRequest) returns (SaveSettingsReply);
+  // The voice catalog (VOICE-VENDORS.md §2.1; the `deetshealth-voice` crate): every voice vendor,
+  // each direction it offers, its levers, ranges, defaults and rates, as JSON. The settings
+  // service `voice` is made from it. No field is protected data; it needs no store.
+  rpc GetVoiceCatalog(GetVoiceCatalogRequest) returns (GetVoiceCatalogReply);
+  // The voice's cost (the voice crate's cost.rs; VOICE-VENDORS.md §9): each call's credits by
+  // vendor, and each chosen vendor's cycle (plan, use, left, renewal), from the calls' raw use
+  // and the voice settings the request gives. JSON in and out; counts and dates only. No store.
+  rpc PriceVoiceUse(PriceVoiceUseRequest) returns (PriceVoiceUseReply);
   // The people who may sign in to the console (docs/ops/DEMO.md §3.5; users.rs): the store is the
   // record, and the agent keeps Cloudflare's Access group in step. FAILED_PRECONDITION without a
   // store. Everyone on the list now, the owner first.
@@ -392,7 +400,8 @@ message SettingValue {
 }
 
 message ListSettingVersionsRequest {
-  // The service: `voice` (Cartesia). Each service has its own table (settings.rs).
+  // The service: `voice` (VOICE-VENDORS.md), `llm`, `prompt`, `system`, `hospital`, `roles`.
+  // Each service has its own table (settings.rs).
   string service = 1;
 }
 
@@ -425,6 +434,25 @@ message SaveSettingsRequest {
 
 message SaveSettingsReply {
   SettingVersion version = 1;
+}
+
+message GetVoiceCatalogRequest {}
+
+message PriceVoiceUseRequest {
+  // {"today": "YYYY-MM-DD", "settings": {voice settings}, "calls": [{"id", "day", "use"}],
+  // "live": [use]}. `use` is a `call_end` event or its `voice_use` / `cartesia` part.
+  string request = 1;
+}
+
+message PriceVoiceUseReply {
+  // {"calls": {"<id>": {"<vendor>": credits}}, "live": [{"<vendor>": credits}], "cycles": [Cycle]}
+  // (voice/src/cost.rs › Cycle).
+  string reply = 1;
+}
+
+message GetVoiceCatalogReply {
+  // The catalog as JSON: {"vendors": [...], "shared": [...]} (voice/src/lib.rs › Catalog).
+  string catalog = 1;
 }
 
 message FileCallLine {
@@ -556,7 +584,9 @@ message StatTotals {
   int64 calls = 1;
   repeated int64 outcomes = 2;
   double cost_usd = 3;
-  double cartesia_credits = 4;
+  // Was `cartesia_credits` until 2026-11-23: now `voice`, by vendor.
+  reserved 4;
+  VoiceCost voice = 13;
   int64 flagged_calls = 5;
   int64 staff_flags = 6;
   int64 review_flags = 7;
@@ -572,7 +602,8 @@ message StatDay {
   int64 calls = 2;
   repeated int64 outcomes = 3;
   double cost_usd = 4;
-  double cartesia_credits = 5;
+  reserved 5;
+  VoiceCost voice = 8;
   int64 staff_flags = 6;
   int64 review_flags = 7;
 }
@@ -592,8 +623,24 @@ message CostlyCall {
   string id = 1;
   string started = 2;
   double cost_usd = 3;
-  double cartesia_credits = 4;
+  reserved 4;
+  VoiceCost voice = 6;
   string outcome = 5;
+}
+
+// The voice's cost of some calls (the voice crate's cost.rs; VOICE-VENDORS.md §9): credits by
+// vendor id, and in dollars at the active plans' prices. `priced`: every vendor with credits has
+// a price, so `usd` is the whole voice. Counts only.
+message VoiceCost {
+  repeated VendorCredits credits = 1;
+  double usd = 2;
+  bool priced = 3;
+}
+
+// One vendor's credits (its catalog id).
+message VendorCredits {
+  string vendor = 1;
+  double credits = 2;
 }
 
 // The mean of each stage of a turn's wait, in ms, over `turns` turns.

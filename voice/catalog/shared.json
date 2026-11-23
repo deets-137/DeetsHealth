@@ -1,0 +1,10 @@
+{
+  "about": "The voice levers every vendor shares: one value whichever vendor is chosen. Keys have no vendor prefix in a version (VOICE-VENDORS.md §2.3).",
+  "levers": [
+    { "key": "barge_in", "kind": "bool", "default": true },
+    { "key": "keyterms", "kind": "table", "columns": 1, "rows": 100, "chars": 1200 },
+    { "key": "pronunciations", "kind": "table", "columns": 2, "rows": 200, "chars": 25600 },
+    { "key": "idle_s", "kind": "whole", "min": 10, "max": 600, "default": 60 },
+    { "key": "max_s", "kind": "whole", "min": 60, "max": 3600, "default": 360 }
+  ]
+}

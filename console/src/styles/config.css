@@ -1,4 +1,4 @@
-/* Config › Cartesia (pages/cartesia.ts; CONSOLE.md §7): the Read | Edit bar and the save row at
+/* Config › Voice (pages/voice.ts; CONSOLE.md §7): the Read | Edit bar and the save row at
    the top, then cards of rows that scroll. Each row (the owner, 2026-11-13): an "i" button in a
    rounded square at the left, the setting's name, its control; the help opens under the name.
    Read greys every control ("on read mode, everything can be grayed out"); the "i" buttons stay
@@ -184,9 +184,9 @@
   gap: var(--gap);
 }
 
-/* Config › Cartesia with its table of every voice open: the table under Voice. Its own layout,
+/* Config › Voice with its table of every voice open: the table under Voice. Its own layout,
    so a closed table leaves no empty row and no extra gap. */
-.cfg-body[data-layout="cartesia-voices"] {
+.cfg-body[data-layout="voice-list"] {
   grid-template-areas: "voice" "voices" "hearing" "guard" "usage" "facts";
 }
 
@@ -197,7 +197,7 @@
 
 .cfg-card[data-card="voice"] { grid-area: voice; }
 
-/* Config › Cartesia's table of every voice (CONSOLE.md §7.8), opened from More voices. It
+/* Config › Voice's table of every voice (CONSOLE.md §7.8), opened from More voices. It
    takes the columns' width and never sets it: width 0 adds nothing to a max-content column,
    min-width 100% fills it. Its table scrolls sideways when narrower (data-table.css). */
 .cfg-card[data-card="voices"] {
@@ -225,7 +225,7 @@
       "usage facts";
   }
 
-  .cfg-body[data-layout="cartesia-voices"] {
+  .cfg-body[data-layout="voice-list"] {
     grid-template-areas:
       "voice hearing"
       "voice guard"
@@ -451,7 +451,7 @@ select.cfg-field {
   align-items: center;
 }
 
-/* The line at Cartesia's default: --at is its share of the range (cartesia.ts). The thumb's
+/* The line at Cartesia's default: --at is its share of the range (voice.ts). The thumb's
    centre runs from half a thumb in from each end. Taller than the thumb (--mark-height), so it
    still shows above and below it when the thumb sits on the default (the owner, 2026-11-13). */
 .cfg-mark {

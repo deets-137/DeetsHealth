@@ -126,7 +126,9 @@ Twilio, Cartesia or ElevenLabs, the Anthropic API, FHIR (§8). Then the owner ch
 
 - **F2: A2, with the deploy target behind an interface** so B (the hospital's own cloud
   account) can be added later with no change to the service (§7.2).
-- **F5: Cartesia** for both directions: Ink in, Sonic out.
+- **F5: Cartesia** for both directions: Ink in, Sonic out. Since 2026-11-23 Cartesia is the
+  default of each direction, and the vendor of each is a setting (VOICE-VENDORS.md; the owner's
+  V-1 A, V-2 A, V-3 A). ElevenLabs, the fallback, is designed there and not built.
 
 - **F6: Pipecat**, run by us, with Pipecat Flows. The owner: "be open to tuning it heavily if
   needed" (§8.6).

@@ -44,7 +44,8 @@ pub struct StatsRow {
     pub end_reason: Option<String>,
     pub reached: Vec<String>,
     pub cost_usd: f64,
-    pub cartesia_credits: f64,
+    /// The voice's credits by vendor (migration 0015).
+    pub voice_credits: BTreeMap<String, f64>,
     pub turn_waits_ms: Vec<f64>,
     pub turn_stages: Vec<Stages>,
     pub requests_replayed: i32,
@@ -74,7 +75,7 @@ pub struct Totals {
     /// By `OUTCOMES`.
     pub outcomes: [i64; 6],
     pub cost_usd: f64,
-    pub cartesia_credits: f64,
+    pub voice: VoiceCost,
     pub flagged_calls: i64,
     pub staff_flags: i64,
     pub review_flags: i64,
@@ -93,7 +94,7 @@ pub struct Day {
     pub calls: i64,
     pub outcomes: [i64; 6],
     pub cost_usd: f64,
-    pub cartesia_credits: f64,
+    pub voice: VoiceCost,
     pub staff_flags: i64,
     pub review_flags: i64,
 }
@@ -110,8 +111,47 @@ pub struct CostlyCall {
     pub id: String,
     pub started: String,
     pub cost_usd: f64,
-    pub cartesia_credits: f64,
+    pub voice: VoiceCost,
     pub outcome: String,
+}
+
+/// Dollars per credit for each vendor whose plan has a price (the voice crate's
+/// `cost::usd_per_credit`, from the active voice settings).
+pub type Prices = BTreeMap<String, f64>;
+
+/// The voice's cost of some calls: credits by vendor, and in dollars at the active plans'
+/// prices. `priced`: every vendor with credits has a price, so `usd` is the whole voice.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct VoiceCost {
+    pub credits: BTreeMap<String, f64>,
+    pub usd: f64,
+    pub priced: bool,
+}
+
+impl VoiceCost {
+    fn add(&mut self, credits: &BTreeMap<String, f64>) {
+        for (k, v) in credits {
+            *self.credits.entry(k.clone()).or_default() += v;
+        }
+    }
+
+    /// Dollars and `priced`, once every call is added.
+    fn priced_at(mut self, prices: &Prices) -> Self {
+        self.usd = self.credits.iter().filter_map(|(k, c)| prices.get(k).map(|p| c * p)).sum();
+        self.priced = self.credits.iter().all(|(k, c)| *c == 0.0 || prices.contains_key(k));
+        self
+    }
+
+    fn of(credits: &BTreeMap<String, f64>, prices: &Prices) -> Self {
+        let mut v = VoiceCost::default();
+        v.add(credits);
+        v.priced_at(prices)
+    }
+
+    /// All its credits, whatever the vendor: for ordering only.
+    fn all_credits(&self) -> f64 {
+        self.credits.values().sum()
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -197,7 +237,7 @@ fn outcome_index(o: &str) -> Option<usize> {
 }
 
 /// The totals of some calls.
-pub fn totals(rows: &[StatsRow]) -> Totals {
+pub fn totals(rows: &[StatsRow], prices: &Prices) -> Totals {
     let mut t = Totals { calls: rows.len() as i64, ..Totals::default() };
     let mut waits = Vec::new();
     for r in rows {
@@ -205,7 +245,7 @@ pub fn totals(rows: &[StatsRow]) -> Totals {
             t.outcomes[i] += 1;
         }
         t.cost_usd += r.cost_usd;
-        t.cartesia_credits += r.cartesia_credits;
+        t.voice.add(&r.voice_credits);
         if !r.staff_flags.is_empty() || !r.review_flags.is_empty() {
             t.flagged_calls += 1;
         }
@@ -222,12 +262,13 @@ pub fn totals(rows: &[StatsRow]) -> Totals {
     t.turns_within = waits.iter().filter(|w| **w <= TURN_TARGET_MS).count() as i64;
     t.wait_p50_ms = percentile(&waits, 0.5);
     t.wait_p90_ms = percentile(&waits, 0.9);
+    t.voice = t.voice.priced_at(prices);
     t
 }
 
 /// Every sum the five views show.
-pub fn aggregate(rows: &[StatsRow], tools: &[ToolRow]) -> Stats {
-    let mut s = Stats { totals: totals(rows), ..Stats::default() };
+pub fn aggregate(rows: &[StatsRow], tools: &[ToolRow], prices: &Prices) -> Stats {
+    let mut s = Stats { totals: totals(rows, prices), ..Stats::default() };
 
     let mut days: BTreeMap<String, Day> = BTreeMap::new();
     let mut reached: BTreeMap<String, i64> = BTreeMap::new();
@@ -248,7 +289,7 @@ pub fn aggregate(rows: &[StatsRow], tools: &[ToolRow]) -> Stats {
             d.outcomes[i] += 1;
         }
         d.cost_usd += r.cost_usd;
-        d.cartesia_credits += r.cartesia_credits;
+        d.voice.add(&r.voice_credits);
         d.staff_flags += r.staff_flags.len() as i64;
         d.review_flags += r.review_flags.len() as i64;
 
@@ -308,7 +349,7 @@ pub fn aggregate(rows: &[StatsRow], tools: &[ToolRow]) -> Stats {
         }
     }
 
-    s.days = days.into_values().collect();
+    s.days = days.into_values().map(|d| Day { voice: d.voice.clone().priced_at(prices), ..d }).collect();
     s.reached = reached.into_iter().collect();
     let mut ends: Vec<(String, i64)> = ends.into_iter().collect();
     ends.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
@@ -317,13 +358,14 @@ pub fn aggregate(rows: &[StatsRow], tools: &[ToolRow]) -> Stats {
     let mut models: Vec<ModelCost> = models.into_values().collect();
     models.sort_by(|a, b| b.cost_usd.total_cmp(&a.cost_usd));
     s.models = models;
-    let mut costly: Vec<&StatsRow> = rows.iter().collect();
-    // By Claude's dollars, then Cartesia's credits (the console turns credits into dollars).
-    costly.sort_by(|a, b| b.cost_usd.total_cmp(&a.cost_usd).then(b.cartesia_credits.total_cmp(&a.cartesia_credits)));
+    // By all its dollars (Claude's and the priced voice's), then the voice's credits.
+    let costs: Vec<(&StatsRow, VoiceCost)> = rows.iter().map(|r| (r, VoiceCost::of(&r.voice_credits, prices))).collect();
+    let mut costly: Vec<&(&StatsRow, VoiceCost)> = costs.iter().collect();
+    costly.sort_by(|(a, av), (b, bv)| (b.cost_usd + bv.usd).total_cmp(&(a.cost_usd + av.usd)).then(bv.all_credits().total_cmp(&av.all_credits())));
     s.costliest = costly
         .into_iter()
         .take(5)
-        .map(|r| CostlyCall { id: r.id.clone(), started: r.started.clone(), cost_usd: r.cost_usd, cartesia_credits: r.cartesia_credits, outcome: r.outcome.clone() })
+        .map(|(r, v)| CostlyCall { id: r.id.clone(), started: r.started.clone(), cost_usd: r.cost_usd, voice: v.clone(), outcome: r.outcome.clone() })
         .collect();
     s.wait_hist = hist;
     if s.staged_turns > 0 {
@@ -367,7 +409,7 @@ pub fn aggregate(rows: &[StatsRow], tools: &[ToolRow]) -> Stats {
     flag_list.sort_by(|a, b| b.count.cmp(&a.count).then(a.kind.cmp(&b.kind)));
     s.staff_flags = flag_list;
     let mut review_list: Vec<(String, i64)> = reviews.into_iter().collect();
-    review_list.sort_by(|a, b| b.1.cmp(&a.1));
+    review_list.sort_by_key(|r| std::cmp::Reverse(r.1));
     s.review_flags = review_list;
 
     s.versions = versions
@@ -417,20 +459,21 @@ mod tests {
         let mut flagged = row("test_b", "2026-11-22", "handed_off", &[900.0]);
         flagged.staff_flags = vec![("referral_check".into(), "code".into(), 0)];
         flagged.review_flags = vec!["token_cap".into()];
-        flagged.cartesia_credits = 120.0;
+        flagged.voice_credits = BTreeMap::from([("cartesia".to_string(), 120.0)]);
         let rows = vec![row("test_a", "2026-11-22", "booked", &[400.0, 700.0]), replayed, flagged];
         let tools = vec![
             ToolRow { tool: "find_slots".into(), ms: Some(300.0), failed: false },
             ToolRow { tool: "find_slots".into(), ms: Some(500.0), failed: true },
         ];
-        let s = aggregate(&rows, &tools);
+        let s = aggregate(&rows, &tools, &Prices::from([("cartesia".to_string(), 0.001)]));
         assert_eq!(s.totals.calls, 3);
         assert_eq!(s.totals.outcomes[0], 2, "booked");
         assert_eq!(s.totals.outcomes[1], 1, "handed off");
         assert_eq!((s.totals.turns_answered, s.totals.turns_within), (3, 2), "the replayed call's turns are left out");
         assert_eq!(s.totals.replayed_calls, 1);
         assert_eq!((s.totals.flagged_calls, s.totals.staff_flags, s.totals.review_flags), (1, 1, 1));
-        assert_eq!(s.totals.cartesia_credits, 120.0);
+        assert_eq!(s.totals.voice.credits["cartesia"], 120.0);
+        assert!(s.totals.voice.priced && (s.totals.voice.usd - 0.12).abs() < 1e-9);
         assert_eq!(s.days.iter().map(|d| (d.day.as_str(), d.calls)).collect::<Vec<_>>(), [("2026-11-21", 1), ("2026-11-22", 2)]);
         assert_eq!(s.reached, [("greet".to_string(), 3), ("verify".to_string(), 3)]);
         assert_eq!(s.wait_hist[2], 1, "400 ms");

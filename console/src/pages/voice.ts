@@ -1,26 +1,47 @@
-// Config › Cartesia (CONSOLE.md §7): every Cartesia lever the agent runs with, its usage, and
-// whether the key is set. The top row: Read | Edit (Read greys every control; Edit opens them),
-// then the versions (the owner, 2026-11-13: each saved version is "MM-DD | n", the one the agent
-// runs with is "Active"; an older one shows read only, its changed values glowing), Discard and
-// Save. Save makes a new version in the settings store (CONSOLE.md §7.3) and the active one. The
-// key itself never comes here (SECURITY.md §4.6).
+// Config › Voice (VOICE-VENDORS.md §2.5, the owner's V-3 A; CONSOLE.md §7): one page for the
+// voice. Two cards side by side, Hearing and Speaking, each with its Vendor first; the vendor's
+// own levers below it. Every vendor, model, range, default, rate and recommended voice comes
+// from the voice catalog (the `deetshealth-voice` crate, through ehr); none is written here.
+// Only Cartesia is in the catalog so far, so its rows are the only vendor rows built.
+//
+// The top row: Read | Edit (Read greys every control; Edit opens them), then the versions (the
+// owner, 2026-11-13: each saved version is "MM-DD | n", the one the agent runs with is "Active";
+// an older one shows read only, its changed values glowing), Discard and Save. Save makes a new
+// version in the settings store (CONSOLE.md §7.3) and the active one; it sends every setting of
+// every vendor (V-2 A). A key itself never comes here (SECURITY.md §4.6).
 //
 // Each row (the owner, 2026-11-13): an "i" button at the left that opens the setting's help,
 // its name, then its control. No line under the name. The frame, the rows and the controls are
 // config-kit.ts, shared with Config › Anthropic.
 import * as api from "../agent/api";
-import { saveCartesia, type CartesiaCycle, type CartesiaSettings, type CartesiaVoice, type CartesiaVoices, type VoiceValues } from "../agent/api";
+import {
+  saveVoice,
+  type VendorCycle,
+  type CartesiaVoice,
+  type CartesiaVoices,
+  type CatalogLever,
+  type CatalogVendor,
+  type Range,
+  type VoiceSettings,
+  type VoiceValues,
+} from "../agent/api";
 import type { State } from "../agent/store";
-import { cartesiaSettings, cartesiaVoices, resources } from "../agent/stores";
+import { cartesiaVoices, resources, voiceSettings } from "../agent/stores";
 import { cap, settingsView, type Kit } from "./config-kit";
 import { row as dtRow, table as dtTable, titleLine } from "./data-table";
 import { fillTable, heightsOf } from "./list-window";
 import { el } from "./page";
 import type { View } from "./subnav";
 
-/** What the page edits: one value per lever. Null is "Cartesia's default". The voice is its id
- * (a name can belong to several voices); null only for a voice from the docs not yet resolved. */
+/** What the page edits: the vendor of each direction, the shared levers, and Cartesia's levers
+ * (the only vendor rows built). Null is "the vendor's default". The voice is its id (a name can
+ * belong to several voices); null only for a voice from the docs not yet resolved. `raw` is the
+ * whole version as read: a save sends it back with the page's changes over it, so every
+ * vendor's settings travel, the ones not shown too (V-2 A). */
 type Draft = {
+  raw: VoiceValues;
+  hearingVendor: string;
+  speakingVendor: string;
   voice: { name: string; id: string | null };
   speed: number | null;
   volume: number | null;
@@ -41,6 +62,11 @@ type Draft = {
 
 // The help behind each "i" (the owner's to edit; CONSOLE.md §7.2).
 const HELP: Record<string, string> = {
+  // Drafts for the owner's words (VOICE-VENDORS.md §2.5).
+  hearingVendor:
+    "The company whose engine hears the caller and turns speech into words. Each vendor has its own rows below. The choice applies from the next call.",
+  speakingVendor:
+    "The company whose engine speaks the agent's words. It can differ from the hearing vendor. Each vendor has its own rows below. The choice applies from the next call.",
   voice:
     "Who speaks for the agent. The list is Cartesia's stable voices for agents: Cartesia says they do better on calls than studio or emotive voices. Listen will play one fixed sentence in the voice (about 150 credits, once). Skylar is a draft until you pick one by ear.",
   // A draft for the owner's words (CONSOLE.md §7.8).
@@ -82,7 +108,7 @@ const HELP: Record<string, string> = {
   planPrice:
     "What the plan costs a month, in dollars, from Cartesia's billing page. Analytics › Cost turns credits into dollars with it (the price over the plan's credits). 0: not set, and Cost shows Cartesia in credits.",
   left: "The plan's credits, less the offset, less what this machine's voice calls used this cycle. Cartesia's dashboard has the true balance.",
-  key: "Never shown here. On this machine it is CARTESIA_API_KEY in .env; in the cloud, the secret manager (CONSOLE.md §7.4).",
+  key: "Never shown here. On this machine it is in .env under the name shown; in the cloud, the secret manager (CONSOLE.md §7.4). A voice call needs the key of each vendor chosen above.",
   apiVersion: "The Cartesia API version. Pipecat fixes it; it moves when Pipecat moves.",
   rates: "What Cartesia charges: Ink, 3 credits a second of audio; Sonic, about 1 credit a character.",
 };
@@ -96,58 +122,70 @@ const TURN_WORD: Record<string, string> = {
 
 const TURN_KEYS = ["turn_start_threshold", "turn_eager_end_threshold", "turn_end_threshold", "turn_end_timeout_ms"] as const;
 
+/** Cartesia's lever `key` in a version: `cartesia.<key>` (VOICE-VENDORS.md §2.3). */
+const C = (key: string) => `cartesia.${key}`;
+const rows = (x: unknown): string[][] => (Array.isArray(x) ? x.map((r) => (Array.isArray(r) ? r.map(String) : [])) : []);
+const num = (x: unknown): number | null => (typeof x === "number" ? x : null);
+
 /** The stored values (api.ts › VoiceValues) as the page edits them. */
 function fromValues(v: VoiceValues): Draft {
+  const voice = (v[C("voice")] ?? {}) as { name?: string; id?: string | null };
   return {
-    voice: { name: v.voice.name, id: v.voice.id },
-    speed: v.speed,
-    volume: v.volume,
-    emotion: v.emotion,
-    normalization: v.normalization,
-    pronunciations: v.pronunciations.map((r) => [...r]),
-    turn: Object.fromEntries(TURN_KEYS.map((k) => [k, v[k]])),
-    eager: v.eager_end_of_turn,
-    bargeIn: v.barge_in,
-    keyterms: v.keyterms.map((r) => [...r]),
-    idleS: v.idle_s,
-    maxS: v.max_s,
-    planCredits: v.plan_credits,
-    planPrice: v.plan_price_usd ?? 0,
-    offset: v.offset,
-    cycleDay: v.cycle_day,
+    raw: { ...v },
+    hearingVendor: v["hearing.vendor"],
+    speakingVendor: v["speaking.vendor"],
+    voice: { name: voice.name ?? "", id: voice.id ?? null },
+    speed: num(v[C("speed")]),
+    volume: num(v[C("volume")]),
+    emotion: (v[C("emotion")] as string | null) ?? null,
+    normalization: String(v[C("normalization")] ?? "auto"),
+    pronunciations: rows(v.pronunciations),
+    turn: Object.fromEntries(TURN_KEYS.map((k) => [k, num(v[C(k)])])),
+    eager: Boolean(v[C("eager_end_of_turn")]),
+    bargeIn: Boolean(v.barge_in),
+    keyterms: rows(v.keyterms),
+    idleS: Number(v.idle_s),
+    maxS: Number(v.max_s),
+    planCredits: Number(v[C("plan_credits")]),
+    planPrice: Number(v[C("plan_price_usd")] ?? 0),
+    offset: Number(v[C("offset")]),
+    cycleDay: Number(v[C("cycle_day")]),
   };
 }
 
-/** The page's draft as the whole set a save sends. The voice carries its id from Cartesia's list;
- * with none (no list held), the dev server finds it by name and checks it. */
+/** The page's draft as the whole set a save sends: the version as read, with the page's changes
+ * over it. The voice carries its id from Cartesia's list; with none (no list held), the dev
+ * server finds it by name and checks it. */
 function toValues(d: Draft): VoiceValues {
   return {
-    voice: { ...d.voice },
-    speed: d.speed,
-    volume: d.volume,
-    emotion: d.emotion,
-    normalization: d.normalization,
+    ...d.raw,
+    "hearing.vendor": d.hearingVendor,
+    "speaking.vendor": d.speakingVendor,
+    [C("voice")]: { ...d.voice },
+    [C("speed")]: d.speed,
+    [C("volume")]: d.volume,
+    [C("emotion")]: d.emotion,
+    [C("normalization")]: d.normalization,
     pronunciations: d.pronunciations,
-    turn_start_threshold: d.turn.turn_start_threshold ?? null,
-    turn_eager_end_threshold: d.turn.turn_eager_end_threshold ?? null,
-    turn_end_threshold: d.turn.turn_end_threshold ?? null,
-    turn_end_timeout_ms: d.turn.turn_end_timeout_ms ?? null,
-    eager_end_of_turn: d.eager,
+    ...Object.fromEntries(TURN_KEYS.map((k) => [C(k), d.turn[k] ?? null])),
+    [C("eager_end_of_turn")]: d.eager,
     barge_in: d.bargeIn,
     keyterms: d.keyterms,
     idle_s: d.idleS,
     max_s: d.maxS,
-    plan_credits: d.planCredits,
-    plan_price_usd: d.planPrice,
-    offset: d.offset,
-    cycle_day: d.cycleDay,
+    [C("plan_credits")]: d.planCredits,
+    [C("plan_price_usd")]: d.planPrice,
+    [C("offset")]: d.offset,
+    [C("cycle_day")]: d.cycleDay,
   };
 }
 
-/** The levers that differ between two drafts: a draft's name, or "turn.<key>" for a turn value. */
+/** The levers that differ between two drafts: a draft's name, or "turn.<key>" for a turn value.
+ * `raw` is the version as read, not a lever: never compared. */
 function differing(a: Draft, b: Draft): Set<string> {
   const out = new Set<string>();
   for (const k of Object.keys(a) as (keyof Draft)[]) {
+    if (k === "raw") continue;
     if (k === "turn") {
       for (const t of TURN_KEYS) if (a.turn[t] !== b.turn[t]) out.add(`turn.${t}`);
     } else if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) out.add(k);
@@ -175,14 +213,14 @@ type Voices = {
 
 const MORE = "more";
 
-export const cartesiaView = (): View => {
-  let cycle: CartesiaCycle | undefined;
+export const voiceView = (): View => {
+  let cycle: VendorCycle | undefined;
   const v = voicesState();
-  return settingsView<VoiceValues, Draft, CartesiaSettings>({
-    id: "cartesia",
-    title: "Cartesia",
-    store: cartesiaSettings,
-    save: (_s, d) => saveCartesia(toValues(d)),
+  return settingsView<VoiceValues, Draft, VoiceSettings>({
+    id: "voice",
+    title: "Voice",
+    store: voiceSettings,
+    save: (_s, d) => saveVoice(toValues(d)),
     fromValues,
     differing,
     // A row added in place starts blank (TABLES.md §3.16): Save waits until each cell has
@@ -199,7 +237,7 @@ export const cartesiaView = (): View => {
       });
       const use = resources(null);
       await use.refresh("open");
-      cycle = use.get().value?.cartesia;
+      cycle = use.get().value?.vendors.find((x) => x.vendor === "cartesia");
     },
     render: (s, d, kit) => ((v.kit = kit), render(s, d, kit, cycle, v)),
   });
@@ -251,14 +289,28 @@ function ago(iso: string): string {
   return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
 }
 
-/** The Voice menu: Cartesia's shortlist for agents, each checked against Cartesia's list (a
- * voice it no longer has is marked and cannot be chosen; a name with several voices shows each
- * with its tagline), the voice in the draft if it is not one of them, then More voices. Each
- * option's value is the voice's id; a docs voice with no id yet (no list held) is "name:". */
-function voiceMenu(s: CartesiaSettings, d: Draft, list: CartesiaVoice[] | null) {
+/** A vendor in the catalog. */
+const vendorOf = (s: VoiceSettings, id: string): CatalogVendor | undefined => s.catalog.vendors.find((x) => x.id === id);
+
+/** A lever of a vendor's direction (or its account) by key. */
+function leverOf(levers: CatalogLever[] | undefined, key: string): CatalogLever {
+  const found = levers?.find((l) => l.key === key);
+  if (!found) throw new Error(`the catalog has no lever ${key}`);
+  return found;
+}
+
+/** A number lever as the sliders take it: its range, its step, the vendor's default. */
+const rangeOf = (l: CatalogLever): Range => ({ min: l.min ?? 0, max: l.max ?? 1, step: l.step ?? 1, default: Number(l.default ?? l.min ?? 0) });
+
+/** The Voice menu: Cartesia's shortlist for agents (the catalog's), each checked against
+ * Cartesia's list (a voice it no longer has is marked and cannot be chosen; a name with several
+ * voices shows each with its tagline), the voice in the draft if it is not one of them, then More
+ * voices. Each option's value is the voice's id; a docs voice with no id yet (no list held) is
+ * "name:". */
+function voiceMenu(shortlist: { name: string; id?: string }[], d: Draft, list: CartesiaVoice[] | null) {
   const opts: [string, string][] = [];
   const off = new Set<string>();
-  for (const short of s.tts.voices) {
+  for (const short of shortlist) {
     if (!list) {
       opts.push([short.id ?? `name:${short.name}`, short.name]);
       continue;
@@ -350,16 +402,37 @@ function voicesCard(d: Draft, kit: Kit, v: Voices, list: CartesiaVoice[]) {
   return c;
 }
 
-function render(s: CartesiaSettings, d: Draft, kit: Kit, cycle: CartesiaCycle | undefined, v: Voices) {
+function render(s: VoiceSettings, d: Draft, kit: Kit, cycle: VendorCycle | undefined, v: Voices) {
   const { row, keyed: k, fixed, select, slider, number, pair, table, card } = kit;
   const n = (x: number) => Math.round(x).toLocaleString("en-US");
+
+  // The catalog's Cartesia: its models, ranges, profiles, voices and rates.
+  const cart = vendorOf(s, "cartesia");
+  if (!cart?.hearing || !cart.speaking) throw new Error("the catalog has no Cartesia");
+  const ink = cart.hearing;
+  const sonic = cart.speaking;
+  const turnRange = (key: string) => rangeOf(leverOf(ink.levers, key));
+
+  // Each direction's Vendor menu: every vendor in the catalog that offers it. A change draws the
+  // cards again, since each vendor has its own rows.
+  const vendorRow = (dir: "hearing" | "speaking") => {
+    const field = dir === "hearing" ? "hearingVendor" : "speakingVendor";
+    const offering = s.catalog.vendors.filter((x) => x[dir]).map((x): [string, string] => [x.id, x.name]);
+    const menu = select(offering, d[field], (id) => {
+      d[field] = id;
+      kit.rerender();
+    });
+    return k(field, row("Vendor", HELP[field], menu));
+  };
+  // A vendor whose rows the page does not build yet (none today: Cartesia is the only one).
+  const notBuilt = (id: string) => row("Settings", "", fixed(`${vendorOf(s, id)?.name ?? id}: its rows are not built yet`));
 
   const listen = el(`<button class="cfg-button" type="button" data-off disabled>Listen</button>`);
   listen.title = "Not built yet";
   const held = v.state?.value ?? null;
   // An empty list is never a check: it would grey every name (the server calls it a fault too).
   const list = held && held.checked_at && held.voices.length ? held.voices : null;
-  const menu = voiceMenu(s, d, list);
+  const menu = voiceMenu(sonic.voices ?? [], d, list);
   const voiceSelect = select(menu.opts, menu.current, (value) => {
     if (value === MORE) {
       v.open = true;
@@ -368,7 +441,7 @@ function render(s: CartesiaSettings, d: Draft, kit: Kit, cycle: CartesiaCycle | 
       requestAnimationFrame(() => v.box.focus());
       return;
     }
-    const found = list?.find((x) => x.id === value) ?? s.tts.voices.find((x) => x.id === value);
+    const found = list?.find((x) => x.id === value) ?? (sonic.voices ?? []).find((x) => x.id === value);
     const name = value.startsWith("name:") ? value.slice(5) : (found?.name ?? d.voice.name);
     d.voice = { name, id: value.startsWith("name:") ? null : value };
   });
@@ -393,23 +466,28 @@ function render(s: CartesiaSettings, d: Draft, kit: Kit, cycle: CartesiaCycle | 
   const refresh = el(`<button class="cfg-button" type="button">Refresh</button>`) as HTMLButtonElement;
   refresh.addEventListener("click", () => {
     refresh.disabled = true;
-    void cartesiaVoices.write(() => api.cartesiaVoices(true)).catch(() => kit.rerender());
+    void cartesiaVoices.write(() => api.voiceVoices("cartesia", true)).catch(() => kit.rerender());
   });
   if (held && !held.key) refresh.dataset.off = "";
 
-  const voice = card(
-    "Voice (Sonic)",
+  const pronunciations = k("pronunciations", row("Pronunciations", HELP.pronunciations, table(d.pronunciations, ["Word", "Say it like"])));
+  const speakingProduct = vendorOf(s, d.speakingVendor)?.speaking?.product ?? d.speakingVendor;
+  const voice = d.speakingVendor !== "cartesia"
+    ? card(`Speaking (${speakingProduct})`, "voice", vendorRow("speaking"), notBuilt(d.speakingVendor), pronunciations)
+    : card(
+    `Speaking (${sonic.product})`,
     "voice",
-    row("Model", HELP.ttsModel, fixed(s.tts.model)),
+    vendorRow("speaking"),
+    row("Model", HELP.ttsModel, fixed(sonic.model)),
     k("voice", row("Voice", HELP.voice, voiceSelect, listen)),
     row("Voice list", HELP.voiceCheck, fixed(checked), refresh),
-    k("speed", row("Speed", HELP.speed, slider(s.tts.ranges.speed, d.speed, (v) => (d.speed = v)))),
-    k("volume", row("Volume", HELP.volume, slider(s.tts.ranges.volume, d.volume, (v) => (d.volume = v)))),
+    k("speed", row("Speed", HELP.speed, slider(rangeOf(leverOf(sonic.levers, "speed")), d.speed, (v) => (d.speed = v)))),
+    k("volume", row("Volume", HELP.volume, slider(rangeOf(leverOf(sonic.levers, "volume")), d.volume, (v) => (d.volume = v)))),
     k("emotion", row(
       "Emotion",
       HELP.emotion,
       select(
-        [["", "Cartesia's default"], ...s.tts.emotions.map((e): [string, string] => [e, cap(e)])],
+        [["", "Cartesia's default"], ...(leverOf(sonic.levers, "emotion").words ?? []).map((e): [string, string] => [e, cap(e)])],
         d.emotion ?? "",
         (v) => (d.emotion = v || null),
       ),
@@ -426,28 +504,29 @@ function render(s: CartesiaSettings, d: Draft, kit: Kit, cycle: CartesiaCycle | 
         (v) => (d.normalization = v),
       ),
     )),
-    k("pronunciations", row("Pronunciations", HELP.pronunciations, table(d.pronunciations, ["Word", "Say it like"]))),
+    pronunciations,
   );
 
   // The turn profile is a name for one set of the four turn values (Cartesia's docs), not a
   // setting of its own: choosing one moves the sliders, and moving a slider shows the profile
   // the four now match, or Custom.
-  const valueOf = (key: string) => d.turn[key] ?? s.stt.ranges[key].default;
+  const profiles = ink.profiles ?? {};
+  const valueOf = (key: string) => d.turn[key] ?? turnRange(key).default;
   const matching = () =>
-    Object.keys(s.stt.profiles).find((p) =>
-      Object.entries(s.stt.profiles[p]).every(([key, x]) => Math.abs(valueOf(key) - x) < s.stt.ranges[key].step / 2),
+    Object.keys(profiles).find((p) =>
+      Object.entries(profiles[p]).every(([key, x]) => Math.abs(valueOf(key) - x) < turnRange(key).step / 2),
     ) ?? "custom";
   const profileSelect = select(
     [
-      ...Object.keys(s.stt.profiles).map((p): [string, string] => [p, p === "balanced" ? "Balanced (Cartesia's default)" : cap(p)]),
+      ...Object.keys(profiles).map((p): [string, string] => [p, p === "balanced" ? "Balanced (Cartesia's default)" : cap(p)]),
       ["custom", "Custom"],
     ],
     matching(),
     (p) => {
-      const values = s.stt.profiles[p];
+      const values = profiles[p];
       if (!values) return;
       for (const [key, x] of Object.entries(values)) {
-        const r = s.stt.ranges[key];
+        const r = turnRange(key);
         d.turn[key] = Math.abs(x - r.default) < r.step / 2 ? null : x;
         turnSliders[key]?.set?.(d.turn[key]);
       }
@@ -460,25 +539,32 @@ function render(s: CartesiaSettings, d: Draft, kit: Kit, cycle: CartesiaCycle | 
   };
   const turnSliders: Record<string, ReturnType<typeof slider>> = {};
   const turnRow = (key: string) => {
-    turnSliders[key] = slider(s.stt.ranges[key], d.turn[key], (v) => ((d.turn[key] = v), showProfile()));
+    turnSliders[key] = slider(turnRange(key), d.turn[key], (v) => ((d.turn[key] = v), showProfile()));
     return k(`turn.${key}`, row(TURN_WORD[key] ?? key, HELP[key] ?? "", turnSliders[key]));
   };
+  // The shared rows of hearing: one value whichever vendor hears.
+  const bargeIn = k("bargeIn", row("Barge-in", HELP.bargeIn, pair(d.bargeIn, (v) => (d.bargeIn = v), "Barge-in")));
+  const keyterms = k("keyterms", row("Keyterms", HELP.keyterms, table(d.keyterms, ["Word or phrase"])));
+  const hearingProduct = vendorOf(s, d.hearingVendor)?.hearing?.product ?? d.hearingVendor;
   // In the order a turn happens: it starts, it ends, the longest wait; then the early guess
   // beside its own switch; then barge-in and the words Ink listens for.
-  const hearing = card(
-    "Hearing (Ink)",
+  const hearing = d.hearingVendor !== "cartesia"
+    ? card(`Hearing (${hearingProduct})`, "hearing", vendorRow("hearing"), notBuilt(d.hearingVendor), bargeIn, keyterms)
+    : card(
+    `Hearing (${ink.product})`,
     "hearing",
-    row("Model", HELP.sttModel, fixed(s.stt.model)),
+    vendorRow("hearing"),
+    row("Model", HELP.sttModel, fixed(ink.model)),
     k("profile", row("Turn profile", HELP.profile, profileSelect)),
     turnRow("turn_start_threshold"),
     turnRow("turn_end_threshold"),
     turnRow("turn_end_timeout_ms"),
     k("eager", row("Early end of turn", HELP.eager, pair(d.eager, (v) => (d.eager = v), "Early end of turn"))),
     turnRow("turn_eager_end_threshold"),
-    k("bargeIn", row("Barge-in", HELP.bargeIn, pair(d.bargeIn, (v) => (d.bargeIn = v), "Barge-in"))),
-    k("keyterms", row("Keyterms", HELP.keyterms, table(d.keyterms, ["Word or phrase"]))),
+    bargeIn,
+    keyterms,
   );
-  showProfile();
+  if (d.hearingVendor === "cartesia") showProfile();
 
   const guard = card(
     "Test-call guard",
@@ -494,7 +580,7 @@ function render(s: CartesiaSettings, d: Draft, kit: Kit, cycle: CartesiaCycle | 
   showLeft();
   const minus = el(`<span class="cfg-minus" aria-hidden="true">−</span>`);
   const usage = card(
-    "Usage",
+    `Usage (${cart.name})`,
     "usage",
     k("planCredits", row(
       "Plan credits",
@@ -508,29 +594,28 @@ function render(s: CartesiaSettings, d: Draft, kit: Kit, cycle: CartesiaCycle | 
     row("Credits left", HELP.left, left),
   );
 
+  // One key row for each vendor chosen now (one row when both directions use the same vendor).
+  const chosen = [...new Set([d.hearingVendor, d.speakingVendor])].map((id) => vendorOf(s, id)).filter((x) => x !== undefined);
+  const keyRows = chosen.map((x) =>
+    row(`${x.name} API key`, HELP.key, fixed(s.keys[x.id] ? "Set" : `Not set: add ${x.key_env} to .env`)),
+  );
+  const per = (r: { unit: string; per: string; amount: number }) => `${r.amount} ${r.amount === 1 ? r.unit.replace(/s$/, "") : r.unit} per ${r.per}`;
   const facts = card(
-    "Key and facts",
+    "Keys and facts",
     "facts",
-    row("API key", HELP.key, fixed(s.key ? "Set" : "Not set: add CARTESIA_API_KEY to .env")),
-    row("API version", HELP.apiVersion, fixed(s.api_version)),
+    ...keyRows,
+    row("API version", HELP.apiVersion, fixed(s.api_versions.cartesia ?? "")),
     // The owner's words (2026-11-13): "Ink: 3 credits per second | Sonic: 1 credit per character".
-    row(
-      "Rates",
-      HELP.rates,
-      fixed(
-        `Ink: ${s.rates.ink_per_s} ${s.rates.ink_per_s === 1 ? "credit" : "credits"} per second | ` +
-          `Sonic: ${s.rates.sonic_per_char} ${s.rates.sonic_per_char === 1 ? "credit" : "credits"} per character`,
-      ),
-    ),
+    row("Rates", HELP.rates, fixed(`${ink.product}: ${per(ink.rate)} | ${sonic.product}: ${per(sonic.rate)}`)),
   );
 
-  // Voice and Hearing side by side when there is room, the rest below them (config.css ›
-  // .cfg-body[data-layout="cartesia"]). On an older version the profile glows with any turn
-  // value; Plan credits with the offset beside it.
-  const all = v.open && list?.length ? [voicesCard(d, kit, v, list)] : [];
+  // Speaking and Hearing side by side when there is room, the rest below them (config.css ›
+  // .cfg-body). On an older version the profile glows with any turn value; Plan credits with the
+  // offset beside it.
+  const all = v.open && list?.length && d.speakingVendor === "cartesia" ? [voicesCard(d, kit, v, list)] : [];
   return {
     cards: [voice, ...all, hearing, guard, usage, facts],
-    layout: all.length ? "cartesia-voices" : "cartesia",
+    layout: all.length ? "voice-list" : "voice",
     glow: (diff: Set<string>) => {
       if ([...diff].some((x) => x.startsWith("turn."))) diff.add("profile");
       if (diff.has("offset")) diff.add("planCredits");
