@@ -466,7 +466,7 @@ no usual place is asked where.
 
 ### 5.5 Step 4: the Booking rules (built 2026-11-16)
 > **Part:** built · 2026-11-16 · desk test closed 2026-11-22; the move to Rules › Booking
-> (2026-11-22): desk test open, the "move" steps at this part's end. Where this part and §3.5
+> (2026-11-22): desk test passed 2026-11-23, the "move" steps at this part's end. Where this part and §3.5
 > disagree, this part is the code.
 
 - **ehr › `hospital.rs`:** `BookingRule` (specialty ID, department record name, visit type

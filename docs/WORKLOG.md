@@ -46,6 +46,10 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   sent with zero retention on. Both were accepted, and the Flash request showed in the account's
   history: the free plan ignores the flag. The guard now refuses ElevenLabs on every call that is
   not synthetic, On or Off (VOICE-VENDORS.md §11.7).
+- Committed as `3ccf2ed` (his "Commit please"; not pushed).
+- His desk tests: "Analytics tested, timeline and rules > booking also good to go". Marked passed
+  2026-11-23: ANALYTICS.md §3.1 and §3.2, CHAT.md §18, BOOKING-RULES.md §5.5 (the move to Rules ›
+  Booking), and their HANDOFF entries.
 - No screenshots this sitting.
 
 ## 2026-11-23 (Windows) — Voice vendors: the design

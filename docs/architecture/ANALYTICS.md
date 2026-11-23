@@ -126,7 +126,7 @@ batches, the same evening).
   800 ms only.
 
 #### 3.1.1 As built
-> **Part:** built · 2026-11-22 · desk test open — the owner's "Build as drafted". Where this part
+> **Part:** built · 2026-11-22 · desk test passed 2026-11-23 — the owner's "Build as drafted". Where this part
 > and §3.1 disagree, this part is the code.
 
 - **The store** (migration 0013, `ehr/src/store.rs`): `calls` has `seat`, `ehr`,
@@ -195,7 +195,7 @@ batches, the same evening).
 7. A role without Testing View has no Open in Chat; without Analytics View, no Analytics page.
 
 ### 3.2 Home, Outcome, Cost, Speed and Flags
-> **Part:** built · 2026-11-22 · desk test open — the owner's "all five now", the draft he took
+> **Part:** built · 2026-11-22 · desk test passed 2026-11-23 — the owner's "all five now", the draft he took
 > (§3), and Flags' words with PHI View (his A).
 
 **The parts they share**

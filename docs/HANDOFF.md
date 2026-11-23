@@ -149,20 +149,20 @@ its key in `.env`. Scribe's rate is unconfirmed (§11.1). Desk test: VOICE-VENDO
 (auth, quota) ends the call at once with its own words (`call.py › voice_failure`). Not
 committed.
 
-**Built 2026-11-22, desk test open: Chat › Timeline, Rules › Booking, Org Chart gone** (the
+**Built 2026-11-22, desk test passed 2026-11-23: Chat › Timeline, Rules › Booking, Org Chart gone** (the
 owner's forks that day). The Timeline tab is a waterfall per turn against the 800 ms target,
 with voice stages recorded as new `voice` events (schema 15): CHAT.md §18, its desk test there.
 The Booking rules table moved from Config › Hospital to **Rules › Booking** (his 2A: one place
 for every rule): BOOKING-RULES.md §5.5. Teams has People only. **Restart `npm run dev`**: the
 agent's Python changed.
 
-**Built 2026-11-22, desk test open: Analytics › Logs** (ANALYTICS.md §3.1, §3.1.1; his "Build as
+**Built 2026-11-22, desk test passed 2026-11-23: Analytics › Logs** (ANALYTICS.md §3.1, §3.1.1; his "Build as
 drafted"). Every call from the store through ehr's new `ListCalls` (Analytics View) and `GET
 /agent/logs`; migration 0013 adds each call's seat, EHR and turn waits, filled when the next
 ingest files every record again. The shared filter bar (class first), the count line, the one
 table, a panel under each row, Open in Chat. Committed `23aef48`; his "looks good".
 
-**Built 2026-11-22, desk test open: Analytics › Home, Outcome, Cost, Speed, Flags** (ANALYTICS.md
+**Built 2026-11-22, desk test passed 2026-11-23: Analytics › Home, Outcome, Cost, Speed, Flags** (ANALYTICS.md
 §3.2; his "all five now"). The sums in ehr (`CallStats`, `stats.rs`; Analytics View) with the
 range before; migration 0014 (Cartesia credits, each turn's stages); Config › Cartesia's *Plan
 price*; Flags reads a flag's words with PHI View through `ReadFlags`, which writes `flag.view`.

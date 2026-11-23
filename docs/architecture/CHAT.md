@@ -1168,7 +1168,7 @@ and `_watch_limits`), `screen.py` (a spoken line), `flow.py › emergency_frame`
 6. Without the key in `.env`: Voice is dimmed, and its hint names the key.
 
 ## 18. The Timeline tab: where each turn's time went
-> **Part:** built · 2026-11-22 · desk test open — the owner's forks (2026-11-22): a waterfall
+> **Part:** built · 2026-11-22 · desk test passed 2026-11-23 — the owner's forks (2026-11-22): a waterfall
 > per turn (option A of three: a waterfall, one strip for the whole call, a list of events), and
 > the voice stages recorded now (A).
 
