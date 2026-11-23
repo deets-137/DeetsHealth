@@ -3,6 +3,7 @@ name = "deets-agent"
 version = "0.1.0"
 description = "DeetsHealth's phone agent: the Pipecat call loop and Flow. Every chart read and booking goes to the ehr service (docs/architecture/EHR-SERVICE.md)."
 requires-python = ">=3.12,<3.13"
+license = "MIT"
 dependencies = [
     # The call loop and the Flow (VOICE-AGENT.md §8.1); Cartesia and the WebRTC seat for voice
     # (voice.py, CARTESIA.md).

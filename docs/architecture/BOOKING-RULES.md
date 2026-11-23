@@ -1,12 +1,12 @@
 ---
 status: built
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [ehr/src/hospital.rs, ehr/src/epic_ehr.rs, ehr/src/scheduler.rs, ehr/src/service.rs, ehr/proto/deets/ehr/v1/ehr.proto, core/src/shielded.rs, ehr/fixtures/hospital.json, agent/deets_agent/flow.py, agent/deets_agent/ehr_client.py, agent/prompts/AGENT-PROMPT.md, agent/prompts/TOOLS.md, console/src/pages/hospital.ts, docs/integrations/EPIC.md, docs/architecture/HOSPITAL-CONFIG.md]
 updated: 2026-11-16
 ---
 # DeetsHealth — Booking by place, specialty and the hospital's rules
 
-> **Part:** built · 2026-11-16 · desk test open. Every fork below is closed. The build is §6;
+> **Part:** built · 2026-11-16 · desk test closed 2026-11-22. Every fork below is closed. The build is §6;
 > step 0 is done, and steps 1 to 5 are built (§5.1 to §5.5). Each step's as-built part is the
 > code where it and the design above disagree.
 > The owner asked what is left unwired after the work on Config › Hospital (Places, Specialties),
@@ -225,7 +225,7 @@ care**:
 ## 5. As built, and the desk tests
 
 ### 5.1 Step 1: new or established (built 2026-11-16)
-> **Part:** built · 2026-11-16 · desk test open. Where this part and §3.4 disagree, this part
+> **Part:** built · 2026-11-16 · desk test closed 2026-11-22. Where this part and §3.4 disagree, this part
 > is the code.
 
 - **ehr › `hospital.rs`:** `PatientKind` (either, new, established; `fits`); the Visit types
@@ -286,7 +286,7 @@ Visit ("either"; EPIC.md §5.2), so in Epic mode no time is dropped. Local mode 
    at the first slot search, and none at the second.
 
 ### 5.2 Step 3: the usual place, the PCP and P-A (built 2026-11-16)
-> **Part:** built · 2026-11-16 · desk test open. Where this part and §3.2, §3.3 disagree, this
+> **Part:** built · 2026-11-16 · desk test closed 2026-11-22. Where this part and §3.2, §3.3 disagree, this
 > part is the code.
 
 - **The PCP:** `verify.rs › Candidate::pcp`, from Epic's Patient search (`epic_ehr.rs › pcps`:
@@ -353,7 +353,7 @@ usual place named with the times, and her PCP's times first.
    usual place. Say "somewhere else": the next search names none.
 
 ### 5.3 Step 2: the place and the specialty in the search (built 2026-11-16)
-> **Part:** built · 2026-11-16 · desk test open. Where this part and §3.1, §3.2 disagree, this
+> **Part:** built · 2026-11-16 · desk test closed 2026-11-22. Where this part and §3.1, §3.2 disagree, this
 > part is the code.
 
 - **The matcher (core › `shielded.rs`):** `Shielded::names_terms`. The words that name no one
@@ -430,7 +430,7 @@ no usual place is asked where.
 6. As Jordan: "when is my visit at Main Street?": his next visit there.
 
 ### 5.4 Step 5: where to go (built 2026-11-16)
-> **Part:** built · 2026-11-16 · desk test open. Where this part and §3.7 disagree, this part is
+> **Part:** built · 2026-11-16 · desk test closed 2026-11-22. Where this part and §3.7 disagree, this part is
 > the code.
 
 - **ehr:** `PlaceInfo(handle, place)` (`service.rs › place_info`, `hospital.rs ›
@@ -465,7 +465,7 @@ no usual place is asked where.
 4. Verify as Jordan, book a visit, then "Where do I go?": Main Street Clinic's address.
 
 ### 5.5 Step 4: the Booking rules (built 2026-11-16)
-> **Part:** built · 2026-11-16 · desk test open. Where this part and §3.5 disagree, this part is
+> **Part:** built · 2026-11-16 · desk test closed 2026-11-22. Where this part and §3.5 disagree, this part is
 > the code.
 
 - **ehr › `hospital.rs`:** `BookingRule` (specialty ID, department record name, visit type
@@ -568,7 +568,7 @@ open: §5.2.** Taken before step 2, with step 2's `location-reference` only.
   a caller with no visits.
 - Desk test: the cases in §3.2 that the sandbox can show (1, 5, and 4 if step 0 finds one).
 
-**Step 4 — the Booking rules** (§3.5). **Built 2026-11-16, desk test open: §5.5.**
+**Step 4 — the Booking rules** (§3.5). **Built 2026-11-16, desk test closed 2026-11-22: §5.5.**
 - `hospital.rs`: the rule rows, their check, the first match; the key in `KEYS` and
   `settings.rs › HOSPITAL`. `service.rs`: the rules before the search, per proposed time, and
   at Book; the flag on Book and flag.
@@ -577,7 +577,7 @@ open: §5.2.** Taken before step 2, with step 2's `location-reference` only.
   PCP only.
 - Desk test: write three rules on the page, Save, and call each case on Local.
 
-**Step 5 — where to go** (§3.7). **Built 2026-11-16, desk test open: §5.4.** Small; may run
+**Step 5 — where to go** (§3.7). **Built 2026-11-16, desk test closed 2026-11-22: §5.4.** Small; may run
 beside step 3 or 4 (it touches no shared primitive).
 - A new RPC (the name is a draft: `PlaceInfo`), open before verification, that returns the
   spoken address, phone and hours of a matched place, or of the visit just heard after

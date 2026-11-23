@@ -119,6 +119,10 @@ Nothing ships yet. The deploy is A2: a separate deploy per hospital in our cloud
 interface (VOICE-AGENT.md §7.2).
 
 ## Open now
+**Every desk test below that said "open" is closed on the owner's word, 2026-11-22, not run.**
+The list, and the issues found that day, is [PRE-LIVE-VERIFICATIONS.md](PRE-LIVE-VERIFICATIONS.md):
+every row is run before going live. MIT license since 2026-11-22 (`LICENSE`).
+
 **Roles and the audit trail: built 2026-11-18 (`0f417e0`), desk test passed 2026-11-19**
 ("looks good for now"). docs/architecture/ACCESS-ROLES.md (moved from `docs/ideas/`; §5.1, §6
 "As built" for each hand-over); DATABASE.md §11; EHR-SERVICE.md §3 "Who is asking"; DEV-API.md
@@ -196,7 +200,7 @@ and the other Ctrl+F way are future settings (FUTURE-SETTINGS.md › The console
 Compass is an idea (ideas/README.md). The speed rules for every new page: CONSOLE.md §12.
 Later: TABLES.md §6.5.
 
-**Start here (2026-11-15, evening).** **Built, desk test open, pushed in 1c98463: Config › Hospital ›
+**Start here (2026-11-15, evening).** **Built, desk test closed 2026-11-22, pushed in 1c98463: Config › Hospital ›
 Places, Import from Epic** (HOSPITAL-CONFIG.md §8; desk test §6, steps 13 to 19). His forks:
 import all (analysts remove what is not needed), 1A one card per facility, the Table view grouped
 by facility, 2A drill in with the console's own motion, 3A two lists (`facilities` and
@@ -222,9 +226,9 @@ Restart `npm run dev` first.
 test passes, and the stamp is written (`tests/RECORDED-PROMPT.sha256`). `emergency_reminder`
 passed 4 of 4 fresh draws this morning; its old failing replies were deleted and it was
 recorded again. The Epic code-system research is done (EPIC.md §7.11, HOSPITAL-CONFIG.md
-§2.10). **Built, desk test open: the owner's A, one Epic list per list** (HOSPITAL-CONFIG.md
+§2.10). **Built, desk test closed 2026-11-22: the owner's A, one Epic list per list** (HOSPITAL-CONFIG.md
 §5.1, desk test §6 steps 8 to 12; "R PRC 1003" on each row). Committed `74b4ecc`. **Built,
-desk test open, committed `5af7aa9`: the preference question (1A) and the note label (N2)**
+desk test closed 2026-11-22, committed `5af7aa9`: the preference question (1A) and the note label (N2)**
 (CALL-FLOW.md, HOSPITAL-CONFIG.md §2.9): book a visit on Local without saying how or when; the
 agent asks once, then offers times; in Epic mode the `$book` note ends with the label.
 `Location.Search (Organizational Directory) (R4)` is registered (the owner, 2026-11-15) and
@@ -239,7 +243,7 @@ tests: booking builds 1 and 2, the request log, the EHR ledger and the repeat gu
 Ideas left for later: ideas/LOCAL-EHR.md; many hospitals with rules-based routing
 (ideas/README.md); pass^k sampling (AGENT.md §4).
 
-**Built, desk test open: Config › Hospital** (2026-11-15, late; architecture/HOSPITAL-CONFIG.md
+**Built, desk test closed 2026-11-22: Config › Hospital** (2026-11-15, late; architecture/HOSPITAL-CONFIG.md
 §6). Committed and pushed with the checks skipped, on the owner's word ("commit and push with
 no checks for the night"). The four kept scripts that missed their replays were recorded on
 2026-11-15 in the morning. The lists no call reads yet (reasons as codes, hours, closed days,
@@ -282,7 +286,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   Free Cartesia account, then `CARTESIA_API_KEY` in `.env` (and `CARTESIA_CYCLE_DAY`, the day
   the account was opened), then restart `npm run dev` and run CHAT.md §17's desk test. Open:
   his voice (Skylar is a draft); Twilio later (BUILD-ORDER.md §3.3).
-- **Built, desk test open (his, the morning of 2026-11-14): Config › Cartesia and the settings
+- **Built, desk test closed 2026-11-22 (his, the morning of 2026-11-14): Config › Cartesia and the settings
   store** (CONSOLE.md §7). Read | Edit, the versions dropdown ("Active", "MM-DD | n"), Save, an
   older version read only with its changed values glowing; every Cartesia lever with an "i" for
   help; Credits left with a manual offset; the key's status. The store: `0002_settings.sql`
@@ -290,7 +294,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   checked), three RPCs, `GET`/`POST /agent/cartesia`. Voice calls run with the active version.
   **Restart `npm run dev` first** (new `ehr`, the migration). Open: pronunciations need a
   Cartesia dictionary; Make active; Listen (CONSOLE.md §7.6).
-- **Built, desk test open: Config › System, the variables and the tools** (2026-11-14; the
+- **Built, desk test closed 2026-11-22: Config › System, the variables and the tools** (2026-11-14; the
   owner's forks 1B, " ." opens the tool list, and 2A, analysts add their own variables).
   SYSTEM-PAGE.md: `{clinic}` and the analyst's own System variables (the `system` service,
   migration 0006, `agent/prompts/VARIABLES.md`) may go in any section; code values stay in their
@@ -299,7 +303,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   first**, then SYSTEM-PAGE.md §5. Open: the existing plain tool names in the words are not in
   backticks yet (a words change: Record and test after); the rules engine (§8). Since then its
   lists are tables, each row with an "i" (SYSTEM-PAGE.md §5 steps 2, 11, 11a).
-- **Built, desk test open: Config › Agent arranged by the call** (2026-11-13; the owner's 2A).
+- **Built, desk test closed 2026-11-22: Config › Agent arranged by the call** (2026-11-13; the owner's 2A).
   Tabs Greet · Verify · Menu · Schedule · Anytime · Failure; each line under the tool that
   speaks it; each title says what the row is, and its "i" says when it plays. Since 2026-11-14
   (his 1A and 2B): one layout, a block per tool; Plain (new analyst) | Code (power user: the
@@ -335,7 +339,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   (`reveal.ts`). Desk tests LOADING.md §8 and §9: passed. Same day, also desk-tested: Security
   › Auth saves an incomplete card on a second Save (red titles, red Save; no email = no
   sign-in), and `npm run dev` waits for the agent's port before Vite starts.
-- **Built, desk test open: the booking keeps the caller's reason; Local half** (2026-11-14,
+- **Built, desk test closed 2026-11-22: the booking keeps the caller's reason; Local half** (2026-11-14,
   after the Priya Raman call; the owner's 1A of 2026-11-13, 1A for odd reasons, A for
   pronouns). `FindSlots` takes `visit_mode` and keeps the reason (checked to be the caller's own
   words) as the booking's note; `Book` returns the visit (type, online, reason, through the
@@ -351,7 +355,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   "What was the reason on the visit again? Is it online?". New words (his to edit):
   `arg.find_slots.visit_mode`, `line.booked_visit_asked`, `note.summary_pronoun`, a rule each
   in `role` and `task.menu`.
-- **Built, desk test open: Test | cost on Config › Agent** (2026-11-14, the owner's design and
+- **Built, desk test closed 2026-11-22: Test | cost on Config › Agent** (2026-11-14, the owner's design and
   screenshot; CONSOLE.md §9). Record and test moved to the title bar, left of Discard | Save and
   the same size: red until the recordings match, a first press for the cost ("$?.??" until
   known), a second to run with a bar that counts steps, green when passed. The cost step now
@@ -359,7 +363,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
 - **Next, the owner's pick in the morning: better kept-script tests** (AGENT.md §4, "What the
   kept scripts catch"). (1) show why a run failed in the Test hint; (2) several samples per
   script with a pass rate; (3) assert on events; (4) scripts for the gaps.
-- **Built, desk test open: booking and visits, builds 1 and 2** (2026-11-15, EPIC.md §7.10;
+- **Built, desk test closed 2026-11-22: booking and visits, builds 1 and 2** (2026-11-15, EPIC.md §7.10;
   forks 1A, 2A, V1A, V2A). Build 1: `find_visit` (the next visit, or one named by day, month,
   clinician, kind or past; the narrowing question by visit group), instructions offered or read
   (`read_instructions`), the CSN in a change flag, the hospital's time at the call's start.
@@ -373,13 +377,13 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   only the replies no other script uses (`typed_call.py --keys-out` per script). Seen in
   every draw, not a test failure: with "chest pains" in the first line, `find_slots` runs at
   once with that reason, and searches again when the caller says "routine check-up".
-- **Built, desk test open: the request log, the EHR ledger, the repeat guard** (2026-11-15,
+- **Built, desk test closed 2026-11-22: the request log, the EHR ledger, the repeat guard** (2026-11-15,
   AGENT.md §1, DEBUGGING.md §3). The Epic ledger is tested in ehr only: the first Epic-mode
   console call after the dev server restarts shows `epic` events (`show_call.py`).
 - **Real booking in Epic mode, always** (the owner, 2026-11-15: no switch). `$find` and `$book`
   work on the sandbox (EPIC.md §7.10); each booking in Epic mode writes to Epic's shared
   sandbox. Local mode stays fake.
-- **Built, desk test open: Config › Agent, the agent's words in the console** (2026-11-13; the
+- **Built, desk test closed 2026-11-22: Config › Agent, the agent's words in the console** (2026-11-13; the
   owner's five tabs, Semantic | Flow, the names list). Every section of AGENT-PROMPT.md, versioned
   in the store (`prompt` service, migration 0005); a save writes the file and reaches the next
   test call; each call keeps its own copy; ehr texts the code with the call's version; Record
@@ -403,7 +407,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   2026-11-15 (E-4, EPIC.md §7.10). Open: the
   medicine, refill and lab reads (R2–R4), and recording Epic's replies for the tests. Epic's
   sandbox rules and the steps for a hospital: EPIC.md §3.1, §4.
-- **Built, desk test open: what a visit is, and the offer of a person** (2026-11-13, after
+- **Built, desk test closed 2026-11-22: what a visit is, and the offer of a person** (2026-11-13, after
   Camila's call; the owner's option A). `next_visit` says the visit type, the reason and
   "online" from the record (never the scheduler's notes), and its line ends without a question
   so the model answers the rest of the turn. A sensitive type or reason is dropped in `ehr`
@@ -412,7 +416,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   Camila, ask "when is my next visit and what is it for?", then something it cannot do. (The
   owner's 18:22 call, where a feedback request went to `hand_off`, ran the old code: not a test
   of this.)
-- **Built, desk test open: the code step's words are true for every caller** (2026-11-13, after
+- **Built, desk test closed 2026-11-22: the code step's words are true for every caller** (2026-11-13, after
   Warren's call; the owner's option A, FUTURE-SETTINGS.md §11). The code is "on its way" only
   if the details match and a mobile number is on file, and a person is promised if no text
   comes; "no text" goes to a person at once. Nothing says whether the details matched. Desk
@@ -424,7 +428,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   last three steps (CHAT.md §12: a dimension's note, a Demo replay keeps the choices, the
   model's line). **Next, the owner's:** the Timeline and Caller tabs are "Empty for now".
 - **In flight: the Chat page** (CHAT.md). The UI passed its first
-  desk test (2026-11-12). **The connection is built, desk test open** (CHAT.md §6): `npm run
+  desk test (2026-11-12). **The connection is built, desk test closed 2026-11-22** (CHAT.md §6): `npm run
   dev` starts both; Test calls the agent through client-js and our own text transport (not
   Pipecat's WebSocket transport, which loads remote code); the watch stream draws Test, PHI
   and Demo with one code path; Demo plays any call in the catalog. **The catalog** (CHAT.md
@@ -435,12 +439,12 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   first, CLOUD.md). Polish from every desk test is always on (BUILD-ORDER.md §2; AGENT.md §4).
 - **Also in flight: the sandbox patients and the code by text** (CHAT.md §8 for the page,
   TEXTS.md for the text path, 2026-11-12).
-  Built, desk test open: the rail's Sandbox patients panel (Test and Demo) from
+  Built, desk test closed 2026-11-22: the rail's Sandbox patients panel (Test and Demo) from
   `ehr/fixtures/sandbox.json`; Test calls send a random code through `ehr`'s real Twilio
   request (`ehr/src/texts.rs`) to a fake Twilio in the dev server; the code button at the
   canvas's bottom left opens the text or sends the code. `npm run dev` now builds `ehr` first.
   Twilio itself is Phase 5; start the sender registration early (TWILIO.md §6). **The Tools
-  panel** (CHAT.md §9) is built too, desk test open: each tool call with its trigger line, the
+  panel** (CHAT.md §9) is built too, desk test closed 2026-11-22: each tool call with its trigger line, the
   time to trigger and the time to confirm, exact to a tenth of a ms (record schema 3); rebuilt
   for analysts and desk test passed 2026-11-13 (CHAT.md §9.1). **The
   Step panel** (CHAT.md §11), desk test passed 2026-11-12: a block per step, stacked in call order, the
@@ -448,18 +452,18 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
   `step` events at each move; `OpenCall` now carries the limits). **Per-tool latency**: `GET
   /agent/latency` (CHAT.md §10).
 - **Also in flight: the dev API reference and the annotation gate** (DEV-API.md, 2026-11-12).
-  Built, desk test open (DEV-API.md §8): the gate refuses a field its kind does not take, and the
+  Built, desk test closed 2026-11-22 (DEV-API.md §8): the gate refuses a field its kind does not take, and the
   catalog alone sets `at` and `rubric_version`; the console's `Annotation` type has one shape
   per kind; the Review panel shows the gate's reason; `test_dev_server.py` runs every route.
   docs:check 12–14 compare the route and RPC ledgers and the console's types with the code.
-- **Also in flight: the call guardrails** (REGULATIONS.md, 2026-11-12). Built, desk test open:
+- **Also in flight: the call guardrails** (REGULATIONS.md, 2026-11-12). Built, desk test closed 2026-11-22:
   the greeting is a fixed line with the disclosures (automated, transcribed, a person at any
   time; §6), and a caller confused after a failed code goes to a person at once (§2.1; the kept
   script `code_confusion.txt`). Also built: the safety reminder after a warning, and details
   already given are never asked for again (`emergency_reminder.txt`). Staff flags, Phase 1
   (FLAGS.md; forks 1A and 2A): code and the model raise them, silent to the caller, with the
   caller's own words as checked evidence; a hand-off carries one; a caller for someone else
-  goes to a person. Desk test open. Next for flags: the kinds list (the owner's), and the
+  goes to a person. Desk test closed 2026-11-22. Next for flags: the kinds list (the owner's), and the
   console's view of a flag. Confirm before booking (choice A), stable option numbers and
   `change_visit` are built (CALL-FLOW.md §5). A reply cut off by the token cap now gets the
   holding line, a review flag and one retry (FLAGS.md §8). **Next: the production-shaped dev
@@ -568,7 +572,7 @@ Then going live: the deploy, the BAAs, the paperwork, the first hospital (BUILD-
 - **The phone agent's text run is built and closed (2026-11-11):** `agent/` and `ehr/`, a typed
   call that verifies and books against fakes (AGENT.md, EHR-SERVICE.md). No voice, no Epic
   reads, no store.
-- **The console's skeleton is built (2026-11-11), desk test open:** `console/`, a browser page
+- **The console's skeleton is built (2026-11-11), desk test closed 2026-11-22:** `console/`, a browser page
   in DeetsMotion's look: the top bar and its Theme menu, the nav (Chat, Settings), Chat's
   stage and three-panel rail, all empty; installable as a web app (CONSOLE.md). The old
   front-end toolkit (six themes, five skins, the card engine, the primitives) is in

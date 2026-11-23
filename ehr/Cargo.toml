@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "DeetsHealth's ehr service: the verify state, the patient binding and the scheduler, behind a gRPC wire to the agent."
 authors = ["Aditya Sundaram"]
 edition = "2021"
-# Never on crates.io (the repo is private; deny.toml's bans read this).
+license = "MIT"
+# Never on crates.io (an app's crate, not a library; deny.toml's bans read this).
 publish = false
 
 # docs/architecture/EHR-SERVICE.md.

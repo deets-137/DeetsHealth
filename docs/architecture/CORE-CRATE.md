@@ -1,6 +1,6 @@
 ---
 status: project
-desk_test: open
+desk_test: closed 2026-11-22
 sources: []
 updated: 2026-11-14
 ---
@@ -461,7 +461,7 @@ detail):
   live tests were not run again: the fetch itself did not change.
 
 ### Stage 7 desk test
-> **Part:** built · 2026-09-24 · desk test open
+> **Part:** built · 2026-09-24 · desk test closed 2026-11-22
 
 Start `npm run dev:app` from your own terminal once, so the `deetshealth-dev://` scheme is
 in the real registry (SIGN-IN.md §6).

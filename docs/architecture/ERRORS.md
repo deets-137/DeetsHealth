@@ -1,6 +1,6 @@
 ---
 status: built
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [archive/src-tauri/src/errors.rs, archive/src/app-errors.ts, archive/src-tauri/src/signin.rs, archive/src-tauri/src/fetch.rs, archive/src-tauri/src/sites.rs, archive/src-tauri/src/lib.rs]
 updated: 2026-09-24
 legacy: patient-app

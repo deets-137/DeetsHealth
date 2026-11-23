@@ -1,6 +1,6 @@
 ---
 status: built
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/screen.py, agent/deets_agent/config.py, agent/prompts/AGENT-PROMPT.md, ehr/src/service.rs, ehr/src/session.rs, ehr/src/texts.rs]
 updated: 2026-11-16
 ---

@@ -1,6 +1,6 @@
 ---
 status: built
-desk_test: open
+desk_test: closed 2026-11-22
 sources: []
 updated: 2026-11-16
 ---

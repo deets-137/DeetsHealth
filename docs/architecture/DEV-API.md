@@ -1,6 +1,6 @@
 ---
 status: built
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [agent/deets_agent/dev_server.py, agent/deets_agent/voice_catalog.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/resources.py, agent/deets_agent/access.py, agent/deets_agent/turn.py, agent/deets_agent/cloudflare.py, console/src/reload.ts, console/src/agent/api.ts, console/src/agent/transport.ts, console/vite.config.ts, scripts/docs-check.mjs, agent/tests/test_dev_server.py]
 updated: 2026-11-19
 ---

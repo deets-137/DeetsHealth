@@ -1,6 +1,6 @@
 ---
 status: built
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [docs/architecture/images/chat-panel-no-collapse-2026-11-14.png, docs/architecture/images/chat-panel-overlap-2026-11-14.png, console/src/pages/panel-grow.ts, docs/architecture/images/chat-panel-handle-2026-11-14.png, console/src/tokens.ts, docs/architecture/images/chat-resources-tab-2026-11-14.png, agent/deets_agent/resources.py, docs/architecture/images/chat-title-box-move-2026-11-14.png, docs/architecture/images/chat-harness-failed-ehrerror-2026-11-14.webp, ehr/src/epic_ehr.rs, agent/deets_agent/ehr_process.py, console/src/pages/chat.ts, console/src/styles/chat.css, console/src/agent/transport.ts, console/src/agent/api.ts, agent/deets_agent/dev_server.py, agent/deets_agent/voice.py, agent/deets_agent/resources.py, agent/deets_agent/catalog.py, agent/deets_agent/rtvi_json.py, agent/deets_agent/fake_twilio.py, agent/deets_agent/latency.py, agent/deets_agent/call_record.py, ehr/src/texts.rs, ehr/src/sandbox.rs, ehr/fixtures/sandbox.json, ehr/fixtures/epic-sandbox.json, ehr/src/epic_ehr.rs, scripts/dev.mjs, docs/architecture/images/chat-sketch-2026-11-11.png, docs/architecture/images/chat-sandbox-box-2026-11-12.png, docs/architecture/images/chat-code-button-2026-11-12.png, docs/architecture/images/chat-verdict-pill-2026-11-13.png, docs/architecture/images/chat-nav-ask-2026-11-13.png, docs/architecture/images/chat-review-head-2026-11-13.png, docs/architecture/images/chat-tools-before-2026-11-13.png, docs/architecture/images/chat-tools-arrow-2026-11-13.png, docs/architecture/images/chat-button-weight-2026-11-13.png, docs/architecture/images/chat-rail-alignment-2026-11-13.png, docs/architecture/images/chat-demo-ask-2026-11-13.png]
 updated: 2026-11-16
 ---
@@ -907,7 +907,7 @@ it); Timeline and Caller kept as "Empty for now"; `--tools-min` renamed `--rail-
    same row, fainter, saying "No visits".
 
 ### 15.1 The call panel first, in Demo and PHI (narrow)
-> **Part:** built · 2026-11-14 — desk test open.
+> **Part:** built · 2026-11-14 — desk test closed 2026-11-22.
 
 §15.1 and §15.2 are Chat's part of the console on a phone; the tracker is
 [MOBILE-UI.md](MOBILE-UI.md).
@@ -940,7 +940,7 @@ starts over; within a visit, the panel stays below ("the user knows to scroll").
 6. Tab to a row and press Enter. After the slide, the focus is still on that row.
 
 ### 15.2 The grow handle (narrow)
-> **Part:** built · 2026-11-14 — desk test open.
+> **Part:** built · 2026-11-14 — desk test closed 2026-11-22.
 
 ![The owner's screenshot, 2026-11-14: the Recorded calls panel on a narrow screen, its list cut off; the purple box at its foot asks for a handle, an extension of the panel, that expands it so the whole list shows](images/chat-panel-handle-2026-11-14.png)
 
@@ -1046,7 +1046,7 @@ the same height as the Epic button, in its place.
 5. Testing on Epic, then Demo, then Testing: the patient list never stays on "Loading".
 
 ## 17. Voice: the seat bar, the voice seat and the Resources tab
-> **Part:** built · 2026-11-13 · desk test open (it needs a Cartesia key) — the owner's forks,
+> **Part:** built · 2026-11-13 · desk test closed 2026-11-22 (it needs a Cartesia key) — the owner's forks,
 > 2026-11-13: **1B "but with a tabbar like how we set up the speed of chat for the demo mode.
 > Can default to Text to require a manual click of voice every time."** **2A "with proposed
 > limits and a doc in future settings. We should closely track how many credits we use and have
@@ -1080,7 +1080,7 @@ rail's `.tabs`), two parts each `--pair-part` (64 px) wide, as the EHR bar (§13
 
 **The Resources tab** (`#chat-resources`, `resourceRows` in `chat.ts`; the bottom panel's third
 tab, after Tools and Timeline):
-> **Part:** built · 2026-11-14 · desk test open — the owner's layout: "the top of the panel
+> **Part:** built · 2026-11-14 · desk test closed 2026-11-22 — the owner's layout: "the top of the panel
 > split into two via a | divider", Anthropic's budget left and Cartesia's left "in a simple
 > bar", then under a line "the call's current API cost"; Cartesia in credits, not cents ("credits
 > is enough").

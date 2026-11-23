@@ -56,6 +56,9 @@ above it, it is the code. A new doc gets front matter (DOCS-ORG.md §2) and one 
   carries forward, the steps; §5.1 is the as-built record.
 - `BUILD-ORDER.md` — the phases from nothing to the first hospital, each with its desk test;
   Phase 0's checklist and the fork of what goes first.
+- `PRE-LIVE-VERIFICATIONS.md` — every desk test closed on the owner's word (2026-11-22, not
+  run; `desk_test: closed <date>`) and the open issues from the last runs. Each row is run
+  before going live. A test closed later gets its row here.
 
 **`docs/archive/`** — docs no longer needed, kept as a record (`status: archived`).
 `PATIENT-APP-DESIGN.md` and `PATIENT-APP-HANDOFF.md` — the patient app's design and handoff.

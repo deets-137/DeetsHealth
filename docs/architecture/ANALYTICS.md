@@ -1,6 +1,6 @@
 ---
 status: built
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [console/src/pages/analytics.ts, console/src/pages/subnav.ts, console/src/styles/subnav.css, docs/architecture/images/analytics-sketch-2026-11-12.png]
 updated: 2026-11-14
 ---

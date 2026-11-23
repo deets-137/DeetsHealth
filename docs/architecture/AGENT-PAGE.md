@@ -1,6 +1,6 @@
 ---
 status: built
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [console/src/pages/agent.ts, console/src/pages/system.ts, console/src/styles/config.css, agent/prompts/GUIDE.md, agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/prompts.py, agent/deets_agent/dev_server.py, agent/tests/test_prompts.py, agent/prompts/AGENT-PROMPT.md, agent/prompts/TOOLS.md, docs/architecture/images/system-test-variable-2026-11-13.png, docs/architecture/images/agent-code-keys-jitter-2026-11-14.png]
 updated: 2026-11-16
 ---
@@ -240,10 +240,10 @@ two list entries (`prompts.py`, `ehr/src/settings.rs`) and its GUIDE.md entry
 (`line.booked_visit_asked`); Anytime › Flag for a nurse › **Note when a summary guessed a
 pronoun** (`note.summary_pronoun`). Two existing sections gained a rule: Anytime › Role and
 rules (no guessed pronoun in a staff summary) and Menu › Menu instructions (an odd reason is
-booked and flagged). Desk test: open each and check its "i".
+booked and flagged). Desk test: closed 2026-11-22 each and check its "i".
 
 ## 8. One layout, Plain | Code (2026-11-14)
-> **Part:** built · 2026-11-14 · desk test open. Where this part disagrees with §3, §5 and §5a,
+> **Part:** built · 2026-11-14 · desk test closed 2026-11-22. Where this part disagrees with §3, §5 and §5a,
 > this part is the code.
 
 The owner, 2026-11-14: "I still feel the Agent config tab is a little confusing and not quite
@@ -300,7 +300,7 @@ code name in a chip, and its first row repeated the head's title.
    words.
 
 ## 9. AI and HC (2026-11-14)
-> **Part:** built · 2026-11-14 · desk test open
+> **Part:** built · 2026-11-14 · desk test closed 2026-11-22
 
 The owner, 2026-11-14, after seeing §8: "can we indicate with 'HC' or 'AI' to indicate something
 that's hardcoded vs something that is a prompt for the Agent? Thinking in the serif font placed
@@ -321,7 +321,7 @@ in a theme color box for AI and green box for HC".
   new theme color; HC stays green. Narrow the window: the mark stays before the title.
 
 ## 10. Core, and a gentle Plain | Code (2026-11-14)
-> **Part:** built · 2026-11-14 · desk test open
+> **Part:** built · 2026-11-14 · desk test closed 2026-11-22
 
 The owner, 2026-11-14, with a screenshot of Code: "when i switch to code, adding the subtitles
 increases the height of the box. Can we either remove the jitter or animate the change gently?"

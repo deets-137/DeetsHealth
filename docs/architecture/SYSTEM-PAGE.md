@@ -1,6 +1,6 @@
 ---
 status: built
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [docs/architecture/images/system-test-variable-2026-11-13.png, agent/prompts/AGENT-PROMPT.md, agent/prompts/VARIABLES.md, agent/prompts/TOOLS.md, agent/deets_agent/prompts.py, agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/dev_server.py, agent/deets_agent/call_record.py, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/texts.rs, ehr/src/store.rs, ehr/proto/deets/ehr/v1/ehr.proto, ehr/migrations/0006_settings_system.sql, console/src/pages/system.ts, console/src/pages/word-picker.ts, console/src/pages/tab-bar.ts, console/src/pages/agent.ts, console/src/pages/config.ts, console/src/styles/config.css]
 updated: 2026-11-16
 ---

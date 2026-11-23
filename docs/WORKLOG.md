@@ -55,6 +55,18 @@ One dated `##` per sitting, newest first. Never correct an old entry; correct HA
   keys, tokens, private keys, Twilio SIDs, JWTs, passwords in URLs and e-mail addresses: none.
   The phone numbers are Epic's sandbox patients'; the fixtures are synthetic; his name shows as
   the author and in local paths. His e-mail is in the commit metadata (125 commits).
+- His words: "Yes, go public." The repo is public; README.md and CLAUDE.md › Repo say so.
+  Also fixed on the way: RUSTSEC-2026-0592 (`url` 2.5.9), which stopped the push.
+- His words: "Let's do the MIT license, close all the hand tests as verified per my word for
+  now, we'll revisit at a later date, feel free to create a doc for
+  PRE-LIVE-VERIFICATIONS.MD". Built: `LICENSE` (MIT, © 2026 Aditya Sundaram) and `license =
+  "MIT"` in core, ehr, package.json and the agent's pyproject. 20 docs' `desk_test: open` and
+  every "desk test open" part marker now read closed 2026-11-22; the list is
+  PRE-LIVE-VERIFICATIONS.md. Decided inside his ask: a new value `closed <date>` (docs-check
+  rule 4, DOCS-ORG.md §2) so a test closed on his word never reads as passed; the patient app's
+  legacy tests are closed too, in their own section; today's open issues live in the same doc.
+  Not done: deny.toml still checks no licenses of the dependencies (a fork, now that the repo
+  is MIT). He is testing voice himself after choosing a new Cartesia voice.
 
 ## 2026-11-21 (Windows) — state of the repo; three desk tests passed
 - His words: "cloudflare access is good to go, demo tunnel as well. console on a phone also

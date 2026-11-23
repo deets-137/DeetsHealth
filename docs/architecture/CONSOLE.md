@@ -417,7 +417,7 @@ wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
 7. Later: the same page in Chrome, Firefox and Safari, and in a remote desktop with no GPU.
 
 ### The 2026-11-13 additions
-> **Part:** built · 2026-11-13 — desk test open.
+> **Part:** built · 2026-11-13 — desk test closed 2026-11-22.
 
 1. The nav reads Chat, Config, Rules, Teams, Analytics at the top (since 2026-11-14), and
    Security, Audit Logs, Settings at the foot.
@@ -433,7 +433,7 @@ wider rail. Steps 5–7 (install, transparency, other browsers) are still open.
    it stays.
 
 ## 7. Config › Cartesia
-> **Part:** built · 2026-11-13 · desk test open — the owner, 2026-11-13: "a subpage under config
+> **Part:** built · 2026-11-13 · desk test closed 2026-11-22 — the owner, 2026-11-13: "a subpage under config
 > dedicated to Cartesia settings and items … At the top of the subpage, let's do a tabbar of
 > 'Read' and 'Edit' … On read mode, everything can be grayed out." Then the versions and the
 > settings store: "Set it up please, I'll desk test in the morning." Every lever: CARTESIA.md §9.
@@ -567,7 +567,7 @@ version Active](images/config-cartesia-2026-11-13.png)
   save (a new version). A "Make active" button is a small follow-up.
 
 ### 7.3 The settings store (as built, 2026-11-13)
-> **Part:** built · 2026-11-13 · desk test open. The design before it was a change table per
+> **Part:** built · 2026-11-13 · desk test closed 2026-11-22. The design before it was a change table per
 > setting; the build keeps whole versions instead, which answers the same question exactly.
 
 - **One key–value table per service** (the owner, 2026-11-13: "A per service as we continue
@@ -680,7 +680,7 @@ who holds the Cartesia contract:
    column. No field or slider stretches past its column.
 
 ### 7.8 The voice list, checked live (as built, 2026-11-16)
-> **Part:** built · 2026-11-16 · desk test open. The owner's fork A (2026-11-16): the shortlist
+> **Part:** built · 2026-11-16 · desk test closed 2026-11-22. The owner's fork A (2026-11-16): the shortlist
 > checked live, plus every English voice in a table to search and choose from.
 
 - **Why:** the menu was a list copied by hand from Cartesia's "Choosing a voice" guide. Emma left
@@ -891,7 +891,7 @@ Sonic: 1 credit per character"](images/config-rates-2026-11-13.png)
    thin column: no dropdown or number box runs past its card's edge.
 
 ## 9. Config › Agent
-> **Part:** built · 2026-11-13 · desk test open — the owner, 2026-11-13: "have the agent subpage
+> **Part:** built · 2026-11-13 · desk test closed 2026-11-22 — the owner, 2026-11-13: "have the agent subpage
 > contain our agent prompt segments", five tabs of sections, and a Semantic | Flow bar. The
 > design before it: PROMPT-EDITOR.md.
 
@@ -1096,7 +1096,7 @@ test (§6). Code: `console/src/pages/hospital.ts`; the `hospital` service in the
 edited in place; no new CSS.
 
 ## 11. The compact layout: the nav on a narrow screen
-> **Part:** built · 2026-11-14 — desk test open.
+> **Part:** built · 2026-11-14 — desk test closed 2026-11-22.
 
 The first step toward a console on a phone. Only the shell changes here. Each page's own
 narrow layout (Chat's stage and rail, the Config rows) comes after. The tracker for all of it,
@@ -1164,7 +1164,7 @@ page by page, is [MOBILE-UI.md](MOBILE-UI.md).
     left and the two halves share the rest.
 
 ### 11.4 Chat on a narrow screen
-> **Part:** built · 2026-11-14 — desk test open (§11.3, step 9).
+> **Part:** built · 2026-11-14 — desk test closed 2026-11-22 (§11.3, step 9).
 
 ![The owner's screenshot, 2026-11-14: the compact Chat page. The arrows ask for the two pills to meet in the middle (each half the row), and for the Text | Voice and Local | Epic bars to move under the text box](images/chat-compact-toggles-2026-11-14.png)
 

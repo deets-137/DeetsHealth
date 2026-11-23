@@ -765,7 +765,7 @@ is E-4, the real `$find` and `$book`, and carries every item that needs them. Th
   `change_visit` and the flag with the CSN.
 
 #### Build 1 as built (2026-11-14)
-> **Part:** built · 2026-11-14 · desk test open
+> **Part:** built · 2026-11-14 · desk test closed 2026-11-22
 
 Where this differs from the design above, this is the code.
 - **ehr:** `FindVisit` (`ehr.proto`) replaced `NextVisit`. `Scheduler::visits` returns the
@@ -824,7 +824,7 @@ Where this differs from the design above, this is the code.
   `staff_flag` event and the model's tool results hold no CSN for the model.
 
 #### Build 2 as built (2026-11-15)
-> **Part:** built · 2026-11-15 · desk test open · one live `$book` sent on the owner's go-ahead
+> **Part:** built · 2026-11-15 · desk test closed 2026-11-22 · one live `$book` sent on the owner's go-ahead
 
 - **The first real booking** (2026-11-15, `ehr epic-book`, the call's own code, the owner's
   go-ahead for one): `$find` online for Camila Lopez gave 10 slots; `$book` of the first

@@ -1,6 +1,6 @@
 ---
 status: built
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [docs/architecture/images/hospital-places-table-misaligned-2026-11-15.png, docs/architecture/images/hospital-places-search-box-2026-11-15.png, ../DeetsMusic/docs/architecture/LIBRARY-VIRTUALIZATION.md, console/src/pages/list-window.ts, console/src/styles/config.css, console/src/pages/data-table.ts, console/src/styles/data-table.css, console/src/pages/hospital.ts, console/src/pages/system.ts, console/src/pages/config-kit.ts, console/src/pages/cartesia.ts, console/src/pages/auth.ts, console/src/pages/roles.ts, console/src/styles/skin.css]
 updated: 2026-11-16
 ---
@@ -176,7 +176,7 @@ matches it.
 
 ## 6. Long lists: windowing and the search box
 
-> **Part:** built · 2026-11-15, desk test open (§6.6) (the owner chose windowing; W1 A, W2 A,
+> **Part:** built · 2026-11-15, desk test closed 2026-11-22 (§6.6) (the owner chose windowing; W1 A, W2 A,
 > W3 B and W4 A the same day)
 
 ### 6.0 As built (2026-11-15): read this first

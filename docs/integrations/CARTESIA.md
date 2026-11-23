@@ -1,6 +1,6 @@
 ---
 status: project
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [agent/deets_agent/voice.py, agent/deets_agent/voice_catalog.py, agent/deets_agent/config.py, agent/deets_agent/resources.py, agent/deets_agent/flow.py]
 updated: 2026-11-16
 ---

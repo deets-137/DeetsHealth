@@ -1,6 +1,6 @@
 ---
 status: project
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [scripts/postgres.mjs, scripts/dev.mjs, agent/deets_agent/catalog.py, ehr/src/store.rs, ehr/migrations/0010_data_classes.sql, ehr/migrations/0011_roles.sql, ehr/migrations/0012_audit.sql, ehr/src/access.rs, ehr/src/audit.rs, ehr/src/edge.rs, agent/tests/test_typed_call.py, agent/harness/typed_call.py, agent/deets_agent/call_record.py, ehr/src/seal_key.rs, core/src/seal.rs, ehr/src/service.rs, ehr/migrations/0001_calls.sql, ehr/migrations/0002_settings.sql, ehr/src/settings.rs, ehr/tests/store.rs, agent/deets_agent/ehr_client.py, agent/deets_agent/ehr_process.py, agent/deets_agent/dev_server.py]
 updated: 2026-11-18
 ---
@@ -133,7 +133,7 @@ Plain columns hold no protected data; sealed columns are bytes under `seal.rs`.
   cloud.
 
 ## 4a. The store in `ehr` (as built, 2026-11-12)
-> **Part:** built · 2026-11-12 · desk test open
+> **Part:** built · 2026-11-12 · desk test closed 2026-11-22
 
 - **The store:** `ehr/src/store.rs`. `Store::connect` runs the embedded migrations
   (`MIGRATOR`). `file_dir` files every record in a folder, then the annotations.
@@ -235,7 +235,7 @@ draft) and crypto-shredding; the audit trail live; the paperwork of SECURITY.md 
   the store is built.
 
 ## 7. Synthetic and real rows, kept apart
-> **Part:** built · 2026-11-15 · desk test open. The owner, 2026-11-15: "anything we can do to
+> **Part:** built · 2026-11-15 · desk test closed 2026-11-22. The owner, 2026-11-15: "anything we can do to
 > better differentiate test rows from real runs / rows?", then "doc it thoroughly, and build out
 > this". No real call exists yet (none before the BAAs), so the separation is built before the
 > first real row, not moved in after.
@@ -323,7 +323,7 @@ store (§2). Today the console reads the dev catalog, which holds synthetic call
 - **API dollars:** none.
 
 ## 8. The kept scripts' runs
-> **Part:** built · 2026-11-15 · desk test open. The owner, 2026-11-15: run history in Postgres
+> **Part:** built · 2026-11-15 · desk test closed 2026-11-22. The owner, 2026-11-15: run history in Postgres
 > through `ehr` (A), and "doc it". Option C for a passing replay draw (below).
 
 **Terms.** A **kept script** is a caller script in `agent/tests/scripts/`. A **run** is one press
@@ -408,7 +408,7 @@ GET `/agent/prompt` carries it as `recording.failures` (DEV-API.md).
   draw's record, so one query counts the owner's, a model's and the code's verdicts.
 
 ## 9. Annotations: the store is the source
-> **Part:** built · 2026-11-15 · desk test open (the owner, 2026-11-15, "this", for the plan that
+> **Part:** built · 2026-11-15 · desk test closed 2026-11-22 (the owner, 2026-11-15, "this", for the plan that
 > the Review panel writes to Postgres).
 
 - **Why:** a rating's note on a real call is protected data, and protected data never goes in
@@ -426,7 +426,7 @@ GET `/agent/prompt` carries it as `recording.failures` (DEV-API.md).
   (§8). A dev-only export and import is a small script, if wanted later.
 
 ## 10. Desk test (§7 to §9)
-> **Part:** built · 2026-11-15 · desk test open
+> **Part:** built · 2026-11-15 · desk test closed 2026-11-22
 
 Restart `npm run dev` first: its `ehr` and the migration are new.
 1. The first start after the pull: the `[db]` lines say the store sealed values again (the move

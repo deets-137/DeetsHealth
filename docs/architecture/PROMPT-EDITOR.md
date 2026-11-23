@@ -1,6 +1,6 @@
 ---
 status: built
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [agent/prompts/AGENT-PROMPT.md, agent/deets_agent/prompts.py, agent/deets_agent/flow.py, agent/deets_agent/dev_server.py, agent/deets_agent/llm.py, ehr/src/texts.rs, ehr/src/service.rs, ehr/migrations/0005_settings_prompt.sql, console/src/pages/agent.ts]
 updated: 2026-11-16
 ---

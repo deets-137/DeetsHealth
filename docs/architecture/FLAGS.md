@@ -1,6 +1,6 @@
 ---
 status: project
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [agent/deets_agent/flow.py, agent/deets_agent/screen.py, agent/deets_agent/call.py, agent/deets_agent/catalog.py, agent/prompts/AGENT-PROMPT.md]
 updated: 2026-11-16
 ---
@@ -40,7 +40,7 @@ and value lives in the code; this doc points to it (DOCS-ORG.md §1, rule 8).
 becomes `other`. A hospital will add its own (FUTURE-SETTINGS.md §5).
 
 ### 3.1 A visit reason to review (decided, not built)
-> **Part:** built · 2026-11-14 · desk test open — the owner, after the Priya Raman test call
+> **Part:** built · 2026-11-14 · desk test closed 2026-11-22 — the owner, after the Priya Raman test call
 > (`agent/calls/20261113-232112-test.jsonl`): fork 1A, "silent flag we can throw for nursing /
 > clinical staff to review and call back for". Built: the kind in `FLAG_KINDS`, the rule in
 > `task.menu`; the kept script `booked_reason_asked.txt`.
@@ -57,7 +57,7 @@ becomes `other`. A hospital will add its own (FUTURE-SETTINGS.md §5).
   owner's 1A of 2026-11-13).
 
 ### 3.2 No guessed pronouns in a summary (decided, not built)
-> **Part:** built · 2026-11-14 · desk test open — the owner's option A, after the Priya Raman
+> **Part:** built · 2026-11-14 · desk test closed 2026-11-22 — the owner's option A, after the Priya Raman
 > call, whose hand-off summary said "She asks…" from the name alone. Built:
 > `guesses_a_pronoun`, `CallFlow._summary_back` (`flow.py`), the rule in `role`,
 > `note.summary_pronoun`; tests `test_a_summary_that_guesses_a_pronoun_goes_back_once`
@@ -73,7 +73,7 @@ becomes `other`. A hospital will add its own (FUTURE-SETTINGS.md §5).
   the caller's own words and are never checked for pronouns.
 
 ### 3.3 The visit's CSN in a flag about a visit (built)
-> **Part:** built · 2026-11-14 · desk test open — `StaffFlag.csn`, `change_visit`'s `visit`
+> **Part:** built · 2026-11-14 · desk test closed 2026-11-22 — `StaffFlag.csn`, `change_visit`'s `visit`
 > argument (`flow.py`); the CSN from `Visit.csn` (`ehr.proto`). Designed — the owner: "include the identifier / CSN in flags for nurses
 > as applicable (ie changing/cancelling, notifying, etc)". EPIC.md §7.8.
 - **Why:** staff find the visit at once in the EHR, with no search by name and date.
@@ -88,7 +88,7 @@ becomes `other`. A hospital will add its own (FUTURE-SETTINGS.md §5).
   The fake gives each visit a synthetic CSN.
 
 ### 3.4 The Booking rules' flags (built 2026-11-16)
-> **Part:** built · 2026-11-16 · desk test open — BOOKING-RULES.md §5.5. Both kind names are
+> **Part:** built · 2026-11-16 · desk test closed 2026-11-22 — BOOKING-RULES.md §5.5. Both kind names are
 > drafts for the owner to edit.
 - **`referral_check`**, by code, when the caller books a time whose Booking rule says Book and
   flag: staff check the referral before the visit. It carries the visit's CSN (§3.3); no
@@ -121,7 +121,7 @@ check, the record event and the catalog label. Tests: `test_a_flag_keeps_only_wh
 `test_an_unknown_flag_kind_becomes_other_and_code_flags_raise_once` (`tests/test_gate.py`), and
 the kept script `flag_for_someone_else.txt`. In the kept scripts the model also flagged a
 medical question (`clinical_question_waiting`), chest pain that still hurt (`safety_concern`),
-and the confused caller's hand-off (`verification_failed`). Desk test open.
+and the confused caller's hand-off (`verification_failed`). Desk test closed 2026-11-22.
 
 ## 7. Open
 - The kinds list: the owner's to edit (§3).

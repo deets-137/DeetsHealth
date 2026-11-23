@@ -60,7 +60,7 @@ Each item says its state in words: **done**, **next**, or **later**.
 The staff web page: settings, calls, transcripts.
 - **Done (2026-11-11, desk test passed):** the skeleton. The front end is free of Tauri and
   runs in a browser, in DeetsMotion's look ([architecture/CONSOLE.md](architecture/CONSOLE.md)).
-- **Built, desk test open (2026-11-12):** the Chat page's UI, from the owner's sketch: PHI,
+- **Built, desk test closed 2026-11-22 (2026-11-12):** the Chat page's UI, from the owner's sketch: PHI,
   Test and Demo modes ([architecture/CHAT.md](architecture/CHAT.md)). It moves the idea "a
   call view with a timeline" into the plan.
 - **Next:** wire the agent into Chat, the hybrid: Pipecat's RTVI for the caller's seat, our own

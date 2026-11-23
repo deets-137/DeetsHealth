@@ -35,12 +35,17 @@ First thing in the file, above the `#` title:
 ---
 status: shipped | built | designed | project | parked | idea | foundation | sop | guide
 shipped_in: 0.1.0          # omit unless status is shipped
-desk_test: passed 2026-09-21 | open | none
+desk_test: passed 2026-09-21 | closed 2026-11-22 | open | none
 sources: [src-tauri/src/fhir.rs]
 updated: 2026-09-21
 legacy: patient-app       # optional: see below
 ---
 ```
+
+**`desk_test: closed <date>`** (the owner, 2026-11-22) means the owner closed the test on his
+word, and nobody ran it. It is not a pass. Each closed test has a row in
+[PRE-LIVE-VERIFICATIONS.md](PRE-LIVE-VERIFICATIONS.md), and every row must be run before going
+live. A part marker says the same: "desk test closed <date>".
 
 **`legacy: patient-app`** (2026-11-12) marks a doc that describes the patient app's code while
 that code is still in the tree (`core/`). Its `status` stays the state of that code. The doc

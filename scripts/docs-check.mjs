@@ -133,7 +133,8 @@ export function check() {
     if (!STATUS.includes(fm.status)) fail(4, file, 1, `status "${fm.status ?? ""}" is not one of ${STATUS.join(" ")}`);
     if (fm.status === "shipped" && !fm.shipped_in) fail(4, file, 1, "status shipped needs shipped_in");
     if (fm.shipped_in && fm.status !== "shipped" && fm.status !== "archived") fail(4, file, 1, `shipped_in with status ${fm.status}`);
-    if (!/^(none|open|passed \d{4}-\d{2}-\d{2})$/.test(fm.desk_test ?? "")) fail(4, file, 1, `desk_test "${fm.desk_test ?? ""}" — none, open or passed <date>`);
+    // closed <date>: closed on the owner's word, not run (docs/PRE-LIVE-VERIFICATIONS.md).
+    if (!/^(none|open|(passed|closed) \d{4}-\d{2}-\d{2})$/.test(fm.desk_test ?? "")) fail(4, file, 1, `desk_test "${fm.desk_test ?? ""}" — none, open, passed <date> or closed <date>`);
     if (!fm.generated && !/^\d{4}-\d{2}-\d{2}$/.test(fm.updated ?? "")) fail(4, file, 1, `updated "${fm.updated ?? ""}" is not a date`);
     const src = /^\[(.*)\]$/.exec(fm.sources ?? "");
     if (!src) fail(4, file, 1, "sources is not a [list]");

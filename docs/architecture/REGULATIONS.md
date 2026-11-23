@@ -1,6 +1,6 @@
 ---
 status: project
-desk_test: open
+desk_test: closed 2026-11-22
 sources: [agent/prompts/AGENT-PROMPT.md, agent/deets_agent/flow.py, ehr/src/service.rs, ehr/src/verify.rs]
 updated: 2026-11-12
 ---
@@ -149,7 +149,7 @@ of AI in health care in 2025. Hospitals will ask how we meet it. *confirm* its c
 
 ## 9. As built
 - 2026-11-12: the greeting with its disclosures (§6); a confused caller goes to a person after
-  a failed code (§2.1); the kept script `code_confusion.txt`. Desk test: open.
+  a failed code (§2.1); the kept script `code_confusion.txt`. Desk test: closed 2026-11-22.
 
 ## 10. Open
 Each is a later piece of work, in the order recommended. None is built.
