@@ -2230,7 +2230,9 @@ async def hospital_view(state: State, version: int) -> dict[str, Any]:
     """The Config page's Hospital view (HOSPITAL-CONFIG.md): the common part and the limits ehr's
     hospital.rs checks, so the page can say what does not fit before a save."""
     view = await settings_view(state, "hospital", version)
-    view.update(keys=list(config.HOSPITAL_KEYS), limits=config.HOSPITAL_LIMITS)
+    # The shipped Default as the file holds it now, for the Defaults button: the store's Default
+    # version is the file as it was on the first start, never refreshed.
+    view.update(keys=list(config.HOSPITAL_KEYS), limits=config.HOSPITAL_LIMITS, shipped=config.hospital_defaults())
     return view
 
 

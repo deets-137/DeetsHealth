@@ -667,6 +667,25 @@ select.cfg-field {
   height: var(--control-height);
 }
 
+/* Config › Hospital: Defaults just right of the tab bar, at its own width (the owner's
+   screenshot, 2026-11-24). Defaults hides in Read, as Import does (hospital.ts › defaultsPlan). */
+.hospital-bar-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.hospital-defaults {
+  flex: none;
+}
+
+.cfg[data-mode="read"] .hospital-defaults {
+  visibility: hidden;
+}
+
 /* The search's words, marked where they are shown (hospital.ts › markMatches). */
 ::highlight(deets-search) {
   background-color: var(--accent);

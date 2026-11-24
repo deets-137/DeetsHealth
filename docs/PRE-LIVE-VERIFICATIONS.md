@@ -2,7 +2,7 @@
 status: project
 desk_test: none
 sources: [docs/WORKLOG.md, scripts/docs-check.mjs]
-updated: 2026-11-22
+updated: 2026-11-24
 ---
 # DeetsHealth — Pre-live verifications
 
@@ -102,17 +102,40 @@ only if that code stays.
 
 ## 2. Open issues from the last runs
 
-Found in Claude's typed Test calls on Local, 2026-11-22 (WORKLOG.md, that date). Not fixed.
+Found in Claude's typed Test calls on Local, 2026-11-22 (WORKLOG.md, that date). Worked on
+2026-11-24 (WORKLOG.md, that date).
 
-| Issue | Where it shows | Next step |
+**The cause of the first three (found 2026-11-24):** the active hospital version on the owner's
+PC is a copy saved on 2026-11-15, before the Patients column, the primary care marks and the
+Default's addresses came in (2026-11-16). The Default version (also 2026-11-15) is just as old:
+a Default is stored once and never refreshed. A fresh clone starts from the current Default and
+shows none of the three (`ehr`'s tests: the new patient type, Main Street's address).
+
+| Issue | Where it shows | State |
 |---|---|---|
-| A new patient's booking reads back as "an office visit", not "a new patient visit" | BOOKING-RULES.md §5.1 step 4, as Priya Raman | Find the cause: the active hospital version's Patients column, or the fake's slot type |
-| The Places imported from Epic replace the Local sandbox's places: Main Street Clinic has no address or phone; Jordan Ellis has no usual place | BOOKING-RULES.md §5.2 step 4, §5.4 step 4 | A fork for the owner: Local's places beside Epic's, or Local reads its own list |
-| "A heart doctor" is not a kind of care the lists know | BOOKING-RULES.md §5.3 step 2 | Check the Specialties list's words after the import |
-| "Cardiology procedures" without "EMC" names only "Cardiology" | `Shielded::names_terms` | A caller's words that hold more of one name should win |
-| The options go on counting across searches ("Option 2" first) | Any second search in a call | Polish |
-| An hours question gets "I don't have the address … I don't have a phone number" first | BOOKING-RULES.md §5.4 step 2 | Polish: say only what was asked |
-| `pip-audit` has never run | [DEPENDENCIES.md](architecture/DEPENDENCIES.md) §6 | Run it in the owner's shell |
+| A new patient's booking reads back as "an office visit", not "a new patient visit" | BOOKING-RULES.md §5.1 step 4, as Priya Raman | The old copy: no Patients column, so every type is for either. **Built 2026-11-24:** the Defaults button on Config › Hospital (the owner's 1A; HOSPITAL-CONFIG.md §9, its desk test) |
+| Main Street Clinic has no address or phone; Jordan Ellis has no usual place | BOOKING-RULES.md §5.2 step 4, §5.4 step 4 | The old copy: Main Street saved before its address; no specialty marked primary care, so no usual place. (Not the import: it keeps rows it does not match.) **Built 2026-11-24:** the Defaults button, as above |
+| "A heart doctor" is not a kind of care the lists know | BOOKING-RULES.md §5.3 step 2 | **Fixed.** The import had added Epic's "cardiology" (ID 4) beside the old row with no ID that holds "heart doctor". A row with no ID now stands for the row with an ID and its spoken name (`Hospital::pick`); an import gives the row with no ID Epic's ID, not a second row (`mergePlaces`) |
+| "Cardiology procedures" without "EMC" names only "Cardiology" | `Shielded::names_terms` | **Fixed.** A wider name that holds a full match and more of the caller's words wins |
+| The options go on counting across searches ("Option 2" first) | Any second search in a call | **Fixed 2026-11-24** (the owner's N2): each new search starts again at Option 1; more times go on counting; the booking key follows the time (CALL-FLOW.md). The words of `task.schedule` say so (a draft) |
+| An hours question gets "I don't have the address … I don't have a phone number" first | BOOKING-RULES.md §5.4 step 2 | **Fixed.** `place_info` takes `asks` (where, phone, hours) and says only those; its words are a draft (`arg.place_info.asks`). The kept scripts need recording again |
+| `pip-audit` has never run | [DEPENDENCIES.md](architecture/DEPENDENCIES.md) §6 | **Done 2026-11-24**, in the owner's terminal: no known vulnerabilities |
+
+**Desk test of the fixes: passed 2026-11-24** (the owner: "desk tests look good"; with
+HOSPITAL-CONFIG.md §9.1). Restart `npm run dev` first: a new `ehr`, agent and console; press
+Test on Config › Agent first, so the kept scripts are recorded again.
+1. Chat, Local, Test, before verification: "What are the hours of the x-ray place?" The agent
+   says the hours only, no address and no "I don't have".
+2. "What's the phone number for cardiology procedures?" The agent answers for EMC Cardiology
+   Procedures (or its facility's phone), not "which one".
+3. As Jordan Ellis, verified: "I need a heart doctor." The agent asks where or offers cardiology
+   times; it never says it does not know that kind of care.
+4. As Jordan Ellis, verified: "a check-up", then "anything on Tuesday?" The second list starts
+   at Option 1. Choose option 1: the read-back says the Tuesday time.
+
+The import's own fix (a specialty with no ID takes Epic's ID) shows only on a list without
+Epic's row yet. The owner's version already has both cardiology rows, so step 3 passes through
+the matcher's rule, not the import.
 
 Fixed the same day: a place's full name could not be picked ("EMC Cardiology Procedures"),
 `core/src/shielded.rs`; its desk test is in WORKLOG.md, 2026-11-22.

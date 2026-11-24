@@ -219,8 +219,9 @@ async def test_more_times_go_on_numbering_and_only_listed_wishes_are_sent(ehr):
         {"reason": "a check-up", "time_of_day": "brunch", "days": ["someday"]}, fm
     )
     assert result["options"] == [1, 2, 3]
+    # A new search: a new list from Option 1 (the owner's N2, 2026-11-24).
     result, _ = await handler(node, "find_slots")({"reason": "a check-up", "time_of_day": "afternoon"}, fm)
-    assert result["options"] == [2, 6]
+    assert result["options"] == [1, 2]
     await flow.close()
 
 
@@ -322,10 +323,10 @@ async def test_the_model_never_sees_a_slot_token(ehr):
     await flow.close()
 
 
-async def test_book_needs_a_read_back_and_numbers_keep_their_time(ehr):
-    """2026-11-12, after a double booking: `book` books nothing until a choice was read back,
-    and an option number means one time for the whole call; a later search goes on from the
-    last number."""
+async def test_book_needs_a_read_back_and_each_search_starts_at_option_1(ehr):
+    """2026-11-12, after a double booking: `book` books nothing until a choice was read back.
+    The owner's N2 (2026-11-24): each new search starts again at Option 1 and the earlier times
+    are no longer offered; the booking key follows the time, not its number."""
     flow = new_flow(ehr)
     await flow.start()
     _, node = await identify(flow, JORDAN)
@@ -334,11 +335,15 @@ async def test_book_needs_a_read_back_and_numbers_keep_their_time(ehr):
     assert first["options"] == [1, 2, 3]
     _, nxt = await handler(node, "book")({}, manager())
     assert nxt is NO_RESPONSE and flow.last_booked is None, "no booking without a read-back"
+    tuesday = flow._slot_id(flow.offered[3])
 
     later, _ = await handler(node, "find_slots")({"reason": "a check-up", "earliest_day": "2026-11-03"}, manager())
-    # Tuesday at 10 AM was option 3 and stays option 3; the times not heard before go on from 4.
-    assert later["options"][0] == 3 and all(n >= 4 for n in later["options"][1:])
-    assert "Option 3: Tuesday, November 3, at 10 AM" in later["spoken_to_caller"]
+    # Tuesday at 10 AM was option 3 and is now option 1 of the new list.
+    assert later["options"] == list(range(1, len(later["options"]) + 1))
+    assert "Option 1: Tuesday, November 3, at 10 AM" in later["spoken_to_caller"]
+    assert set(flow.offered) == set(later["options"]), "the first list's times are no longer offered"
+    await handler(node, "choose_option")({"option": 1}, manager())
+    assert flow._slot_id(flow.offered[1]) == tuesday
     await flow.close()
 
 
@@ -601,6 +606,18 @@ async def test_where_to_go_is_open_before_verification_and_reads_the_lists(ehr):
         ]
     )
     assert result["closed_days"][0]["name"] == "Thanksgiving" or result["closed_days"] == []
+    # Only what was asked (a desk test, 2026-11-22): the hours alone, or the phone and the address.
+    result, _ = await place_info({"place": "the x-ray place", "asks": ["hours"]}, fm)
+    assert result["spoken_to_caller"] == text(
+        "line.place_hours", hours="Monday to Friday, 7 AM to 7 PM, and Saturday, 8 AM to 12 PM"
+    )
+    result, _ = await place_info({"place": "the x-ray place", "asks": ["phone", "where"]}, fm)
+    assert result["spoken_to_caller"] == " ".join(
+        [
+            text("line.place_address", place="EMH X-Ray Imaging", address="300 Lake Road, Fitchburg, WI 53711"),
+            text("line.place_phone", phone="608-555-0140"),
+        ]
+    )
     result, _ = await place_info({}, fm)
     assert result["spoken_to_caller"] == text("line.place_info_which")
     await flow.close()

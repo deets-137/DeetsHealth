@@ -2,11 +2,52 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-19
+updated: 2026-11-24
 ---
 # DeetsHealth — Work log
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
+
+## 2026-11-24 (Windows) — the seven open issues of 2026-11-22
+- His words: "fix the seven open issues. i'll work on the shape of the demo in another chat".
+- Found: the active hospital version (saved 2026-11-15) is older than the Default's Patients
+  column, primary care marks and addresses (2026-11-16). That alone gives the new patient's
+  "office visit", Main Street with no address and Jordan with no usual place. The Default
+  version is as old: a Default is stored once. The import is not the cause.
+- Fixed: `names_terms` lets a wider name with more of the caller's words win ("cardiology
+  procedures"); `Hospital::pick` lets a specialty row with no ID stand for the row with an ID and
+  the same spoken name; the console's import gives such a row Epic's ID, not a second row;
+  `place_info` takes `asks` and says only what was asked (new section `arg.place_info.asks`, a
+  draft; GUIDE.md, TOOLS.md, `PLACEHOLDERS`, `PROMPT`). Tests: `names_terms` (four new checks),
+  `a_specialty_with_no_id_stands_for_the_one_with_its_name`, `test_where_to_go…` (asks).
+- `pip-audit` run in his terminal: no known vulnerabilities.
+- Decided inside his ask: an hours question about a place with no hours says all three; the
+  import's status line names "… given Epic's ID" apart from new specialties.
+- His forks: "1A just a plain "Defaults" button. 2 N2".
+- Built: **Defaults** on Config › Hospital and Rules › Booking (HOSPITAL-CONFIG.md §9;
+  `hospital.ts › takeDefaults`; the dev server sends the file's values as `shipped`). **N2:** a
+  new search clears the offered list and starts at Option 1; `more` goes on; `book_keys` by a
+  hash of the time (`_slot_id`), not the number. `task.schedule`'s words changed to match (a
+  draft). Tests: `test_book_needs_a_read_back_and_each_search_starts_at_option_1`, the numbers in
+  `test_more_times_go_on_numbering…`.
+- Decided inside his choices: Defaults fills only what a version never saved or saved empty; no
+  row added or removed; IDs and a department's facility never filled; a department's specialty
+  only when its ID is on the list; a place from the EHR (a FHIR id) left as the EHR gave it;
+  Reasons and the Booking rules only when the version has none; the button hidden in Read. For
+  N2: no results keeps the last list offered; the double booking of 2026-11-12 that made the
+  numbers last the call came before the read-back, which now covers it.
+- His screenshot: Defaults beside the search box, its word cut off. His words: "Move it to the
+  right of the visits/times/places tabbar so its properly sized please. Also can we set it such
+  that hovering over it will tell you what values it will set and in which tab?" Built: Defaults
+  in a group with the tab bar, at its own width; the hover lists every value under its tab and
+  list (`defaultsPlan` works it out without changing the draft; `defaultsHint` says it). Decided
+  inside: the browser's own hint (`title`), worked out on each pointer or focus; long values cut
+  at 60 characters; a list of rows said as a count. HOSPITAL-CONFIG.md §9.
+- His words: "commit this, desk tests look good". Marked passed: PRE-LIVE-VERIFICATIONS.md §2's
+  desk test, HOSPITAL-CONFIG.md §9.1. Committed on `main`, not pushed.
+- Not done: the kept scripts need his Test press (the tool list and words changed); until then
+  the agent tests and the pre-push hook fail.
+- Screenshot saved: `docs/architecture/images/hospital-defaults-button-2026-11-24.png`.
 
 ## 2026-11-23 (Windows) — ElevenLabs, the second voice vendor
 - His words: "Add ElevenLabs to my project: run `npx -y @elevenlabs/cli@latest onboard init` and

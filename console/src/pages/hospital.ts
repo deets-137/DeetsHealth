@@ -25,7 +25,7 @@ import {
 } from "../agent/api";
 import { hospitalSettings } from "../agent/stores";
 import { reducedMotion, tokenMs } from "../tokens";
-import { settingsView, type Kit } from "./config-kit";
+import { cap, settingsView, type Kit } from "./config-kit";
 import { describeEpicOid, recordPrefix } from "./epic-oid";
 import { fillGrid, fillTable, heightsOf, type Unit } from "./list-window";
 import { el } from "./page";
@@ -255,6 +255,8 @@ type PlacesUi = {
   /** The searches in the Import panel ("WI", "Verona, WI"): kept while the view lives. */
   importEntries: string[];
   importSay: string;
+  /** What the last Defaults press filled (counts only). */
+  defaultsSay: string;
   go: (open: string | null) => void;
   /** A facility just added: the page drills into it, the cursor in its name (TABLES.md §3.7). */
   fresh?: FacilityRow;
@@ -325,6 +327,168 @@ function samePlace(a: { id: string; record: string }, b: { id: string; record: s
   return a.record.trim().toLowerCase() === b.record.trim().toLowerCase() && !!a.record.trim();
 }
 
+/** How the Defaults button finds a draft row's row in the shipped Default: by its name. Lists
+ * with no name of their own (reasons, the Booking rules) are taken whole only when the version
+ * has none saved. */
+const DEFAULT_ROW_NAME: Partial<Record<Key, string>> = {
+  visit_types: "record",
+  visit_groups: "name",
+  times_of_day: "name",
+  hours: "day",
+  closed_days: "date",
+  facilities: "record",
+  locations: "record",
+  specialties: "spoken",
+};
+/** Fields the Defaults button never fills: IDs and links come from the EHR, not the Default
+ * (`facility` names one of the Default's facilities). A department's `specialty` is filled only
+ * when the version's Specialties list has that ID. */
+const DEFAULT_SKIP = new Set(["id", "code", "facility", "specialty"]);
+
+/** One value the Defaults button would set: a whole list or number (`row` null), or one field of
+ * one row, named by the row's name. */
+type DefaultFill = { key: Key; row: Record<string, unknown> | null; name: string; field: string; value: unknown };
+
+/** The words of each list and field in the hover's list, as the page's own headers say them. */
+const DEFAULT_LIST_WORDS: Partial<Record<Key, string>> = {
+  visit_types: "Visit types",
+  visit_groups: "Groups",
+  reasons: "Reasons",
+  times_of_day: "Times of day",
+  hours: "Hours",
+  closed_days: "Closed days",
+  facilities: "Facilities",
+  locations: "Departments",
+  specialties: "Specialties",
+  booking_rules: "Booking rules",
+};
+const DEFAULT_FIELD_WORDS: Record<string, string> = {
+  record: "Record's name",
+  spoken: "Spoken name",
+  patients: "Patients",
+  online: "Online",
+  book: "Book",
+  primary_care: "Primary care",
+  words: "Caller's words",
+  address: "Address",
+  phone: "Phone",
+  hours: "Hours",
+  specialty: "Specialty",
+  visit_types: "Visit types",
+  from: "From",
+  opens: "Opens",
+  closes: "Closes",
+  name: "Name",
+};
+
+/** The Defaults button (the owner's 1A, 2026-11-24): what the shipped Default would put into the
+ * draft where the version has none, without changing it. A list or a number the version never
+ * saved takes the Default's whole. In a row that has a row of the same name in the Default, a
+ * field the version never saved, or saved empty, takes the Default's (a visit type's Patients, a
+ * specialty's Primary care and the caller's words, a place's address and phone). A value set
+ * stays; no row is added or removed; IDs never move; a place from the EHR (a FHIR id) is left as
+ * the EHR gave it. */
+function defaultsPlan(d: Draft, raw: HospitalValues, shipped: HospitalValues, keys: readonly Key[]): DefaultFill[] {
+  const rawRec = raw as unknown as Record<string, unknown>;
+  const dRec = d as unknown as Record<string, unknown>;
+  const shippedRec = shipped as unknown as Record<string, unknown>;
+  const empty = (v: unknown) => (typeof v === "string" && !v.trim()) || (Array.isArray(v) && v.length === 0);
+  const plan: DefaultFill[] = [];
+  for (const k of keys) {
+    if (!(k in shippedRec)) continue;
+    if (!(k in rawRec)) {
+      if (JSON.stringify(dRec[k]) !== JSON.stringify(shippedRec[k])) plan.push({ key: k, row: null, name: "", field: "", value: shippedRec[k] });
+      continue;
+    }
+    const by = DEFAULT_ROW_NAME[k];
+    if (!by) continue;
+    const mine = dRec[k] as Record<string, unknown>[];
+    const saved = rawRec[k] as Record<string, unknown>[] | undefined;
+    const theirs = shippedRec[k] as Record<string, unknown>[];
+    const name = (r: Record<string, unknown>) => String(r[by] ?? "").trim().toLowerCase();
+    // The row as saved: the n-th draft row of a name is the n-th saved row of that name. A row
+    // added since the load has none: only its empty fields are filled.
+    const seen = new Map<string, number>();
+    mine.forEach((row) => {
+      const n = name(row);
+      const from = n ? theirs.find((t) => name(t) === n) : undefined;
+      // A place from the EHR (a FHIR id) keeps the EHR's facts.
+      if (!from || ((k === "facilities" || k === "locations") && String(row.id ?? "").trim())) return;
+      const nth = seen.get(n) ?? 0;
+      seen.set(n, nth + 1);
+      const stored = (saved ?? []).filter((s) => name(s) === n)[nth] ?? row;
+      for (const [f, v] of Object.entries(from)) {
+        // A department's specialty, only when this version's list has that ID.
+        const listed = k === "locations" && f === "specialty" && d.specialties.some((x) => x.code.trim() === String(v).trim());
+        if ((DEFAULT_SKIP.has(f) && !listed) || empty(v)) continue;
+        if (f in stored && !empty(row[f])) continue;
+        if (JSON.stringify(row[f]) === JSON.stringify(v)) continue;
+        plan.push({ key: k, row, name: String(row[by] ?? "").trim(), field: f, value: v });
+      }
+    });
+  }
+  return plan;
+}
+
+/** Puts a plan into the draft and marks its rows "changed". Returns the words for the line under
+ * the tab bar: counts only. */
+function applyDefaults(d: Draft, plan: DefaultFill[], marks: WeakMap<object, Mark>): string {
+  const dRec = d as unknown as Record<string, unknown>;
+  const rows = new Set<object>();
+  let lists = 0;
+  for (const p of plan) {
+    if (!p.row) {
+      dRec[p.key] = structuredClone(p.value);
+      lists++;
+      continue;
+    }
+    p.row[p.field] = structuredClone(p.value);
+    rows.add(p.row);
+  }
+  for (const r of rows) if (marks.get(r) !== "new") marks.set(r, "changed");
+  const values = plan.length - lists;
+  if (!plan.length) return "Defaults: nothing to take, every value is set";
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  return [
+    values ? `Defaults: ${plural(values, "value", "values")} in ${plural(rows.size, "row", "rows")}` : "Defaults",
+    lists ? `${plural(lists, "list", "lists")} the version never had` : "",
+    "Nothing is saved until Save",
+  ]
+    .filter(Boolean)
+    .join(". ");
+}
+
+/** The hover's words (the owner, 2026-11-24): every value Defaults would set, under its tab and
+ * list. Facts about the hospital only, never a call's value. */
+function defaultsHint(plan: DefaultFill[]): string {
+  if (!plan.length) return "Defaults: nothing to take, every value is set.";
+  const short = (s: string) => (s.length > 60 ? `${s.slice(0, 59)}…` : s);
+  const say = (v: unknown): string => {
+    if (typeof v === "boolean") return v ? "On" : "Off";
+    if (Array.isArray(v)) return v.every((x) => typeof x === "string") ? short(v.join(", ")) : `${v.length} ${v.length === 1 ? "row" : "rows"}`;
+    if (typeof v === "string") return short(cap(v));
+    return short(String(v));
+  };
+  const tabOf = (k: Key) => (Object.keys(TAB_KEYS) as Tab[]).find((t) => TAB_KEYS[t].includes(k));
+  const lines: string[] = ["Defaults would set:"];
+  let last = "";
+  for (const p of plan) {
+    const tab = tabOf(p.key);
+    const head = `${tab ? TAB_WORDS[tab] : ""} › ${DEFAULT_LIST_WORDS[p.key] ?? p.key}`;
+    if (head !== last) {
+      lines.push("", head);
+      last = head;
+    }
+    lines.push(
+      p.row
+        ? `  ${p.name}: ${DEFAULT_FIELD_WORDS[p.field] ?? p.field} → ${say(p.value)}`
+        : `  ${Array.isArray(p.value) ? "The whole list" : "The value"}: ${say(p.value)}`,
+    );
+  }
+  lines.push("", "Nothing is saved until Save.");
+  return lines.join("\n");
+}
+
 /** Merges an import into the draft (HOSPITAL-CONFIG.md §8.2): Epic's facts replace ours, the
  * spoken names and the caller's words stay, new and changed rows are marked, a row Epic did not
  * return stays, marked "gone". Returns the words for the status line, or throws when the
@@ -334,7 +498,7 @@ function mergePlaces(d: Draft, got: ImportedPlaces, marks: WeakMap<object, Mark>
   if (v.specialty_list && d.specialty_list && v.specialty_list !== d.specialty_list) {
     throw new Error("Epic's specialty list is not the one set on this page: clear the Specialty list's OID to take Epic's");
   }
-  const counts = { facilities: [0, 0], departments: [0, 0], specialties: 0, gone: 0 };
+  const counts = { facilities: [0, 0], departments: [0, 0], specialties: 0, specialtyIds: 0, gone: 0 };
   const merge = <T extends { id: string; record: string }>(mine: T[], theirs: T[], keep: (old: T, next: T) => T, tally: number[]) => {
     const matched = new Set<T>();
     for (const t of theirs) {
@@ -364,8 +528,18 @@ function mergePlaces(d: Draft, got: ImportedPlaces, marks: WeakMap<object, Mark>
   merge(d.facilities, v.facilities, (old, t) => ({ ...t, spoken: old.spoken }), counts.facilities);
   merge(d.locations, v.locations, (old, t) => ({ ...t, spoken: old.spoken }), counts.departments);
   if (v.specialty_list && !d.specialty_list) d.specialty_list = v.specialty_list;
+  const name = (s: { spoken: string }) => s.spoken.trim().toLowerCase();
   for (const s of v.specialties) {
     if (d.specialties.some((x) => x.code === s.code)) continue;
+    // A row with no ID and the same spoken name takes Epic's ID and keeps the caller's words, so
+    // the list does not hold the specialty twice (a desk test, 2026-11-22).
+    const bare = d.specialties.find((x) => !x.code.trim() && name(x) === name(s));
+    if (bare) {
+      bare.code = s.code;
+      if (marks.get(bare) !== "new") marks.set(bare, "changed");
+      counts.specialtyIds++;
+      continue;
+    }
     d.specialties.push(s);
     marks.set(s, "new");
     counts.specialties++;
@@ -377,6 +551,7 @@ function mergePlaces(d: Draft, got: ImportedPlaces, marks: WeakMap<object, Mark>
     `${counts.facilities[0] + counts.departments[0]} new, ${counts.facilities[1] + counts.departments[1]} changed`,
     counts.gone ? `${counts.gone} on the page not in Epic (kept)` : "",
     counts.specialties ? plural(counts.specialties, "new specialty", "new specialties") : "",
+    counts.specialtyIds ? `${plural(counts.specialtyIds, "specialty", "specialties")} given Epic's ID` : "",
     got.others ? `${got.others} other locations left out` : "",
     got.other_specialty_lists ? `${got.other_specialty_lists} departments' specialties are in another list (left empty)` : "",
     plural(got.reads, "read", "reads"),
@@ -619,6 +794,7 @@ export const hospitalView = (spec: HospitalSpec = HOSPITAL): View => {
     older: null,
     importEntries: [],
     importSay: "",
+    defaultsSay: "",
     go: (open) => swap(() => (ui.open = open)),
     openNew: (f) =>
       swap(() => {
@@ -728,6 +904,7 @@ export const hospitalView = (spec: HospitalSpec = HOSPITAL): View => {
       // A new draft (a Save, a version): the import's marks and its line were for the old one.
       ui.marks = new WeakMap();
       ui.importSay = "";
+      ui.defaultsSay = "";
       ui.older = s.version && !s.version.active ? s.active : null;
     },
     // This view's lists over the newest active version, read again first.
@@ -761,7 +938,31 @@ export const hospitalView = (spec: HospitalSpec = HOSPITAL): View => {
     const bars = el(`<div class="prompt-bars"></div>`);
     // A view of one tab has no tab bar: the search box alone.
     bar.el.hidden = TABS.length < 2;
-    bars.append(bar.el, searchWrap);
+    // Defaults (the owner's 1A, 2026-11-24): the shipped Default's values where this version has
+    // none, into the draft; Save makes the version. Hidden in Read, as Import is. The active
+    // version only: an older one is read only.
+    const defaults = el(`
+      <div class="cfg-control hospital-defaults"><div class="tabs" role="group" aria-label="Defaults">
+        <button class="tab" type="button">Defaults</button>
+      </div></div>`);
+    // A dev server older than the button sends no Default: no button.
+    defaults.hidden = !s.shipped;
+    const defaultsButton = defaults.querySelector<HTMLButtonElement>("button")!;
+    // The hover names every value it would set, under its tab (the owner, 2026-11-24): worked out
+    // when the pointer or the focus comes, so it follows the draft's edits.
+    const hint = () => (defaultsButton.title = s.shipped ? defaultsHint(defaultsPlan(d, s.values, s.shipped, ownKeys)) : "");
+    defaultsButton.addEventListener("pointerenter", hint);
+    defaultsButton.addEventListener("focus", hint);
+    defaultsButton.addEventListener("click", () => {
+      ui.defaultsSay = applyDefaults(d, defaultsPlan(d, s.values, s.shipped, ownKeys), ui.marks);
+      kit.changed();
+      kit.rerender();
+    });
+    // Defaults at the tab bar's right (the owner's screenshot, 2026-11-24); the search box at the
+    // row's right edge.
+    const start = el(`<div class="hospital-bar-start"></div>`);
+    start.append(bar.el, defaults);
+    bars.append(start, searchWrap);
     const body = el(`<div class="prompt-sections"></div>`);
     kitNow = kit;
     draftNow = d;
@@ -800,7 +1001,14 @@ export const hospitalView = (spec: HospitalSpec = HOSPITAL): View => {
       kit.apply([body]);
     };
     showProblem();
-    card.append(bars, err, body);
+    card.append(bars, err);
+    // What the last Defaults press did (counts only), until the next draw of a new draft.
+    if (ui.defaultsSay) {
+      const said = el(`<p class="sys-note" role="status"></p>`);
+      said.textContent = ui.defaultsSay;
+      card.append(said);
+    }
+    card.append(body);
     const settle = () => {
       growAll(card);
       bar.place();

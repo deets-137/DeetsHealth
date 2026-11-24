@@ -44,6 +44,7 @@ caller's yes and the offered slots live on this object, as `Shielded`.
 from __future__ import annotations
 
 import functools
+import hashlib
 import json
 import re
 import secrets
@@ -84,6 +85,8 @@ DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
 # Config › Hospital): a call takes its own from OpenCall (`CallFlow.times_of_day`).
 TIMES_OF_DAY = tuple(t["name"] for t in json.loads(config.HOSPITAL.read_text(encoding="utf-8"))["times_of_day"])
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+# What a caller may ask of a place (place_info's `asks`), in the order the answer says them.
+PLACE_ASKS = ("where", "phone", "hours")
 # What a caller may say they want before they are verified (identify's `caller_wants`).
 CALLER_WANTS = ("book", "visit", "both")
 
@@ -482,12 +485,15 @@ class CallFlow:
     # on the caller's next line says it is for what the agent could not answer (the owner's 2C,
     # 2026-11-16).
     staff_offered_at: int | None = None
-    # Every option the caller has heard on this call, by its number. A number keeps its time for
-    # the whole call, and a new search goes on from the last number, so "option 3" never means
-    # two times (the owner, 2026-11-12, after a double booking).
+    # The options of the list the caller heard last, by number. Each new search starts again at
+    # Option 1 and the earlier times are no longer offered; "more" goes on from the last number
+    # (the owner's N2, 2026-11-24). The read-back before booking (choose_option) says the time,
+    # so a number never books a time the caller did not hear last (the double booking of
+    # 2026-11-12 came before the read-back).
     offered: dict[int, Slot] = field(default_factory=dict)
-    # One idempotency key per option the caller chose, so a retry never books twice.
-    book_keys: dict[int, str] = field(default_factory=dict)
+    # One idempotency key per time the caller chose, by the time itself, not its number: a retry
+    # never books twice, even after a new list gave the same time another number.
+    book_keys: dict[str, str] = field(default_factory=dict)
     # The option read back and waiting for the caller's yes (confirm before booking, the owner's
     # choice A, 2026-11-12), and the visit booked last on this call.
     chosen: int | None = None
@@ -703,16 +709,28 @@ class CallFlow:
                     flow_manager, text("line.which_place", places=f" {text('line.choice_or')} ".join(items))
                 )
             name = found.name.reveal()
-            words = [
-                text("line.place_address", place=name, address=found.address.reveal())
-                if found.address.reveal()
-                else text("line.place_no_address", place=name),
-                text("line.place_phone", phone=found.phone.reveal())
-                if found.phone.reveal()
-                else text("line.place_no_phone", place=name),
-            ]
-            if found.hours:
+            # Only what the caller asked about (a desk test, 2026-11-22: an hours question heard
+            # "I don't have the address … I don't have a phone number" first). Nothing named: all.
+            raw = args.get("asks") or []
+            asks = {a for a in (raw if isinstance(raw, list) else [raw]) if a in PLACE_ASKS} or set(PLACE_ASKS)
+            if asks == {"hours"} and not found.hours:
+                asks = set(PLACE_ASKS)
+            words = []
+            if "where" in asks:
+                words.append(
+                    text("line.place_address", place=name, address=found.address.reveal())
+                    if found.address.reveal()
+                    else text("line.place_no_address", place=name)
+                )
+            if "phone" in asks:
+                words.append(
+                    text("line.place_phone", phone=found.phone.reveal())
+                    if found.phone.reveal()
+                    else text("line.place_no_phone", place=name)
+                )
+            if "hours" in asks and found.hours:
                 words.append(text("line.place_hours", hours=_hours_words(found.hours)))
+            logger.info("place_info: asked {}", ",".join(a for a in PLACE_ASKS if a in asks))
             return await self._say(
                 flow_manager,
                 " ".join(words),
@@ -720,7 +738,13 @@ class CallFlow:
                 next_step=text("note.after_place_info"),
             )
 
-        return _tool("place_info", handler, {"place": ""}, required=[])
+        return _tool(
+            "place_info",
+            handler,
+            {"place": "", "asks": ""},
+            required=[],
+            schemas={"asks": {"type": "array", "items": {"type": "string", "enum": list(PLACE_ASKS)}}},
+        )
 
     # ---- staff flags (FLAGS.md) ----
 
@@ -1139,6 +1163,9 @@ class CallFlow:
             self.chosen = None
             if not slots:
                 return await self._say(flow_manager, text("line.no_more_slots" if more else "line.no_slots"))
+            # A new search: a new list from Option 1 (N2). More times: the list goes on.
+            if not more:
+                self.offered.clear()
             numbers = [self._number_for(s) for s in slots]
             options = " ".join(
                 text("line.slot_option", number=str(n), visit=_visit_words(s, zone=self.zone))
@@ -1185,12 +1212,19 @@ class CallFlow:
             },
         )
 
+    @staticmethod
+    def _slot_id(slot: Slot) -> str:
+        """A time's identity on this call (its start, clinician and place), as a hash: the
+        booking key's index, never the words themselves."""
+        same = f"{slot.starts_at.reveal()}\x1f{slot.clinician.reveal()}\x1f{slot.place.reveal()}"
+        return hashlib.sha256(same.encode()).hexdigest()
+
     def _number_for(self, slot: Slot) -> int:
-        """The slot's option number on this call: its old number if the caller heard this time
-        before, or the next number after every one they have heard."""
-        same = (slot.starts_at.reveal(), slot.clinician.reveal(), slot.place.reveal())
+        """The slot's option number in the list the caller hears: its number if this list (with
+        its "more") already gave this time, or the next number."""
+        same = self._slot_id(slot)
         for n, s in self.offered.items():
-            if (s.starts_at.reveal(), s.clinician.reveal(), s.place.reveal()) == same:
+            if self._slot_id(s) == same:
                 self.offered[n] = slot  # the newest token for the same time
                 return n
         n = max(self.offered, default=0) + 1
@@ -1230,7 +1264,7 @@ class CallFlow:
             if option is None or option not in self.offered:
                 logger.info("book: nothing read back yet")
                 return await self._say(flow_manager, text("line.which_option"))
-            key = self.book_keys.setdefault(option, secrets.token_urlsafe(24))
+            key = self.book_keys.setdefault(self._slot_id(self.offered[option]), secrets.token_urlsafe(24))
             try:
                 booked = await self.ehr.book(self.handle, self.offered[option].token, key)
             except BookNotThrough:

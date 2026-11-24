@@ -2,7 +2,7 @@
 status: built
 desk_test: closed 2026-11-22
 sources: []
-updated: 2026-11-16
+updated: 2026-11-24
 ---
 # DeetsHealth — The agent (`agent/`), as built
 
@@ -244,7 +244,9 @@ for something the agent cannot do: the offer of a person, a "no", and the call g
 - **Confirm before booking** (the owner's choice A, 2026-11-12). A test call booked option 2,
   then "option 3 instead" booked a time from a new list with new numbers, and the first visit
   stayed booked. Now `choose_option` reads the time back and `book` books only that; option
-  numbers keep their time for the whole call; a change goes to staff by `change_visit`
+  numbers kept their time for the whole call until 2026-11-24 (the owner's N2: each new search
+  starts again at Option 1; the read-back says the time, and the booking key follows the time,
+  not its number); a change goes to staff by `change_visit`
   (moving and cancelling go to staff, BUILD-ORDER.md). With `flag_for_staff` and
   `change_visit`, the schedule node offers 10 tools.
 - **The token cap and a cut-off reply** (the owner, 2026-11-12). In one recording the model

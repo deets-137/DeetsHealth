@@ -824,6 +824,12 @@ name: The place asked about
 under: place_info
 plays: Filled with the caller's words for the place; empty for the visit they just heard or booked.
 
+## arg.place_info.asks
+tab: Anytime
+name: What was asked
+under: place_info
+plays: Filled with what the caller asked of the place: where it is, its phone, its hours. Only those are said; empty says all three.
+
 ## line.place_address
 tab: Anytime
 name: Say the address

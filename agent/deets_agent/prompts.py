@@ -138,6 +138,7 @@ PLACEHOLDERS: dict[str, set[str]] = {
     # Where to go: a place's address, phone and hours (BOOKING-RULES.md §3.7).
     "tool.place_info": set(),
     "arg.place_info.place": set(),
+    "arg.place_info.asks": set(),
     "line.place_address": {"place", "address"},
     "line.place_no_address": {"place"},
     "line.place_phone": {"phone"},

@@ -158,7 +158,9 @@ impl Shielded<String> {
     /// Every one of `terms` that the caller's words name, for a place or a specialty on the
     /// hospital's lists (BOOKING-RULES.md §3.1). The words that name no one place are left out
     /// ("the", "clinic", "doctor"). A term whose every word the caller said ("my heart doctor"
-    /// names "heart doctor") is a full match; when there is one, only full matches count. Else a
+    /// names "heart doctor") is a full match; when there is one, only full matches count, each
+    /// unless a wider name holds it and more of the caller's words ("cardiology procedures" names
+    /// "EMC Cardiology Procedures", not "Cardiology"). Else a
     /// term that holds every word the caller said ("north" names "EMC North Family Medicine").
     /// The terms are the hospital's, not protected data. Answers with positions only and never
     /// reveals the caller's words.
@@ -184,11 +186,32 @@ impl Shielded<String> {
         };
         let full = pick(&|t| t.iter().all(|w| said.contains(w)));
         if !full.is_empty() {
-            // The most specific name wins: a full match whose words all sit inside another full
-            // match is left out, so "EMC Cardiology Procedures" names that one place, not also
-            // "EMC Cardiology" and "Cardiology" (found in a desk test, 2026-11-22).
             let inside = |a: &[String], b: &[String]| a.len() < b.len() && a.iter().all(|w| b.contains(w));
-            return full.iter().copied().filter(|&i| !full.iter().any(|&j| inside(&terms[i], &terms[j]))).collect();
+            let covers = |t: &[String]| t.iter().filter(|w| said.contains(w)).count();
+            // A wider name that holds a full match and more of the caller's words wins over it:
+            // "cardiology procedures" names "EMC Cardiology Procedures", not "Cardiology" (a desk
+            // test, 2026-11-22). The widest such names, all of them. A full match inside another
+            // full match is not widened: "EMC cardiology" keeps "EMC Cardiology".
+            let mut named: Vec<usize> = Vec::new();
+            for &i in &full {
+                if full.iter().any(|&k| inside(&terms[i], &terms[k])) {
+                    named.push(i);
+                    continue;
+                }
+                let wider: Vec<usize> = (0..terms.len())
+                    .filter(|&j| inside(&terms[i], &terms[j]) && covers(&terms[j]) > covers(&terms[i]))
+                    .collect();
+                match wider.iter().map(|&j| covers(&terms[j])).max() {
+                    Some(most) => named.extend(wider.into_iter().filter(|&j| covers(&terms[j]) == most)),
+                    None => named.push(i),
+                }
+            }
+            named.sort_unstable();
+            named.dedup();
+            // The most specific name wins: a name whose words all sit inside another named one is
+            // left out, so "EMC Cardiology Procedures" names that one place, not also "EMC
+            // Cardiology" and "Cardiology" (found in a desk test, 2026-11-22).
+            return named.iter().copied().filter(|&i| !named.iter().any(|&j| inside(&terms[i], &terms[j]))).collect();
         }
         pick(&|t| said.iter().all(|w| t.contains(w)))
     }
@@ -304,6 +327,11 @@ mod tests {
         assert_eq!(n("EMC Cardiology Procedures").names_terms(&three), [1], "the most specific full match");
         assert_eq!(n("EMC cardiology").names_terms(&three), [0], "not the shorter name inside it");
         assert_eq!(n("cardiology").names_terms(&three), [2]);
+        assert_eq!(n("cardiology procedures").names_terms(&three), [1], "a wider name with more of the caller's words");
+        assert_eq!(n("the cardiology procedures place").names_terms(&three), [1]);
+        assert_eq!(n("new cardiology").names_terms(&three), [2], "a word no name holds: the full match stays");
+        let four = ["Cardiology", "EMC Cardiology Procedures", "Main Street Clinic"];
+        assert_eq!(n("cardiology procedures at Main Street").names_terms(&four), [1, 2]);
         assert_eq!(n("cardiology at Main Street").names_terms(&["Cardiology", "Main Street Clinic"]), [0, 1], "two names, neither inside the other");
         assert_eq!(n("the cardiology clinic").names_terms(&places), [0, 1], "a word in both");
         assert_eq!(n("main street").names_terms(&places), [2]);

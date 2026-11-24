@@ -197,6 +197,7 @@ pub const PROMPT: &[Setting] = &[
     p("line.rule_hand_off", &[]),
     p("tool.place_info", &[]),
     p("arg.place_info.place", &[]),
+    p("arg.place_info.asks", &[]),
     p("line.place_address", &["address", "place"]),
     p("line.place_no_address", &["place"]),
     p("line.place_phone", &["phone"]),
@@ -978,7 +979,7 @@ mod tests {
                 (s.key.to_string(), json!(format!("Words {words}.")).to_string())
             })
             .collect();
-        assert_eq!(check(PROMPT, &set).unwrap().len(), 153);
+        assert_eq!(check(PROMPT, &set).unwrap().len(), 154);
 
         let with = |key: &str, text: &str| {
             let mut s = set.clone();

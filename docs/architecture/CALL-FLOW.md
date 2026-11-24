@@ -2,7 +2,7 @@
 status: built
 desk_test: closed 2026-11-22
 sources: [agent/deets_agent/flow.py, agent/deets_agent/call.py, agent/deets_agent/screen.py, agent/deets_agent/config.py, agent/prompts/AGENT-PROMPT.md, ehr/src/service.rs, ehr/src/session.rs, ehr/src/texts.rs]
-updated: 2026-11-16
+updated: 2026-11-24
 ---
 # The default call flow — where each piece lives
 
@@ -123,7 +123,8 @@ The verification limits are a floor: a hospital may make them stricter, never lo
 | A code flag of one kind is raised once per call | `CallFlow.raise_flag` |
 | The details are read back before the lookup | `_identify_fn`, `_confirm_details_fn` |
 | The chosen time is read back before it is booked; `book` books nothing without it | `_choose_option_fn`, `_book_fn`, `CallFlow.chosen` |
-| An option number keeps its time for the whole call; a new search goes on from the last number | `CallFlow.offered`, `CallFlow._number_for` |
+| Each new search starts again at Option 1 and the earlier times are no longer offered; more times go on from the last number (the owner's N2, 2026-11-24) | `CallFlow.offered`, `CallFlow._number_for`, `find_slots` |
+| A booking's idempotency key follows the time, not its number | `CallFlow.book_keys`, `CallFlow._slot_id` |
 | The model may send only names the caller said | `CallFlow._was_said` (the name guard) |
 | An impossible date of birth costs no try | `CallFlow._possible_birth` |
 | Chart and booking tools exist only after a pass | the node table in §2; `ehr` refuses them too (`ehr/src/service.rs`) |

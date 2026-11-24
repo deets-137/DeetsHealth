@@ -315,7 +315,7 @@ def test_the_agent_view_shows_the_file_without_a_store(client):
 
     assert (c["store"], c["versions"], c["version"]) == (False, [], None)
     assert c["values"] == c["active"] == prompts.load()
-    assert c["placeholders"]["line.booked"] == ["visit"] and len(c["placeholders"]) == 153
+    assert c["placeholders"]["line.booked"] == ["visit"] and len(c["placeholders"]) == 154
     assert c["recordings"]["scripts"] == 15 and isinstance(c["recordings"]["match"], bool)
 
 

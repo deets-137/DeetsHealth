@@ -1,8 +1,8 @@
 ---
 status: built
 desk_test: closed 2026-11-22
-sources: [docs/architecture/images/hospital-columns-misaligned-2026-11-15.png, docs/architecture/images/hospital-visit-type-code-2026-11-15.png, docs/architecture/images/hospital-reasons-codes-2026-11-15.png, docs/architecture/images/hospital-specialties-2026-11-15.png, ehr/src/hospital.rs, ehr/fixtures/hospital.json, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/scheduler.rs, ehr/src/epic_ehr.rs, ehr/src/visits.rs, ehr/src/session.rs, ehr/migrations/0009_settings_hospital.sql, ehr/proto/deets/ehr/v1/ehr.proto, agent/deets_agent/config.py, agent/deets_agent/dev_server.py, agent/deets_agent/flow.py, agent/deets_agent/ehr_client.py, console/src/pages/hospital.ts, console/src/pages/epic-oid.ts, console/src/agent/api.ts, console/src/styles/config.css, docs/integrations/EPIC.md, console/src/styles/people.css, docs/architecture/images/hospital-places-toggle-2026-11-15.png, docs/architecture/images/hospital-places-import-button-2026-11-15.png, docs/architecture/images/hospital-import-panel-margins-2026-11-15.png]
-updated: 2026-11-16
+sources: [docs/architecture/images/hospital-columns-misaligned-2026-11-15.png, docs/architecture/images/hospital-visit-type-code-2026-11-15.png, docs/architecture/images/hospital-reasons-codes-2026-11-15.png, docs/architecture/images/hospital-specialties-2026-11-15.png, ehr/src/hospital.rs, ehr/fixtures/hospital.json, ehr/src/settings.rs, ehr/src/service.rs, ehr/src/scheduler.rs, ehr/src/epic_ehr.rs, ehr/src/visits.rs, ehr/src/session.rs, ehr/migrations/0009_settings_hospital.sql, ehr/proto/deets/ehr/v1/ehr.proto, agent/deets_agent/config.py, agent/deets_agent/dev_server.py, agent/deets_agent/flow.py, agent/deets_agent/ehr_client.py, console/src/pages/hospital.ts, console/src/pages/epic-oid.ts, console/src/agent/api.ts, console/src/styles/config.css, docs/integrations/EPIC.md, console/src/styles/people.css, docs/architecture/images/hospital-places-toggle-2026-11-15.png, docs/architecture/images/hospital-places-import-button-2026-11-15.png, docs/architecture/images/hospital-import-panel-margins-2026-11-15.png, docs/architecture/images/hospital-defaults-button-2026-11-24.png]
+updated: 2026-11-24
 ---
 # DeetsHealth — Config › Hospital: the hospital's own lists
 
@@ -117,7 +117,9 @@ so.
   caller's words, the ID, and **Primary care** (since 2026-11-16: read by calls for the usual
   place, BOOKING-RULES.md §5.2). Since 2026-11-16 the spoken name and the caller's words are
   matched to a caller's words for a kind of care, and the ID goes to `$find` as `specialties`
-  (§5.3). A specialty with no ID matches no department. Epic gives no list of a hospital's specialty codes by API.
+  (§5.3). A specialty with no ID matches no department, unless a row with an ID has the same
+  spoken name: then its caller's words count for that row (2026-11-24). Import from Epic gives a
+  row with no ID Epic's ID when the spoken names match, so the list holds it once. Epic gives no list of a hospital's specialty codes by API.
 - **What the sandbox can give (2026-11-15).** A department's specialty, one at a time:
   `Location.Read` (registered) returns it as an extension, with its code and system (EPIC.md
   §7.11). The departments come from the Location references on the test patients' visits and on
@@ -562,3 +564,61 @@ location. A **DEP** is a department record ("EMC Cardiology"): the place a visit
   rows at once: when the owner designs them.
 - Whether a department's hours override the hospital's hours (§2.6): with the hand-off.
 - Another EHR's import: behind its own adapter (NON-EPIC-EHRS.md).
+
+## 9. Defaults (built 2026-11-24, desk test passed 2026-11-24)
+> **Part:** built · 2026-11-24 · desk test passed 2026-11-24 (the owner: "desk tests look good")
+
+The owner's 1A, "just a plain Defaults button" (2026-11-24). A saved version keeps the lists as
+they were on the day it was saved. A column or a value the Default gained later (a visit type's
+Patients, a specialty's Primary care, Main Street's address) never reached it: the version of
+2026-11-15 on the owner's PC gave a new patient "an office visit", Main Street no address and
+Jordan Ellis no usual place (PRE-LIVE-VERIFICATIONS.md §2). The Default version in the store is
+no help: it is the file as it was on the first start, never refreshed.
+
+- **Where:** "Defaults", just right of the tab bar (Visits | Times | Places …), at its own
+  width; the search box stays at the row's right edge. On Config › Hospital and Rules › Booking
+  (there, with no tab bar, at the row's left). Edit only; hidden in Read, as Import is. Moved the
+  same day: it first sat beside the search box and was cut short.
+
+  ![The owner's screenshot, 2026-11-24: Defaults beside the search box, its word cut off; he asks to move it right of the Visits / Times / Places tab bar, properly sized, and for a hover that says what it will set and in which tab](images/hospital-defaults-button-2026-11-24.png)
+- **The hover** (the owner, 2026-11-24): every value it would set, under its tab and list
+  ("Visits › Visit types", then "Office Visit: Patients → Established"); a whole list as "The
+  whole list: 3 rows"; else "nothing to take, every value is set". Worked out each time the
+  pointer or the focus comes to the button, so it follows the draft's edits. The browser's own
+  hint (`title`): the console has no hint part of its own. Facts about the hospital only.
+- **What it does:** puts the shipped Default (`ehr/fixtures/hospital.json` as it is now, sent
+  by the dev server as `shipped`) into the draft where the version has no value. Save makes the
+  version; Discard drops it. A line under the tab bar says how many values in how many rows,
+  counts only. Filled rows are marked "changed".
+- **The rule** (`hospital.ts › defaultsPlan`; `applyDefaults` puts it in the draft,
+  `defaultsHint` says it):
+  - A list or a number the version never saved takes the Default's whole.
+  - A row that has a row of the same name in the Default (a visit type and a facility or
+    department by the record's name, a specialty by its spoken name, a group or a time of day by
+    its name, hours by the day, a closed day by its date): each field the version never saved,
+    or saved empty, takes the Default's value.
+  - A value set stays. No row is added or removed. IDs never move (`id`, `code`, a
+    department's `facility`). A department's specialty is filled only when its ID is on this
+    version's Specialties list.
+  - A place from the EHR (it has a FHIR id) is left as the EHR gave it: the Default's phone
+    numbers are made up.
+  - Reasons and the Booking rules have no name of their own: taken only when the version has
+    none saved.
+- **Decided inside his choice:** the rule above; the button's hint ("Fill what this version
+  has no value for from the shipped Default. A value set stays. Nothing is saved until Save.");
+  a dev server older than the button sends no Default, and the button hides.
+
+### 9.1 Desk test
+Restart `npm run dev` first.
+0. Config › Hospital, Edit. Defaults sits just right of the tab bar, its word whole. Hover it:
+   the hint lists, under "Visits › Visit types", "Office Visit: Patients → Established" and
+   "New Patient Appointment: Patients → New"; under "Specialties › Specialties", family medicine's
+   Primary care → On; under "Places › Departments", Main Street Clinic's Address and Phone.
+1. Press Defaults. The line under the tab bar names the values and
+   rows filled. Visits: Office Visit reads Established, New Patient Appointment reads New.
+   Specialties: family medicine is Primary care; the cardiology row with ID 4 has "heart
+   doctor". Places: Main Street Clinic has its address and phone.
+2. Press Defaults again: "nothing to take, every value is set".
+3. Save. Chat, Local, Test, as Priya Raman: book a visit; the read-back says "a new patient
+   visit". As Jordan Ellis: book a check-up; the agent names the usual place, not "where".
+4. Read mode: no Defaults button.

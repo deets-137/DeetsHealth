@@ -1091,7 +1091,28 @@ impl Hospital {
                 return Pick::outcome(PickOutcome::UnknownSpecialty);
             }
         }
+        // A row with no ID stands for the row with an ID and the same spoken name: an import from
+        // Epic beside an older list gave "cardiology" twice, the caller's words on the row with no
+        // ID (a desk test, 2026-11-22: "a heart doctor" was not known).
+        let same_name = |i: usize| -> Vec<usize> {
+            let spoken = self.specialties[i].spoken.trim().to_lowercase();
+            if !self.specialties[i].code.trim().is_empty() || spoken.is_empty() {
+                return vec![i];
+            }
+            let coded: Vec<usize> = (0..self.specialties.len())
+                .filter(|&j| !self.specialties[j].code.trim().is_empty() && self.specialties[j].spoken.trim().to_lowercase() == spoken)
+                .collect();
+            if coded.is_empty() { vec![i] } else { coded }
+        };
+        // Primary care if either row of a pair is marked so.
         let primary_care = named.is_empty() || named.iter().any(|&i| self.specialties[i].primary_care);
+        let named: Vec<usize> = named.into_iter().flat_map(same_name).fold(Vec::new(), |mut all, i| {
+            if !all.contains(&i) {
+                all.push(i);
+            }
+            all
+        });
+        let primary_care = primary_care || named.iter().any(|&i| self.specialties[i].primary_care);
         let codes: Vec<&str> = named.iter().map(|&i| self.specialties[i].code.trim()).filter(|c| !c.is_empty()).collect();
         let marks = self.marks_primary_care();
         // A department fits the kind of care: one of the named specialties; with none named, a
@@ -1473,6 +1494,27 @@ mod tests {
         // Online is for either.
         assert_eq!(h.fake_type(true, true), h.fake_type(true, false));
         assert_eq!(h.established_years, 3);
+    }
+
+    /// An import from Epic beside an older list: "cardiology" twice, the caller's words on the row
+    /// with no ID (a desk test, 2026-11-22). The words reach the row with the ID.
+    #[test]
+    fn a_specialty_with_no_id_stands_for_the_one_with_its_name() {
+        let list = json!("urn:oid:1.2.840.114350.1.13.0.1.7.10.686980.110");
+        let specialties = json!([
+            {"code": "", "spoken": "cardiology", "words": ["heart doctor"]},
+            {"code": "4", "spoken": "Cardiology"},
+            {"code": "", "spoken": "dermatology", "words": ["skin doctor"]}
+        ]);
+        let locations = json!([{"record": "EMC Cardiology", "id": "d3", "specialty": "4"}]);
+        let h = Hospital::from_pairs([("specialty_list", &list), ("specialties", &specialties), ("locations", &locations)]).unwrap();
+        let said = |s: &str| Shielded::new(s.to_string());
+        let heart = h.pick(None, Some(&said("a heart doctor")));
+        assert_eq!(heart.outcome, PickOutcome::default());
+        assert_eq!(heart.departments.len(), 1);
+        assert!(heart.specialty_code.is_some(), "the one ID");
+        // A row with no ID and no row with its name still matches no department.
+        assert_eq!(h.pick(None, Some(&said("a skin doctor"))).outcome, PickOutcome::UnknownSpecialty);
     }
 
     #[test]

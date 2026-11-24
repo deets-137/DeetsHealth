@@ -145,7 +145,8 @@ and phone and the hospital's hours. A building or a town that holds several depa
 as the facility. Reads no record, so it works before verification; with no place named, the
 place of the visit the caller just heard or booked. The hospital's next closed days go to the
 model, said only when the caller asks about a day. A place on no list is said so; several ask
-which.
+which. Says only what the caller asked (`asks`: where, phone, hours); with nothing asked, all
+three; an hours question about a place with no hours says all three.
 record: none
 lines: line.place_address, line.place_no_address, line.place_phone, line.place_no_phone, line.place_hours, line.place_info_which, line.unknown_place, line.which_place, line.another_place
 

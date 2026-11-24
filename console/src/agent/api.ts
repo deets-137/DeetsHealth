@@ -438,6 +438,9 @@ export type HospitalSettings = {
   /** What ehr's hospital.rs allows: a cell's characters, a list's rows (`places`: the
    * facilities' and the departments'), a cell's words, the times of day, the search windows. */
   limits: { cell: number; rows: number; places: number; words: number; times: number; windows: number };
+  /** The shipped Default as `ehr/fixtures/hospital.json` holds it now (the Defaults button); the
+   * store's Default version is the file as it was on the first start. */
+  shipped: HospitalValues;
 };
 export const hospitalSettings = (version = 0) =>
   get<HospitalSettings>(version ? `/agent/hospital?version=${version}` : "/agent/hospital");

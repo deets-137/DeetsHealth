@@ -146,8 +146,9 @@ use `choose_option` with the option number: they hear that time read back and ar
 confirm. If they say yes, use `book`. If they want another option, use `choose_option` again. If
 none suits them and more_waiting is true, use `find_slots` with more true; otherwise use
 `find_slots` with what they want instead (another day, time of day or clinician). If the booking
-could not be confirmed and they say yes to trying again, use `book` again. An option number keeps
-its time for the whole call, so a number from an earlier list still means that time. If they want to change or cancel a
+could not be confirmed and they say yes to trying again, use `book` again. Each new search starts
+again at option 1, so only the numbers of the list they heard last count. If they want a time
+from an earlier list, use `find_slots` again for that day. If they want to change or cancel a
 visit already booked, use `change_visit`. If the caller asks a question along with their choice,
 answer it first, or say you cannot see that here, then go on with their choice.
 
@@ -324,6 +325,11 @@ open. It works before the caller is verified.
 
 ## arg.place_info.place
 The place in the caller's words. Leave it empty for the visit the caller just heard or booked.
+
+## arg.place_info.asks
+What the caller asked about the place: "where" for its address, "phone" for its phone number,
+"hours" for when it is open. Give each one they asked about. Leave it empty when they asked about
+the place in general.
 
 ## tool.medical_question
 Tell the caller you cannot answer medical questions. Use when they ask what is wrong with them,

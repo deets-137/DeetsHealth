@@ -2,7 +2,7 @@
 status: sop
 desk_test: none
 sources: []
-updated: 2026-11-22
+updated: 2026-11-24
 ---
 # DeetsHealth — Handoff
 
@@ -146,8 +146,22 @@ default, but the free plan accepts the flag and keeps requests anyway (tested, �
 ElevenLabs takes synthetic calls only, On or Off. A free account (10,000 credits, never billed);
 its key in `.env`. Scribe's rate is unconfirmed (§11.1). Desk test: VOICE-VENDORS.md §11.6.
 **Restart `npm run dev`**: ehr (the catalog) and the agent's Python changed. A vendor's refusal
-(auth, quota) ends the call at once with its own words (`call.py › voice_failure`). Not
-committed.
+(auth, quota) ends the call at once with its own words (`call.py › voice_failure`). Committed
+as `3ccf2ed`.
+
+**Built 2026-11-24, desk tests passed 2026-11-24 ("desk tests look good"), committed: the seven
+open issues of 2026-11-22**
+(PRE-LIVE-VERIFICATIONS.md §2, with the desk test). Fixed: "cardiology procedures" (`names_terms`),
+"a heart doctor" (a specialty row with no ID stands for the row with an ID and its name; the
+import fills the ID), an hours question says only the hours (`place_info`'s new `asks`; its
+words a draft). `pip-audit`: no known vulnerabilities. His forks, built the same day: **1A, the
+Defaults button** on Config › Hospital (HOSPITAL-CONFIG.md §9: the shipped Default's values where
+a saved version has none; the cause of the new patient's "office visit", Main Street's missing
+address and Jordan's missing usual place) and **N2, each search starts at Option 1**
+(CALL-FLOW.md; `task.schedule`'s words changed, a draft). Desk tests: PRE-LIVE-VERIFICATIONS.md
+§2, HOSPITAL-CONFIG.md §9.1. **Open, his step:** Test on Config › Agent. The tool list and the
+words changed, so the 15 kept scripts miss their replays (about 3¢) and `npm run check`'s agent
+tests, and so the pre-push hook, fail until they are recorded again.
 
 **Built 2026-11-22, desk test passed 2026-11-23: Chat › Timeline, Rules › Booking, Org Chart gone** (the
 owner's forks that day). The Timeline tab is a waterfall per turn against the 800 ms target,
