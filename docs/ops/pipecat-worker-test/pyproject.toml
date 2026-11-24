@@ -1,0 +1,31 @@
+[project]
+name = "pipecat-worker-test"
+version = "0.1.0"
+description = "Test: does Pipecat load and run in a Cloudflare Python Worker?"
+requires-python = ">=3.12"
+# Pipecat's own source is copied into src/ (it is pure Python). These are its dependencies that
+# are pure Python or have a Pyodide build. loudness, pipecat-resampler and sentencex have no
+# Pyodide build: src/ holds a stand-in for each.
+dependencies = [
+    "anthropic",
+    "openai",
+    "pydantic",
+    "numpy",
+    "loguru",
+    "aiohttp",
+    "aiofiles",
+    "websockets",
+    "protobuf>=6,<7",
+    "pyyaml",
+    "pillow",
+    "markdown",
+    "docstring-parser",
+    "python-dotenv",
+    "typing-extensions",
+]
+
+[dependency-groups]
+dev = [
+    "workers-py",
+    "workers-runtime-sdk",
+]

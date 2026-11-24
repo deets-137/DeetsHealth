@@ -1,0 +1,10 @@
+{
+  "name": "pipecat-worker-test",
+  "main": "src/entry.py",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["python_workers"],
+  // The Anthropic and OpenAI SDKs are 5,297 small files. They ride in src/vendor.zip
+  // (zip_vendor.py) and are left out of the vendored folder.
+  "python_modules": { "exclude": ["**/*.pyc", "**/*.pyi", "anthropic/**", "openai/**"] },
+  "rules": [{ "type": "Data", "globs": ["**/*.zip"], "fallthrough": true }]
+}

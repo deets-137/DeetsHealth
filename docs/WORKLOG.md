@@ -8,6 +8,32 @@ updated: 2026-11-24
 
 One dated `##` per sitting, newest first. Never correct an old entry; correct HANDOFF.md.
 
+## 2026-11-24 (Windows) — the public demo: the design, and Pipecat in a Python Worker
+- His words: "strip out a lot of the safety features, use cloudflare as our db provider and
+  have essentially a functioning version of deetshealth at deets.solutions/health able to be
+  clicked in, used".
+- Designed, no product code: [ops/PUBLIC-DEMO.md](ops/PUBLIC-DEMO.md). His choices, in order:
+  live typed calls; no Containers ("rewire certain pieces to use D1/DO/R2"); visitors are
+  recruiters and hiring managers; a fake login wired to the roles, to fill the audit log; the
+  Epic button greyed with a toast to contact him; one shared hospital with edits as versions;
+  a plain store, with a panel that names the differences; the call's rules in Rust (A), 1A
+  (Pipecat keeps the request on the phone path), 2A (over `ehr`'s gRPC), a shared Rust API;
+  $2 a day; a reset every week; a typed name and a role.
+- Tested: Pipecat 1.16 in a Cloudflare Python Worker (PUBLIC-DEMO.md §9). The kept script
+  `book_a_visit` ran with the same 9 replies and 11 of 11 replay files hit, locally and
+  deployed. Deployed, every request took 17 to 27 s. Three deploys: refused for 7,496 files,
+  refused for memory at startup, then accepted. The test Worker was deleted the same hour.
+- The test's files: `docs/ops/pipecat-worker-test/` (the config, five stand-in packages, the
+  test Worker, the tape recorder, the bundle builder, the zip step).
+- His mockup of the page, saved: `docs/architecture/images/health-demo-layout-2026-11-24.webp`
+  (the console in the site page's main column, Notes and Login at its right, Health in the
+  site's nav; PUBLIC-DEMO.md §3.5).
+- His last two forks: the console is usable at once as a guest, with Login beside it; the
+  console keeps its own look inside a box, "like Deetsmusic's demo does". The doc is `designed`.
+- Open: the drafts of PUBLIC-DEMO.md §7.
+- On his PC, not in the repo: the folder `C:\dh-pyodide-test` (the built test; safe to delete),
+  and Wrangler signed in from his terminal with its standard wide scopes.
+
 ## 2026-11-24 (Windows) — the seven open issues of 2026-11-22
 - His words: "fix the seven open issues. i'll work on the shape of the demo in another chat".
 - Found: the active hospital version (saved 2026-11-15) is older than the Default's Patients

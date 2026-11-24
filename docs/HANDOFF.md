@@ -123,6 +123,12 @@ interface (VOICE-AGENT.md §7.2).
 The list, and the issues found that day, is [PRE-LIVE-VERIFICATIONS.md](PRE-LIVE-VERIFICATIONS.md):
 every row is run before going live. MIT license since 2026-11-22 (`LICENSE`).
 
+**Designed 2026-11-24, not built: the public demo at `deets.solutions/health/`**
+([ops/PUBLIC-DEMO.md](ops/PUBLIC-DEMO.md)). The build is five hand-overs, the first two with no
+change a caller or an analyst can see: `ehr`'s rules into their own crate, then the call's
+rules out of `flow.py` into Rust. Every fork is closed; the drafts of §7 are the owner's
+to edit. Before hand-over 1, every kept script must pass on `main`.
+
 **Built 2026-11-23, desk test passed 2026-11-23: the model in the vendors crate** (architecture/VOICE-VENDORS.md
 §10; his "A: one vendors crate"). The `voice` crate is now `vendors/`, with a `model` side: the
 model catalog (`catalog/model/anthropic.json`) makes the `llm` settings and rules in `ehr`, and

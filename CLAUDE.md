@@ -211,6 +211,11 @@ the branch `archive/patient-app`.
 - `PROTOCOLS.md` — a draft: how the owner, helpers and their agents work here (the rules that
   never bend, joining and leaving, branches and PRs, the review checklist, agents, vendors,
   incidents).
+- `PUBLIC-DEMO.md` — the public demo at `deets.solutions/health/` (designed, not built): a
+  fake login on the real roles and audit trail, one shared synthetic hospital in D1, live typed
+  calls under a daily cap, what is off; the build that moves the call's rules and `ehr`'s rules
+  into Rust crates for the product and a Worker, in five hand-overs; and what the test of
+  Pipecat in a Python Worker found (§9, its files in `pipecat-worker-test/`).
 
 **`docs/ideas/`** — not built; never tell a user the app does these.
 - `README.md` — the short list of ideas without a doc of their own.
