@@ -1,0 +1,208 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011ChNeaQ9R3dmjFwKHsb2qv",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 258
+     },
+     "cache_creation_input_tokens": 258,
+     "cache_read_input_tokens": 6283,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 8,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "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",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01G139dyTatcLFMGdthJfBch",
+    "input": {},
+    "name": "find_slots",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"reaso",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "n\": \"ro",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "utine c",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "heck-up",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "\"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"any_",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "time\": ",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "true",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"visi",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "t_mode\"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ": \"eith",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "er\"}",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 258,
+    "cache_read_input_tokens": 6283,
+    "input_tokens": 4,
+    "output_tokens": 437,
+    "output_tokens_details": {
+     "thinking_tokens": 335
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

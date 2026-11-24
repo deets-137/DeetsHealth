@@ -1,0 +1,208 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011ChNeVxgcNhA6YtnQrPqA6",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 285
+     },
+     "cache_creation_input_tokens": 285,
+     "cache_read_input_tokens": 3420,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 8,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSiQYKEAgUGAI4AUIIdGhpbmtpbmcSDMRPCPskR4KqDdAK9xoMMuldMrMMy9LmDVksIjCOIkcact1dnfoKg4qcG86vlEK7z2SOZjvtMMzw4G7/RNeak9cQKiwTXkmp1W04sZcqpgVDMIxL6VxJ8J15ySePHk5X9qjG7oVOUtzrz6+ZFYmTlubydxCZNQu6ro+jJ/l7vaDfEXHMzSlEkc9hlh1yb7HQaXJ4XkoeOLK8AftTIud2SBbia8x3LZ85x1cRsomDXCcVdtAAysMOIlxbm1WBV7f/U41v5Paso3gNdDjf6IwuJK3armdtVgt3XH80IunOxMuAL0WtjOiIkxksRmJIfZzz8+eMEphVQ1UN8kPb4lmPPxGkTiOmLbopsG6d7yRRXsqjuXqThSDH4V3iXNEyyZZE3g1E1NgUcW2EiD0pz6poyJlFBJ6/cCWra0WEUkMAIu+JALecfklrAOeCOk6dBIhC66gBJXk8GSeEgeoolbRsheHzU9Hrwt4KCHHnTMnJ9xhNyAYHYFd4y2dEA9t4ALjIDGVScgJqBM2CBsv6obUvpYqeT0gJmdfkG3PmsMfuJfBRrheoV3Nv6c3jmJ/oiNeW10HiMf7M4gGHqaN66OkhwuTHf1j013M/BY9eJdKdFHZGOBeGnas9qckhZeqUfgVBwRJNcJ5yjHFfXPLV7e4RMlqI5iq+6svFihqEmQQZf/MUDTq8TWESZFUgHOr8POTh5oHWIo/9vxgj1ZSB+bsozh2WQefStNFM1FWv6eTFwHWmawZ07W5Pg6k56Ndb4t1rDkPaV1c9d3kfAltC3pzkmJAanPa1NVobPyLh3zFaITubgKp349gnmB1fndfWV4mp1v7VYB3CIL6f4QvZgOA2CMjlH2fOK+cN2H9Aoh/B17lbUC1+QoA56zoadcX5GGOz4PWSXbT4v2IJLS2+dksQPiMRcQJ3nUH/cYMM7GL+6ZS0Ll4iHi+Xg5dPBVauj8fuVZIdCPSaztU0VKdCK3W0g27Ed8hZuHXw2xaxLF1UDieyYFIRElAYAQ==",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_013TQYaDmAsThP9G9jWYY7Lh",
+    "input": {},
+    "name": "identify",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"given",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "_name\":",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " \"Priya",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "\"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"fami",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ly_name",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "\": \"Ram",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "an\"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"birt",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "h_date\"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ": \"1971",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "-11-30\"}",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 285,
+    "cache_read_input_tokens": 3420,
+    "input_tokens": 4,
+    "output_tokens": 164,
+    "output_tokens_details": {
+     "thinking_tokens": 59
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

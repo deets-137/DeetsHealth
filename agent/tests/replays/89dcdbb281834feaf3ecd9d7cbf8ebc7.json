@@ -1,0 +1,514 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011ChNebuZzspZXD48JRg9ZJ",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 1475
+     },
+     "cache_creation_input_tokens": 1475,
+     "cache_read_input_tokens": 6314,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 5,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQS5woKEAgUGAI4AUIIdGhpbmtpbmcSDK92DwUvHuZP7R9k4BoMIRquXaLYVrckHD7BIjChDwKOKmXDk/woKDzHGYGO6Otl5T7F/vODyhCiFXfLpFIEELV0v60lvMm6dOAis2UqhApS3AX6l+dlTHJlx8ZIMHHkaNgnLf/aEW726O/YdQCl7w4XSoLAubTkjBKtFr+VbWEQFqG7JZn/wvJE+P2weGMz8q2AGG5d9VXvrBREnkH64XjZh8rcvrMEn8mske5CmdmVhIYWICC6A0Znp/HF/E1Fa+43KtLlzr76r+ccu6bWJCAlawiSMhVYKftYxDdfkkNrputeU9ectRSwHpKN3p3rD5qIjPore7kxzW+hR2muDOV5WsWb0p2zyD3/dusKi+rI8co/c8KwdKlObLKb2ZWMdy3Y7jK2lZfoEDUadlYE8KrnPQRNA8ft4jy1UgzzxyAL/ED67g8iKKb/ZL8e9Fyp7MaOGvoogMTIO7kXso5AKbv7Ys+oKjqJH9S5LLzMnzSZOt6ntN5+h67AARcvMF5L2SX6zICkUZFD6yrbNXfp8LzTBScmNjTBCfaWCs5+5vBaQk1kaQankrBpP85fcl2AY+OKkn/kI4FUwP4fKWRVYYNsQNyiLPeE5B0kxJplpEhOU9XCV7rRorqBj/Z0CRcsTAIEAEJKAhFe1XRDo2wh30w9VLeNLn48XepuzU1gGcZZ+BfVGxeuzAbiAUh6G0VPPzixqqpCqpWHxSvcLTf6RiKCHX8Ex4wftcMT3VcI6dlg0i6hbyXoMpY9dzdBgNutGzZ9PmGi2sreCVkywzHx3pjmZG1P+UFbwUlwPTNsSADeI74E5tH1hmSC8s089zqhaoOiikHT+gzsNfJjpfr0QyGCORnWDZJz0CfO8pXdf4GPUN378N1ijJqR5x/ctJgutfsyq+K/7LNn2u8aWG+lf6wfuqJKqRo+k4LOksO7Nw7Kk6YhItCXWiTRLk3k1iwvab24sjTFn/1dkrfY3/PM6OHG8+A+tA9xNa0n4TpYGWw+UAFN5aWl+m5lcH0bqKAlLcFPuJdaVFWtFir4BdoOaEZGpRCErocS2ZxDuZThonRp6w7ccAw0l+wxSAwf7mgxhrdCHEYZsaamrV4bTLI1Y2yfS0Q2StYtAif7SWHO3UwVzAL4Q+6Ggx5KMh9AAJTRwaYB4U6yYT7drP8YkHhIqGX2BpdDnWIxFU7ySQEh66RkPsX8azOuDOX6MsyhvOSPveoHoJwbd7+nHIBmKCgKWL8IAwFUoZSyDoo5RYGK/cxb2yELq30pGIxLN3/D+1m9ih/IS2LPnEsg9cZShgoOdXQGBWl8huSNM4zj1BYolSQi7QYnOpVRmFfuJQkpM/V5LudNo+NeRkPIMQPrD5SqU4wehbM6JSTxIds3VDgaelrQatitZCsGwWKTIYcgUjIHWsOpdc1zXuy9aUiudPHKmp1DGtrthJvAbGwfoBeRwBzUs19MGgmDzvNXsgXA6LNPixDGiHFfCG//gPL45DVD0e1+js+/MHqRvYUzl8fwIOpT1OtEYHuLDt15Z2+cIUJuI2xCXOUA932cKaemjbEBptMpKM5d0k/MAoz2D0ZZwm3XU8VDWNHTfsewcuAmcie2UK8MrVylTJG8zVEEhuePLgYcTF4LyY6kEEoMNVze4bwJ9llbGSPhoiEeSaArtsO7hMMBaZ2oIuBxIWVnB8FFXgAdpUXzzsj5W8jV/l3noqBuY8gh2p19kxD4b7PKWRlTyQJ9YLSKfE9vnRpH5TtjTRbr9+qHrlY8AR2jHmNqod/KZyHNUI5UtPvzNIbD8YEh8vpVtUo5Jn0gSlArJ4/JBoAd+2MYAQ==",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_01LJPRJ53JUJg8siGpKDnXno",
+    "input": {},
+    "name": "flag_for_staff",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "{\"kind\"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ": \"clin",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ical_qu",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "estion_",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "waiting",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "\"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"summ",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ary\": \"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "Jordan ",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "Ellis, ",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "verifie",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "d, book",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ed a ro",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "utine c",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "heck-up",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " for Mo",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "nday, N",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ovember",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " 2, at ",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "9 AM wi",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "th Dr. ",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "Avery L",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "in. Dur",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ing the",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": " call t",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "he call",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "er aske",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "d a med",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ical qu",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "estion ",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "about t",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "heir he",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "alth an",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "d said ",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "they we",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "re worr",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ied.\"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ", \"evid",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "ence\": ",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "[\"Am I ",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "dying?\"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": ",\"Yes, ",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "I'm saf",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "e, I'm ",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "just wo",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "rried.\"",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "partial_json": "]}",
+    "type": "input_json_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "caller": {
+     "type": "direct"
+    },
+    "id": "toolu_012e8BwLpFb6eeNnsPp2EZXb",
+    "input": {},
+    "name": "end_call",
+    "toolset_name": null,
+    "type": "tool_use"
+   },
+   "index": 2,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "partial_json": "",
+    "type": "input_json_delta"
+   },
+   "index": 2,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 2,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "tool_use",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 1475,
+    "cache_read_input_tokens": 6314,
+    "input_tokens": 4,
+    "output_tokens": 450,
+    "output_tokens_details": {
+     "thinking_tokens": 227
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}

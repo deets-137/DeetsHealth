@@ -1,0 +1,171 @@
+{
+ "events": [
+  {
+   "message": {
+    "container": null,
+    "content": [],
+    "diagnostics": null,
+    "id": "msg_011ChNeiMtDAaXGeitoewyGT",
+    "model": "claude-haiku-5-5",
+    "role": "assistant",
+    "stop_details": null,
+    "stop_reason": null,
+    "stop_sequence": null,
+    "type": "message",
+    "usage": {
+     "cache_creation": {
+      "ephemeral_1h_input_tokens": 0,
+      "ephemeral_5m_input_tokens": 38
+     },
+     "cache_creation_input_tokens": 38,
+     "cache_read_input_tokens": 3818,
+     "inference_geo": "us",
+     "input_tokens": 4,
+     "output_tokens": 5,
+     "output_tokens_details": null,
+     "server_tool_use": null,
+     "service_tier": "standard",
+     "speed": "standard"
+    }
+   },
+   "type": "message_start"
+  },
+  {
+   "content_block": {
+    "signature": "",
+    "thinking": "",
+    "type": "thinking"
+   },
+   "index": 0,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "thinking": "",
+    "type": "thinking_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "signature": "CAQSxQYKEAgUGAI4AUIIdGhpbmtpbmcSDB7+2NfpH5k2dsoXNhoMVW5A9JXkuyGhWj+gIjDNWQAOWsexP0VEvWsgtkiLHM716GvTUwQol3wh+yFix6ZJcVYDANaZPYWRjynk7KEq4gXyjNg7ETegay883rQ6ss4rTgVAGLZ4i6zOIGvaKZSoFgI+SofYH/iOTsSMy5YZCgX10+hnUoi8TmTQvcYPS312IJLjubBSe6JTHNYv8rxDa3Qe1RR2xZyL6C01e2LE+Ge53RWZ8yK8bIpTTXqhBmbDZPwCKUxS9Vp6tY9g0NS9Hm3V/yjZQNmfKuRT4E/73SiyqzJIyjI2AQPiw6Ys4e3I1qILTzCvrKf/E8pNoA5reg0HbCKwyeroYdfzwY/nQxMfOlw6LbzOCTNaxMsbUknuZNi9Uivw08blH2iiUUn0L5HizaOuvLUoH+wvPOQfHtDD6M+vHEd1k7V5SDD46Vt27d8AFtO5jVMhXRWWkqacsStXu2CUSMAP/j1o4GNMBvONo1Zn3QMLw7LcxKx6xz++2q71udUvwA6UX+BbIJ0KfV89wzfQ7Dh+HD3c0WTGv8s6gBzHZSrpdvV+U2hGtBQLUVN2WP2zmQV+aG57LbPxpymdtH5elv/waWExHdjzRaejbYxHUn53bSpoHG5VEu6vIpg0TBenbI2gEPrIy/pEE2eWT3/Bw/y7p+m9CLS9Grd8uSPb2hrto9KU0K9TYTGckGQ9XG8PJKYYCY8PkN8FzHkz+X2B9RWFkwX69seJQU5oeoxza9ou7Fm3OO+Znr3hOi4xuU+8ZlJMvsJT8txy20ODxkrl/UkrfCOswsOgHNoLwbbavdZqgjvHdbim1zNvGIul+NMmhe12cM+BW7fPABmkV2D29vZOwYJzAZCGT5UnsEVnkvrUeyZ1GGOijJOV4SCuhg3k/i9Qn1SS2IQ9VXo7hEcabwBI8KRpTwAHTsfzYfXF6N1HQ5vqKCZP1lHIO6hnGMUezWWbdRX7DKkmolpAY/Ps5suXZ8ngp3D/4ZDlDYg1tHIHRviru4GZlYWg38T2f/0AiwILOTHC8byUB0yCVXw4o4hlhPQ3u2OkY04y+5pKDKj2aDzuqYY0Ru1G9hAYAQ==",
+    "type": "signature_delta"
+   },
+   "index": 0,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 0,
+   "type": "content_block_stop"
+  },
+  {
+   "content_block": {
+    "citations": null,
+    "text": "",
+    "type": "text"
+   },
+   "index": 1,
+   "type": "content_block_start"
+  },
+  {
+   "delta": {
+    "text": "I can",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " only help with vis",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "its here, and",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " that",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "'s true",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " for every",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " topic. What can",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": " I do for your visit today",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "delta": {
+    "text": "?",
+    "type": "text_delta"
+   },
+   "index": 1,
+   "type": "content_block_delta"
+  },
+  {
+   "index": 1,
+   "type": "content_block_stop"
+  },
+  {
+   "delta": {
+    "container": null,
+    "stop_details": null,
+    "stop_reason": "end_turn",
+    "stop_sequence": null
+   },
+   "type": "message_delta",
+   "usage": {
+    "cache_creation_input_tokens": 38,
+    "cache_read_input_tokens": 3818,
+    "input_tokens": 4,
+    "output_tokens": 73,
+    "output_tokens_details": {
+     "thinking_tokens": 43
+    },
+    "server_tool_use": null
+   }
+  },
+  {
+   "type": "message_stop"
+  }
+ ],
+ "stream": true
+}
